@@ -1,0 +1,23 @@
+# Sensitive
+google cloud client ID key DO NO SHARE.docx
+
+# Documentation (keep separate, not needed for app)
+*.docx
+old doc/
+UI design V1/
+
+# Audit artifacts (temporary)
+i18n-audit-report.md
+i18n-findings-summary.txt
+i18n-fixes-checklist.csv
+FIXES-IMPLEMENTATION-GUIDE.md
+README-i18n-AUDIT.md
+V2_FEATURES.md
+
+# Backup copy
+youtube-playlist-manager-v2-backup.html
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini

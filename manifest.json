@@ -1,0 +1,31 @@
+{
+  "name": "Reel / Playlist Manager",
+  "short_name": "Reel",
+  "description": "Manage, organize and analyze your YouTube playlists with advanced tools",
+  "start_url": "youtube-playlist-manager.html",
+  "display": "standalone",
+  "background_color": "#111113",
+  "theme_color": "#d4613a",
+  "orientation": "any",
+  "categories": [
+    "utilities",
+    "entertainment"
+  ],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "lang": "fr",
+  "dir": "ltr"
+}
