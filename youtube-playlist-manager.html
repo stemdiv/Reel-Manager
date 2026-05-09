@@ -1736,6 +1736,7 @@ const I18N = {
     toast_loading_playlists: 'Chargement des playlists...',
     toast_playlists_loaded: '{count} playlists chargées',
     toast_loading_videos: 'Chargement des vidéos... ({done}/{total} playlists)',
+    toast_loading_details: 'Chargement des détails... ({count} vidéos)',
     toast_all_videos_loaded: '{count} vidéos chargées',
     toast_enter_name: 'Veuillez entrer un nom',
     toast_playlist_created: 'Playlist créée',
@@ -2182,6 +2183,7 @@ const I18N = {
     toast_loading_playlists: 'Loading playlists...',
     toast_playlists_loaded: '{count} playlists loaded',
     toast_loading_videos: 'Loading videos... ({done}/{total} playlists)',
+    toast_loading_details: 'Loading details... ({count} videos)',
     toast_all_videos_loaded: '{count} videos loaded',
     toast_enter_name: 'Please enter a name',
     toast_playlist_created: 'Playlist created',
@@ -2874,6 +2876,7 @@ async function loadAllVideosAtStartup() {
 
   showToast(t('toast_loading_videos', { done: 0, total }), 'info');
   let loaded = 0;
+  const allVideoIds = [];
 
   for (const pl of APP.playlists) {
     if (!APP.allVideos[pl.id]) {
@@ -2883,12 +2886,27 @@ async function loadAllVideosAtStartup() {
         console.warn(`[Startup] Failed to load videos for "${pl.snippet?.title}":`, err.message);
       }
     }
+    // Collect video IDs for details pre-fetch
+    const videos = APP.allVideos[pl.id] || [];
+    for (const v of videos) {
+      const vid = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId;
+      if (vid && !videoDetailsCache[vid]) allVideoIds.push(vid);
+    }
     loaded++;
     if (loaded % 5 === 0 || loaded === total) {
       showToast(t('toast_loading_videos', { done: loaded, total }), 'info');
     }
   }
-  showToast(t('toast_all_videos_loaded', { count: Object.values(APP.allVideos).reduce((s, v) => s + v.length, 0) }), 'success');
+
+  // Pre-fetch all video details (duration, channel, stats) in batches of 50
+  if (allVideoIds.length > 0) {
+    showToast(t('toast_loading_details', { count: allVideoIds.length }), 'info');
+    const details = await getVideoDetails(allVideoIds);
+    Object.assign(videoDetailsCache, details);
+  }
+
+  const totalVids = Object.values(APP.allVideos).reduce((s, v) => s + v.length, 0);
+  showToast(t('toast_all_videos_loaded', { count: totalVids }), 'success');
 }
 
 async function loadUserInfo() {
