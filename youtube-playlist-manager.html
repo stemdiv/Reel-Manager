@@ -2461,9 +2461,22 @@ function loadBackupFromStorage() {
     if (!backup.playlists || !Array.isArray(backup.playlists)) return;
 
     // Restore full playlist objects if available
-    if (backup.playlistObjects && Array.isArray(backup.playlistObjects)) {
+    if (backup.playlistObjects && Array.isArray(backup.playlistObjects) && backup.playlistObjects.length > 0) {
       APP.playlists = backup.playlistObjects;
       APP.playlists.sort((a, b) => (a.snippet?.title || '').localeCompare(b.snippet?.title || ''));
+    } else {
+      // Fallback: reconstruct synthetic playlist objects from simplified backup data
+      APP.playlists = backup.playlists.filter(pl => pl.id).map(pl => ({
+        id: pl.id,
+        snippet: {
+          title: pl.title || '',
+          thumbnails: pl.videos?.[0]?.thumbnail ? { medium: { url: pl.videos[0].thumbnail }, default: { url: pl.videos[0].thumbnail } } : undefined
+        },
+        contentDetails: { itemCount: pl.videos?.length || 0 },
+        status: { privacyStatus: 'private' }
+      }));
+      APP.playlists.sort((a, b) => (a.snippet?.title || '').localeCompare(b.snippet?.title || ''));
+      console.log(`[Backup auto-load] playlistObjects absent — ${APP.playlists.length} playlists reconstruites depuis le backup simplifié`);
     }
 
     let videoCount = 0;
@@ -2484,8 +2497,29 @@ function loadBackupFromStorage() {
       }
     });
 
+    // Pre-populate videoDetailsCache from backup data to avoid API calls on playlist click
+    if (typeof videoDetailsCache !== 'undefined') {
+      backup.playlists.forEach(pl => {
+        if (pl.videos) {
+          pl.videos.forEach(v => {
+            if (v.videoId && !videoDetailsCache[v.videoId]) {
+              videoDetailsCache[v.videoId] = {
+                contentDetails: { duration: v.duration || '' },
+                snippet: {
+                  title: v.title || '',
+                  channelTitle: v.channel || '',
+                  thumbnails: v.thumbnail ? { medium: { url: v.thumbnail } } : {}
+                },
+                statistics: {}
+              };
+            }
+          });
+        }
+      });
+    }
+
     if (videoCount > 0) {
-      console.log(`[Backup auto-load] ${backup.playlists.length} playlists, ${videoCount} vidéos chargées depuis le backup`);
+      console.log(`[Backup auto-load] ${backup.playlists.length} playlists, ${videoCount} vidéos, ${Object.keys(videoDetailsCache || {}).length} détails chargés depuis le backup`);
     }
   } catch (err) {
     console.warn('[Backup auto-load] Erreur de chargement:', err.message);
