@@ -875,7 +875,7 @@
       <div id="dashboard" class="view active">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
           <h1 style="margin:0;">Dashboard</h1>
-          <button class="btn-icon" onclick="refreshDashboard();showToast(t('dashboard_updated'),'success')" title="Refresh dashboard" style="width:32px;height:32px;">
+          <button class="btn-icon" onclick="fullRefresh()" title="Refresh dashboard" style="width:32px;height:32px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
           </button>
         </div>
@@ -1282,14 +1282,29 @@
       <div id="export" class="view">
         <h1 style="margin-bottom: 24px;" data-i18n="export_title">Exporter la bibliothèque</h1>
         <p class="text-muted" data-i18n="export_subtitle">Téléchargez vos vidéos et playlists en CSV ou JSON</p>
-        <div class="form-group mt-16">
-          <label class="form-label" data-i18n="backup_format">Format</label>
-          <select class="form-control" id="exportFormat">
-            <option value="csv">CSV</option>
-            <option value="json">JSON</option>
-          </select>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 16px;">
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="font-weight:600; color:var(--text); font-size:13px;" data-i18n="export_select_playlists">Playlists à exporter</span>
+              <div style="display:flex; gap:8px;">
+                <button class="btn btn-sm" onclick="exportToggleAll(true)" style="font-size:11px; padding:3px 8px;" data-i18n="restore_select_all">Tout sélectionner</button>
+                <button class="btn btn-sm" onclick="exportToggleAll(false)" style="font-size:11px; padding:3px 8px;" data-i18n="restore_deselect_all">Tout désélectionner</button>
+              </div>
+            </div>
+            <div id="exportPlaylistList" style="max-height:350px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; padding:4px;"></div>
+            <div id="exportSummary" style="margin-top:8px; font-size:12px; color:var(--text2);"></div>
+          </div>
+          <div>
+            <div class="form-group">
+              <label class="form-label" data-i18n="backup_format">Format</label>
+              <select class="form-control" id="exportFormat">
+                <option value="csv">CSV</option>
+                <option value="json">JSON</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" onclick="exportLibrary()" style="width:100%; margin-top:12px;" data-i18n="export_btn">Download</button>
+          </div>
         </div>
-        <button class="btn btn-primary" onclick="exportLibrary()" data-i18n="export_btn">Download</button>
       </div>
 
       <!-- HELP/FAQ VIEW -->
@@ -1686,6 +1701,7 @@ const I18N = {
     export_title: 'Exporter la bibliothèque',
     export_subtitle: 'Téléchargez vos vidéos et playlists en CSV ou JSON',
     export_btn: 'Télécharger',
+    export_select_playlists: 'Playlists à exporter',
 
     // Help
     help_title: 'Mode d\'emploi & FAQ',
@@ -1719,6 +1735,8 @@ const I18N = {
     // Toasts
     toast_loading_playlists: 'Chargement des playlists...',
     toast_playlists_loaded: '{count} playlists chargées',
+    toast_loading_videos: 'Chargement des vidéos... ({done}/{total} playlists)',
+    toast_all_videos_loaded: '{count} vidéos chargées',
     toast_enter_name: 'Veuillez entrer un nom',
     toast_playlist_created: 'Playlist créée',
     toast_playlist_renamed: 'Playlist renommée',
@@ -2129,6 +2147,7 @@ const I18N = {
     export_title: 'Export Library',
     export_subtitle: 'Download your videos and playlists as CSV or JSON',
     export_btn: 'Download',
+    export_select_playlists: 'Playlists to export',
 
     // Help
     help_title: 'User Guide & FAQ',
@@ -2162,6 +2181,8 @@ const I18N = {
     // Toasts
     toast_loading_playlists: 'Loading playlists...',
     toast_playlists_loaded: '{count} playlists loaded',
+    toast_loading_videos: 'Loading videos... ({done}/{total} playlists)',
+    toast_all_videos_loaded: '{count} videos loaded',
     toast_enter_name: 'Please enter a name',
     toast_playlist_created: 'Playlist created',
     toast_playlist_renamed: 'Playlist renamed',
@@ -2764,6 +2785,8 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err?.error?.message || `Erreur API (${res.status})`);
     }
+    // Mark session as dirty on any successful write operation
+    if (method !== 'GET') markDirty();
     if (method === 'DELETE') return null;
     return await res.json();
   } catch (err) {
@@ -2798,6 +2821,18 @@ async function fetchAllPages(endpoint, params = {}, itemsKey = 'items') {
 // DATA LOADING
 // ============================================================================
 
+// Dirty flag — tracks if any write action happened this session
+let APP_DIRTY = false;
+function markDirty() { APP_DIRTY = true; }
+
+// Prompt backup on exit if changes were made
+window.addEventListener('beforeunload', (e) => {
+  if (APP_DIRTY) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
 async function showApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appContainer').style.display = 'flex';
@@ -2807,6 +2842,7 @@ async function showApp() {
   try {
     await loadUserInfo();
     await loadAllPlaylists();
+    await loadAllVideosAtStartup();
     refreshDashboard();
     populateSelectDropdowns();
     refreshPlaylistsList();
@@ -2814,6 +2850,45 @@ async function showApp() {
     console.error('Error loading app:', err);
     showToast(t('toast_error', { msg: err.message }), 'error');
   }
+}
+
+async function fullRefresh() {
+  try {
+    showToast(t('toast_loading_playlists'), 'info');
+    await loadAllPlaylists();
+    // Clear cached videos to force re-fetch
+    APP.allVideos = {};
+    await loadAllVideosAtStartup();
+    refreshDashboard();
+    populateSelectDropdowns();
+    refreshPlaylistsList();
+    showToast(t('dashboard_updated'), 'success');
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+  }
+}
+
+async function loadAllVideosAtStartup() {
+  const total = APP.playlists.length;
+  if (total === 0) return;
+
+  showToast(t('toast_loading_videos', { done: 0, total }), 'info');
+  let loaded = 0;
+
+  for (const pl of APP.playlists) {
+    if (!APP.allVideos[pl.id]) {
+      try {
+        await loadPlaylistVideos(pl.id);
+      } catch (err) {
+        console.warn(`[Startup] Failed to load videos for "${pl.snippet?.title}":`, err.message);
+      }
+    }
+    loaded++;
+    if (loaded % 5 === 0 || loaded === total) {
+      showToast(t('toast_loading_videos', { done: loaded, total }), 'info');
+    }
+  }
+  showToast(t('toast_all_videos_loaded', { count: Object.values(APP.allVideos).reduce((s, v) => s + v.length, 0) }), 'success');
 }
 
 async function loadUserInfo() {
@@ -3153,6 +3228,7 @@ function switchView(viewName) {
     else if (viewName === 'tags') refreshTagsList();
     else if (viewName === 'folders') renderFolderTree();
     else if (viewName === 'deck') { renderDeck(); if (APP.deckColumns.length) loadAllDeckVideos(); }
+    else if (viewName === 'export') renderExportPlaylistList();
     else if (viewName === 'subscriptions') {
       if (APP.subscriptions.length === 0) {
         loadSubscriptions();
@@ -6012,6 +6088,7 @@ async function createFullBackup() {
   URL.revokeObjectURL(url);
 
   const videoCount = backup.playlists.reduce((sum, pl) => sum + pl.videos.length, 0);
+  APP_DIRTY = false; // Reset dirty flag after successful backup
   showToast(t('toast_backup_json', { playlists: backup.playlists.length, videos: videoCount }), 'success');
 }
 
@@ -6451,16 +6528,61 @@ function escapeHtml(str) {
 // EXPORT
 // ============================================================================
 
+// ── Export playlist selection ──
+let exportSelection = {}; // { playlistId: true/false }
+
+function renderExportPlaylistList() {
+  const list = document.getElementById('exportPlaylistList');
+  if (!list || !APP.playlists.length) return;
+
+  // Initialize selection if empty
+  if (Object.keys(exportSelection).length === 0) {
+    APP.playlists.forEach(pl => exportSelection[pl.id] = true);
+  }
+
+  list.innerHTML = APP.playlists.map(pl => {
+    const vidCount = (APP.allVideos[pl.id] || []).length;
+    const itemCount = pl.contentDetails?.itemCount || vidCount;
+    return `<label style="display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--border); cursor:pointer; font-size:13px;"
+              onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+      <input type="checkbox" ${exportSelection[pl.id] ? 'checked' : ''} onchange="exportSelection['${pl.id}']=this.checked; updateExportSummary()">
+      <span style="flex:1; color:var(--text); font-weight:500;">${escapeHtml(pl.snippet.title)}</span>
+      <span style="color:var(--text2); font-size:11px;">${itemCount} vid.</span>
+    </label>`;
+  }).join('');
+
+  updateExportSummary();
+}
+
+function exportToggleAll(state) {
+  APP.playlists.forEach(pl => exportSelection[pl.id] = state);
+  renderExportPlaylistList();
+}
+
+function updateExportSummary() {
+  const summary = document.getElementById('exportSummary');
+  if (!summary) return;
+  const selected = APP.playlists.filter(pl => exportSelection[pl.id]);
+  const totalVids = selected.reduce((sum, pl) => sum + (APP.allVideos[pl.id] || []).length, 0);
+  summary.textContent = `${selected.length} / ${APP.playlists.length} playlist(s) — ${totalVids} video(s)`;
+}
+
 async function exportLibrary() {
   const format = document.getElementById('exportFormat').value;
-  const allData = [];
+  const selectedPlaylists = APP.playlists.filter(pl => exportSelection[pl.id]);
 
-  for (const [playlistId, videos] of Object.entries(APP.allVideos)) {
-    const playlist = APP.playlists.find(p => p.id === playlistId);
+  if (selectedPlaylists.length === 0) {
+    showToast(t('toast_select_playlist'), 'error');
+    return;
+  }
+
+  const allData = [];
+  for (const playlist of selectedPlaylists) {
+    const videos = APP.allVideos[playlist.id] || [];
     for (const video of videos) {
       allData.push({
-        playlistId,
-        playlistTitle: playlist?.snippet.title,
+        playlistId: playlist.id,
+        playlistTitle: playlist.snippet.title,
         videoId: video.contentDetails?.videoId,
         videoTitle: video.snippet?.title,
         channelTitle: video.snippet?.channelTitle,
@@ -6469,25 +6591,30 @@ async function exportLibrary() {
     }
   }
 
+  const dateStr = new Date().toISOString().split('T')[0];
+
   if (format === 'csv') {
-    const csv = 'Playlist,Video Title,Channel,Video ID,Added\n' +
-      allData.map(d => `"${d.playlistTitle.replace(/"/g, '""')}","${d.videoTitle.replace(/"/g, '""')}","${d.channelTitle.replace(/"/g, '""')}","${d.videoId}","${d.addedAt}"`).join('\n');
+    const BOM = '﻿';
+    const csv = BOM + 'Playlist,Video Title,Channel,Video ID,Added\n' +
+      allData.map(d => `"${(d.playlistTitle||'').replace(/"/g, '""')}","${(d.videoTitle||'').replace(/"/g, '""')}","${(d.channelTitle||'').replace(/"/g, '""')}","${d.videoId||''}","${d.addedAt||''}"`).join('\n');
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `playlists-export-${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `playlists-export-${dateStr}.csv`;
     link.click();
+    URL.revokeObjectURL(link.href);
   } else {
     const json = JSON.stringify(allData, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `playlists-export-${new Date().toISOString().split('T')[0]}.json`;
+    link.download = `playlists-export-${dateStr}.json`;
     link.click();
+    URL.revokeObjectURL(link.href);
   }
 
-  showToast(t('toast_exported'), 'success');
+  showToast(t('toast_exported') + ` (${selectedPlaylists.length} playlists, ${allData.length} videos)`, 'success');
 }
 
 // ============================================================================
