@@ -1738,6 +1738,7 @@ const I18N = {
     toast_loading_videos: 'Chargement des vidéos... ({done}/{total} playlists)',
     toast_loading_details: 'Chargement des détails... ({count} vidéos)',
     toast_all_videos_loaded: '{count} vidéos chargées',
+    toast_cache_loaded: 'Chargé depuis le cache ({playlists} playlists) — 0 appel API',
     toast_enter_name: 'Veuillez entrer un nom',
     toast_playlist_created: 'Playlist créée',
     toast_playlist_renamed: 'Playlist renommée',
@@ -2185,6 +2186,7 @@ const I18N = {
     toast_loading_videos: 'Loading videos... ({done}/{total} playlists)',
     toast_loading_details: 'Loading details... ({count} videos)',
     toast_all_videos_loaded: '{count} videos loaded',
+    toast_cache_loaded: 'Loaded from cache ({playlists} playlists) — 0 API calls',
     toast_enter_name: 'Please enter a name',
     toast_playlist_created: 'Playlist created',
     toast_playlist_renamed: 'Playlist renamed',
@@ -2458,6 +2460,12 @@ function loadBackupFromStorage() {
     const backup = JSON.parse(raw);
     if (!backup.playlists || !Array.isArray(backup.playlists)) return;
 
+    // Restore full playlist objects if available
+    if (backup.playlistObjects && Array.isArray(backup.playlistObjects)) {
+      APP.playlists = backup.playlistObjects;
+      APP.playlists.sort((a, b) => (a.snippet?.title || '').localeCompare(b.snippet?.title || ''));
+    }
+
     let videoCount = 0;
     backup.playlists.forEach(pl => {
       if (pl.id && Array.isArray(pl.videos)) {
@@ -2466,8 +2474,9 @@ function loadBackupFromStorage() {
           snippet: {
             title: v.title,
             position: v.position,
-            thumbnails: v.thumbnail ? { default: { url: v.thumbnail } } : undefined,
+            thumbnails: v.thumbnail ? { medium: { url: v.thumbnail }, default: { url: v.thumbnail } } : undefined,
             videoOwnerChannelTitle: v.channel || '',
+            channelTitle: v.channel || '',
             resourceId: { videoId: v.videoId }
           }
         }));
@@ -2843,8 +2852,19 @@ async function showApp() {
 
   try {
     await loadUserInfo();
-    await loadAllPlaylists();
-    await loadAllVideosAtStartup();
+
+    // Cache-first: if backup exists with playlists + videos, skip API calls
+    const hasBackupData = APP.playlists.length > 0 && Object.keys(APP.allVideos).length > 0;
+
+    if (hasBackupData) {
+      console.log(`[Startup] Using cached backup: ${APP.playlists.length} playlists, ${Object.values(APP.allVideos).reduce((s, v) => s + v.length, 0)} videos — 0 API calls`);
+      showToast(t('toast_cache_loaded', { playlists: APP.playlists.length }), 'success');
+    } else {
+      // No backup — fetch everything from API
+      await loadAllPlaylists();
+      await loadAllVideosAtStartup();
+    }
+
     refreshDashboard();
     populateSelectDropdowns();
     refreshPlaylistsList();
@@ -6077,6 +6097,8 @@ async function createFullBackup() {
         duration: v.contentDetails?.duration || ''
       }))
     })),
+    // Store full playlist objects for cache-first startup (no API calls needed)
+    playlistObjects: APP.playlists,
     tags: APP.tags,
     tagIcons: APP.tagIcons,
     folders: APP.folders,
