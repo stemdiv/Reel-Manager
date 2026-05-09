@@ -2900,6 +2900,41 @@ async function showApp() {
       await loadAllVideosAtStartup();
     }
 
+    // Safety net: if videoDetailsCache is empty but we have videos, fetch details
+    // This happens on first launch after code update (old backup without durations)
+    // Cost: ~1 API unit per 50 videos (acceptable one-time cost)
+    if (Object.keys(videoDetailsCache).length === 0) {
+      const allVideoIds = [];
+      for (const videos of Object.values(APP.allVideos)) {
+        for (const v of videos) {
+          const vid = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId;
+          if (vid) allVideoIds.push(vid);
+        }
+      }
+      if (allVideoIds.length > 0) {
+        console.log(`[Startup] Fetching video details for ${allVideoIds.length} videos (cache was empty)`);
+        showToast(t('toast_loading_details', { count: allVideoIds.length }), 'info');
+        const details = await getVideoDetails(allVideoIds);
+        Object.assign(videoDetailsCache, details);
+        // Update video objects with channel info from details
+        for (const videos of Object.values(APP.allVideos)) {
+          for (const v of videos) {
+            const vid = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId;
+            const d = videoDetailsCache[vid];
+            if (d) {
+              // Enrich with duration and correct channel name
+              if (!v.contentDetails.duration && d.contentDetails?.duration) {
+                v.contentDetails.duration = d.contentDetails.duration;
+              }
+              if (d.snippet?.channelTitle && !v.snippet?.videoOwnerChannelTitle) {
+                v.snippet.videoOwnerChannelTitle = d.snippet.channelTitle;
+              }
+            }
+          }
+        }
+      }
+    }
+
     refreshDashboard();
     populateSelectDropdowns();
     refreshPlaylistsList();
@@ -2913,8 +2948,9 @@ async function fullRefresh() {
   try {
     showToast(t('toast_loading_playlists'), 'info');
     await loadAllPlaylists();
-    // Clear cached videos to force re-fetch
+    // Clear cached videos and details to force full re-fetch
     APP.allVideos = {};
+    videoDetailsCache = {};
     await loadAllVideosAtStartup();
     refreshDashboard();
     populateSelectDropdowns();
