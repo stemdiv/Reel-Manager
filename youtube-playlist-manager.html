@@ -1236,9 +1236,44 @@
           </div>
           <div>
             <h3 data-i18n="restore_section">Restore</h3>
-            <p class="text-muted" data-i18n="restore_subtitle">Restaure les playlists à partir d'un backup JSON</p>
-            <input type="file" id="backupFileInput" accept=".json" style="margin: 12px 0; width: 100%;">
-            <button class="btn btn-primary" onclick="restoreFromBackup()" style="width: 100%;" data-i18n="restore_btn">Restore</button>
+            <p class="text-muted" data-i18n="restore_subtitle">Restaure vos playlists depuis un backup JSON ou CSV</p>
+            <input type="file" id="backupFileInput" accept=".json,.csv" style="margin: 12px 0; width: 100%;" onchange="parseRestoreFile(this)">
+            <!-- Restore selection panel (hidden until file loaded) -->
+            <div id="restorePanel" style="display:none; margin-top: 16px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-weight:600; color:var(--text);" data-i18n="restore_select_file">Playlists dans le backup</span>
+                <div style="display:flex; gap:8px;">
+                  <button class="btn btn-sm" onclick="restoreToggleAll(true)" style="font-size:11px; padding:3px 8px;" data-i18n="restore_select_all">Tout sélectionner</button>
+                  <button class="btn btn-sm" onclick="restoreToggleAll(false)" style="font-size:11px; padding:3px 8px;" data-i18n="restore_deselect_all">Tout désélectionner</button>
+                </div>
+              </div>
+              <!-- Cleanup tip -->
+              <div style="background:var(--surface2); border-left:3px solid var(--accent); padding:8px 12px; border-radius:6px; margin-bottom:12px; font-size:12px; color:var(--text2);" data-i18n="restore_tip_cleanup">
+                Avant de restaurer, nettoyez votre sélection : décochez les playlists obsolètes ou celles déjà présentes sur votre compte.
+              </div>
+              <!-- Playlist checklist -->
+              <div id="restoreList" style="max-height:300px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; padding:4px;"></div>
+              <!-- Quota estimation -->
+              <div id="restoreQuotaBar" style="margin-top:12px; padding:10px 12px; border-radius:8px; background:var(--surface2);"></div>
+              <!-- Action buttons -->
+              <div id="restoreActions" style="display:flex; gap:8px; margin-top:12px;">
+                <button class="btn btn-primary" onclick="executeRestore()" style="flex:1;" data-i18n="restore_btn">Restaurer la sélection</button>
+              </div>
+              <!-- Progress bar (hidden until restore starts) -->
+              <div id="restoreProgress" style="display:none; margin-top:16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                  <span id="restoreProgressLabel" style="font-size:12px; color:var(--text2);"></span>
+                  <div style="display:flex; gap:6px;">
+                    <button class="btn btn-sm" id="restorePauseBtn" onclick="toggleRestorePause()" style="font-size:11px; padding:3px 8px;">Pause</button>
+                    <button class="btn btn-sm" id="restoreCancelBtn" onclick="cancelRestore()" style="font-size:11px; padding:3px 8px; color:var(--danger);" data-i18n="restore_cancel_btn">Annuler</button>
+                  </div>
+                </div>
+                <div style="width:100%; height:8px; background:var(--surface2); border-radius:4px; overflow:hidden;">
+                  <div id="restoreProgressFill" style="width:0%; height:100%; background:var(--accent); border-radius:4px; transition:width 0.3s;"></div>
+                </div>
+                <div id="restoreLog" style="max-height:120px; overflow-y:auto; margin-top:8px; font-size:11px; color:var(--text2); font-family:monospace;"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1621,8 +1656,31 @@ const I18N = {
     backup_both: 'Les deux',
     backup_create: 'Créer backup',
     restore_section: 'Restore',
-    restore_subtitle: 'Restaure les playlists à partir d\'un backup JSON',
-    restore_btn: 'Restaurer',
+    restore_subtitle: 'Restaure vos playlists depuis un backup JSON ou CSV',
+    restore_btn: 'Restaurer la sélection',
+    restore_select_file: 'Choisir un fichier JSON ou CSV',
+    restore_select_all: 'Tout sélectionner',
+    restore_deselect_all: 'Tout désélectionner',
+    restore_videos: '{count} vidéo(s)',
+    restore_no_videos: 'Vide',
+    restore_quota_estimate: 'Coût estimé : {cost} / {remaining} unités restantes',
+    restore_quota_ok: 'Quota suffisant',
+    restore_quota_warning: 'Quota insuffisant — sélectionnez moins de playlists',
+    restore_quota_tip: 'Conseil : supprimez les playlists inutiles de la sélection pour économiser du quota.',
+    restore_tip_cleanup: 'Avant de restaurer, nettoyez votre sélection : décochez les playlists obsolètes ou celles déjà présentes sur votre compte.',
+    restore_progress: 'Restauration en cours... {done}/{total}',
+    restore_creating_playlist: 'Création de la playlist "{name}"...',
+    restore_adding_videos: 'Ajout des vidéos dans "{name}"... ({done}/{total})',
+    restore_complete: 'Restauration terminée : {playlists} playlist(s), {videos} vidéo(s) ajoutée(s), {errors} erreur(s)',
+    restore_paused: 'Restauration en pause — quota épuisé. Reprenez demain.',
+    restore_cancelled: 'Restauration annulée. {done} playlist(s) déjà créée(s).',
+    restore_confirm: 'Restaurer {count} playlist(s) ?\n\nCoût estimé : {cost} unités quota\nQuota restant : {remaining} unités\n\n{warning}',
+    restore_error_parse: 'Format de fichier non reconnu. Utilisez un backup JSON ou CSV généré par l\'application.',
+    restore_error_empty: 'Aucune playlist trouvée dans le fichier.',
+    restore_error_video: 'Vidéo ignorée (supprimée ou privée) : {title}',
+    restore_pause_btn: 'Pause',
+    restore_resume_btn: 'Reprendre',
+    restore_cancel_btn: 'Annuler',
 
     // Export
     export_title: 'Exporter la bibliothèque',
@@ -1690,8 +1748,8 @@ const I18N = {
     toast_bulk_renamed: '{count} playlist(s) renommée(s)',
     toast_backup_json: 'Backup JSON créé : {playlists} playlists, {videos} vidéos',
     toast_backup_csv: 'Backup CSV créé : {playlists} playlists, {videos} lignes',
-    toast_select_json: 'Sélectionnez un fichier JSON',
-    toast_restore_info: 'Backup contient {count} playlists - fonctionnalité en développement',
+    toast_select_file: 'Sélectionnez un fichier JSON ou CSV',
+    toast_restore_info: 'Backup chargé : {count} playlists. Sélectionnez celles à restaurer.',
     toast_read_error: 'Erreur de lecture du fichier',
     toast_exported: 'Export téléchargé',
     toast_enter_client_id: 'Veuillez entrer votre Client ID',
@@ -2041,8 +2099,31 @@ const I18N = {
     backup_both: 'Both',
     backup_create: 'Create backup',
     restore_section: 'Restore',
-    restore_subtitle: 'Restore playlists from a JSON backup',
-    restore_btn: 'Restore',
+    restore_subtitle: 'Restore your playlists from a JSON or CSV backup',
+    restore_btn: 'Restore selection',
+    restore_select_file: 'Choose a JSON or CSV file',
+    restore_select_all: 'Select all',
+    restore_deselect_all: 'Deselect all',
+    restore_videos: '{count} video(s)',
+    restore_no_videos: 'Empty',
+    restore_quota_estimate: 'Estimated cost: {cost} / {remaining} units remaining',
+    restore_quota_ok: 'Quota sufficient',
+    restore_quota_warning: 'Insufficient quota — select fewer playlists',
+    restore_quota_tip: 'Tip: remove unnecessary playlists from your selection to save quota.',
+    restore_tip_cleanup: 'Before restoring, clean up your selection: uncheck obsolete playlists or ones already on your account.',
+    restore_progress: 'Restoring... {done}/{total}',
+    restore_creating_playlist: 'Creating playlist "{name}"...',
+    restore_adding_videos: 'Adding videos to "{name}"... ({done}/{total})',
+    restore_complete: 'Restore complete: {playlists} playlist(s), {videos} video(s) added, {errors} error(s)',
+    restore_paused: 'Restore paused — quota exhausted. Resume tomorrow.',
+    restore_cancelled: 'Restore cancelled. {done} playlist(s) already created.',
+    restore_confirm: 'Restore {count} playlist(s)?\n\nEstimated cost: {cost} quota units\nRemaining quota: {remaining} units\n\n{warning}',
+    restore_error_parse: 'Unrecognized file format. Use a JSON or CSV backup generated by the app.',
+    restore_error_empty: 'No playlists found in file.',
+    restore_error_video: 'Video skipped (deleted or private): {title}',
+    restore_pause_btn: 'Pause',
+    restore_resume_btn: 'Resume',
+    restore_cancel_btn: 'Cancel',
 
     // Export
     export_title: 'Export Library',
@@ -2110,8 +2191,8 @@ const I18N = {
     toast_bulk_renamed: '{count} playlist(s) renamed',
     toast_backup_json: 'JSON backup created: {playlists} playlists, {videos} videos',
     toast_backup_csv: 'CSV backup created: {playlists} playlists, {videos} rows',
-    toast_select_json: 'Select a JSON file',
-    toast_restore_info: 'Backup contains {count} playlists — feature in development',
+    toast_select_file: 'Select a JSON or CSV file',
+    toast_restore_info: 'Backup loaded: {count} playlists. Select the ones to restore.',
     toast_read_error: 'File read error',
     toast_exported: 'Export downloaded',
     toast_enter_client_id: 'Please enter your Client ID',
@@ -3996,8 +4077,10 @@ async function createPlaylistFromDiscover() {
     showToast(t('discover_created', { name, added, total: selected.length }), 'success');
 
     // Refresh playlists and dashboard
-    await loadPlaylists();
+    await loadAllPlaylists();
     refreshDashboard();
+    populateSelectDropdowns();
+    refreshPlaylistsList();
 
     // Update quota display in header
     if (typeof updateQuotaIndicator === 'function') updateQuotaIndicator();
@@ -5988,50 +6071,380 @@ function csvRow(fields) {
   return fields.map(f => `"${String(f).replace(/"/g, '""')}"`).join(',');
 }
 
-function restoreFromBackup() {
-  const file = document.getElementById('backupFileInput').files[0];
-  if (!file) {
-    showToast(t('toast_select_json'), 'error');
-    return;
-  }
+// ── Restore state ──
+let restoreData = { playlists: [], metadata: null, paused: false, cancelled: false, running: false };
+
+function parseRestoreFile(input) {
+  const file = input.files[0];
+  if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = async (e) => {
+  reader.onload = (e) => {
     try {
-      const backup = JSON.parse(e.target.result);
+      const text = e.target.result;
+      let parsed;
 
-      // Restore tags, folders, deck columns if present in backup
-      if (backup.tags) {
-        APP.tags = backup.tags;
-        localStorage.setItem('playlistTags', JSON.stringify(APP.tags));
-      }
-      if (backup.tagIcons) {
-        APP.tagIcons = backup.tagIcons;
-        localStorage.setItem('tagIcons', JSON.stringify(APP.tagIcons));
-      }
-      if (backup.folders) {
-        APP.folders = backup.folders;
-        localStorage.setItem('playlistFolders', JSON.stringify(APP.folders));
-      }
-      if (backup.folderAssignments) {
-        APP.folderAssignments = backup.folderAssignments;
-        localStorage.setItem('folderAssignments', JSON.stringify(APP.folderAssignments));
-      }
-      if (backup.deckColumns) {
-        APP.deckColumns = backup.deckColumns;
-        localStorage.setItem('deckColumns', JSON.stringify(APP.deckColumns));
-      }
-      if (backup.watchQueue) {
-        APP.watchQueue = backup.watchQueue;
-        localStorage.setItem('watchQueue', JSON.stringify(APP.watchQueue));
+      if (file.name.endsWith('.csv')) {
+        parsed = parseCSVForRestore(text);
+      } else {
+        parsed = parseJSONForRestore(text);
       }
 
-      showToast(t('toast_restore_info', { count: backup.playlists.length }), 'info');
+      if (!parsed || !parsed.playlists || parsed.playlists.length === 0) {
+        showToast(t('restore_error_empty'), 'error');
+        return;
+      }
+
+      restoreData.playlists = parsed.playlists;
+      restoreData.metadata = parsed.metadata || null;
+      renderRestorePanel();
+      showToast(t('toast_restore_info', { count: parsed.playlists.length }), 'info');
     } catch (err) {
-      showToast(t('toast_read_error'), 'error');
+      showToast(t('restore_error_parse'), 'error');
+      console.error('[Restore] Parse error:', err);
     }
   };
   reader.readAsText(file);
+}
+
+function parseJSONForRestore(text) {
+  const backup = JSON.parse(text);
+  if (!backup.playlists || !Array.isArray(backup.playlists)) return null;
+
+  return {
+    playlists: backup.playlists.map(pl => ({
+      title: pl.title,
+      description: pl.description || '',
+      videos: (pl.videos || []).map(v => ({
+        videoId: v.videoId,
+        title: v.title || v.videoId || '?',
+      })),
+      selected: true
+    })),
+    metadata: {
+      tags: backup.tags || null,
+      tagIcons: backup.tagIcons || null,
+      folders: backup.folders || null,
+      folderAssignments: backup.folderAssignments || null,
+      deckColumns: backup.deckColumns || null,
+      watchQueue: backup.watchQueue || null
+    }
+  };
+}
+
+function parseCSVForRestore(text) {
+  // CSV format: Playlist, Playlist ID, Titre vidéo, URL YouTube, Chaîne, Durée, Statut, Date ajout, Position, Tags
+  const lines = text.replace(/^﻿/, '').split('\n'); // strip BOM
+  if (lines.length < 2) return null;
+
+  const playlistMap = {};
+  for (let i = 1; i < lines.length; i++) {
+    const row = parseCSVLine(lines[i]);
+    if (!row || row.length < 4) continue;
+
+    const plTitle = row[0]?.trim();
+    if (!plTitle) continue;
+
+    if (!playlistMap[plTitle]) {
+      playlistMap[plTitle] = { title: plTitle, description: '', videos: [], selected: true };
+    }
+
+    // Extract videoId from URL (column 3) or from column 1 (Playlist ID is not videoId)
+    const url = row[3]?.trim() || '';
+    const videoIdMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+    const videoId = videoIdMatch ? videoIdMatch[1] : null;
+    const videoTitle = row[2]?.trim() || '';
+    const status = row[6]?.trim() || '';
+
+    if (videoId && videoTitle && !status.includes('Supprim') && !status.includes('Deleted')) {
+      playlistMap[plTitle].videos.push({ videoId, title: videoTitle });
+    }
+  }
+
+  const playlists = Object.values(playlistMap);
+  return playlists.length > 0 ? { playlists } : null;
+}
+
+function parseCSVLine(line) {
+  if (!line || !line.trim()) return null;
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') { current += '"'; i++; }
+      else if (ch === '"') inQuotes = false;
+      else current += ch;
+    } else {
+      if (ch === '"') inQuotes = true;
+      else if (ch === ',') { result.push(current); current = ''; }
+      else current += ch;
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+function renderRestorePanel() {
+  const panel = document.getElementById('restorePanel');
+  const list = document.getElementById('restoreList');
+  panel.style.display = 'block';
+
+  // Reset progress
+  document.getElementById('restoreProgress').style.display = 'none';
+
+  list.innerHTML = restoreData.playlists.map((pl, i) => {
+    const vidCount = pl.videos.length;
+    const vidLabel = vidCount > 0 ? t('restore_videos', { count: vidCount }) : t('restore_no_videos');
+    return `<label style="display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--border); cursor:pointer; font-size:13px;"
+              onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+      <input type="checkbox" ${pl.selected ? 'checked' : ''} onchange="restoreData.playlists[${i}].selected=this.checked; updateRestoreQuota()">
+      <span style="flex:1; color:var(--text); font-weight:500;">${escapeHtml(pl.title)}</span>
+      <span style="color:var(--text2); font-size:11px;">${vidLabel}</span>
+    </label>`;
+  }).join('');
+
+  updateRestoreQuota();
+}
+
+function restoreToggleAll(state) {
+  restoreData.playlists.forEach(pl => pl.selected = state);
+  renderRestorePanel();
+}
+
+function updateRestoreQuota() {
+  const bar = document.getElementById('restoreQuotaBar');
+  const selected = restoreData.playlists.filter(pl => pl.selected);
+  const playlistCost = selected.length * 50; // playlists.insert = 50 each
+  const videoCost = selected.reduce((sum, pl) => sum + pl.videos.length * 50, 0); // playlistItems.insert = 50 each
+  const totalCost = playlistCost + videoCost;
+  const remaining = QUOTA_DAILY_LIMIT - APP.quotaUnits;
+  const isOk = totalCost <= remaining;
+  const totalVideos = selected.reduce((sum, pl) => sum + pl.videos.length, 0);
+
+  const color = isOk ? 'var(--success, #22c55e)' : 'var(--danger, #ef4444)';
+  const statusText = isOk ? t('restore_quota_ok') : t('restore_quota_warning');
+  const pct = Math.min((totalCost / QUOTA_DAILY_LIMIT) * 100, 100);
+
+  bar.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+      <span style="font-size:12px; color:var(--text2);">${t('restore_quota_estimate', { cost: totalCost.toLocaleString(), remaining: remaining.toLocaleString() })}</span>
+      <span style="font-size:11px; font-weight:600; color:${color};">${statusText}</span>
+    </div>
+    <div style="width:100%; height:6px; background:var(--surface); border-radius:3px; overflow:hidden;">
+      <div style="width:${pct}%; height:100%; background:${color}; border-radius:3px;"></div>
+    </div>
+    <div style="font-size:11px; color:var(--text2); margin-top:6px;">
+      ${selected.length} playlist(s) &middot; ${totalVideos.toLocaleString()} video(s) &middot; ${totalCost.toLocaleString()} units
+    </div>
+    ${!isOk ? `<div style="font-size:11px; color:var(--danger, #ef4444); margin-top:4px;">${t('restore_quota_tip')}</div>` : ''}
+  `;
+
+  // Enable/disable restore button
+  const btn = document.querySelector('#restoreActions .btn-primary');
+  if (btn) {
+    btn.disabled = selected.length === 0;
+    btn.style.opacity = selected.length === 0 ? '0.5' : '1';
+  }
+}
+
+async function executeRestore() {
+  if (!ensureWriteScope()) return;
+
+  const selected = restoreData.playlists.filter(pl => pl.selected);
+  if (selected.length === 0) return;
+
+  const totalVideos = selected.reduce((sum, pl) => sum + pl.videos.length, 0);
+  const totalCost = selected.length * 50 + totalVideos * 50;
+  const remaining = QUOTA_DAILY_LIMIT - APP.quotaUnits;
+  const warning = totalCost > remaining
+    ? '⚠️ ' + t('restore_quota_warning')
+    : '';
+
+  if (!confirm(t('restore_confirm', { count: selected.length, cost: totalCost.toLocaleString(), remaining: remaining.toLocaleString(), warning }))) {
+    return;
+  }
+
+  // Restore local metadata first (tags, folders, etc.)
+  if (restoreData.metadata) {
+    const m = restoreData.metadata;
+    if (m.tags) { APP.tags = { ...APP.tags, ...m.tags }; localStorage.setItem('playlistTags', JSON.stringify(APP.tags)); }
+    if (m.tagIcons) { APP.tagIcons = { ...APP.tagIcons, ...m.tagIcons }; localStorage.setItem('tagIcons', JSON.stringify(APP.tagIcons)); }
+    if (m.folders) { APP.folders = m.folders; localStorage.setItem('playlistFolders', JSON.stringify(APP.folders)); }
+    if (m.folderAssignments) { APP.folderAssignments = { ...APP.folderAssignments, ...m.folderAssignments }; localStorage.setItem('folderAssignments', JSON.stringify(APP.folderAssignments)); }
+    if (m.deckColumns) { APP.deckColumns = m.deckColumns; localStorage.setItem('deckColumns', JSON.stringify(APP.deckColumns)); }
+    if (m.watchQueue) { APP.watchQueue = m.watchQueue; localStorage.setItem('watchQueue', JSON.stringify(APP.watchQueue)); }
+  }
+
+  // Show progress UI
+  restoreData.paused = false;
+  restoreData.cancelled = false;
+  restoreData.running = true;
+  const progressDiv = document.getElementById('restoreProgress');
+  const progressLabel = document.getElementById('restoreProgressLabel');
+  const progressFill = document.getElementById('restoreProgressFill');
+  const logDiv = document.getElementById('restoreLog');
+  const pauseBtn = document.getElementById('restorePauseBtn');
+  progressDiv.style.display = 'block';
+  logDiv.innerHTML = '';
+  pauseBtn.textContent = t('restore_pause_btn');
+
+  // Disable file input and action buttons
+  document.getElementById('backupFileInput').disabled = true;
+  document.querySelector('#restoreActions .btn-primary').disabled = true;
+
+  const totalSteps = selected.length + totalVideos;
+  let doneSteps = 0;
+  let createdPlaylists = 0;
+  let addedVideos = 0;
+  let errors = 0;
+
+  function logMsg(msg) {
+    const line = document.createElement('div');
+    line.textContent = msg;
+    logDiv.appendChild(line);
+    logDiv.scrollTop = logDiv.scrollHeight;
+  }
+
+  function updateProgress() {
+    const pct = totalSteps > 0 ? (doneSteps / totalSteps) * 100 : 0;
+    progressFill.style.width = pct + '%';
+    progressLabel.textContent = t('restore_progress', { done: doneSteps, total: totalSteps });
+  }
+
+  for (const pl of selected) {
+    if (restoreData.cancelled) break;
+
+    // Wait if paused
+    while (restoreData.paused && !restoreData.cancelled) {
+      await new Promise(r => setTimeout(r, 500));
+    }
+    if (restoreData.cancelled) break;
+
+    // Check quota before creating playlist
+    if (APP.quotaUnits + 50 > QUOTA_DAILY_LIMIT) {
+      restoreData.paused = true;
+      pauseBtn.textContent = t('restore_resume_btn');
+      logMsg('⏸ ' + t('restore_paused'));
+      showToast(t('restore_paused'), 'warning');
+      while (restoreData.paused && !restoreData.cancelled) {
+        await new Promise(r => setTimeout(r, 500));
+      }
+      if (restoreData.cancelled) break;
+    }
+
+    // Create playlist
+    progressLabel.textContent = t('restore_creating_playlist', { name: pl.title });
+    try {
+      const res = await ytApi('playlists?part=snippet,status', {}, 'POST', {
+        snippet: { title: pl.title, description: pl.description || '' },
+        status: { privacyStatus: 'private' }
+      });
+
+      const newPlId = res.id;
+      createdPlaylists++;
+      doneSteps++;
+      updateProgress();
+      logMsg('✅ ' + pl.title + ' (ID: ' + newPlId + ')');
+
+      // Add videos to this playlist
+      for (let vi = 0; vi < pl.videos.length; vi++) {
+        if (restoreData.cancelled) break;
+        while (restoreData.paused && !restoreData.cancelled) {
+          await new Promise(r => setTimeout(r, 500));
+        }
+        if (restoreData.cancelled) break;
+
+        // Check quota before each video insert
+        if (APP.quotaUnits + 50 > QUOTA_DAILY_LIMIT) {
+          restoreData.paused = true;
+          pauseBtn.textContent = t('restore_resume_btn');
+          logMsg('⏸ ' + t('restore_paused'));
+          showToast(t('restore_paused'), 'warning');
+          while (restoreData.paused && !restoreData.cancelled) {
+            await new Promise(r => setTimeout(r, 500));
+          }
+          if (restoreData.cancelled) break;
+        }
+
+        const v = pl.videos[vi];
+        progressLabel.textContent = t('restore_adding_videos', { name: pl.title, done: vi + 1, total: pl.videos.length });
+
+        try {
+          await ytApi('playlistItems?part=snippet', {}, 'POST', {
+            snippet: {
+              playlistId: newPlId,
+              resourceId: { kind: 'youtube#video', videoId: v.videoId }
+            }
+          });
+          addedVideos++;
+        } catch (vidErr) {
+          errors++;
+          logMsg('⚠️ ' + t('restore_error_video', { title: v.title }) + ' — ' + (vidErr.message || ''));
+        }
+        doneSteps++;
+        updateProgress();
+      }
+    } catch (plErr) {
+      errors++;
+      doneSteps++;
+      updateProgress();
+      logMsg('❌ ' + pl.title + ' — ' + (plErr.message || 'Error'));
+    }
+  }
+
+  // Done
+  restoreData.running = false;
+  document.getElementById('backupFileInput').disabled = false;
+
+  if (restoreData.cancelled) {
+    logMsg('🛑 ' + t('restore_cancelled', { done: createdPlaylists }));
+    showToast(t('restore_cancelled', { done: createdPlaylists }), 'warning');
+  } else {
+    logMsg('🎉 ' + t('restore_complete', { playlists: createdPlaylists, videos: addedVideos, errors }));
+    showToast(t('restore_complete', { playlists: createdPlaylists, videos: addedVideos, errors }), errors > 0 ? 'warning' : 'success');
+  }
+
+  progressLabel.textContent = restoreData.cancelled
+    ? t('restore_cancelled', { done: createdPlaylists })
+    : t('restore_complete', { playlists: createdPlaylists, videos: addedVideos, errors });
+
+  // Refresh playlist list
+  if (createdPlaylists > 0) {
+    try {
+      await loadAllPlaylists();
+      refreshDashboard();
+      populateSelectDropdowns();
+      refreshPlaylistsList();
+    } catch (e) {
+      console.warn('[Restore] Could not refresh playlists:', e.message);
+    }
+  }
+}
+
+function toggleRestorePause() {
+  const btn = document.getElementById('restorePauseBtn');
+  if (restoreData.paused) {
+    restoreData.paused = false;
+    btn.textContent = t('restore_pause_btn');
+  } else {
+    restoreData.paused = true;
+    btn.textContent = t('restore_resume_btn');
+  }
+}
+
+function cancelRestore() {
+  if (confirm(t('restore_cancelled', { done: '?' }))) {
+    restoreData.cancelled = true;
+    restoreData.paused = false;
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 // ============================================================================
