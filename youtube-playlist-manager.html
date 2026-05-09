@@ -6192,13 +6192,15 @@ function createCSVBackup() {
       for (const v of videos) {
         const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
         const title = v.snippet?.title || '';
-        const channel = v.snippet?.channelTitle || '';
         const url = videoId ? `https://www.youtube.com/watch?v=${videoId}` : '';
         const addedAt = v.snippet?.publishedAt ? new Date(v.snippet.publishedAt).toLocaleDateString('fr-FR') : '';
         const position = v.snippet?.position ?? '';
 
-        // Duration from cache or video object
+        // Channel: prefer videoOwnerChannelTitle (video author), then videoDetailsCache, then channelTitle (playlist owner fallback)
         const detail = videoDetailsCache[videoId];
+        const channel = v.snippet?.videoOwnerChannelTitle || detail?.snippet?.channelTitle || v.snippet?.channelTitle || '';
+
+        // Duration from videoDetailsCache (videos.list API) or video object
         const rawDuration = detail?.contentDetails?.duration || v.contentDetails?.duration || '';
         const durationSec = rawDuration ? parseDuration(rawDuration) : 0;
         const duration = durationSec > 0 ? formatDuration(durationSec) : '';
@@ -6679,13 +6681,15 @@ async function exportLibrary() {
         for (const v of videos) {
           const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
           const title = v.snippet?.title || '';
-          const channel = v.snippet?.channelTitle || v.snippet?.videoOwnerChannelTitle || '';
           const url = videoId ? `https://www.youtube.com/watch?v=${videoId}` : '';
           const addedAt = v.snippet?.publishedAt ? new Date(v.snippet.publishedAt).toLocaleDateString('fr-FR') : '';
           const position = v.snippet?.position ?? '';
 
-          // Duration from cache or video object
+          // Channel: prefer videoOwnerChannelTitle (video author), then videoDetailsCache, then channelTitle (playlist owner fallback)
           const detail = videoDetailsCache[videoId];
+          const channel = v.snippet?.videoOwnerChannelTitle || detail?.snippet?.channelTitle || v.snippet?.channelTitle || '';
+
+          // Duration from videoDetailsCache (videos.list API) or video object
           const rawDuration = detail?.contentDetails?.duration || v.contentDetails?.duration || '';
           const durationSec = rawDuration ? parseDuration(rawDuration) : 0;
           const duration = durationSec > 0 ? formatDuration(durationSec) : '';
@@ -6726,7 +6730,7 @@ async function exportLibrary() {
           return {
             videoId,
             title: v.snippet?.title || '',
-            channel: v.snippet?.channelTitle || v.snippet?.videoOwnerChannelTitle || '',
+            channel: v.snippet?.videoOwnerChannelTitle || detail?.snippet?.channelTitle || v.snippet?.channelTitle || '',
             duration: durationSec > 0 ? formatDuration(durationSec) : '',
             addedAt: v.snippet?.publishedAt || '',
             position: v.snippet?.position ?? ''
