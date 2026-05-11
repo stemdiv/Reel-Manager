@@ -2753,6 +2753,9 @@ const APP = {
 const QUOTA_COSTS = { GET: 1, POST: 50, PUT: 50, DELETE: 50 };
 const QUOTA_DAILY_LIMIT = 10000;
 
+// Video details cache — MUST be declared before loadBackupFromStorage() to avoid TDZ
+let videoDetailsCache = {};
+
 // ============================================================================
 // INITIALIZATION & AUTH
 // ============================================================================
@@ -2865,7 +2868,7 @@ function loadBackupFromStorage() {
     });
 
     // Pre-populate videoDetailsCache from backup data to avoid API calls on playlist click
-    if (typeof videoDetailsCache !== 'undefined') {
+    if (videoDetailsCache) {
       backup.playlists.forEach(pl => {
         if (pl.videos) {
           pl.videos.forEach(v => {
@@ -3267,9 +3270,10 @@ async function showApp() {
     }
 
     // Safety net: if videoDetailsCache is empty but we have videos, fetch details
-    // This happens on first launch after code update (old backup without durations)
+    // This happens ONLY on first launch after code update (old backup without durations)
     // Cost: ~1 API unit per 50 videos (acceptable one-time cost)
-    if (Object.keys(videoDetailsCache).length === 0) {
+    const cacheSize = Object.keys(videoDetailsCache).length;
+    if (cacheSize === 0) {
       const allVideoIds = [];
       for (const videos of Object.values(APP.allVideos)) {
         for (const v of videos) {
@@ -3278,7 +3282,7 @@ async function showApp() {
         }
       }
       if (allVideoIds.length > 0) {
-        console.log(`[Startup] Fetching video details for ${allVideoIds.length} videos (cache was empty)`);
+        console.log(`[Startup] videoDetailsCache empty (0 entries) despite ${allVideoIds.length} videos — fetching from API (one-time migration)`);
         showToast(t('toast_loading_details', { count: allVideoIds.length }), 'info');
         const details = await getVideoDetails(allVideoIds);
         Object.assign(videoDetailsCache, details);
@@ -3299,6 +3303,8 @@ async function showApp() {
           }
         }
       }
+    } else {
+      console.log(`[Startup] videoDetailsCache OK: ${cacheSize} entries — no API calls needed`);
     }
 
     refreshDashboard();
@@ -3484,7 +3490,7 @@ async function refreshDashboard() {
   const avgMinPerVideo = loadedVideoCount > 0 ? (totalDurationSec / 60 / loadedVideoCount).toFixed(1) : '—';
 
   // Quota (real tracked value)
-  const quotaUsed = APP.quotaUsed || 0;
+  const quotaUsed = APP.quotaUnits || 0;
   const quotaMax = 10000;
   const quotaPct = Math.min((quotaUsed / quotaMax) * 100, 100);
   const quotaColor = quotaPct > 80 ? 'var(--danger)' : quotaPct > 50 ? 'var(--yellow)' : 'var(--green)';
@@ -4080,6 +4086,18 @@ const BETA_FEATURES = [
     view: null,
     added: '2026-05-11'
   },
+  {
+    id: 'multi-lang',
+    name: { fr: 'Multi-langue (ES, PT, DE, JA, IT)', en: 'Multi-language (ES, PT, DE, JA, IT)' },
+    desc: {
+      fr: 'Traduction native de l\'application en 5 langues supplementaires : espagnol, portugais, allemand, japonais et italien. Selecteur de langue etendu.',
+      en: 'Native translation of the app in 5 additional languages: Spanish, Portuguese, German, Japanese and Italian. Extended language selector.'
+    },
+    status: 'dev',
+    target: 'Library',
+    view: null,
+    added: '2026-05-11'
+  },
 ];
 
 function renderBetaFeatures() {
@@ -4199,7 +4217,7 @@ function refreshPlaylistsList() {
 
 let currentDetailPlaylistId = null;
 let currentDetailVideos = []; // enriched with duration data
-let videoDetailsCache = {};   // cache for video details (duration, etc.)
+// videoDetailsCache declared earlier (before loadBackupFromStorage) to avoid TDZ
 
 async function openPlaylistDetail(playlistId) {
   currentDetailPlaylistId = playlistId;
