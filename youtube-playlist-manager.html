@@ -3462,50 +3462,14 @@ async function showApp() {
     const hasBackupData = APP.playlists.length > 0 && Object.keys(APP.allVideos).length > 0;
 
     if (hasBackupData) {
-      console.log(`[Startup] Using cached backup: ${APP.playlists.length} playlists, ${Object.values(APP.allVideos).reduce((s, v) => s + v.length, 0)} videos — 0 API calls`);
+      const totalVids = Object.values(APP.allVideos).reduce((s, v) => s + v.length, 0);
+      const cacheSize = Object.keys(videoDetailsCache).length;
+      console.log(`[Startup] Using cached backup: ${APP.playlists.length} playlists, ${totalVids} videos, ${cacheSize} details — 0 API calls`);
       showToast(t('toast_cache_loaded', { playlists: APP.playlists.length }), 'success');
     } else {
       // No backup — fetch everything from API
       await loadAllPlaylists();
       await loadAllVideosAtStartup();
-    }
-
-    // Safety net: if videoDetailsCache is empty but we have videos, fetch details
-    // This happens ONLY on first launch after code update (old backup without durations)
-    // Cost: ~1 API unit per 50 videos (acceptable one-time cost)
-    const cacheSize = Object.keys(videoDetailsCache).length;
-    if (cacheSize === 0) {
-      const allVideoIds = [];
-      for (const videos of Object.values(APP.allVideos)) {
-        for (const v of videos) {
-          const vid = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId;
-          if (vid) allVideoIds.push(vid);
-        }
-      }
-      if (allVideoIds.length > 0) {
-        console.log(`[Startup] videoDetailsCache empty (0 entries) despite ${allVideoIds.length} videos — fetching from API (one-time migration)`);
-        showToast(t('toast_loading_details', { count: allVideoIds.length }), 'info');
-        const details = await getVideoDetails(allVideoIds);
-        Object.assign(videoDetailsCache, details);
-        // Update video objects with channel info from details
-        for (const videos of Object.values(APP.allVideos)) {
-          for (const v of videos) {
-            const vid = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId;
-            const d = videoDetailsCache[vid];
-            if (d) {
-              // Enrich with duration and correct channel name
-              if (!v.contentDetails.duration && d.contentDetails?.duration) {
-                v.contentDetails.duration = d.contentDetails.duration;
-              }
-              if (d.snippet?.channelTitle && !v.snippet?.videoOwnerChannelTitle) {
-                v.snippet.videoOwnerChannelTitle = d.snippet.channelTitle;
-              }
-            }
-          }
-        }
-      }
-    } else {
-      console.log(`[Startup] videoDetailsCache OK: ${cacheSize} entries — no API calls needed`);
     }
 
     refreshDashboard();
