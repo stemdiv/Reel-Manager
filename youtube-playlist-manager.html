@@ -702,6 +702,25 @@
   .deck-playlist-header:hover { background: var(--surface2); }
   .deck-playlist-videos.collapsed { display: none; }
 
+  /* Watch Plan view modes */
+  .watchViewToggle.active { background: var(--accent); color: #fff; }
+  .watch-thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+  .watch-thumb-card { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; cursor: pointer; transition: border-color 0.15s; }
+  .watch-thumb-card:hover { border-color: var(--accent); }
+  .watch-thumb-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(212,101,74,0.25); }
+  .watch-thumb-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; }
+  .watch-thumb-card .watch-thumb-info { padding: 6px 8px; }
+  .watch-thumb-card .watch-thumb-title { font-size: 11px; font-weight: 500; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .watch-thumb-card .watch-thumb-meta { font-size: 10px; color: var(--text3); margin-top: 2px; }
+  .watch-thumb-card .watch-thumb-check { position: absolute; top: 6px; left: 6px; width: 16px; height: 16px; accent-color: var(--accent); }
+  .watch-thumb-card .watch-thumb-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -80%); opacity: 0; transition: opacity 0.15s; background: rgba(0,0,0,0.5); border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
+  .watch-thumb-card:hover .watch-thumb-play { opacity: 1; }
+  .watch-list-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--r-sm); transition: background 0.12s; }
+  .watch-list-item:hover { background: var(--surface2); }
+  @media (max-width: 768px) {
+    .watch-thumb-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  }
+
   .hidden { display: none !important; }
   .flex { display: flex; }
   .flex-center { display: flex; align-items: center; justify-content: center; }
@@ -1349,7 +1368,29 @@
             <select class="form-control" id="watchPlaylistSelect" onchange="loadPlaylistVideosForWatch()">
               <option value="" data-i18n="watch_select_playlist">Sélectionner une playlist...</option>
             </select>
-            <div id="watchVideoSelector" style="margin-top: 16px;"></div>
+            <div id="watchSelectorControls" style="display:none;margin-top:12px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
+                    <input type="checkbox" id="watchSelectAll" onchange="toggleWatchSelectAll(this.checked)" style="accent-color:var(--accent);">
+                    <span data-i18n="watch_select_all">Tout sélectionner</span>
+                  </label>
+                  <span class="text-muted" style="font-size:11px;" id="watchVideoCount"></span>
+                </div>
+                <div style="display:flex;align-items:center;gap:4px;">
+                  <button class="btn btn-secondary btn-sm" onclick="playWatchPlaylist()" title="Lire la playlist">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  </button>
+                  <button class="btn btn-secondary btn-sm watchViewToggle" data-mode="list" onclick="setWatchViewMode('list')" title="Liste">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                  </button>
+                  <button class="btn btn-secondary btn-sm watchViewToggle active" data-mode="thumb" onclick="setWatchViewMode('thumb')" title="Thumbnails">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div id="watchVideoSelector" style="margin-top: 12px;"></div>
             <button class="btn btn-primary mt-16" onclick="addToWatchQueue()" style="width: 100%;" data-i18n="watch_add_queue">Ajouter à la queue</button>
           </div>
           <div>
@@ -1946,6 +1987,9 @@ const I18N = {
     watch_videos_label: 'VIDÉOS',
     watch_prev: 'Précédent',
     watch_next: 'Suivant',
+    watch_select_all: 'Tout sélectionner',
+    watch_view_list: 'Liste',
+    watch_view_thumb: 'Thumbnails',
 
     // Diff
     diff_title: 'Playlist Diff',
@@ -2423,6 +2467,9 @@ const I18N = {
     watch_videos_label: 'VIDEOS',
     watch_prev: 'Previous',
     watch_next: 'Next',
+    watch_select_all: 'Select all',
+    watch_view_list: 'List',
+    watch_view_thumb: 'Thumbnails',
 
     // Diff
     diff_title: 'Playlist Diff',
@@ -4974,7 +5021,8 @@ function renderDiscoverResults(query) {
       <input type="checkbox" class="discover-check" data-idx="${i}" ${v.selected ? 'checked' : ''}
         onchange="discoverResults[${i}].selected=this.checked;updateDiscoverQuota()"
         style="margin-top:4px;accent-color:var(--accent);width:16px;height:16px;flex-shrink:0;cursor:pointer;">
-      <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener" style="flex-shrink:0;position:relative;display:block;width:160px;">
+      <div style="flex-shrink:0;position:relative;display:block;width:160px;cursor:pointer;"
+        onclick="event.stopPropagation();playVideo('${v.videoId}','${(v.title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.channel||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.thumbnail||'').replace(/'/g,"\\'")}')">
         ${v.thumbnail
           ? `<img src="${v.thumbnail}" style="width:160px;aspect-ratio:16/9;object-fit:cover;border-radius:var(--r-sm);display:block;">`
           : `<div style="width:160px;aspect-ratio:16/9;background:var(--surface3);border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--text4);font-size:10px;">No thumb</div>`
@@ -4984,7 +5032,7 @@ function renderDiscoverResults(query) {
           onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0'">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff" stroke="none"><path d="m6 3 14 9-14 9V3z"/></svg>
         </div>
-      </a>
+      </div>
       <div style="flex:1;min-width:0;">
         <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener"
           style="font-weight:600;font-size:13px;color:var(--text);text-decoration:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;">${v.title}</a>
@@ -6296,11 +6344,20 @@ function renderDeckVideoItem(video) {
   const thumb = video.snippet?.thumbnails?.medium?.url || video.snippet?.thumbnails?.high?.url || video.snippet?.thumbnails?.default?.url || '';
   const channel = video.snippet?.videoOwnerChannelTitle || '';
   const videoId = video.snippet?.resourceId?.videoId || video.contentDetails?.videoId || '';
+  const escapedTitle = title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  const escapedChannel = channel.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  const escapedThumb = thumb.replace(/'/g, "\\'");
 
   return `
-    <div class="deck-video-item" onclick="window.open('https://www.youtube.com/watch?v=${videoId}', '_blank')">
-      ${thumb ? `<img class="deck-video-thumb" src="${thumb}" alt="" loading="lazy">` : '<div class="deck-video-thumb"></div>'}
-      <div class="deck-video-info">
+    <div class="deck-video-item" style="position:relative;">
+      <div style="position:relative;flex-shrink:0;cursor:pointer;" onclick="event.stopPropagation();playVideo('${videoId}','${escapedTitle}','${escapedChannel}','${escapedThumb}')">
+        ${thumb ? `<img class="deck-video-thumb" src="${thumb}" alt="" loading="lazy">` : '<div class="deck-video-thumb"></div>'}
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;background:rgba(0,0,0,0.45);border-radius:4px;"
+          onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0'">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+      </div>
+      <div class="deck-video-info" style="cursor:pointer;" onclick="window.open('https://www.youtube.com/watch?v=${videoId}', '_blank')">
         <div class="deck-video-title">${title}</div>
         <div class="deck-video-meta">${channel}</div>
       </div>
@@ -6608,30 +6665,142 @@ function applyCategorization(suggestions) {
 // WATCH PLAN
 // ============================================================================
 
+let watchViewMode = 'thumb'; // 'list' or 'thumb'
+
 async function loadPlaylistVideosForWatch() {
   const playlistId = document.getElementById('watchPlaylistSelect').value;
+  const controls = document.getElementById('watchSelectorControls');
   if (!playlistId) {
     document.getElementById('watchVideoSelector').innerHTML = '';
+    controls.style.display = 'none';
     return;
   }
 
   const videos = APP.allVideos[playlistId] || [];
-  const html = videos.map(v => `
-    <div class="form-checkbox">
-      <input type="checkbox" value="${v.contentDetails?.videoId}|${v.snippet?.title}" class="watch-video-select">
-      <span class="checkbox-label">${v.snippet?.title}</span>
-    </div>
-  `).join('');
+  if (!videos.length) {
+    document.getElementById('watchVideoSelector').innerHTML = `<p class="text-muted">${t('no_video')}</p>`;
+    controls.style.display = 'none';
+    return;
+  }
 
-  document.getElementById('watchVideoSelector').innerHTML = html || `<p class="text-muted">${t('no_video')}</p>`;
+  controls.style.display = '';
+  document.getElementById('watchVideoCount').textContent = `${videos.length} ${t('watch_videos_label').toLowerCase()}`;
+  document.getElementById('watchSelectAll').checked = false;
+  renderWatchVideoSelector(videos);
+}
+
+function renderWatchVideoSelector(videos) {
+  if (!videos) {
+    const playlistId = document.getElementById('watchPlaylistSelect').value;
+    videos = APP.allVideos[playlistId] || [];
+  }
+  const container = document.getElementById('watchVideoSelector');
+
+  if (watchViewMode === 'thumb') {
+    container.innerHTML = `<div class="watch-thumb-grid">${videos.map((v, i) => {
+      const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
+      const title = v.snippet?.title || '';
+      const channel = v.snippet?.videoOwnerChannelTitle || '';
+      const thumb = v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url || '';
+      const dur = v.contentDetails?.duration || videoDetailsCache[videoId]?.duration || '';
+      const durStr = dur ? formatIsoDuration(dur) : '';
+      const escapedTitle = title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const escapedChannel = channel.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const escapedThumb = thumb.replace(/'/g, "\\'");
+
+      return `<div class="watch-thumb-card" data-idx="${i}" onclick="toggleWatchThumbSelect(this)">
+        <input type="checkbox" class="watch-thumb-check watch-video-select" value="${videoId}|${title}|${channel}|${thumb}" onclick="event.stopPropagation();" onchange="toggleWatchThumbSelect(this.closest('.watch-thumb-card'), this.checked)">
+        ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : `<div style="width:100%;aspect-ratio:16/9;background:var(--surface3);"></div>`}
+        ${durStr ? `<div style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.8);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;font-family:'Geist Mono',monospace;pointer-events:none;">${durStr}</div>` : ''}
+        <div class="watch-thumb-play" onclick="event.stopPropagation();playVideo('${videoId}','${escapedTitle}','${escapedChannel}','${escapedThumb}')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+        <div class="watch-thumb-info">
+          <div class="watch-thumb-title">${title}</div>
+          <div class="watch-thumb-meta">${channel}</div>
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+  } else {
+    // List mode
+    container.innerHTML = videos.map((v, i) => {
+      const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
+      const title = v.snippet?.title || '';
+      const channel = v.snippet?.videoOwnerChannelTitle || '';
+      const thumb = v.snippet?.thumbnails?.default?.url || '';
+      const dur = v.contentDetails?.duration || videoDetailsCache[videoId]?.duration || '';
+      const durStr = dur ? formatIsoDuration(dur) : '';
+      const escapedTitle = title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const escapedChannel = channel.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const escapedThumb = thumb.replace(/'/g, "\\'");
+
+      return `<div class="watch-list-item">
+        <input type="checkbox" class="watch-video-select" value="${videoId}|${title}|${channel}|${thumb}" style="accent-color:var(--accent);width:14px;height:14px;flex-shrink:0;">
+        <div style="position:relative;flex-shrink:0;width:48px;height:27px;cursor:pointer;border-radius:3px;overflow:hidden;" onclick="event.stopPropagation();playVideo('${videoId}','${escapedTitle}','${escapedChannel}','${escapedThumb}')">
+          ${thumb ? `<img src="${thumb}" style="width:100%;height:100%;object-fit:cover;">` : `<div style="width:100%;height:100%;background:var(--surface3);"></div>`}
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;background:rgba(0,0,0,0.45);"
+            onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0'">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </div>
+        </div>
+        <span style="font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${title}</span>
+        ${durStr ? `<span class="mono" style="font-size:10px;color:var(--text3);flex-shrink:0;">${durStr}</span>` : ''}
+      </div>`;
+    }).join('');
+  }
+}
+
+function formatIsoDuration(iso) {
+  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!m) return '';
+  const h = parseInt(m[1] || 0);
+  const min = parseInt(m[2] || 0);
+  const s = parseInt(m[3] || 0);
+  if (h) return `${h}:${String(min).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${min}:${String(s).padStart(2,'0')}`;
+}
+
+function setWatchViewMode(mode) {
+  watchViewMode = mode;
+  document.querySelectorAll('.watchViewToggle').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.mode === mode);
+  });
+  renderWatchVideoSelector();
+}
+
+function toggleWatchThumbSelect(card, forceState) {
+  const cb = card.querySelector('.watch-thumb-check');
+  if (typeof forceState === 'boolean') {
+    cb.checked = forceState;
+  } else {
+    cb.checked = !cb.checked;
+  }
+  card.classList.toggle('selected', cb.checked);
+}
+
+function toggleWatchSelectAll(checked) {
+  document.querySelectorAll('.watch-video-select').forEach(cb => {
+    cb.checked = checked;
+    const card = cb.closest('.watch-thumb-card');
+    if (card) card.classList.toggle('selected', checked);
+  });
+}
+
+function playWatchPlaylist() {
+  const playlistId = document.getElementById('watchPlaylistSelect').value;
+  if (playlistId) playPlaylist(playlistId, 0);
 }
 
 function addToWatchQueue() {
   const selected = Array.from(document.querySelectorAll('.watch-video-select:checked'));
   let added = 0;
   selected.forEach(el => {
-    const [videoId, title] = el.value.split('|');
-    const item = { videoId, title };
+    const parts = el.value.split('|');
+    const videoId = parts[0];
+    const title = parts[1] || '';
+    const channel = parts[2] || '';
+    const thumbnail = parts[3] || '';
+    const item = { videoId, title, channelTitle: channel, thumbnail };
     if (!APP.watchQueue.some(q => q.videoId === videoId)) {
       APP.watchQueue.push(item);
       added++;
@@ -6644,14 +6813,24 @@ function addToWatchQueue() {
 }
 
 function refreshWatchQueue() {
-  const html = APP.watchQueue.length ? APP.watchQueue.map((item, idx) => `
-    <div class="p-16" style="background: var(--surface); border-radius: var(--radius); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-      <div>
-        <div>${idx + 1}. ${item.title.substring(0, 40)}</div>
-      </div>
-      <button class="btn btn-danger btn-sm" onclick="removeFromWatchQueue(${idx})">✕</button>
-    </div>
-  `).join('') : `<p class="text-muted">${t('no_video')}</p>`;
+  const html = APP.watchQueue.length ? APP.watchQueue.map((item, idx) => {
+    const escapedTitle = (item.title||'').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    const escapedChannel = (item.channelTitle||'').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    const escapedThumb = (item.thumbnail||'').replace(/'/g, "\\'");
+    return `
+    <div style="background: var(--surface); border-radius: var(--radius); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; padding: 8px 10px;">
+      <span class="mono" style="font-size:10px;color:var(--text4);width:18px;text-align:center;flex-shrink:0;">${idx + 1}</span>
+      ${item.thumbnail ? `<div style="position:relative;flex-shrink:0;width:48px;height:27px;cursor:pointer;border-radius:3px;overflow:hidden;" onclick="playVideo('${item.videoId}','${escapedTitle}','${escapedChannel}','${escapedThumb}')">
+        <img src="${item.thumbnail}" style="width:100%;height:100%;object-fit:cover;">
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;background:rgba(0,0,0,0.45);"
+          onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0'">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+      </div>` : ''}
+      <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">${item.title}</div>
+      <button class="btn btn-danger btn-sm" onclick="removeFromWatchQueue(${idx})" style="flex-shrink:0;padding:2px 6px;">✕</button>
+    </div>`;
+  }).join('') : `<p class="text-muted">${t('no_video')}</p>`;
 
   document.getElementById('watchQueue').innerHTML = html;
   document.getElementById('watchQueueCount').textContent = `(${APP.watchQueue.length})`;
@@ -6676,33 +6855,19 @@ function startWatchSession() {
     return;
   }
 
-  let currentIdx = 0;
-  const container = document.getElementById('watchPlayerContainer');
-
-  function playVideo(idx) {
-    if (idx < 0 || idx >= APP.watchQueue.length) {
-      if (idx >= APP.watchQueue.length) {
-        container.innerHTML = `<p class="text-center text-muted">${t('watch_end')}</p>`;
-      }
-      return;
-    }
-
-    const item = APP.watchQueue[idx];
-    container.innerHTML = `
-      <div>
-        <h3>${idx + 1}/${APP.watchQueue.length}: ${item.title}</h3>
-        <iframe width="100%" height="500" src="https://www.youtube.com/embed/${item.videoId}?autoplay=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen style="border-radius: var(--radius);"></iframe>
-        <div style="margin-top: 16px; display: flex; gap: 8px;">
-          <button class="btn btn-secondary" onclick="window.playVideoGlobal(${idx - 1})" ${idx === 0 ? 'disabled' : ''}>← Précédent</button>
-          <button class="btn btn-secondary" onclick="window.playVideoGlobal(${idx + 1})" ${idx === APP.watchQueue.length - 1 ? 'disabled' : ''}>Suivant →</button>
-        </div>
-      </div>
-    `;
-
-    window.playVideoGlobal = playVideo;
-  }
-
-  playVideo(0);
+  // Use the embedded PLAYER engine — load entire watch queue into it
+  loadYouTubeAPI();
+  PLAYER.queue = APP.watchQueue.map(item => ({
+    videoId: item.videoId,
+    title: item.title || '',
+    channelTitle: item.channelTitle || item.channel || '',
+    thumbnail: item.thumbnail || '',
+    playlistId: null
+  }));
+  PLAYER.currentIndex = 0;
+  if (PLAYER.shuffle) shuffleQueue();
+  loadCurrentVideo();
+  openPlayerModal();
 }
 
 // ============================================================================
