@@ -2856,8 +2856,13 @@ function init() {
   // Cache-first display: if we have backup data, show the dashboard immediately
   // even before OAuth check — user sees data instantly on PWA/mobile revisit
   const hasBackupData = APP.playlists.length > 0 && Object.keys(APP.allVideos).length > 0;
-  if (hasBackupData) {
+  const explicitlyLoggedOut = sessionStorage.getItem('loggedOut') === '1';
+  if (hasBackupData && !explicitlyLoggedOut) {
     showAppFromCache();
+  }
+  if (explicitlyLoggedOut) {
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('appContainer').style.display = 'none';
   }
 
   checkAuth();
@@ -3190,6 +3195,8 @@ function checkAuth() {
     const params = new URLSearchParams(hash.substring(1));
     APP.accessToken = params.get('access_token');
     if (APP.accessToken) {
+      // Clear explicit logout flag on successful re-auth
+      sessionStorage.removeItem('loggedOut');
       // Record login timestamp for auto-purge mechanism
       localStorage.setItem('lastLoginTimestamp', new Date().toISOString());
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -3202,6 +3209,8 @@ function checkAuth() {
 function handleLogout() {
   APP.accessToken = '';
   APP.userInfo = null;
+  // Mark as explicitly logged out so init() doesn't auto-show from cache
+  sessionStorage.setItem('loggedOut', '1');
   location.reload();
 }
 
@@ -8126,7 +8135,7 @@ window.addEventListener('hashchange', checkAuth);
 
 // Show login screen only if no token AND no cached data
 // If backup exists in localStorage, init() → showAppFromCache() will display the dashboard
-if (!APP.clientId && !APP.accessToken && !localStorage.getItem('lastBackup')) {
+if ((!APP.clientId && !APP.accessToken && !localStorage.getItem('lastBackup')) || sessionStorage.getItem('loggedOut') === '1') {
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('appContainer').style.display = 'none';
 }
