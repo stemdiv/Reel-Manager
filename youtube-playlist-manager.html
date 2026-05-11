@@ -3948,7 +3948,35 @@ async function showApp() {
       const totalVids = Object.values(APP.allVideos).reduce((s, v) => s + v.length, 0);
       const cacheSize = Object.keys(videoDetailsCache).length;
       console.log(`[Startup] Using cached backup: ${APP.playlists.length} playlists, ${totalVids} videos, ${cacheSize} details — 0 API calls`);
-      showToast(t('toast_cache_loaded', { playlists: APP.playlists.length }), 'success');
+
+      // Detect old-format cache: if videos exist but none have thumbnails, force a full refresh
+      let hasAnyThumb = false;
+      for (const plId in APP.allVideos) {
+        for (const v of APP.allVideos[plId]) {
+          if (v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url) {
+            hasAnyThumb = true;
+            break;
+          }
+        }
+        if (hasAnyThumb) break;
+      }
+
+      if (!hasAnyThumb && totalVids > 0 && APP.accessToken) {
+        console.log('[Startup] Old cache format detected (no thumbnails) — forcing full refresh to migrate');
+        showToast('Upgrading cache format — loading thumbnails...', 'info');
+        await loadAllPlaylists();
+        APP.allVideos = {};
+        videoDetailsCache = {};
+        await loadAllVideosAtStartup();
+        refreshDashboard();
+        populateSelectDropdowns();
+        refreshPlaylistsList();
+        autoSaveToLocalStorage();
+      } else {
+        showToast(t('toast_cache_loaded', { playlists: APP.playlists.length }), 'success');
+        // Re-save to autoCache so the format stays up-to-date
+        autoSaveToLocalStorage();
+      }
     } else {
       // No backup — fetch everything from API
       await loadAllPlaylists();
