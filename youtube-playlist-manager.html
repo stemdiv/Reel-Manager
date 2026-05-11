@@ -3281,8 +3281,36 @@ function showAppFromCache() {
 
 function loadBackupFromStorage() {
   try {
-    const raw = localStorage.getItem('lastBackup');
+    // Priority: lastBackup (full, manual) > autoCache (lightweight, auto-saved)
+    const manualRaw = localStorage.getItem('lastBackup');
+    const manualTs = localStorage.getItem('lastBackupTimestamp');
+    const cacheRaw = localStorage.getItem('autoCache');
+    const cacheTs = localStorage.getItem('autoCacheTimestamp');
+
+    let raw = null;
+    let source = '';
+
+    if (manualRaw && manualTs) {
+      const manualAge = Date.now() - new Date(manualTs).getTime();
+      const cacheAge = cacheTs ? Date.now() - new Date(cacheTs).getTime() : Infinity;
+      // Prefer manual backup if it exists and is newer than autoCache, or if autoCache doesn't exist
+      if (!cacheRaw || manualAge <= cacheAge) {
+        raw = manualRaw;
+        source = 'lastBackup';
+      } else {
+        raw = cacheRaw;
+        source = 'autoCache';
+      }
+    } else if (cacheRaw) {
+      raw = cacheRaw;
+      source = 'autoCache';
+    } else if (manualRaw) {
+      raw = manualRaw;
+      source = 'lastBackup';
+    }
+
     if (!raw) return;
+    console.log(`[Backup auto-load] Using source: ${source}`);
     const backup = JSON.parse(raw);
     if (!backup.playlists || !Array.isArray(backup.playlists)) return;
 
@@ -3355,7 +3383,12 @@ function loadBackupFromStorage() {
 }
 
 function checkBackupSafety(actionName) {
-  const timestamp = localStorage.getItem('lastBackupTimestamp');
+  // Check both backup sources — use the most recent one
+  const manualTs = localStorage.getItem('lastBackupTimestamp');
+  const cacheTs = localStorage.getItem('autoCacheTimestamp');
+  const timestamp = manualTs && cacheTs
+    ? (new Date(manualTs) > new Date(cacheTs) ? manualTs : cacheTs)
+    : manualTs || cacheTs;
 
   // No backup at all → block
   if (!timestamp) {
@@ -3488,7 +3521,8 @@ async function deleteAllUserData() {
   const appKeys = [
     'youtubeClientId', 'appTheme', 'appSkin', 'playlistTags', 'tagIcons', 'watchQueue',
     'playlistFolders', 'folderAssignments', 'folderExpanded', 'deckColumns',
-    'lastBackup', 'lastBackupTimestamp', 'oauthScope', 'lastLoginTimestamp', 'recentSearches'
+    'lastBackup', 'lastBackupTimestamp', 'autoCache', 'autoCacheTimestamp',
+    'oauthScope', 'lastLoginTimestamp', 'recentSearches'
   ];
   appKeys.forEach(k => localStorage.removeItem(k));
 
@@ -3509,7 +3543,8 @@ function checkAutoPurge() {
     // Purge all app data silently
     const appKeys = [
       'playlistTags', 'tagIcons', 'watchQueue', 'playlistFolders', 'folderAssignments',
-      'folderExpanded', 'deckColumns', 'lastBackup', 'lastBackupTimestamp', 'oauthScope', 'recentSearches'
+      'folderExpanded', 'deckColumns', 'lastBackup', 'lastBackupTimestamp',
+      'autoCache', 'autoCacheTimestamp', 'oauthScope', 'recentSearches'
     ];
     appKeys.forEach(k => localStorage.removeItem(k));
     localStorage.removeItem('lastLoginTimestamp');
@@ -3525,6 +3560,7 @@ function runCacheDiagnostic() {
   // localStorage usage
   let totalBytes = 0;
   let backupBytes = 0;
+  let cacheBytes = 0;
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -3532,10 +3568,12 @@ function runCacheDiagnostic() {
       const size = (key.length + val.length) * 2; // UTF-16
       totalBytes += size;
       if (key === 'lastBackup') backupBytes = size;
+      if (key === 'autoCache') cacheBytes = size;
     }
   } catch (_) {}
   const totalKB = (totalBytes / 1024).toFixed(1);
   const backupKB = (backupBytes / 1024).toFixed(1);
+  const cacheKB = (cacheBytes / 1024).toFixed(1);
 
   // Estimate storage limit
   let storageStatus = '?';
@@ -3548,15 +3586,27 @@ function runCacheDiagnostic() {
     });
   }
 
-  // Backup data
-  const raw = localStorage.getItem('lastBackup');
-  const ts = localStorage.getItem('lastBackupTimestamp');
-  let backupPlaylists = 0, backupVideos = 0;
-  if (raw) {
+  // Manual backup data
+  const manualRaw = localStorage.getItem('lastBackup');
+  const manualTs = localStorage.getItem('lastBackupTimestamp');
+  let manualPl = 0, manualVid = 0;
+  if (manualRaw) {
     try {
-      const b = JSON.parse(raw);
-      backupPlaylists = b.playlists?.length || 0;
-      backupVideos = b.playlists?.reduce((s, p) => s + (p.videos?.length || 0), 0) || 0;
+      const b = JSON.parse(manualRaw);
+      manualPl = b.playlists?.length || 0;
+      manualVid = b.playlists?.reduce((s, p) => s + (p.videos?.length || 0), 0) || 0;
+    } catch (_) { }
+  }
+
+  // Auto-cache data
+  const cacheRaw = localStorage.getItem('autoCache');
+  const cacheTs = localStorage.getItem('autoCacheTimestamp');
+  let cachePl = 0, cacheVid = 0;
+  if (cacheRaw) {
+    try {
+      const b = JSON.parse(cacheRaw);
+      cachePl = b.playlists?.length || 0;
+      cacheVid = b.playlists?.reduce((s, p) => s + (p.videos?.length || 0), 0) || 0;
     } catch (_) { }
   }
 
@@ -3573,12 +3623,20 @@ function runCacheDiagnostic() {
   const yellow = 'color:var(--yellow)';
 
   el.innerHTML = `
-    <div><b>localStorage:</b> ${totalKB} KB total, backup = ${backupKB} KB</div>
+    <div><b>localStorage:</b> ${totalKB} KB total</div>
     <div><b>Storage API:</b> <span id="cacheDiagStorage">checking...</span></div>
-    <div style="margin-top:8px;"><b>Backup in localStorage:</b>
-      ${raw ? `<span style="${green}">YES</span> — ${backupPlaylists} playlists, ${backupVideos} videos` : `<span style="${red}">NONE</span>`}
+    <div style="margin-top:8px;border-bottom:1px solid var(--border);padding-bottom:8px;">
+      <div><b>Manual backup (lastBackup):</b>
+        ${manualRaw ? `<span style="${green}">YES</span> — ${manualPl} pl, ${manualVid} vid (${backupKB} KB)` : `<span style="${red}">NONE</span>`}
+      </div>
+      <div><b>Manual backup date:</b> ${manualTs || '<span style="' + red + '">never</span>'}</div>
     </div>
-    <div><b>Backup date:</b> ${ts || '<span style="' + red + '">never</span>'}</div>
+    <div style="margin-top:8px;border-bottom:1px solid var(--border);padding-bottom:8px;">
+      <div><b>Auto-cache (autoCache):</b>
+        ${cacheRaw ? `<span style="${green}">YES</span> — ${cachePl} pl, ${cacheVid} vid (${cacheKB} KB)` : `<span style="${red}">NONE</span>`}
+      </div>
+      <div><b>Auto-cache date:</b> ${cacheTs || '<span style="' + red + '">never</span>'}</div>
+    </div>
     <div style="margin-top:8px;"><b>In-memory (APP):</b>
       ${memPlaylists} playlists, ${memVideos} videos, ${memDetails} cached details
     </div>
@@ -3586,6 +3644,7 @@ function runCacheDiagnostic() {
     <div style="margin-top:8px;"><b>Cache-first status:</b>
       ${memPlaylists > 0 && memVideos > 0 ? `<span style="${green}">ACTIVE</span> — startup uses 0 API calls` : `<span style="${red}">INACTIVE</span> — startup will fetch from API`}
     </div>
+    <div><b>Source used at startup:</b> ${manualRaw || cacheRaw ? `<span style="${green}">${manualRaw && (!cacheRaw || new Date(manualTs) >= new Date(cacheTs)) ? 'lastBackup (manual)' : 'autoCache (auto)'}</span>` : `<span style="${red}">none</span>`}</div>
     <div><b>Token:</b> ${APP.accessToken ? `<span style="${green}">present</span> (${APP.accessToken.substring(0, 8)}...)` : `<span style="${red}">absent</span>`}</div>
   `;
 }
@@ -3593,7 +3652,12 @@ function runCacheDiagnostic() {
 function updateBackupIndicator() {
   const el = document.getElementById('backupInfo');
   if (!el) return;
-  const raw = localStorage.getItem('lastBackupTimestamp');
+  // Show the most recent timestamp from either source
+  const manualTs = localStorage.getItem('lastBackupTimestamp');
+  const cacheTs = localStorage.getItem('autoCacheTimestamp');
+  const raw = manualTs && cacheTs
+    ? (new Date(manualTs) > new Date(cacheTs) ? manualTs : cacheTs)
+    : manualTs || cacheTs;
   if (!raw) {
     el.textContent = t('backup_none');
     el.style.color = 'var(--danger)';
@@ -3927,7 +3991,7 @@ async function fullRefresh() {
  */
 function autoSaveToLocalStorage() {
   try {
-    const backup = {
+    const cache = {
       timestamp: new Date().toISOString(),
       playlists: APP.playlists.map(pl => ({
         id: pl.id,
@@ -3960,25 +4024,26 @@ function autoSaveToLocalStorage() {
       deckColumns: APP.deckColumns,
       watchQueue: APP.watchQueue
     };
-    const json = JSON.stringify(backup);
+    const json = JSON.stringify(cache);
     const sizeKB = (json.length * 2 / 1024).toFixed(1);
-    console.log(`[Auto-save] Backup JSON size: ${sizeKB} KB`);
+    console.log(`[Auto-cache] JSON size: ${sizeKB} KB`);
 
-    localStorage.setItem('lastBackup', json);
-    localStorage.setItem('lastBackupTimestamp', backup.timestamp);
+    // Write to autoCache key — never touches lastBackup (manual backup only)
+    localStorage.setItem('autoCache', json);
+    localStorage.setItem('autoCacheTimestamp', cache.timestamp);
 
     // Verify the save actually worked
-    const verify = localStorage.getItem('lastBackup');
+    const verify = localStorage.getItem('autoCache');
     if (!verify || verify.length < 100) {
       throw new Error(`Verification failed: saved ${json.length} chars but read back ${verify?.length || 0}`);
     }
 
     updateBackupIndicator();
-    const totalVids = backup.playlists.reduce((s, p) => s + p.videos.length, 0);
-    console.log(`[Auto-save] OK — ${backup.playlists.length} playlists, ${totalVids} videos (${sizeKB} KB)`);
+    const totalVids = cache.playlists.reduce((s, p) => s + p.videos.length, 0);
+    console.log(`[Auto-cache] OK — ${cache.playlists.length} playlists, ${totalVids} videos (${sizeKB} KB)`);
     showToast(`Cache saved: ${totalVids} videos (${sizeKB} KB)`, 'success');
   } catch (err) {
-    console.error('[Auto-save] FAILED:', err.message);
+    console.error('[Auto-cache] FAILED:', err.message);
     showToast(`Cache FAILED: ${err.message}`, 'error');
   }
 }
@@ -9230,7 +9295,7 @@ window.addEventListener('hashchange', checkAuth);
 
 // Show login screen only if no token AND no cached data
 // If backup exists in localStorage, init() → showAppFromCache() will display the dashboard
-if ((!APP.clientId && !APP.accessToken && !localStorage.getItem('lastBackup')) || sessionStorage.getItem('loggedOut') === '1') {
+if ((!APP.clientId && !APP.accessToken && !localStorage.getItem('lastBackup') && !localStorage.getItem('autoCache')) || sessionStorage.getItem('loggedOut') === '1') {
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('appContainer').style.display = 'none';
 }
