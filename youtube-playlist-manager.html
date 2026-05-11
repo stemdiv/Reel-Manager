@@ -271,6 +271,13 @@
   .beta-status.testing { color: var(--warning, #f59e0b); background: color-mix(in srgb, var(--warning, #f59e0b) 12%, transparent); }
   .beta-status.dev { color: var(--accent); background: var(--accent-soft); }
   .beta-status.ready { color: var(--success, #22c55e); background: color-mix(in srgb, var(--success, #22c55e) 12%, transparent); }
+
+  .studio-card { border: 1px solid var(--border); border-radius: var(--r-lg); margin-bottom: 10px; overflow: hidden; background: var(--surface); }
+  .studio-card-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; cursor: pointer; font-weight: 500; font-size: 13px; transition: background .15s; }
+  .studio-card-header:hover { background: var(--surface2); }
+  .studio-card-body { padding: 0 16px 16px 16px; }
+  .studio-chevron { transition: transform .2s; }
+  .studio-card.open .studio-chevron { transform: rotate(180deg); }
   /* ── In-App Player (Beta) ── */
   .player-modal-overlay {
     display: none; position: fixed; inset: 0; z-index: 500;
@@ -1614,6 +1621,221 @@
           <!-- Beta features are rendered here by renderBetaFeatures() -->
         </div>
 
+        <!-- STUDIO CREATOR SECTION -->
+        <div id="studioCreatorSection" style="margin-top:32px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            <h2 style="margin:0;font-size:16px;" data-i18n="studio_title">Studio Creator</h2>
+            <span class="beta-status dev">PRO</span>
+          </div>
+          <p class="text-muted" style="margin-bottom:20px;font-size:13px;" data-i18n="studio_subtitle">Outils de creation YouTube : editez vos videos, gerez les sous-titres, personnalisez votre chaine.</p>
+
+          <!-- Video Editor -->
+          <div class="studio-card" id="studioVideoEditor">
+            <div class="studio-card-header" onclick="toggleStudioPanel('videoEditor')">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                <span data-i18n="studio_video_editor">Video Editor</span>
+              </div>
+              <svg class="studio-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="studio-card-body" id="videoEditorPanel" style="display:none;">
+              <p class="text-muted" style="font-size:12px;margin-bottom:12px;" data-i18n="studio_video_editor_desc">Selectionnez une video pour modifier son titre, sa description, ses tags, sa categorie ou sa visibilite.</p>
+              <div class="form-group">
+                <label class="form-label" data-i18n="studio_select_video">Selectionner une video</label>
+                <select class="form-control" id="studioVideoSelect" onchange="onStudioVideoSelect()" style="font-size:13px;">
+                  <option value="">-- choisir --</option>
+                </select>
+              </div>
+              <div id="studioVideoForm" style="display:none;">
+                <div class="form-group">
+                  <label class="form-label" data-i18n="studio_video_title">Titre</label>
+                  <input type="text" class="form-control" id="studioVideoTitle" maxlength="100" style="font-size:13px;">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" data-i18n="studio_video_desc">Description</label>
+                  <textarea class="form-control" id="studioVideoDesc" rows="4" maxlength="5000" style="font-size:13px;"></textarea>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" data-i18n="studio_video_tags">Tags (separes par des virgules)</label>
+                  <input type="text" class="form-control" id="studioVideoTags" style="font-size:13px;" placeholder="tag1, tag2, tag3">
+                </div>
+                <div style="display:flex;gap:12px;">
+                  <div class="form-group" style="flex:1;">
+                    <label class="form-label" data-i18n="studio_video_category">Categorie</label>
+                    <select class="form-control" id="studioVideoCategory" style="font-size:13px;">
+                      <option value="1">Film & Animation</option>
+                      <option value="2">Autos & Vehicles</option>
+                      <option value="10">Music</option>
+                      <option value="15">Pets & Animals</option>
+                      <option value="17">Sports</option>
+                      <option value="19">Travel & Events</option>
+                      <option value="20">Gaming</option>
+                      <option value="22">People & Blogs</option>
+                      <option value="23">Comedy</option>
+                      <option value="24">Entertainment</option>
+                      <option value="25">News & Politics</option>
+                      <option value="26">Howto & Style</option>
+                      <option value="27">Education</option>
+                      <option value="28">Science & Technology</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="flex:1;">
+                    <label class="form-label" data-i18n="studio_video_privacy">Visibilite</label>
+                    <select class="form-control" id="studioVideoPrivacy" style="font-size:13px;">
+                      <option value="public">Public</option>
+                      <option value="unlisted">Non repertoriee</option>
+                      <option value="private">Privee</option>
+                    </select>
+                  </div>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="saveVideoMetadata()" data-i18n="studio_save">Enregistrer</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Thumbnail Manager -->
+          <div class="studio-card" id="studioThumbnail">
+            <div class="studio-card-header" onclick="toggleStudioPanel('thumbnail')">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <span data-i18n="studio_thumbnail">Miniatures personnalisees</span>
+              </div>
+              <svg class="studio-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="studio-card-body" id="thumbnailPanel" style="display:none;">
+              <p class="text-muted" style="font-size:12px;margin-bottom:12px;" data-i18n="studio_thumbnail_desc">Uploadez une miniature personnalisee pour vos videos (max 2 Mo, 1280x720 recommande).</p>
+              <div class="form-group">
+                <label class="form-label" data-i18n="studio_select_video">Selectionner une video</label>
+                <select class="form-control" id="studioThumbVideoSelect" onchange="onThumbVideoSelect()" style="font-size:13px;">
+                  <option value="">-- choisir --</option>
+                </select>
+              </div>
+              <div id="studioThumbForm" style="display:none;">
+                <div id="studioThumbPreview" style="margin-bottom:12px;"></div>
+                <div class="form-group">
+                  <label class="form-label" data-i18n="studio_thumb_file">Fichier image (JPEG/PNG, max 2 Mo)</label>
+                  <input type="file" id="studioThumbFile" accept="image/jpeg,image/png" class="form-control" style="font-size:13px;">
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="uploadThumbnail()" data-i18n="studio_upload">Uploader</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Captions Manager -->
+          <div class="studio-card" id="studioCaptions">
+            <div class="studio-card-header" onclick="toggleStudioPanel('captions')">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/></svg>
+                <span data-i18n="studio_captions">Sous-titres</span>
+              </div>
+              <svg class="studio-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="studio-card-body" id="captionsPanel" style="display:none;">
+              <p class="text-muted" style="font-size:12px;margin-bottom:12px;" data-i18n="studio_captions_desc">Listez, ajoutez ou supprimez les sous-titres de vos videos.</p>
+              <div class="form-group">
+                <label class="form-label" data-i18n="studio_select_video">Selectionner une video</label>
+                <select class="form-control" id="studioCaptionVideoSelect" onchange="loadCaptionsList()" style="font-size:13px;">
+                  <option value="">-- choisir --</option>
+                </select>
+              </div>
+              <div id="captionsList" style="margin-bottom:12px;"></div>
+              <div id="captionUploadForm" style="display:none;">
+                <div style="display:flex;gap:12px;">
+                  <div class="form-group" style="flex:1;">
+                    <label class="form-label" data-i18n="studio_caption_lang">Langue</label>
+                    <input type="text" class="form-control" id="captionLang" placeholder="fr, en, es..." maxlength="10" style="font-size:13px;">
+                  </div>
+                  <div class="form-group" style="flex:1;">
+                    <label class="form-label" data-i18n="studio_caption_name">Nom (optionnel)</label>
+                    <input type="text" class="form-control" id="captionName" style="font-size:13px;">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" data-i18n="studio_caption_file">Fichier (.srt, .vtt, .sbv)</label>
+                  <input type="file" id="captionFile" accept=".srt,.vtt,.sbv" class="form-control" style="font-size:13px;">
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="uploadCaption()" data-i18n="studio_upload">Uploader</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Channel Editor -->
+          <div class="studio-card" id="studioChannel">
+            <div class="studio-card-header" onclick="toggleStudioPanel('channel')">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span data-i18n="studio_channel">Ma chaine</span>
+              </div>
+              <svg class="studio-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="studio-card-body" id="channelPanel" style="display:none;">
+              <p class="text-muted" style="font-size:12px;margin-bottom:12px;" data-i18n="studio_channel_desc">Modifiez la description et les mots-cles de votre chaine YouTube.</p>
+              <button class="btn btn-secondary btn-sm" onclick="loadChannelInfo()" data-i18n="studio_channel_load">Charger les infos</button>
+              <div id="studioChannelForm" style="display:none;margin-top:12px;">
+                <div class="form-group">
+                  <label class="form-label" data-i18n="studio_channel_name">Nom de la chaine</label>
+                  <input type="text" class="form-control" id="studioChannelName" disabled style="font-size:13px;opacity:0.6;">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" data-i18n="studio_channel_description">Description</label>
+                  <textarea class="form-control" id="studioChannelDesc" rows="4" maxlength="1000" style="font-size:13px;"></textarea>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" data-i18n="studio_channel_keywords">Mots-cles (separes par des virgules)</label>
+                  <input type="text" class="form-control" id="studioChannelKeywords" style="font-size:13px;">
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="saveChannelInfo()" data-i18n="studio_save">Enregistrer</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Video Upload -->
+          <div class="studio-card" id="studioUpload">
+            <div class="studio-card-header" onclick="toggleStudioPanel('upload')">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span data-i18n="studio_upload_video">Upload video</span>
+              </div>
+              <svg class="studio-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+            <div class="studio-card-body" id="uploadPanel" style="display:none;">
+              <p class="text-muted" style="font-size:12px;margin-bottom:12px;" data-i18n="studio_upload_desc">Uploadez une video directement sur YouTube depuis l'app.</p>
+              <div class="form-group">
+                <label class="form-label" data-i18n="studio_upload_file">Fichier video</label>
+                <input type="file" id="studioUploadFile" accept="video/*" class="form-control" style="font-size:13px;">
+              </div>
+              <div class="form-group">
+                <label class="form-label" data-i18n="studio_video_title">Titre</label>
+                <input type="text" class="form-control" id="studioUploadTitle" maxlength="100" style="font-size:13px;">
+              </div>
+              <div class="form-group">
+                <label class="form-label" data-i18n="studio_video_desc">Description</label>
+                <textarea class="form-control" id="studioUploadDesc" rows="3" maxlength="5000" style="font-size:13px;"></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label" data-i18n="studio_video_tags">Tags</label>
+                <input type="text" class="form-control" id="studioUploadTags" style="font-size:13px;" placeholder="tag1, tag2, tag3">
+              </div>
+              <div class="form-group">
+                <label class="form-label" data-i18n="studio_video_privacy">Visibilite</label>
+                <select class="form-control" id="studioUploadPrivacy" style="font-size:13px;">
+                  <option value="private">Privee</option>
+                  <option value="unlisted">Non repertoriee</option>
+                  <option value="public">Public</option>
+                </select>
+              </div>
+              <div id="uploadProgress" style="display:none;margin-bottom:12px;">
+                <div style="background:var(--surface2);border-radius:4px;overflow:hidden;height:6px;">
+                  <div id="uploadProgressBar" style="height:100%;background:var(--accent);width:0%;transition:width .3s;"></div>
+                </div>
+                <div id="uploadProgressText" style="font-size:11px;color:var(--text3);margin-top:4px;"></div>
+              </div>
+              <button class="btn btn-primary btn-sm" id="studioUploadBtn" onclick="uploadVideo()" data-i18n="studio_upload">Uploader</button>
+            </div>
+          </div>
+        </div>
+
         <div id="betaEmpty" style="text-align:center;padding:48px 24px;color:var(--text3);">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:16px;opacity:0.4;"><path d="M9 3h6l-1 7h4l-7 11 1-7H8z"/></svg>
           <p style="font-size:14px;margin:0 0 4px 0;" data-i18n="beta_empty_title">Aucune fonctionnalite en beta</p>
@@ -1900,6 +2122,48 @@ const I18N = {
     beta_status_ready: 'Prête',
     beta_target_section: 'Section cible',
     beta_try_it: 'Essayer',
+
+    // Studio Creator
+    studio_title: 'Studio Creator',
+    studio_subtitle: 'Outils de creation YouTube : editez vos videos, gerez les sous-titres, personnalisez votre chaine.',
+    studio_video_editor: 'Video Editor',
+    studio_video_editor_desc: 'Selectionnez une video pour modifier son titre, sa description, ses tags, sa categorie ou sa visibilite.',
+    studio_select_video: 'Selectionner une video',
+    studio_video_title: 'Titre',
+    studio_video_desc: 'Description',
+    studio_video_tags: 'Tags (separes par des virgules)',
+    studio_video_category: 'Categorie',
+    studio_video_privacy: 'Visibilite',
+    studio_save: 'Enregistrer',
+    studio_saved: 'Modifications enregistrees',
+    studio_thumbnail: 'Miniatures personnalisees',
+    studio_thumbnail_desc: 'Uploadez une miniature personnalisee pour vos videos (max 2 Mo, 1280x720 recommande).',
+    studio_thumb_file: 'Fichier image (JPEG/PNG, max 2 Mo)',
+    studio_thumb_too_large: 'Fichier trop volumineux (max 2 Mo)',
+    studio_thumb_uploaded: 'Miniature mise a jour',
+    studio_no_thumb: 'Aucune miniature disponible',
+    studio_upload: 'Uploader',
+    studio_uploading: 'Upload en cours...',
+    studio_captions: 'Sous-titres',
+    studio_captions_desc: 'Listez, ajoutez ou supprimez les sous-titres de vos videos.',
+    studio_caption_lang: 'Langue',
+    studio_caption_name: 'Nom (optionnel)',
+    studio_caption_file: 'Fichier (.srt, .vtt, .sbv)',
+    studio_caption_uploaded: 'Sous-titre ajoute',
+    studio_caption_deleted: 'Sous-titre supprime',
+    studio_caption_delete_confirm: 'Supprimer ce sous-titre ?',
+    studio_no_captions: 'Aucun sous-titre pour cette video',
+    studio_captions_found: 'sous-titre(s)',
+    studio_channel: 'Ma chaine',
+    studio_channel_desc: 'Modifiez la description et les mots-cles de votre chaine YouTube.',
+    studio_channel_load: 'Charger les infos',
+    studio_channel_name: 'Nom de la chaine',
+    studio_channel_description: 'Description',
+    studio_channel_keywords: 'Mots-cles (separes par des virgules)',
+    studio_upload_video: 'Upload video',
+    studio_upload_desc: 'Uploadez une video directement sur YouTube depuis l\'app.',
+    studio_upload_file: 'Fichier video',
+    studio_video_uploaded: 'Video uploadee avec succes',
 
     // Player (Beta)
     player_queue: 'File d\'attente',
@@ -2395,6 +2659,48 @@ const I18N = {
     beta_status_ready: 'Ready',
     beta_target_section: 'Target section',
     beta_try_it: 'Try it',
+
+    // Studio Creator
+    studio_title: 'Studio Creator',
+    studio_subtitle: 'YouTube creator tools: edit your videos, manage captions, customize your channel.',
+    studio_video_editor: 'Video Editor',
+    studio_video_editor_desc: 'Select a video to edit its title, description, tags, category, or visibility.',
+    studio_select_video: 'Select a video',
+    studio_video_title: 'Title',
+    studio_video_desc: 'Description',
+    studio_video_tags: 'Tags (comma-separated)',
+    studio_video_category: 'Category',
+    studio_video_privacy: 'Visibility',
+    studio_save: 'Save',
+    studio_saved: 'Changes saved',
+    studio_thumbnail: 'Custom thumbnails',
+    studio_thumbnail_desc: 'Upload a custom thumbnail for your videos (max 2 MB, 1280x720 recommended).',
+    studio_thumb_file: 'Image file (JPEG/PNG, max 2 MB)',
+    studio_thumb_too_large: 'File too large (max 2 MB)',
+    studio_thumb_uploaded: 'Thumbnail updated',
+    studio_no_thumb: 'No thumbnail available',
+    studio_upload: 'Upload',
+    studio_uploading: 'Uploading...',
+    studio_captions: 'Captions',
+    studio_captions_desc: 'List, add, or remove captions from your videos.',
+    studio_caption_lang: 'Language',
+    studio_caption_name: 'Name (optional)',
+    studio_caption_file: 'File (.srt, .vtt, .sbv)',
+    studio_caption_uploaded: 'Caption added',
+    studio_caption_deleted: 'Caption removed',
+    studio_caption_delete_confirm: 'Delete this caption?',
+    studio_no_captions: 'No captions for this video',
+    studio_captions_found: 'caption(s)',
+    studio_channel: 'My channel',
+    studio_channel_desc: 'Edit your YouTube channel description and keywords.',
+    studio_channel_load: 'Load info',
+    studio_channel_name: 'Channel name',
+    studio_channel_description: 'Description',
+    studio_channel_keywords: 'Keywords (comma-separated)',
+    studio_upload_video: 'Upload video',
+    studio_upload_desc: 'Upload a video directly to YouTube from the app.',
+    studio_upload_file: 'Video file',
+    studio_video_uploaded: 'Video uploaded successfully',
 
     // Player (Beta)
     player_queue: 'Queue',
@@ -4431,6 +4737,18 @@ const BETA_FEATURES = [
     added: '2026-05-11'
   },
   {
+    id: 'studio-creator',
+    name: { fr: 'Studio Creator', en: 'Studio Creator' },
+    desc: {
+      fr: 'Outils de creation YouTube : editeur video (titre, description, tags, categorie, visibilite), miniatures personnalisees, gestion des sous-titres, edition de chaine, et upload video.',
+      en: 'YouTube creator tools: video editor (title, description, tags, category, visibility), custom thumbnails, caption management, channel editor, and video upload.'
+    },
+    status: 'dev',
+    target: 'Studio',
+    view: null,
+    added: '2026-05-11'
+  },
+  {
     id: 'multi-lang',
     name: { fr: 'Multi-langue (ES, PT, DE, JA, IT)', en: 'Multi-language (ES, PT, DE, JA, IT)' },
     desc: {
@@ -4489,6 +4807,381 @@ function renderBetaFeatures() {
 }
 
 // ============================================================================
+// STUDIO CREATOR FUNCTIONS
+// ============================================================================
+
+function toggleStudioPanel(panelName) {
+  const panelMap = {
+    videoEditor: 'videoEditorPanel',
+    thumbnail: 'thumbnailPanel',
+    captions: 'captionsPanel',
+    channel: 'channelPanel',
+    upload: 'uploadPanel'
+  };
+  const panelId = panelMap[panelName];
+  if (!panelId) return;
+  const panel = document.getElementById(panelId);
+  const card = panel.closest('.studio-card');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : '';
+  card.classList.toggle('open', !isOpen);
+}
+
+function populateStudioVideoSelects() {
+  // Gather all user's own videos across playlists
+  const allVids = new Map();
+  for (const [plId, videos] of Object.entries(APP.allVideos)) {
+    for (const v of videos) {
+      const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId;
+      if (!videoId) continue;
+      const title = v.snippet?.title || '';
+      if (title.includes('Deleted video') || title.includes('Private video')) continue;
+      if (!allVids.has(videoId)) {
+        allVids.set(videoId, title);
+      }
+    }
+  }
+
+  const options = Array.from(allVids.entries())
+    .sort((a, b) => a[1].localeCompare(b[1]))
+    .map(([id, title]) => `<option value="${id}">${title.substring(0, 80)}</option>`)
+    .join('');
+
+  const defaultOpt = `<option value="">-- ${t('studio_select_video')} --</option>`;
+  ['studioVideoSelect', 'studioThumbVideoSelect', 'studioCaptionVideoSelect'].forEach(selId => {
+    const sel = document.getElementById(selId);
+    if (sel) sel.innerHTML = defaultOpt + options;
+  });
+}
+
+async function onStudioVideoSelect() {
+  const videoId = document.getElementById('studioVideoSelect').value;
+  const form = document.getElementById('studioVideoForm');
+  if (!videoId) { form.style.display = 'none'; return; }
+
+  try {
+    showToast(t('detail_loading'), 'info');
+    const data = await ytApi('videos', { part: 'snippet,status', id: videoId });
+    const video = data.items?.[0];
+    if (!video) { showToast(t('toast_error', { msg: 'Video not found' }), 'error'); return; }
+
+    document.getElementById('studioVideoTitle').value = video.snippet?.title || '';
+    document.getElementById('studioVideoDesc').value = video.snippet?.description || '';
+    document.getElementById('studioVideoTags').value = (video.snippet?.tags || []).join(', ');
+    document.getElementById('studioVideoCategory').value = video.snippet?.categoryId || '22';
+    document.getElementById('studioVideoPrivacy').value = video.status?.privacyStatus || 'private';
+
+    form.style.display = '';
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+  }
+}
+
+async function saveVideoMetadata() {
+  const videoId = document.getElementById('studioVideoSelect').value;
+  if (!videoId) return;
+  if (!checkBackupSafety('Video metadata update')) return;
+  if (!checkQuotaBudget('Video update', 'video_update', 1)) return;
+
+  const title = document.getElementById('studioVideoTitle').value.trim();
+  const description = document.getElementById('studioVideoDesc').value.trim();
+  const tags = document.getElementById('studioVideoTags').value.split(',').map(t => t.trim()).filter(Boolean);
+  const categoryId = document.getElementById('studioVideoCategory').value;
+  const privacyStatus = document.getElementById('studioVideoPrivacy').value;
+
+  if (!title) { showToast(t('toast_enter_name'), 'error'); return; }
+
+  try {
+    showToast(t('reorder_moving'), 'info');
+    await ytApi('videos', { part: 'snippet,status' }, 'PUT', {
+      id: videoId,
+      snippet: { title, description, tags, categoryId },
+      status: { privacyStatus }
+    });
+    showToast(t('studio_saved'), 'success');
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+  }
+}
+
+async function onThumbVideoSelect() {
+  const videoId = document.getElementById('studioThumbVideoSelect').value;
+  const form = document.getElementById('studioThumbForm');
+  const preview = document.getElementById('studioThumbPreview');
+  if (!videoId) { form.style.display = 'none'; return; }
+
+  const detail = videoDetailsCache[videoId];
+  const thumbUrl = detail?.snippet?.thumbnails?.medium?.url || detail?.snippet?.thumbnails?.default?.url || '';
+  preview.innerHTML = thumbUrl
+    ? `<img src="${thumbUrl}" style="max-width:200px;border-radius:var(--r-sm);border:1px solid var(--border);" alt="Current thumbnail">`
+    : `<span class="text-muted" style="font-size:12px;">${t('studio_no_thumb')}</span>`;
+  form.style.display = '';
+}
+
+async function uploadThumbnail() {
+  const videoId = document.getElementById('studioThumbVideoSelect').value;
+  const fileInput = document.getElementById('studioThumbFile');
+  if (!videoId || !fileInput.files.length) {
+    showToast(t('toast_error', { msg: 'Select a video and file' }), 'error');
+    return;
+  }
+  if (!checkBackupSafety('Thumbnail upload')) return;
+  if (!checkQuotaBudget('Thumbnail upload', 'thumbnail_set', 1)) return;
+
+  const file = fileInput.files[0];
+  if (file.size > 2 * 1024 * 1024) {
+    showToast(t('studio_thumb_too_large'), 'error');
+    return;
+  }
+
+  try {
+    showToast(t('studio_uploading'), 'info');
+    const url = `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${videoId}&uploadType=media`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${APP.accessToken}`,
+        'Content-Type': file.type,
+      },
+      body: file,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `HTTP ${res.status}`);
+    }
+    APP.apiCalls++;
+    APP.quotaUnits += 50;
+    updateQuotaIndicator();
+    showToast(t('studio_thumb_uploaded'), 'success');
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+  }
+}
+
+async function loadCaptionsList() {
+  const videoId = document.getElementById('studioCaptionVideoSelect').value;
+  const listDiv = document.getElementById('captionsList');
+  const uploadForm = document.getElementById('captionUploadForm');
+  if (!videoId) { listDiv.innerHTML = ''; uploadForm.style.display = 'none'; return; }
+
+  try {
+    showToast(t('detail_loading'), 'info');
+    const data = await ytApi('captions', { part: 'snippet', videoId });
+    const captions = data.items || [];
+
+    if (captions.length === 0) {
+      listDiv.innerHTML = `<p class="text-muted" style="font-size:12px;">${t('studio_no_captions')}</p>`;
+    } else {
+      listDiv.innerHTML = `<div style="font-size:12px;color:var(--text2);margin-bottom:8px;">${captions.length} ${t('studio_captions_found')}</div>` +
+        captions.map(c => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface2);border-radius:var(--r-sm);margin-bottom:4px;">
+            <div>
+              <span style="font-weight:500;font-size:13px;">${c.snippet?.language || '?'}</span>
+              <span class="text-muted" style="font-size:11px;margin-left:8px;">${c.snippet?.name || ''}</span>
+              <span class="text-muted" style="font-size:11px;margin-left:8px;">${c.snippet?.trackKind || ''}</span>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="deleteCaption('${c.id}','${videoId}')" style="font-size:11px;padding:2px 8px;">${t('btn_delete')}</button>
+          </div>
+        `).join('');
+    }
+    uploadForm.style.display = '';
+  } catch (err) {
+    listDiv.innerHTML = `<p style="color:var(--error);font-size:12px;">${err.message}</p>`;
+    uploadForm.style.display = '';
+  }
+}
+
+async function uploadCaption() {
+  const videoId = document.getElementById('studioCaptionVideoSelect').value;
+  const lang = document.getElementById('captionLang').value.trim();
+  const name = document.getElementById('captionName').value.trim();
+  const fileInput = document.getElementById('captionFile');
+
+  if (!videoId || !lang || !fileInput.files.length) {
+    showToast(t('toast_error', { msg: 'Fill all required fields' }), 'error');
+    return;
+  }
+  if (!checkBackupSafety('Caption upload')) return;
+  if (!checkQuotaBudget('Caption upload', 'caption_insert', 1)) return;
+
+  const file = fileInput.files[0];
+  try {
+    showToast(t('studio_uploading'), 'info');
+    const metadata = { snippet: { videoId, language: lang, name: name || lang, isDraft: false } };
+    const formData = new FormData();
+    formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    formData.append('media', file);
+
+    const url = 'https://www.googleapis.com/upload/youtube/v3/captions?part=snippet&uploadType=multipart';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${APP.accessToken}` },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `HTTP ${res.status}`);
+    }
+    APP.apiCalls++;
+    APP.quotaUnits += 400; // caption insert = 400 units
+    updateQuotaIndicator();
+    showToast(t('studio_caption_uploaded'), 'success');
+    loadCaptionsList(); // refresh
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+  }
+}
+
+async function deleteCaption(captionId, videoId) {
+  if (!confirm(t('studio_caption_delete_confirm'))) return;
+  if (!checkBackupSafety('Caption delete')) return;
+
+  try {
+    await ytApi('captions', { id: captionId }, 'DELETE');
+    showToast(t('studio_caption_deleted'), 'success');
+    loadCaptionsList();
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+  }
+}
+
+async function loadChannelInfo() {
+  try {
+    showToast(t('detail_loading'), 'info');
+    const data = await ytApi('channels', { part: 'snippet,brandingSettings', mine: true });
+    const channel = data.items?.[0];
+    if (!channel) { showToast(t('toast_error', { msg: 'Channel not found' }), 'error'); return; }
+
+    document.getElementById('studioChannelName').value = channel.snippet?.title || '';
+    document.getElementById('studioChannelDesc').value = channel.snippet?.description || '';
+    document.getElementById('studioChannelKeywords').value = channel.brandingSettings?.channel?.keywords || '';
+    document.getElementById('studioChannelForm').style.display = '';
+    document.getElementById('studioChannelForm').dataset.channelId = channel.id;
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+  }
+}
+
+async function saveChannelInfo() {
+  const channelId = document.getElementById('studioChannelForm').dataset.channelId;
+  if (!channelId) return;
+  if (!checkBackupSafety('Channel update')) return;
+  if (!checkQuotaBudget('Channel update', 'channel_update', 1)) return;
+
+  const description = document.getElementById('studioChannelDesc').value.trim();
+  const keywords = document.getElementById('studioChannelKeywords').value.trim();
+
+  try {
+    showToast(t('reorder_moving'), 'info');
+    await ytApi('channels', { part: 'brandingSettings' }, 'PUT', {
+      id: channelId,
+      brandingSettings: {
+        channel: { description, keywords }
+      }
+    });
+    showToast(t('studio_saved'), 'success');
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+  }
+}
+
+async function uploadVideo() {
+  const fileInput = document.getElementById('studioUploadFile');
+  const title = document.getElementById('studioUploadTitle').value.trim();
+  const description = document.getElementById('studioUploadDesc').value.trim();
+  const tags = document.getElementById('studioUploadTags').value.split(',').map(t => t.trim()).filter(Boolean);
+  const privacyStatus = document.getElementById('studioUploadPrivacy').value;
+
+  if (!fileInput.files.length || !title) {
+    showToast(t('toast_error', { msg: 'Select a file and enter a title' }), 'error');
+    return;
+  }
+  if (!checkBackupSafety('Video upload')) return;
+  if (!checkQuotaBudget('Video upload', 'video_insert', 1)) return;
+
+  const file = fileInput.files[0];
+  const progressDiv = document.getElementById('uploadProgress');
+  const progressBar = document.getElementById('uploadProgressBar');
+  const progressText = document.getElementById('uploadProgressText');
+  const uploadBtn = document.getElementById('studioUploadBtn');
+
+  progressDiv.style.display = '';
+  uploadBtn.disabled = true;
+  progressBar.style.width = '0%';
+  progressText.textContent = t('studio_uploading');
+
+  try {
+    const metadata = {
+      snippet: { title, description, tags, categoryId: '22' },
+      status: { privacyStatus }
+    };
+
+    // Resumable upload: init
+    const initRes = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status&uploadType=resumable', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${APP.accessToken}`,
+        'Content-Type': 'application/json',
+        'X-Upload-Content-Length': file.size,
+        'X-Upload-Content-Type': file.type,
+      },
+      body: JSON.stringify(metadata),
+    });
+
+    if (!initRes.ok) {
+      const err = await initRes.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `Init failed: HTTP ${initRes.status}`);
+    }
+
+    const uploadUrl = initRes.headers.get('Location');
+    if (!uploadUrl) throw new Error('No upload URL returned');
+
+    // Upload file with XMLHttpRequest for progress tracking
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', uploadUrl);
+      xhr.setRequestHeader('Content-Type', file.type);
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          progressBar.style.width = pct + '%';
+          progressText.textContent = `${pct}% — ${(e.loaded / 1024 / 1024).toFixed(1)} / ${(e.total / 1024 / 1024).toFixed(1)} Mo`;
+        }
+      });
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
+        else reject(new Error(`Upload failed: HTTP ${xhr.status}`));
+      };
+      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.send(file);
+    });
+
+    APP.apiCalls++;
+    APP.quotaUnits += 1600; // video insert = 1600 units
+    updateQuotaIndicator();
+    showToast(t('studio_video_uploaded'), 'success');
+
+    // Reset form
+    fileInput.value = '';
+    document.getElementById('studioUploadTitle').value = '';
+    document.getElementById('studioUploadDesc').value = '';
+    document.getElementById('studioUploadTags').value = '';
+    progressDiv.style.display = 'none';
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+  } finally {
+    uploadBtn.disabled = false;
+  }
+}
+
+// Populate studio selects when switching to beta view
+function initStudioCreator() {
+  if (APP.playlists.length > 0) {
+    populateStudioVideoSelects();
+  }
+}
+
+// ============================================================================
 // VIEW SWITCHING
 // ============================================================================
 
@@ -4527,6 +5220,7 @@ function switchView(viewName) {
     else if (viewName === 'deck') { renderDeck(); if (APP.deckColumns.length) loadAllDeckVideos(); }
     else if (viewName === 'export') renderExportPlaylistList();
     else if (viewName === 'backup') runCacheDiagnostic();
+    else if (viewName === 'beta') { renderBetaFeatures(); initStudioCreator(); }
     else if (viewName === 'subscriptions') {
       if (APP.subscriptions.length === 0) {
         loadSubscriptions();
