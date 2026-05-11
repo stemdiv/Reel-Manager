@@ -839,7 +839,9 @@
     .header-right .user-info { display: none; }
     .header-right .quota-info#backupInfo { display: none; }
     .header-right .btn-sm[data-i18n="logout_btn"] { display: none; }
+    .header-right .header-tool { display: none; }
     .header-right { gap: 6px; }
+    .sidebar-tools { display: flex !important; }
 
     .main { height: calc(100vh - 50px); }
 
@@ -977,15 +979,15 @@
     <div class="header-right">
       <div class="quota-info" id="backupInfo" data-i18n-title="header_last_backup" title="Dernier backup" style="cursor:pointer;" onclick="switchView('backup')">--</div>
       <div class="quota-info" id="quotaInfo">Quota: --</div>
-      <button class="btn-icon" onclick="switchView('backup')" data-i18n-title="header_backup_tooltip" title="Backup">
+      <button class="btn-icon header-tool" onclick="switchView('backup')" data-i18n-title="header_backup_tooltip" title="Backup">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
       </button>
-      <button class="btn-icon" onclick="switchView('export')" data-i18n-title="header_export_tooltip" title="Export">
+      <button class="btn-icon header-tool" onclick="switchView('export')" data-i18n-title="header_export_tooltip" title="Export">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
       </button>
       <div class="user-info" id="userInfo"></div>
-      <button class="btn-icon" onclick="toggleLanguage()" id="langToggle" data-i18n-title="header_lang_toggle" title="Langue" style="font-size: 11px; font-weight: 600; font-family: 'Geist Mono', monospace;">FR</button>
-      <div style="position:relative;display:inline-block;" id="skinPickerWrap">
+      <button class="btn-icon header-tool" onclick="toggleLanguage()" id="langToggle" data-i18n-title="header_lang_toggle" title="Langue" style="font-size: 11px; font-weight: 600; font-family: 'Geist Mono', monospace;">FR</button>
+      <div class="header-tool" style="position:relative;display:inline-block;" id="skinPickerWrap">
         <button class="btn-icon" onclick="toggleSkinPicker()" data-i18n-title="header_skin_toggle" title="Skin">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
         </button>
@@ -1105,6 +1107,26 @@
           <span data-i18n="nav_beta">Feature Lab</span>
           <span class="beta-tag" data-i18n="beta_tag">BETA</span>
         </div>
+      </div>
+
+      <!-- Sidebar tools (mobile only) -->
+      <div class="sidebar-tools" style="display: none; border-top: 1px solid var(--border); padding: 10px 12px;">
+        <div class="sidebar-section-label" data-i18n="nav_tools">Tools</div>
+        <div class="sidebar-item" onclick="toggleLanguage(); closeSidebar();">
+          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
+          <span data-i18n="nav_language">Language</span>
+          <span id="sidebarLangLabel" style="margin-left:auto;font-size:11px;font-weight:600;font-family:'Geist Mono',monospace;color:var(--text3);">FR</span>
+        </div>
+        <div class="sidebar-item" onclick="toggleTheme(); closeSidebar();">
+          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
+          <span data-i18n="nav_theme">Theme</span>
+          <span id="sidebarThemeLabel" style="margin-left:auto;font-size:11px;font-family:'Geist Mono',monospace;color:var(--text3);">Dark</span>
+        </div>
+        <div class="sidebar-item" onclick="toggleSkinPickerSidebar();">
+          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
+          <span data-i18n="nav_skin">Skin</span>
+        </div>
+        <div id="sidebarSkinGrid" style="display:none;padding:8px 12px 4px 36px;"></div>
       </div>
 
       <!-- Sidebar footer -->
@@ -2107,6 +2129,10 @@ const I18N = {
     nav_export: 'Exporter',
     nav_help: 'Aide',
     nav_beta: 'Feature Lab',
+    nav_tools: 'Outils',
+    nav_language: 'Langue',
+    nav_theme: 'Thème',
+    nav_skin: 'Couleur',
     nav_privacy: 'Confidentialité',
     nav_delete_data: 'Supprimer mes données',
     nav_powered: 'Powered by YouTube Data API',
@@ -2644,6 +2670,10 @@ const I18N = {
     nav_export: 'Export',
     nav_help: 'Help',
     nav_beta: 'Feature Lab',
+    nav_tools: 'Tools',
+    nav_language: 'Language',
+    nav_theme: 'Theme',
+    nav_skin: 'Color',
     nav_privacy: 'Privacy',
     nav_delete_data: 'Delete my data',
     nav_powered: 'Powered by YouTube Data API',
@@ -3762,6 +3792,7 @@ function toggleTheme() {
   APP.theme = APP.theme === 'dark' ? 'light' : 'dark';
   localStorage.setItem('appTheme', APP.theme);
   document.body.classList.toggle('light-theme');
+  updateSidebarLabels();
 }
 
 // ── Skin / Color Themes ──────────────────────────────────────────────────
@@ -3839,6 +3870,7 @@ function toggleLanguage() {
   const idx = langs.indexOf(currentLang);
   const nextLang = langs[(idx + 1) % langs.length];
   applyLanguage(nextLang);
+  updateSidebarLabels();
   // Refresh dynamic views
   if (APP.playlists.length) refreshPlaylistsList();
 }
@@ -3848,6 +3880,7 @@ function toggleSidebar() {
   const overlay = document.getElementById('sidebarOverlay');
   sidebar.classList.toggle('open');
   overlay.classList.toggle('active');
+  if (sidebar.classList.contains('open')) updateSidebarLabels();
 }
 
 function closeSidebar() {
@@ -3855,6 +3888,35 @@ function closeSidebar() {
   const overlay = document.getElementById('sidebarOverlay');
   sidebar.classList.remove('open');
   overlay.classList.remove('active');
+}
+
+function toggleSkinPickerSidebar() {
+  const grid = document.getElementById('sidebarSkinGrid');
+  if (!grid) return;
+  if (grid.style.display === 'none') {
+    const current = localStorage.getItem('appSkin') || 'coral';
+    grid.innerHTML = SKINS.map(s => `
+      <div style="display:inline-block;margin:3px;">
+        <div class="skin-swatch${s.id === current ? ' active' : ''}"
+             style="background:${s.preview};"
+             onclick="applySkin('${s.id}'); updateSidebarLabels();"
+             title="${s.name}"></div>
+      </div>
+    `).join('');
+    grid.style.display = 'block';
+  } else {
+    grid.style.display = 'none';
+  }
+}
+
+function updateSidebarLabels() {
+  const langLabel = document.getElementById('sidebarLangLabel');
+  if (langLabel) langLabel.textContent = (currentLang || 'fr').toUpperCase();
+  const themeLabel = document.getElementById('sidebarThemeLabel');
+  if (themeLabel) themeLabel.textContent = APP.theme === 'dark' ? 'Dark' : 'Light';
+  // Sync header lang toggle too
+  const headerLang = document.getElementById('langToggle');
+  if (headerLang) headerLang.textContent = (currentLang || 'fr').toUpperCase();
 }
 
 // ============================================================================
