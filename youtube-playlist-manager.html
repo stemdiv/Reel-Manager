@@ -211,6 +211,50 @@
     padding: 1px 6px;
     border-radius: 100px;
   }
+  .sidebar-item .beta-tag {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-left: auto;
+    color: var(--warning, #f59e0b);
+    background: color-mix(in srgb, var(--warning, #f59e0b) 12%, transparent);
+    padding: 1px 6px;
+    border-radius: 100px;
+  }
+  .sidebar-section-label .beta-section-tag {
+    font-family: 'Geist Mono', monospace;
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--warning, #f59e0b);
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  .beta-feature-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    background: var(--bg2);
+    transition: border-color 0.2s;
+  }
+  .beta-feature-card:hover { border-color: var(--accent); }
+  .beta-feature-card h3 { margin: 0 0 6px 0; display: flex; align-items: center; gap: 8px; }
+  .beta-feature-card p { margin: 0; font-size: 13px; color: var(--text2); line-height: 1.5; }
+  .beta-status {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 100px;
+  }
+  .beta-status.testing { color: var(--warning, #f59e0b); background: color-mix(in srgb, var(--warning, #f59e0b) 12%, transparent); }
+  .beta-status.dev { color: var(--accent); background: var(--accent-soft); }
+  .beta-status.ready { color: var(--success, #22c55e); background: color-mix(in srgb, var(--success, #22c55e) 12%, transparent); }
   .sidebar-divider { height: 1px; background: var(--border); margin: 8px; }
   .content { flex: 1; overflow-y: auto; padding: 24px; }
 
@@ -856,6 +900,13 @@
           <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></span>
           <span data-i18n="nav_help">Aide</span>
         </div>
+        <!-- Beta -->
+        <div class="sidebar-section-label">Beta <span class="beta-section-tag">Lab</span></div>
+        <div class="sidebar-item" data-view="beta" onclick="switchView('beta')">
+          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l-1 7h4l-7 11 1-7H8z"/></svg></span>
+          <span data-i18n="nav_beta">Feature Lab</span>
+          <span class="beta-tag" data-i18n="beta_tag">BETA</span>
+        </div>
       </div>
 
       <!-- Sidebar footer -->
@@ -1307,6 +1358,25 @@
         </div>
       </div>
 
+      <!-- BETA / FEATURE LAB VIEW -->
+      <div id="beta" class="view">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <h1 style="margin:0;" data-i18n="beta_title">Feature Lab</h1>
+          <span class="beta-status testing">BETA</span>
+        </div>
+        <p class="text-muted" style="margin-bottom:24px;" data-i18n="beta_subtitle">Fonctionnalites en cours de test. Elles seront deplacees dans leur section definitive une fois validees.</p>
+
+        <div id="betaFeatureList">
+          <!-- Beta features are rendered here by renderBetaFeatures() -->
+        </div>
+
+        <div id="betaEmpty" style="text-align:center;padding:48px 24px;color:var(--text3);">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:16px;opacity:0.4;"><path d="M9 3h6l-1 7h4l-7 11 1-7H8z"/></svg>
+          <p style="font-size:14px;margin:0 0 4px 0;" data-i18n="beta_empty_title">Aucune fonctionnalite en beta</p>
+          <p style="font-size:12px;margin:0;" data-i18n="beta_empty_desc">Les nouvelles fonctionnalites en cours de deploiement apparaitront ici.</p>
+        </div>
+      </div>
+
       <!-- HELP/FAQ VIEW -->
       <div id="help" class="view">
         <h1 style="margin-bottom: 8px; font-size: 18px;">Mode d'emploi & FAQ</h1>
@@ -1502,9 +1572,22 @@ const I18N = {
     nav_backup: 'Backup / Restore',
     nav_export: 'Exporter',
     nav_help: 'Aide',
+    nav_beta: 'Feature Lab',
     nav_privacy: 'Confidentialité',
     nav_delete_data: 'Supprimer mes données',
     nav_powered: 'Powered by YouTube Data API',
+
+    // Beta
+    beta_tag: 'BETA',
+    beta_title: 'Feature Lab',
+    beta_subtitle: 'Fonctionnalités en cours de test. Elles seront déplacées dans leur section définitive une fois validées.',
+    beta_empty_title: 'Aucune fonctionnalité en beta',
+    beta_empty_desc: 'Les nouvelles fonctionnalités en cours de déploiement apparaîtront ici.',
+    beta_status_testing: 'En test',
+    beta_status_dev: 'En dev',
+    beta_status_ready: 'Prête',
+    beta_target_section: 'Section cible',
+    beta_try_it: 'Essayer',
 
     // Dashboard
     dash_total_playlists: 'Playlists totales',
@@ -1950,9 +2033,22 @@ const I18N = {
     nav_backup: 'Backup / Restore',
     nav_export: 'Export',
     nav_help: 'Help',
+    nav_beta: 'Feature Lab',
     nav_privacy: 'Privacy',
     nav_delete_data: 'Delete my data',
     nav_powered: 'Powered by YouTube Data API',
+
+    // Beta
+    beta_tag: 'BETA',
+    beta_title: 'Feature Lab',
+    beta_subtitle: 'Features currently being tested. They will be moved to their final section once validated.',
+    beta_empty_title: 'No beta features',
+    beta_empty_desc: 'New features being deployed will appear here.',
+    beta_status_testing: 'Testing',
+    beta_status_dev: 'In dev',
+    beta_status_ready: 'Ready',
+    beta_target_section: 'Target section',
+    beta_try_it: 'Try it',
 
     // Dashboard
     dash_total_playlists: 'Total Playlists',
@@ -3310,6 +3406,81 @@ function generateDashboardCharts() {
 }
 
 // ============================================================================
+// BETA FEATURE REGISTRY
+// ============================================================================
+
+/**
+ * Beta feature registry.
+ * To add a beta feature: push an object to BETA_FEATURES.
+ * To graduate a feature: remove it from this array and integrate into the target section.
+ *
+ * Schema:
+ *   id       — unique key (used as DOM id prefix)
+ *   name     — { fr, en } display name
+ *   desc     — { fr, en } short description
+ *   status   — 'dev' | 'testing' | 'ready'
+ *   target   — target sidebar section once graduated (e.g. 'Library', 'Organize', 'Analyze')
+ *   view     — (optional) view name to link to if a prototype view exists
+ *   added    — ISO date string (when it entered beta)
+ */
+const BETA_FEATURES = [
+  // Example (uncomment to test):
+  // {
+  //   id: 'smart-sort',
+  //   name: { fr: 'Tri intelligent', en: 'Smart Sort' },
+  //   desc: { fr: 'Trier les vidéos par pertinence, durée ou date d\'ajout avec un algorithme contextuel.', en: 'Sort videos by relevance, duration or add date with a contextual algorithm.' },
+  //   status: 'dev',
+  //   target: 'Organize',
+  //   view: null,
+  //   added: '2026-05-11'
+  // },
+];
+
+function renderBetaFeatures() {
+  const lang = APP.lang || 'fr';
+  const container = document.getElementById('betaFeatureList');
+  const emptyState = document.getElementById('betaEmpty');
+
+  if (!container) return;
+
+  if (BETA_FEATURES.length === 0) {
+    container.innerHTML = '';
+    if (emptyState) emptyState.style.display = '';
+    return;
+  }
+
+  if (emptyState) emptyState.style.display = 'none';
+
+  const statusLabels = {
+    dev: t('beta_status_dev'),
+    testing: t('beta_status_testing'),
+    ready: t('beta_status_ready')
+  };
+
+  container.innerHTML = BETA_FEATURES.map(f => {
+    const name = f.name[lang] || f.name.en || f.id;
+    const desc = f.desc[lang] || f.desc.en || '';
+    const statusLabel = statusLabels[f.status] || f.status;
+    const tryBtn = f.view ? `<button class="btn btn-sm" onclick="switchView('${f.view}')" style="margin-top:10px;font-size:12px;padding:4px 12px;">${t('beta_try_it')}</button>` : '';
+
+    return `
+      <div class="beta-feature-card">
+        <h3>
+          ${name}
+          <span class="beta-status ${f.status}">${statusLabel}</span>
+        </h3>
+        <p>${desc}</p>
+        <div style="margin-top:8px;font-size:11px;color:var(--text3);">
+          <span class="mono">${t('beta_target_section')}: ${f.target}</span>
+          ${f.added ? ` · <span class="mono">${f.added}</span>` : ''}
+        </div>
+        ${tryBtn}
+      </div>
+    `;
+  }).join('');
+}
+
+// ============================================================================
 // VIEW SWITCHING
 // ============================================================================
 
@@ -3345,6 +3516,7 @@ function switchView(viewName) {
         renderSubscriptions();
       }
     }
+    else if (viewName === 'beta') renderBetaFeatures();
   }
 }
 
