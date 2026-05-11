@@ -1363,6 +1363,7 @@
       <div id="watch" class="view">
         <h1 style="margin-bottom: 24px;" data-i18n="watch_title">Watch Plan</h1>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+          <!-- LEFT: Video selector -->
           <div>
             <h3 data-i18n="watch_add_videos">Ajouter des vidéos</h3>
             <select class="form-control" id="watchPlaylistSelect" onchange="loadPlaylistVideosForWatch()">
@@ -1377,33 +1378,46 @@
                   </label>
                   <span class="text-muted" style="font-size:11px;" id="watchVideoCount"></span>
                 </div>
-                <div style="display:flex;align-items:center;gap:4px;">
-                  <button class="btn btn-secondary btn-sm" onclick="playWatchPlaylist()" title="Lire la playlist">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <button class="btn btn-secondary btn-sm" onclick="playWatchPlaylist()" title="Lire la playlist" style="display:flex;align-items:center;gap:4px;">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    <span style="font-size:11px;" data-i18n="watch_play_all">Lire tout</span>
                   </button>
-                  <button class="btn btn-secondary btn-sm watchViewToggle" data-mode="list" onclick="setWatchViewMode('list')" title="Liste">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-                  </button>
-                  <button class="btn btn-secondary btn-sm watchViewToggle active" data-mode="thumb" onclick="setWatchViewMode('thumb')" title="Thumbnails">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-                  </button>
+                  <div style="display:flex;border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden;">
+                    <button class="btn btn-sm watchViewToggle" data-mode="list" onclick="setWatchViewMode('list')"
+                      style="border:none;border-radius:0;padding:4px 8px;font-size:10px;display:flex;align-items:center;gap:3px;">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+                      <span data-i18n="watch_view_list">Liste</span>
+                    </button>
+                    <button class="btn btn-sm watchViewToggle active" data-mode="thumb" onclick="setWatchViewMode('thumb')"
+                      style="border:none;border-radius:0;padding:4px 8px;font-size:10px;display:flex;align-items:center;gap:3px;">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                      <span data-i18n="watch_view_thumb">Grille</span>
+                    </button>
+                  </div>
                 </div>
               </div>
+              <button class="btn btn-primary mt-16" onclick="addToWatchQueue()" style="width: 100%;" data-i18n="watch_add_queue">Ajouter à la queue</button>
             </div>
-            <div id="watchVideoSelector" style="margin-top: 12px;"></div>
-            <button class="btn btn-primary mt-16" onclick="addToWatchQueue()" style="width: 100%;" data-i18n="watch_add_queue">Ajouter à la queue</button>
+            <div id="watchVideoSelector" style="margin-top: 12px; max-height: 60vh; overflow-y: auto;"></div>
+            <div id="watchBottomAddBtn" style="display:none;">
+              <button class="btn btn-primary mt-16" onclick="addToWatchQueue()" style="width: 100%;" data-i18n="watch_add_queue">Ajouter à la queue</button>
+            </div>
           </div>
+          <!-- RIGHT: Queue + Player -->
           <div>
-            <h3><span data-i18n="watch_queue">File d'attente</span> <span id="watchQueueCount" class="text-muted">(0)</span></h3>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+              <h3 style="margin:0;"><span data-i18n="watch_queue">File d'attente</span> <span id="watchQueueCount" class="text-muted">(0)</span></h3>
+              <button class="btn btn-primary btn-sm" onclick="startWatchSession()" data-i18n="watch_start">Lecture</button>
+            </div>
+            <div id="watchPlayerContainer" style="margin-bottom:16px;"></div>
             <div id="watchQueue"></div>
-            <div style="margin-top: 16px;">
-              <p class="text-muted"><span data-i18n="watch_total">Durée totale</span>: <span id="watchTotalDuration">0:00:00</span></p>
-              <button class="btn btn-primary" onclick="startWatchSession()" style="width: 100%;" data-i18n="watch_start">Commencer</button>
-              <button class="btn btn-danger mt-16" onclick="clearWatchQueue()" style="width: 100%;" data-i18n="watch_clear">Vider</button>
+            <div style="margin-top: 12px;">
+              <p class="text-muted" style="font-size:12px;"><span data-i18n="watch_total">Durée totale</span>: <span id="watchTotalDuration">0:00:00</span></p>
+              <button class="btn btn-danger btn-sm" onclick="clearWatchQueue()" style="width: 100%;" data-i18n="watch_clear">Vider</button>
             </div>
           </div>
         </div>
-        <div id="watchPlayerContainer" style="margin-top: 32px;"></div>
       </div>
 
       <!-- PLAYLIST DIFF VIEW -->
@@ -1988,8 +2002,9 @@ const I18N = {
     watch_prev: 'Précédent',
     watch_next: 'Suivant',
     watch_select_all: 'Tout sélectionner',
+    watch_play_all: 'Lire tout',
     watch_view_list: 'Liste',
-    watch_view_thumb: 'Thumbnails',
+    watch_view_thumb: 'Grille',
 
     // Diff
     diff_title: 'Playlist Diff',
@@ -2124,6 +2139,9 @@ const I18N = {
     toast_cancelled_old_backup: 'Action annulée — mettez à jour votre backup',
     toast_cancelled_quota: 'Action annulée — quota insuffisant',
     toast_error: 'Erreur: {msg}',
+    error_not_registered: 'Accès refusé — votre compte Google n\'est pas enregistré comme testeur pour cette application. Dans Google Cloud Console > OAuth consent screen > Test users, ajoutez votre adresse email.',
+    error_quota_exceeded: 'Quota API YouTube dépassé (10 000 unités/jour). Réessayez demain après minuit (heure du Pacifique).',
+    error_token_expired: 'Session expirée — veuillez vous reconnecter (Sign out puis Sign in).',
 
     // Confirms
     confirm_no_backup: '⚠️ Aucun backup disponible !\n\nVous êtes sur le point d\'exécuter : {action}\n\nCette action modifie vos playlists YouTube et est irréversible sans backup.\n\nVoulez-vous continuer SANS backup ? (non recommandé)',
@@ -2468,8 +2486,9 @@ const I18N = {
     watch_prev: 'Previous',
     watch_next: 'Next',
     watch_select_all: 'Select all',
+    watch_play_all: 'Play all',
     watch_view_list: 'List',
-    watch_view_thumb: 'Thumbnails',
+    watch_view_thumb: 'Grid',
 
     // Diff
     diff_title: 'Playlist Diff',
@@ -2604,6 +2623,9 @@ const I18N = {
     toast_cancelled_old_backup: 'Action cancelled — update your backup',
     toast_cancelled_quota: 'Action cancelled — insufficient quota',
     toast_error: 'Error: {msg}',
+    error_not_registered: 'Access denied — your Google account is not registered as a test user for this app. In Google Cloud Console > OAuth consent screen > Test users, add your email address.',
+    error_quota_exceeded: 'YouTube API quota exceeded (10,000 units/day). Try again after midnight Pacific Time.',
+    error_token_expired: 'Session expired — please sign out and sign in again.',
 
     // Confirms
     confirm_no_backup: '⚠️ No backup available!\n\nYou are about to execute: {action}\n\nThis action modifies your YouTube playlists and is irreversible without a backup.\n\nContinue WITHOUT backup? (not recommended)',
@@ -3245,7 +3267,23 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
     const res = await fetch(url, opts);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err?.error?.message || `Erreur API (${res.status})`);
+      const errMsg = err?.error?.message || '';
+      const errCode = res.status;
+
+      // Detect common Google OAuth / API errors and provide clear user guidance
+      if (errCode === 403) {
+        const reason = err?.error?.errors?.[0]?.reason || '';
+        if (reason === 'forbidden' || errMsg.toLowerCase().includes('not registered') || errMsg.toLowerCase().includes('has not completed') || errMsg.toLowerCase().includes('access not configured')) {
+          throw new Error(t('error_not_registered'));
+        }
+        if (reason === 'quotaExceeded' || errMsg.toLowerCase().includes('quota')) {
+          throw new Error(t('error_quota_exceeded'));
+        }
+      }
+      if (errCode === 401) {
+        throw new Error(t('error_token_expired'));
+      }
+      throw new Error(errMsg || `Erreur API (${errCode})`);
     }
     // Mark session as dirty on any successful write operation
     if (method !== 'GET') markDirty();
@@ -4420,9 +4458,9 @@ function renderFilteredVideos(videos) {
           <div class="play-overlay"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>
           <span style="position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,0.8); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 3px; z-index: 1;">${v.durationFormatted}</span>
         </div>
-        <div class="video-info" onclick="window.open('https://www.youtube.com/watch?v=${v.videoId}', '_blank')">
+        <div class="video-info" onclick="playVideo('${v.videoId}','${safeTitle}','${safeChannel}','${safeThumb}')" style="cursor:pointer;">
           <div class="video-title">${v.title}</div>
-          <div class="video-meta">${v.channelTitle}</div>
+          <div class="video-meta">${v.channelTitle} <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-size:10px;">YT&nearr;</a></div>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
             <span style="font-size: 11px; color: var(--text2);">${dateStr}</span>
             ${statusBadge}
@@ -5034,14 +5072,17 @@ function renderDiscoverResults(query) {
         </div>
       </div>
       <div style="flex:1;min-width:0;">
-        <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener"
-          style="font-weight:600;font-size:13px;color:var(--text);text-decoration:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;">${v.title}</a>
+        <div style="font-weight:600;font-size:13px;color:var(--text);cursor:pointer;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;"
+          onclick="event.stopPropagation();playVideo('${v.videoId}','${(v.title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.channel||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.thumbnail||'').replace(/'/g,"\\'")}')">
+          ${v.title}</div>
         <div style="font-size:11px;color:var(--text2);margin-top:4px;">${v.channel}</div>
         <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;">
           <span title="Views">${v.views} ${t('views_label')}</span>
           <span title="Likes">${v.likes} ${t('likes_label')}</span>
           <span title="Comments">${v.comments} ${t('comments_label')}</span>
           <span>${v.publishedAt}</span>
+          <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener"
+            onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-size:10px;">YouTube &nearr;</a>
         </div>
         ${escapedDesc ? `<div style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapedDesc}</div>` : ''}
       </div>
@@ -6357,9 +6398,9 @@ function renderDeckVideoItem(video) {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
         </div>
       </div>
-      <div class="deck-video-info" style="cursor:pointer;" onclick="window.open('https://www.youtube.com/watch?v=${videoId}', '_blank')">
+      <div class="deck-video-info" style="cursor:pointer;" onclick="event.stopPropagation();playVideo('${videoId}','${escapedTitle}','${escapedChannel}','${escapedThumb}')">
         <div class="deck-video-title">${title}</div>
-        <div class="deck-video-meta">${channel}</div>
+        <div class="deck-video-meta">${channel} <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-size:9px;">YT&nearr;</a></div>
       </div>
     </div>
   `;
@@ -6670,9 +6711,11 @@ let watchViewMode = 'thumb'; // 'list' or 'thumb'
 async function loadPlaylistVideosForWatch() {
   const playlistId = document.getElementById('watchPlaylistSelect').value;
   const controls = document.getElementById('watchSelectorControls');
+  const bottomBtn = document.getElementById('watchBottomAddBtn');
   if (!playlistId) {
     document.getElementById('watchVideoSelector').innerHTML = '';
     controls.style.display = 'none';
+    if (bottomBtn) bottomBtn.style.display = 'none';
     return;
   }
 
@@ -6680,10 +6723,12 @@ async function loadPlaylistVideosForWatch() {
   if (!videos.length) {
     document.getElementById('watchVideoSelector').innerHTML = `<p class="text-muted">${t('no_video')}</p>`;
     controls.style.display = 'none';
+    if (bottomBtn) bottomBtn.style.display = 'none';
     return;
   }
 
   controls.style.display = '';
+  if (bottomBtn) bottomBtn.style.display = videos.length > 6 ? '' : 'none';
   document.getElementById('watchVideoCount').textContent = `${videos.length} ${t('watch_videos_label').toLowerCase()}`;
   document.getElementById('watchSelectAll').checked = false;
   renderWatchVideoSelector(videos);
