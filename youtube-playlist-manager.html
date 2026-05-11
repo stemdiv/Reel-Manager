@@ -2780,7 +2780,43 @@ function init() {
   // Apply saved language
   currentLang = localStorage.getItem('appLang') || 'fr';
   applyLanguage(currentLang);
+
+  // Cache-first display: if we have backup data, show the dashboard immediately
+  // even before OAuth check — user sees data instantly on PWA/mobile revisit
+  const hasBackupData = APP.playlists.length > 0 && Object.keys(APP.allVideos).length > 0;
+  if (hasBackupData) {
+    showAppFromCache();
+  }
+
   checkAuth();
+}
+
+/**
+ * Show the app UI from cached backup data without requiring an active OAuth token.
+ * The user sees the dashboard instantly; if they have a valid token (via checkAuth),
+ * showApp() will run on top and refresh live data.
+ */
+function showAppFromCache() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appContainer').style.display = 'flex';
+  document.getElementById('appContainer').style.flexDirection = 'column';
+  document.getElementById('appContainer').style.height = '100vh';
+
+  // Restore user info from cache
+  const cachedUser = localStorage.getItem('userInfo');
+  if (cachedUser) {
+    try {
+      const info = JSON.parse(cachedUser);
+      APP.userInfo = info;
+      renderUserInfo(info);
+    } catch (_) {}
+  }
+
+  console.log(`[Cache-first] Displaying dashboard from backup: ${APP.playlists.length} playlists, ${Object.values(APP.allVideos).reduce((s, v) => s + v.length, 0)} videos — 0 API calls`);
+
+  refreshDashboard();
+  populateSelectDropdowns();
+  refreshPlaylistsList();
 }
 
 function loadBackupFromStorage() {
@@ -3331,6 +3367,16 @@ async function loadAllVideosAtStartup() {
 }
 
 async function loadUserInfo() {
+  // Cache-first: try localStorage before hitting the API
+  const cached = localStorage.getItem('userInfo');
+  if (cached) {
+    try {
+      const info = JSON.parse(cached);
+      APP.userInfo = info;
+      renderUserInfo(info);
+    } catch (_) {}
+  }
+
   try {
     const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: { 'Authorization': `Bearer ${APP.accessToken}` }
@@ -3338,16 +3384,23 @@ async function loadUserInfo() {
     if (!res.ok) throw new Error('User info fetch failed');
     const info = await res.json();
     APP.userInfo = info;
-    const name = info.name || info.email || 'Utilisateur';
-    const pic = info.picture || '';
-    document.getElementById('userInfo').innerHTML = `
-      ${pic ? `<img src="${pic}" class="user-avatar" alt="">` : ''}
-      <span>${name}</span>
-    `;
+    localStorage.setItem('userInfo', JSON.stringify(info));
+    renderUserInfo(info);
   } catch (err) {
     console.error('Error loading user info:', err);
-    document.getElementById('userInfo').innerHTML = `<span>${t('header_logged_in')}</span>`;
+    if (!APP.userInfo) {
+      document.getElementById('userInfo').innerHTML = `<span>${t('header_logged_in')}</span>`;
+    }
   }
+}
+
+function renderUserInfo(info) {
+  const name = info.name || info.email || 'Utilisateur';
+  const pic = info.picture || '';
+  document.getElementById('userInfo').innerHTML = `
+    ${pic ? `<img src="${pic}" class="user-avatar" alt="">` : ''}
+    <span>${name}</span>
+  `;
 }
 
 async function loadAllPlaylists() {
@@ -7843,7 +7896,9 @@ document.addEventListener('keydown', (e) => {
 window.addEventListener('load', init);
 window.addEventListener('hashchange', checkAuth);
 
-if (!APP.clientId && !APP.accessToken) {
+// Show login screen only if no token AND no cached data
+// If backup exists in localStorage, init() → showAppFromCache() will display the dashboard
+if (!APP.clientId && !APP.accessToken && !localStorage.getItem('lastBackup')) {
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('appContainer').style.display = 'none';
 }
