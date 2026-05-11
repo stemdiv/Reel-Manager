@@ -278,6 +278,15 @@
   .studio-card-body { padding: 0 16px 16px 16px; }
   .studio-chevron { transition: transform .2s; }
   .studio-card.open .studio-chevron { transform: rotate(180deg); }
+  .studio-picker-toggle { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .studio-picker-toggle .btn-icon { min-width: 32px; min-height: 32px; padding: 4px; opacity: 0.5; }
+  .studio-picker-toggle .btn-icon.active { opacity: 1; background: var(--surface3); }
+  .studio-thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; max-height: 320px; overflow-y: auto; padding: 4px 0; }
+  .studio-thumb-item { cursor: pointer; border-radius: var(--r-sm); border: 2px solid transparent; overflow: hidden; transition: border-color .15s, transform .1s; position: relative; }
+  .studio-thumb-item:hover { border-color: var(--border); transform: scale(1.02); }
+  .studio-thumb-item.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .studio-thumb-item img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; }
+  .studio-thumb-item .studio-thumb-title { font-size: 10px; padding: 4px 6px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--surface1); }
   /* ── In-App Player (Beta) ── */
   .player-modal-overlay {
     display: none; position: fixed; inset: 0; z-index: 500;
@@ -1664,10 +1673,15 @@
             <div class="studio-card-body" id="videoEditorPanel" style="display:none;">
               <p class="text-muted" style="font-size:12px;margin-bottom:12px;" data-i18n="studio_video_editor_desc">Selectionnez une video pour modifier son titre, sa description, ses tags, sa categorie ou sa visibilite.</p>
               <div class="form-group">
-                <label class="form-label" data-i18n="studio_select_video">Selectionner une video</label>
-                <select class="form-control" id="studioVideoSelect" onchange="onStudioVideoSelect()" style="font-size:13px;">
+                <div class="studio-picker-toggle">
+                  <label class="form-label" style="margin:0;" data-i18n="studio_select_video">Selectionner une video</label>
+                  <button class="btn-icon active" onclick="setStudioPickerMode('videoEditor','list')" title="Liste"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></button>
+                  <button class="btn-icon" onclick="setStudioPickerMode('videoEditor','thumb')" title="Thumbnails"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>
+                </div>
+                <select class="form-control studio-select-list" id="studioVideoSelect" onchange="onStudioVideoSelect()" style="font-size:13px;">
                   <option value="">-- choisir --</option>
                 </select>
+                <div class="studio-thumb-grid" id="studioVideoThumbGrid" style="display:none;"></div>
               </div>
               <div id="studioVideoForm" style="display:none;">
                 <div class="form-group">
@@ -1728,10 +1742,15 @@
             <div class="studio-card-body" id="thumbnailPanel" style="display:none;">
               <p class="text-muted" style="font-size:12px;margin-bottom:12px;" data-i18n="studio_thumbnail_desc">Uploadez une miniature personnalisee pour vos videos (max 2 Mo, 1280x720 recommande).</p>
               <div class="form-group">
-                <label class="form-label" data-i18n="studio_select_video">Selectionner une video</label>
-                <select class="form-control" id="studioThumbVideoSelect" onchange="onThumbVideoSelect()" style="font-size:13px;">
+                <div class="studio-picker-toggle">
+                  <label class="form-label" style="margin:0;" data-i18n="studio_select_video">Selectionner une video</label>
+                  <button class="btn-icon active" onclick="setStudioPickerMode('thumbnail','list')" title="Liste"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></button>
+                  <button class="btn-icon" onclick="setStudioPickerMode('thumbnail','thumb')" title="Thumbnails"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>
+                </div>
+                <select class="form-control studio-select-list" id="studioThumbVideoSelect" onchange="onThumbVideoSelect()" style="font-size:13px;">
                   <option value="">-- choisir --</option>
                 </select>
+                <div class="studio-thumb-grid" id="studioThumbThumbGrid" style="display:none;"></div>
               </div>
               <div id="studioThumbForm" style="display:none;">
                 <div id="studioThumbPreview" style="margin-bottom:12px;"></div>
@@ -1756,10 +1775,15 @@
             <div class="studio-card-body" id="captionsPanel" style="display:none;">
               <p class="text-muted" style="font-size:12px;margin-bottom:12px;" data-i18n="studio_captions_desc">Listez, ajoutez ou supprimez les sous-titres de vos videos.</p>
               <div class="form-group">
-                <label class="form-label" data-i18n="studio_select_video">Selectionner une video</label>
-                <select class="form-control" id="studioCaptionVideoSelect" onchange="loadCaptionsList()" style="font-size:13px;">
+                <div class="studio-picker-toggle">
+                  <label class="form-label" style="margin:0;" data-i18n="studio_select_video">Selectionner une video</label>
+                  <button class="btn-icon active" onclick="setStudioPickerMode('captions','list')" title="Liste"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></button>
+                  <button class="btn-icon" onclick="setStudioPickerMode('captions','thumb')" title="Thumbnails"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>
+                </div>
+                <select class="form-control studio-select-list" id="studioCaptionVideoSelect" onchange="loadCaptionsList()" style="font-size:13px;">
                   <option value="">-- choisir --</option>
                 </select>
+                <div class="studio-thumb-grid" id="studioCaptionThumbGrid" style="display:none;"></div>
               </div>
               <div id="captionsList" style="margin-bottom:12px;"></div>
               <div id="captionUploadForm" style="display:none;">
@@ -5042,6 +5066,96 @@ function populateStudioVideoSelects() {
     const sel = document.getElementById(selId);
     if (sel) sel.innerHTML = defaultOpt + options;
   });
+
+  // Store video data for thumbnail grids
+  studioAllVideos = allVids;
+}
+
+// Studio picker mode state per panel
+const studioPickerModes = { videoEditor: 'list', thumbnail: 'list', captions: 'list' };
+let studioAllVideos = new Map();
+
+const STUDIO_PANEL_MAP = {
+  videoEditor: { select: 'studioVideoSelect', grid: 'studioVideoThumbGrid', callback: 'onStudioVideoSelect' },
+  thumbnail:   { select: 'studioThumbVideoSelect', grid: 'studioThumbThumbGrid', callback: 'onThumbVideoSelect' },
+  captions:    { select: 'studioCaptionVideoSelect', grid: 'studioCaptionThumbGrid', callback: 'loadCaptionsList' }
+};
+
+function setStudioPickerMode(panel, mode) {
+  studioPickerModes[panel] = mode;
+  const cfg = STUDIO_PANEL_MAP[panel];
+  if (!cfg) return;
+
+  const sel = document.getElementById(cfg.select);
+  const grid = document.getElementById(cfg.grid);
+  if (!sel || !grid) return;
+
+  // Update toggle button active states
+  const parentCard = sel.closest('.studio-card-body');
+  if (parentCard) {
+    const btns = parentCard.querySelectorAll('.studio-picker-toggle .btn-icon');
+    btns.forEach((b, i) => b.classList.toggle('active', (i === 0 && mode === 'list') || (i === 1 && mode === 'thumb')));
+  }
+
+  if (mode === 'list') {
+    sel.style.display = '';
+    grid.style.display = 'none';
+  } else {
+    sel.style.display = 'none';
+    grid.style.display = '';
+    renderStudioThumbGrid(panel);
+  }
+}
+
+function renderStudioThumbGrid(panel) {
+  const cfg = STUDIO_PANEL_MAP[panel];
+  const grid = document.getElementById(cfg.grid);
+  const sel = document.getElementById(cfg.select);
+  if (!grid) return;
+
+  const currentVal = sel?.value || '';
+  const placeholder = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%2290%22%3E%3Crect fill=%22%23303030%22 width=%22160%22 height=%2290%22/%3E%3C/svg%3E';
+
+  let html = '';
+  for (const [videoId, title] of studioAllVideos) {
+    const detail = videoDetailsCache[videoId];
+    // Try multiple thumbnail sources
+    let thumbUrl = '';
+    for (const [plId, videos] of Object.entries(APP.allVideos)) {
+      const v = videos.find(v => (v.contentDetails?.videoId || v.snippet?.resourceId?.videoId) === videoId);
+      if (v) {
+        thumbUrl = v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url || '';
+        if (thumbUrl) break;
+      }
+    }
+    if (!thumbUrl) thumbUrl = detail?.snippet?.thumbnails?.medium?.url || detail?.snippet?.thumbnails?.default?.url || '';
+
+    const selected = videoId === currentVal ? ' selected' : '';
+    html += `<div class="studio-thumb-item${selected}" onclick="selectStudioThumbVideo('${panel}','${videoId}')" title="${title}">
+      <img src="${thumbUrl || placeholder}" alt="" onerror="this.src='${placeholder}'">
+      <div class="studio-thumb-title">${title.substring(0, 40)}</div>
+    </div>`;
+  }
+  grid.innerHTML = html || '<p class="text-muted" style="font-size:12px;">No videos</p>';
+}
+
+function selectStudioThumbVideo(panel, videoId) {
+  const cfg = STUDIO_PANEL_MAP[panel];
+  const sel = document.getElementById(cfg.select);
+  if (sel) {
+    sel.value = videoId;
+    // Trigger the callback
+    if (cfg.callback === 'onStudioVideoSelect') onStudioVideoSelect();
+    else if (cfg.callback === 'onThumbVideoSelect') onThumbVideoSelect();
+    else if (cfg.callback === 'loadCaptionsList') loadCaptionsList();
+  }
+  // Update selected state in grid
+  const grid = document.getElementById(cfg.grid);
+  if (grid) {
+    grid.querySelectorAll('.studio-thumb-item').forEach(el => el.classList.remove('selected'));
+    const clicked = grid.querySelector(`[onclick*="'${videoId}'"]`);
+    if (clicked) clicked.classList.add('selected');
+  }
 }
 
 async function onStudioVideoSelect() {
