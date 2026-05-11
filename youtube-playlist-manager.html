@@ -3615,6 +3615,23 @@ function runCacheDiagnostic() {
   const memVideos = Object.values(APP.allVideos).reduce((s, v) => s + v.length, 0);
   const memDetails = Object.keys(videoDetailsCache).length;
 
+  // Thumbnail stats
+  let plThumbCount = 0;
+  APP.playlists.forEach(pl => { if (pl.snippet?.thumbnails?.medium?.url || pl.snippet?.thumbnails?.default?.url) plThumbCount++; });
+  let vidThumbCount = 0;
+  for (const vids of Object.values(APP.allVideos)) {
+    for (const v of vids) { if (v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url) vidThumbCount++; }
+  }
+
+  // Cache thumbnail stats (from stored JSON)
+  let cacheThumbCount = 0;
+  if (cacheRaw) {
+    try {
+      const cb = JSON.parse(cacheRaw);
+      cb.playlists?.forEach(p => p.videos?.forEach(v => { if (v.thumbnail) cacheThumbCount++; }));
+    } catch (_) {}
+  }
+
   // API quota
   const quota = APP.quotaUnits || 0;
 
@@ -3639,6 +3656,13 @@ function runCacheDiagnostic() {
     </div>
     <div style="margin-top:8px;"><b>In-memory (APP):</b>
       ${memPlaylists} playlists, ${memVideos} videos, ${memDetails} cached details
+    </div>
+    <div><b>Thumbnails in memory:</b>
+      <span style="${plThumbCount > 0 ? green : red}">${plThumbCount}/${memPlaylists} playlists</span>,
+      <span style="${vidThumbCount > 0 ? green : red}">${vidThumbCount}/${memVideos} videos</span>
+    </div>
+    <div><b>Thumbnails in autoCache:</b>
+      <span style="${cacheThumbCount > 0 ? green : red}">${cacheThumbCount} videos with thumbnail URL</span>
     </div>
     <div><b>API quota used:</b> <span style="${quota > 500 ? red : quota > 100 ? yellow : green}">${quota} / 10,000 units</span></div>
     <div style="margin-top:8px;"><b>Cache-first status:</b>
@@ -4039,12 +4063,23 @@ function autoSaveToLocalStorage() {
           };
         })
       })),
-      playlistObjects: APP.playlists.map(pl => ({
-        id: pl.id,
-        snippet: { title: pl.snippet?.title, description: pl.snippet?.description },
-        contentDetails: { itemCount: pl.contentDetails?.itemCount },
-        status: { privacyStatus: pl.status?.privacyStatus }
-      })),
+      playlistObjects: APP.playlists.map(pl => {
+        // Get playlist thumbnail: from playlist object or from first video
+        const plThumb = pl.snippet?.thumbnails?.medium?.url || pl.snippet?.thumbnails?.high?.url || pl.snippet?.thumbnails?.default?.url || '';
+        const firstVideo = (APP.allVideos[pl.id] || [])[0];
+        const fallbackThumb = firstVideo?.snippet?.thumbnails?.medium?.url || firstVideo?.snippet?.thumbnails?.default?.url || '';
+        const thumbUrl = plThumb || fallbackThumb;
+        return {
+          id: pl.id,
+          snippet: {
+            title: pl.snippet?.title,
+            description: pl.snippet?.description,
+            thumbnails: thumbUrl ? { medium: { url: thumbUrl }, default: { url: thumbUrl } } : undefined
+          },
+          contentDetails: { itemCount: pl.contentDetails?.itemCount },
+          status: { privacyStatus: pl.status?.privacyStatus }
+        };
+      }),
       tags: APP.tags,
       tagIcons: APP.tagIcons,
       folders: APP.folders,
