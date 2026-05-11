@@ -132,6 +132,22 @@
   .btn-icon:hover { color: var(--text); background: var(--surface2); }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
 
+  /* Skin picker */
+  .skin-picker-dropdown {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 9999;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px; min-width: 200px; box-shadow: var(--shadow);
+  }
+  .skin-picker-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .skin-picker-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .skin-swatch {
+    width: 32px; height: 32px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;
+    transition: transform 0.15s, border-color 0.15s; position: relative;
+  }
+  .skin-swatch:hover { transform: scale(1.15); }
+  .skin-swatch.active { border-color: var(--text); }
+  .skin-swatch-label { font-size: 9px; color: var(--text3); text-align: center; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
   .login-screen {
     display: flex;
     flex-direction: column;
@@ -951,9 +967,21 @@
       </button>
       <div class="user-info" id="userInfo"></div>
       <button class="btn-icon" onclick="toggleLanguage()" id="langToggle" data-i18n-title="header_lang_toggle" title="Langue" style="font-size: 11px; font-weight: 600; font-family: 'Geist Mono', monospace;">FR</button>
-      <button class="btn-icon" onclick="toggleTheme()" data-i18n-title="header_theme_toggle" title="Theme">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-      </button>
+      <div style="position:relative;display:inline-block;" id="skinPickerWrap">
+        <button class="btn-icon" onclick="toggleSkinPicker()" data-i18n-title="header_skin_toggle" title="Skin">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        </button>
+        <div class="skin-picker-dropdown" id="skinPickerDropdown" style="display:none;">
+          <div class="skin-picker-title" data-i18n="skin_picker_title">Skin</div>
+          <div class="skin-picker-grid" id="skinPickerGrid"></div>
+          <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;">
+            <button class="btn-icon" onclick="toggleTheme()" style="width:100%;display:flex;align-items:center;gap:6px;justify-content:center;font-size:12px;padding:6px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+              <span data-i18n="skin_toggle_mode">Dark / Light</span>
+            </button>
+          </div>
+        </div>
+      </div>
       <button class="btn btn-secondary btn-sm" onclick="handleLogout()" data-i18n="logout_btn">Logout</button>
     </div>
   </div>
@@ -1808,6 +1836,9 @@ const I18N = {
     header_export_tooltip: 'Export',
     header_lang_toggle: 'Langue',
     header_theme_toggle: 'Thème',
+    header_skin_toggle: 'Apparence',
+    skin_picker_title: 'Couleur',
+    skin_toggle_mode: 'Sombre / Clair',
     header_logged_in: 'Connecté',
 
     // Sidebar
@@ -2292,6 +2323,9 @@ const I18N = {
     header_export_tooltip: 'Export',
     header_lang_toggle: 'Language',
     header_theme_toggle: 'Theme',
+    header_skin_toggle: 'Appearance',
+    skin_picker_title: 'Color',
+    skin_toggle_mode: 'Dark / Light',
     header_logged_in: 'Connected',
 
     // Sidebar
@@ -2837,6 +2871,9 @@ function init() {
   if (APP.theme === 'light') {
     document.body.classList.add('light-theme');
   }
+  // Restore saved skin
+  const savedSkin = localStorage.getItem('appSkin');
+  if (savedSkin && savedSkin !== 'coral') applySkin(savedSkin);
   // Restore OAuth scope preference
   currentScope = localStorage.getItem('oauthScope') || SCOPE_READONLY;
 
@@ -3103,7 +3140,7 @@ async function deleteAllUserData() {
 
   // Clear all localStorage keys used by this app
   const appKeys = [
-    'youtubeClientId', 'appTheme', 'playlistTags', 'tagIcons', 'watchQueue',
+    'youtubeClientId', 'appTheme', 'appSkin', 'playlistTags', 'tagIcons', 'watchQueue',
     'playlistFolders', 'folderAssignments', 'folderExpanded', 'deckColumns',
     'lastBackup', 'lastBackupTimestamp', 'oauthScope', 'lastLoginTimestamp', 'recentSearches'
   ];
@@ -3218,6 +3255,76 @@ function toggleTheme() {
   APP.theme = APP.theme === 'dark' ? 'light' : 'dark';
   localStorage.setItem('appTheme', APP.theme);
   document.body.classList.toggle('light-theme');
+}
+
+// ── Skin / Color Themes ──────────────────────────────────────────────────
+const SKINS = [
+  { id: 'coral',    name: 'Coral',     hue: 28,  chroma: 0.18, preview: '#e8604c' },
+  { id: 'amber',    name: 'Amber',     hue: 55,  chroma: 0.16, preview: '#e6a020' },
+  { id: 'lime',     name: 'Lime',      hue: 130, chroma: 0.16, preview: '#4caf50' },
+  { id: 'teal',     name: 'Teal',      hue: 175, chroma: 0.12, preview: '#26a69a' },
+  { id: 'ocean',    name: 'Ocean',     hue: 230, chroma: 0.14, preview: '#5c8dd6' },
+  { id: 'indigo',   name: 'Indigo',    hue: 265, chroma: 0.14, preview: '#7c6dd8' },
+  { id: 'violet',   name: 'Violet',    hue: 295, chroma: 0.14, preview: '#ab47bc' },
+  { id: 'rose',     name: 'Rose',      hue: 350, chroma: 0.16, preview: '#e84f7a' },
+  { id: 'mono',     name: 'Mono',      hue: 0,   chroma: 0,    preview: '#9e9e9e' },
+  { id: 'gold',     name: 'Gold',      hue: 80,  chroma: 0.14, preview: '#c8b84d' },
+];
+
+function applySkin(skinId) {
+  const skin = SKINS.find(s => s.id === skinId);
+  if (!skin) return;
+  const root = document.documentElement;
+  const h = skin.hue;
+  const c = skin.chroma;
+  root.style.setProperty('--accent', `oklch(0.72 ${c} ${h})`);
+  root.style.setProperty('--accent-soft', `oklch(0.72 ${c} ${h} / 0.14)`);
+  root.style.setProperty('--accent-line', `oklch(0.72 ${c} ${h} / 0.4)`);
+  root.style.setProperty('--red', `oklch(0.72 ${c} ${h})`);
+  root.style.setProperty('--red-dark', `oklch(0.65 ${c > 0 ? c + 0.02 : 0} ${h})`);
+  // Update categorical palette with shifted hues
+  for (let i = 0; i < 6; i++) {
+    const catHue = (h + i * 60) % 360;
+    root.style.setProperty(`--c${i + 1}`, `oklch(0.72 0.13 ${catHue})`);
+  }
+  localStorage.setItem('appSkin', skinId);
+  renderSkinPicker();
+}
+
+function toggleSkinPicker() {
+  const dd = document.getElementById('skinPickerDropdown');
+  if (dd.style.display === 'none') {
+    renderSkinPicker();
+    dd.style.display = 'block';
+    // Close on outside click
+    setTimeout(() => document.addEventListener('click', closeSkinPickerOutside), 0);
+  } else {
+    dd.style.display = 'none';
+    document.removeEventListener('click', closeSkinPickerOutside);
+  }
+}
+
+function closeSkinPickerOutside(e) {
+  const wrap = document.getElementById('skinPickerWrap');
+  if (!wrap.contains(e.target)) {
+    document.getElementById('skinPickerDropdown').style.display = 'none';
+    document.removeEventListener('click', closeSkinPickerOutside);
+  }
+}
+
+function renderSkinPicker() {
+  const current = localStorage.getItem('appSkin') || 'coral';
+  const grid = document.getElementById('skinPickerGrid');
+  if (!grid) return;
+  grid.innerHTML = SKINS.map(s => `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+      <div class="skin-swatch${s.id === current ? ' active' : ''}"
+           style="background:${s.preview};"
+           onclick="applySkin('${s.id}')"
+           title="${s.name}"></div>
+      <div class="skin-swatch-label">${s.name}</div>
+    </div>
+  `).join('');
 }
 
 function toggleLanguage() {
