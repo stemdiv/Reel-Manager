@@ -1578,6 +1578,15 @@
         </div>
       </div>
 
+      <!-- CACHE DIAGNOSTIC VIEW (accessible from backup page) -->
+      <div id="cacheDiag" style="margin-top:32px; padding:16px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface);">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+          <h3 style="margin:0; font-size:14px;" data-i18n="cache_diag_title">Cache Diagnostic</h3>
+          <button class="btn btn-sm btn-secondary" onclick="runCacheDiagnostic()" data-i18n="cache_diag_refresh">Refresh</button>
+        </div>
+        <div id="cacheDiagContent" style="font-size:12px; color:var(--text2); font-family:'Geist Mono',monospace; line-height:1.8;"></div>
+      </div>
+
       <!-- BETA / FEATURE LAB VIEW -->
       <div id="beta" class="view">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -2061,6 +2070,8 @@ const I18N = {
     backup_csv: 'CSV (lisible Excel / Google Sheets)',
     backup_both: 'Les deux',
     backup_create: 'Créer backup',
+    cache_diag_title: 'Diagnostic Cache',
+    cache_diag_refresh: 'Actualiser',
     restore_section: 'Restore',
     restore_subtitle: 'Restaure vos playlists depuis un backup JSON ou CSV',
     restore_btn: 'Restaurer la sélection',
@@ -2548,6 +2559,8 @@ const I18N = {
     backup_csv: 'CSV (Excel / Google Sheets readable)',
     backup_both: 'Both',
     backup_create: 'Create backup',
+    cache_diag_title: 'Cache Diagnostic',
+    cache_diag_refresh: 'Refresh',
     restore_section: 'Restore',
     restore_subtitle: 'Restore your playlists from a JSON or CSV backup',
     restore_btn: 'Restore selection',
@@ -3169,6 +3182,79 @@ function checkAutoPurge() {
     localStorage.removeItem('lastLoginTimestamp');
     console.info('[Auto-purge] Données supprimées après 30 jours sans connexion');
   }
+}
+
+function runCacheDiagnostic() {
+  const el = document.getElementById('cacheDiagContent');
+  if (!el) return;
+  const lines = [];
+
+  // localStorage usage
+  let totalBytes = 0;
+  let backupBytes = 0;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      const val = localStorage.getItem(key);
+      const size = (key.length + val.length) * 2; // UTF-16
+      totalBytes += size;
+      if (key === 'lastBackup') backupBytes = size;
+    }
+  } catch (_) {}
+  const totalKB = (totalBytes / 1024).toFixed(1);
+  const backupKB = (backupBytes / 1024).toFixed(1);
+
+  // Estimate storage limit
+  let storageStatus = '?';
+  if (navigator.storage && navigator.storage.estimate) {
+    navigator.storage.estimate().then(est => {
+      const usedMB = (est.usage / (1024 * 1024)).toFixed(1);
+      const quotaMB = (est.quota / (1024 * 1024)).toFixed(0);
+      const pctUsed = ((est.usage / est.quota) * 100).toFixed(1);
+      document.getElementById('cacheDiagStorage').textContent = `${usedMB} MB / ${quotaMB} MB (${pctUsed}%)`;
+    });
+  }
+
+  // Backup data
+  const raw = localStorage.getItem('lastBackup');
+  const ts = localStorage.getItem('lastBackupTimestamp');
+  let backupPlaylists = 0, backupVideos = 0;
+  if (raw) {
+    try {
+      const b = JSON.parse(raw);
+      backupPlaylists = b.playlists?.length || 0;
+      backupVideos = b.playlists?.reduce((s, p) => s + (p.videos?.length || 0), 0) || 0;
+    } catch (_) { }
+  }
+
+  // In-memory state
+  const memPlaylists = APP.playlists.length;
+  const memVideos = Object.values(APP.allVideos).reduce((s, v) => s + v.length, 0);
+  const memDetails = Object.keys(videoDetailsCache).length;
+
+  // API quota
+  const quota = APP.quotaUnits || 0;
+
+  const green = 'color:var(--green)';
+  const red = 'color:var(--danger)';
+  const yellow = 'color:var(--yellow)';
+
+  el.innerHTML = `
+    <div><b>localStorage:</b> ${totalKB} KB total, backup = ${backupKB} KB</div>
+    <div><b>Storage API:</b> <span id="cacheDiagStorage">checking...</span></div>
+    <div style="margin-top:8px;"><b>Backup in localStorage:</b>
+      ${raw ? `<span style="${green}">YES</span> — ${backupPlaylists} playlists, ${backupVideos} videos` : `<span style="${red}">NONE</span>`}
+    </div>
+    <div><b>Backup date:</b> ${ts || '<span style="' + red + '">never</span>'}</div>
+    <div style="margin-top:8px;"><b>In-memory (APP):</b>
+      ${memPlaylists} playlists, ${memVideos} videos, ${memDetails} cached details
+    </div>
+    <div><b>API quota used:</b> <span style="${quota > 500 ? red : quota > 100 ? yellow : green}">${quota} / 10,000 units</span></div>
+    <div style="margin-top:8px;"><b>Cache-first status:</b>
+      ${memPlaylists > 0 && memVideos > 0 ? `<span style="${green}">ACTIVE</span> — startup uses 0 API calls` : `<span style="${red}">INACTIVE</span> — startup will fetch from API`}
+    </div>
+    <div><b>Token:</b> ${APP.accessToken ? `<span style="${green}">present</span> (${APP.accessToken.substring(0, 8)}...)` : `<span style="${red}">absent</span>`}</div>
+  `;
 }
 
 function updateBackupIndicator() {
@@ -4338,6 +4424,7 @@ function switchView(viewName) {
     else if (viewName === 'folders') renderFolderTree();
     else if (viewName === 'deck') { renderDeck(); if (APP.deckColumns.length) loadAllDeckVideos(); }
     else if (viewName === 'export') renderExportPlaylistList();
+    else if (viewName === 'backup') runCacheDiagnostic();
     else if (viewName === 'subscriptions') {
       if (APP.subscriptions.length === 0) {
         loadSubscriptions();
