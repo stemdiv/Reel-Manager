@@ -2520,6 +2520,7 @@ const I18N = {
     error_quota_exceeded: 'Quota API YouTube dépassé (10 000 unités/jour). Réessayez demain après minuit (heure du Pacifique).',
     error_token_expired: 'Session expirée — veuillez vous reconnecter (Sign out puis Sign in).',
     error_rate_limited: 'Trop de requêtes — YouTube a temporairement limité le débit. Réessayez dans quelques secondes.',
+    toast_action_pending_resume: '✅ Accès en écriture accordé — relancez votre action pour continuer.',
 
     // Confirms
     confirm_no_backup: '⚠️ Aucun backup disponible !\n\nVous êtes sur le point d\'exécuter : {action}\n\nCette action modifie vos playlists YouTube et est irréversible sans backup.\n\nVoulez-vous continuer SANS backup ? (non recommandé)',
@@ -3062,6 +3063,7 @@ const I18N = {
     error_quota_exceeded: 'YouTube API quota exceeded (10,000 units/day). Try again after midnight Pacific Time.',
     error_token_expired: 'Session expired — please sign out and sign in again.',
     error_rate_limited: 'Too many requests — YouTube briefly rate-limited the client. Try again in a few seconds.',
+    toast_action_pending_resume: '✅ Write access granted — please re-trigger your action to continue.',
 
     // Confirms
     confirm_no_backup: '⚠️ No backup available!\n\nYou are about to execute: {action}\n\nThis action modifies your YouTube playlists and is irreversible without a backup.\n\nContinue WITHOUT backup? (not recommended)',
@@ -3798,6 +3800,8 @@ function ensureWriteScope() {
   if (upgrade) {
     currentScope = SCOPE_FULL;
     localStorage.setItem('oauthScope', SCOPE_FULL);
+    // Stash a marker so checkAuth() can notify the user after the redirect (audit #44)
+    sessionStorage.setItem('pendingActionAfterOAuth', String(Date.now()));
     startOAuth(SCOPE_FULL);
   }
   return false; // Will redirect, so always return false here
@@ -4051,6 +4055,18 @@ function checkAuth() {
       localStorage.setItem('lastLoginTimestamp', new Date().toISOString());
       window.history.replaceState({}, document.title, window.location.pathname);
       showApp();
+
+      // Audit #44: notify if user came back from a scope-upgrade redirect
+      // (their original action was interrupted; let them know to re-trigger it)
+      const pendingTs = sessionStorage.getItem('pendingActionAfterOAuth');
+      if (pendingTs) {
+        sessionStorage.removeItem('pendingActionAfterOAuth');
+        // Reject stale notices (>10 min — user probably forgot anyway)
+        if (Date.now() - parseInt(pendingTs, 10) < 600_000) {
+          // Defer the toast so it doesn't fight with showApp's own UI work
+          setTimeout(() => showToast(t('toast_action_pending_resume'), 'info'), 600);
+        }
+      }
       return;
     }
   }
@@ -6981,6 +6997,17 @@ async function createPlaylistFromDiscover() {
 
     // Refresh playlists and dashboard
     await loadAllPlaylists();
+
+    // Audit #62: YouTube's contentDetails.itemCount has a few seconds of backend lag after
+    // items are inserted, so loadAllPlaylists may bring back itemCount=0 for the new playlist.
+    // Override locally with the actual count we just inserted — the next natural refresh
+    // (after cache TTL or another write) will pick up the authoritative value from YouTube.
+    const newPl = APP.playlists.find(p => p.id === playlistId);
+    if (newPl) {
+      if (!newPl.contentDetails) newPl.contentDetails = {};
+      newPl.contentDetails.itemCount = added;
+    }
+
     refreshDashboard();
     populateSelectDropdowns();
     refreshPlaylistsList();
