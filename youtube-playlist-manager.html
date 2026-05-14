@@ -480,6 +480,27 @@
   /* Dashboard drill-down rows (#64) — legend + bar chart per-playlist clickables */
   .dash-pl-row { cursor: pointer; padding: 2px 4px; margin: 0 -4px; border-radius: 4px; transition: background 0.12s; }
   .dash-pl-row:hover { background: var(--surface2); }
+  /* Bookmark badge on playlist cards (#63) — distinguishes saved external playlists */
+  .pl-bookmark-badge {
+    position: absolute; top: 8px; left: 8px;
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 7px; border-radius: 999px;
+    background: rgba(0, 0, 0, 0.7); color: #fff;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
+    backdrop-filter: blur(4px);
+    pointer-events: none;
+  }
+  .pl-bookmark-badge svg { width: 11px; height: 11px; }
+  .playlist-card { position: relative; }
+  /* Read-only banner shown at the top of a bookmarked playlist detail view */
+  .bookmark-readonly-banner {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; margin-bottom: 16px;
+    border: 1px solid var(--accent-line); border-radius: var(--r-sm);
+    background: var(--accent-soft); color: var(--text);
+    font-size: 13px;
+  }
+  .bookmark-readonly-banner svg { width: 16px; height: 16px; color: var(--accent); flex-shrink: 0; }
   /* Flash highlight when dashboard legend drills down to a playlist card */
   @keyframes plCardFlash {
     0%   { box-shadow: 0 0 0 1px var(--accent-soft); border-color: var(--accent); }
@@ -1187,6 +1208,7 @@
         <h2 style="margin-top: 32px; margin-bottom: 24px;" data-i18n="dash_my_playlists">Mes Playlists</h2>
         <div style="display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;">
           <button class="btn btn-primary" onclick="showCreatePlaylistModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> <span data-i18n="dash_create">New playlist</span></button>
+          <button class="btn btn-secondary" onclick="showAddBookmarkModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> <span data-i18n="bookmark_btn">Add by URL</span></button>
           <button class="btn btn-secondary" onclick="showRenamePlaylistModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg> <span data-i18n="dash_rename">Rename</span></button>
           <button class="btn btn-danger" onclick="showDeletePlaylistModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> <span data-i18n="dash_delete">Delete</span></button>
         </div>
@@ -1195,6 +1217,11 @@
 
       <!-- PLAYLIST DETAIL VIEW -->
       <div id="playlistDetail" class="view">
+        <!-- Read-only banner shown when viewing a bookmarked (external) playlist (#63) -->
+        <div id="playlistDetailReadonlyBanner" class="bookmark-readonly-banner" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          <span data-i18n="bookmark_detail_readonly_banner">Read-only playlist — owned by another user. Write actions are unavailable.</span>
+        </div>
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
           <button class="btn btn-secondary btn-sm" onclick="switchView('dashboard')" data-i18n-title="detail_back" data-i18n="detail_back" title="Retour">← Retour</button>
           <h1 id="playlistDetailTitle" style="margin: 0; flex: 1;"></h1>
@@ -2169,6 +2196,24 @@ const I18N = {
     log_empty: 'Aucune entrée à exporter pour le moment.',
     log_truncated_notice: '(Les plus anciennes entrées peuvent avoir été supprimées du tampon.)',
     cancel: 'Annuler',
+    // Bookmark playlists by URL/ID (#63)
+    bookmark_btn: 'Ajouter par URL',
+    bookmark_modal_title: 'Ajouter une playlist par URL',
+    bookmark_modal_hint: 'Collez une URL YouTube ou un ID de playlist (commence par PL, RD, OL, etc.). La playlist apparaîtra dans votre bibliothèque en lecture seule.',
+    bookmark_input_placeholder: 'https://www.youtube.com/playlist?list=PL… ou PL…',
+    bookmark_add_btn: 'Ajouter',
+    bookmark_invalid_url: 'URL ou ID de playlist invalide. Vérifiez le format (commence par PL, RD, OL…).',
+    bookmark_not_found: 'Playlist introuvable, privée ou supprimée.',
+    bookmark_exists: 'Cette playlist est déjà dans vos favoris.',
+    bookmark_is_owned: 'Cette playlist vous appartient — pas besoin de la mettre en favori.',
+    bookmark_added: '✓ « {title} » ajoutée à vos playlists',
+    bookmark_remove: 'Retirer des favoris',
+    bookmark_remove_confirm: 'Retirer « {title} » de vos favoris ? La playlist YouTube originale ne sera pas affectée.',
+    bookmark_removed: 'Favori retiré',
+    bookmark_badge_label: 'Sauvegardée',
+    bookmark_readonly_tooltip: 'Playlist d\'un autre utilisateur — lecture seule',
+    bookmark_detail_readonly_banner: 'Playlist en lecture seule — appartient à un autre utilisateur. Les actions d\'écriture (ajout/suppression de vidéos, renommage) ne sont pas disponibles.',
+    bookmark_quota_unit_label: 'unité de quota',
     login_privacy: 'Politique de confidentialité',
     login_delete_data: 'Supprimer mes données',
     login_powered: 'Powered by YouTube Data API',
@@ -2731,6 +2776,24 @@ const I18N = {
     log_empty: 'No entries to export yet.',
     log_truncated_notice: '(Older entries may have been dropped from the buffer.)',
     cancel: 'Cancel',
+    // Bookmark playlists by URL/ID (#63)
+    bookmark_btn: 'Add by URL',
+    bookmark_modal_title: 'Add a playlist by URL',
+    bookmark_modal_hint: 'Paste a YouTube URL or playlist ID (starts with PL, RD, OL, etc.). The playlist will appear in your library in read-only mode.',
+    bookmark_input_placeholder: 'https://www.youtube.com/playlist?list=PL… or PL…',
+    bookmark_add_btn: 'Add',
+    bookmark_invalid_url: 'Invalid URL or playlist ID. Check the format (starts with PL, RD, OL…).',
+    bookmark_not_found: 'Playlist not found, private, or deleted.',
+    bookmark_exists: 'This playlist is already bookmarked.',
+    bookmark_is_owned: 'You own this playlist — no need to bookmark it.',
+    bookmark_added: '✓ "{title}" added to your playlists',
+    bookmark_remove: 'Remove bookmark',
+    bookmark_remove_confirm: 'Remove "{title}" from bookmarks? The original YouTube playlist is not affected.',
+    bookmark_removed: 'Bookmark removed',
+    bookmark_badge_label: 'Saved',
+    bookmark_readonly_tooltip: 'Saved from another user — read-only',
+    bookmark_detail_readonly_banner: 'Read-only playlist — owned by another user. Write actions (add/remove videos, rename) are unavailable.',
+    bookmark_quota_unit_label: 'quota unit',
     login_privacy: 'Privacy Policy',
     login_delete_data: 'Delete my data',
     login_powered: 'Powered by YouTube Data API',
@@ -3326,6 +3389,10 @@ const APP = {
   watchQueue: JSON.parse(localStorage.getItem('watchQueue') || '[]'),
   subscriptions: [],
   log: [], // Diagnostic log ring buffer (#66) — populated by `log()` helper below
+  // Bookmarked external playlists (#63) — { id, addedAt } objects.
+  // YouTube Data API has no "saved playlists" endpoint for non-owned content,
+  // so we keep a local pointer list and fetch metadata on each refresh.
+  bookmarkedPlaylists: JSON.parse(localStorage.getItem('bookmarkedPlaylists') || '[]'),
 };
 
 // ============================================================================
@@ -3570,6 +3637,218 @@ function showLogConsentModal() {
     </div>
   `;
   openModal(content);
+}
+
+// ============================================================================
+// BOOKMARKED PLAYLISTS (#63) — track external playlists by ID without owning them.
+// YouTube Data API exposes only `playlists.list?mine=true` for personal libraries;
+// playlists from other channels can be looked up by ID via `playlists.list?id=...`
+// at 1 unit per batch (up to 50 IDs/call), which is cheap enough to refresh on
+// every app load. Bookmarks are read-only: write controls (add video, rename,
+// delete) are hidden in the UI to surface the constraint to the user.
+// ============================================================================
+
+// Valid known YouTube playlist ID prefixes. Order matters only for readability.
+// Pattern: 2-letter prefix + at least 10 url-safe chars. Real IDs are usually
+// 32+ chars but we stay permissive to handle future YouTube formats.
+const BOOKMARK_ID_REGEX = /^(PL|LL|FL|UU|RD|OL|WL|PU|LP)[A-Za-z0-9_-]{10,}$/;
+
+/** Extract a playlist ID from any of: raw ID, full URL, share URL. */
+function extractPlaylistId(input) {
+  if (!input || typeof input !== 'string') return null;
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  // Try raw ID first
+  if (BOOKMARK_ID_REGEX.test(trimmed)) return trimmed;
+
+  // Try URL — accept any URL with a `list=` param
+  try {
+    const u = new URL(trimmed);
+    const listParam = u.searchParams.get('list');
+    if (listParam && BOOKMARK_ID_REGEX.test(listParam)) return listParam;
+  } catch (_) {
+    // Not a URL — fall through
+  }
+
+  // Try a lazy regex inside the string (handles when user pasted a fragment)
+  const m = trimmed.match(/list=([A-Za-z0-9_-]+)/);
+  if (m && BOOKMARK_ID_REGEX.test(m[1])) return m[1];
+
+  return null;
+}
+
+function isBookmarkedPlaylist(playlistId) {
+  return !!(APP.bookmarkedPlaylists && APP.bookmarkedPlaylists.find(b => b.id === playlistId));
+}
+
+function saveBookmarks() {
+  try {
+    localStorage.setItem('bookmarkedPlaylists', JSON.stringify(APP.bookmarkedPlaylists));
+  } catch (e) {
+    log('warn', 'backup', 'failed to persist bookmarks', { error: String(e && e.message || e) });
+  }
+}
+
+/**
+ * Add a playlist to bookmarks. Validates, dedupes, fetches metadata to verify
+ * the playlist is reachable, then persists and refreshes the library.
+ * Returns the fetched playlist object on success, or throws an Error.
+ */
+async function addBookmark(rawInput) {
+  const id = extractPlaylistId(rawInput);
+  if (!id) {
+    throw new Error(t('bookmark_invalid_url'));
+  }
+
+  // Dedupe: against bookmarks AND against owned playlists
+  if (isBookmarkedPlaylist(id)) {
+    throw new Error(t('bookmark_exists'));
+  }
+  if (APP.playlists.find(p => p.id === id && !p._isBookmark)) {
+    throw new Error(t('bookmark_is_owned'));
+  }
+
+  // Fetch metadata — also serves as existence/visibility check
+  const data = await ytApi('playlists', {
+    part: 'snippet,contentDetails,status',
+    id,
+  });
+  if (!data || !Array.isArray(data.items) || data.items.length === 0) {
+    throw new Error(t('bookmark_not_found'));
+  }
+  const meta = data.items[0];
+
+  // Persist
+  APP.bookmarkedPlaylists.push({ id, addedAt: new Date().toISOString() });
+  saveBookmarks();
+
+  // Inject into the live playlist array so the UI updates without a full reload
+  meta._isBookmark = true;
+  // Avoid duplicate insertions (defensive against the dedupe checks above)
+  if (!APP.playlists.find(p => p.id === id)) {
+    APP.playlists.push(meta);
+    APP.playlists.sort((a, b) => (a.snippet?.title || '').localeCompare(b.snippet?.title || ''));
+  }
+
+  log('info', 'action', 'bookmark added', { id, title: meta.snippet?.title });
+  return meta;
+}
+
+/** Remove a bookmark — does not affect the underlying YouTube playlist. */
+function removeBookmark(playlistId) {
+  if (!APP.bookmarkedPlaylists) return false;
+  const idx = APP.bookmarkedPlaylists.findIndex(b => b.id === playlistId);
+  if (idx === -1) return false;
+  APP.bookmarkedPlaylists.splice(idx, 1);
+  saveBookmarks();
+
+  // Also remove from APP.playlists so it disappears from the library immediately
+  const pidx = APP.playlists.findIndex(p => p.id === playlistId && p._isBookmark);
+  if (pidx !== -1) APP.playlists.splice(pidx, 1);
+
+  log('info', 'action', 'bookmark removed', { id: playlistId });
+  return true;
+}
+
+/** Open a small modal to enter a playlist URL/ID and bookmark it. */
+function showAddBookmarkModal(prefilledId = '') {
+  const content = `
+    <div style="max-width: 480px; padding: 24px;">
+      <h2 style="margin: 0 0 6px 0; font-size: 17px;">${t('bookmark_modal_title')}</h2>
+      <p style="margin: 0 0 14px 0; color: var(--text2); font-size: 12px; line-height: 1.5;">${t('bookmark_modal_hint')}</p>
+      <input type="text" id="bookmarkInput" value="${prefilledId.replace(/"/g, '&quot;')}" placeholder="${t('bookmark_input_placeholder')}"
+        style="width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface2); color: var(--text); font-family: inherit; font-size: 13px; margin-bottom: 6px;"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();submitAddBookmark();}">
+      <div id="bookmarkError" style="display: none; color: var(--danger); font-size: 12px; margin-bottom: 6px;"></div>
+      <p class="mono" style="margin: 0 0 16px 0; color: var(--text3); font-size: 10px;">~1 ${t('bookmark_quota_unit_label')}</p>
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button class="btn btn-secondary btn-sm" onclick="closeModal({target: document.getElementById('modalOverlay')})">${t('cancel')}</button>
+        <button class="btn btn-primary btn-sm" id="bookmarkAddBtn" onclick="submitAddBookmark()">${t('bookmark_add_btn')}</button>
+      </div>
+    </div>
+  `;
+  openModal(content);
+  // Focus the input so user can paste immediately
+  setTimeout(() => {
+    const el = document.getElementById('bookmarkInput');
+    if (el) { el.focus(); el.select(); }
+  }, 50);
+}
+
+async function submitAddBookmark() {
+  const input = document.getElementById('bookmarkInput');
+  const errEl = document.getElementById('bookmarkError');
+  const btn = document.getElementById('bookmarkAddBtn');
+  if (!input || !btn) return;
+  const raw = input.value;
+
+  // Pre-validate to give an immediate error before spending an API call
+  const id = extractPlaylistId(raw);
+  if (!id) {
+    if (errEl) { errEl.textContent = t('bookmark_invalid_url'); errEl.style.display = 'block'; }
+    return;
+  }
+  if (errEl) errEl.style.display = 'none';
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = '…';
+
+  try {
+    const meta = await addBookmark(raw);
+    showToast(t('bookmark_added', { title: meta.snippet?.title || id }), 'success');
+    closeModal({ target: document.getElementById('modalOverlay') });
+    // Re-render library so the new bookmarked card appears
+    refreshPlaylistsList();
+    refreshDashboard();
+  } catch (err) {
+    if (errEl) { errEl.textContent = err.message || t('bookmark_invalid_url'); errEl.style.display = 'block'; }
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
+function confirmRemoveBookmark(playlistId) {
+  const pl = APP.playlists.find(p => p.id === playlistId);
+  const title = pl?.snippet?.title || playlistId;
+  if (!confirm(t('bookmark_remove_confirm', { title }))) return;
+  if (removeBookmark(playlistId)) {
+    showToast(t('bookmark_removed'), 'info');
+    refreshPlaylistsList();
+    refreshDashboard();
+  }
+}
+
+/**
+ * Fetch metadata for all bookmarked playlist IDs in batches of 50.
+ * Returns an array of playlist objects (each tagged with `_isBookmark: true`).
+ * Silently skips IDs whose playlists are private/deleted (empty `items` reply).
+ */
+async function fetchBookmarkedMetadata() {
+  if (!APP.bookmarkedPlaylists || APP.bookmarkedPlaylists.length === 0) return [];
+  const ids = APP.bookmarkedPlaylists.map(b => b.id);
+  const out = [];
+  for (let i = 0; i < ids.length; i += 50) {
+    const batch = ids.slice(i, i + 50);
+    try {
+      const data = await ytApi('playlists', {
+        part: 'snippet,contentDetails,status',
+        id: batch.join(','),
+      });
+      for (const item of (data.items || [])) {
+        item._isBookmark = true;
+        out.push(item);
+      }
+      const returnedIds = new Set((data.items || []).map(p => p.id));
+      const missing = batch.filter(id => !returnedIds.has(id));
+      if (missing.length) {
+        log('warn', 'action', 'bookmarked playlists unreachable (private/deleted)', { count: missing.length, ids: missing });
+      }
+    } catch (err) {
+      log('warn', 'action', 'bookmark batch fetch failed', { batchSize: batch.length, error: String(err && err.message || err) });
+    }
+  }
+  return out;
 }
 
 /** Build the export text and trigger a download. Closes the consent modal on success. */
@@ -3869,9 +4148,23 @@ let videoDetailsCache = {};
 // INITIALIZATION & AUTH
 // ============================================================================
 
+// Pending bookmark ID from a `?bookmark=PLxxx` deep link — captured early because
+// checkAuth() will strip the URL query when handling the OAuth hash.
+let _pendingBookmark = null;
+
 function init() {
   // Auto-purge if no login for 30+ days
   checkAutoPurge();
+
+  // Capture deep-link bookmark ID BEFORE checkAuth() strips the URL query
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const bm = params.get('bookmark');
+    if (bm) {
+      _pendingBookmark = bm;
+      log('info', 'action', 'deep-link bookmark detected', { id: bm.substring(0, 8) + '…' });
+    }
+  } catch (_) {}
 
   APP.theme = localStorage.getItem('appTheme') || 'dark';
   if (APP.theme === 'light') {
@@ -4001,7 +4294,11 @@ function loadBackupFromStorage() {
 
     let videoCount = 0;
     backup.playlists.forEach(pl => {
-      if (pl.id && Array.isArray(pl.videos)) {
+      if (pl.id && Array.isArray(pl.videos) && pl.videos.length > 0) {
+        // Skip empty arrays so `APP.allVideos[id]` stays undefined for playlists
+        // whose videos were never loaded (typical for bookmarks the user hasn't
+        // opened). loadPlaylistVideos() relies on `undefined` = "never loaded"
+        // to know when to fetch from the API.
         APP.allVideos[pl.id] = pl.videos.map(v => ({
           contentDetails: { videoId: v.videoId, duration: v.duration || '' },
           snippet: {
@@ -4041,6 +4338,17 @@ function loadBackupFromStorage() {
 
     if (videoCount > 0) {
       console.log(`[Backup auto-load] ${backup.playlists.length} playlists, ${videoCount} vidéos, ${Object.keys(videoDetailsCache || {}).length} détails chargés depuis le backup`);
+    }
+
+    // Restore bookmark list (#63) — IDs only; metadata refresh happens on next loadAllPlaylists
+    if (Array.isArray(backup.bookmarkedPlaylists)) {
+      APP.bookmarkedPlaylists = backup.bookmarkedPlaylists.filter(b => b && typeof b.id === 'string');
+      saveBookmarks(); // persist to its own localStorage key for direct reads
+      // Re-tag any matching playlist objects so the UI shows the badge from cache
+      const bmIds = new Set(APP.bookmarkedPlaylists.map(b => b.id));
+      for (const pl of APP.playlists) {
+        if (bmIds.has(pl.id)) pl._isBookmark = true;
+      }
     }
   } catch (err) {
     console.warn('[Backup auto-load] Erreur de chargement:', err.message);
@@ -4960,6 +5268,14 @@ async function showApp() {
     refreshDashboard();
     populateSelectDropdowns();
     refreshPlaylistsList();
+
+    // Surface a pending `?bookmark=` deep link, if any, now that the app is ready
+    if (_pendingBookmark) {
+      const bm = _pendingBookmark;
+      _pendingBookmark = null;
+      // Defer so it doesn't fight with the rendering pass
+      setTimeout(() => showAddBookmarkModal(bm), 500);
+    }
   } catch (err) {
     console.error('Error loading app:', err);
     showToast(t('toast_error', { msg: err.message }), 'error');
@@ -5033,7 +5349,8 @@ function autoSaveToLocalStorage() {
       folders: APP.folders,
       folderAssignments: APP.folderAssignments,
       deckColumns: APP.deckColumns,
-      watchQueue: APP.watchQueue
+      watchQueue: APP.watchQueue,
+      bookmarkedPlaylists: APP.bookmarkedPlaylists,
     };
     const json = JSON.stringify(cache);
     const sizeKB = (json.length * 2 / 1024).toFixed(1);
@@ -5138,10 +5455,22 @@ function renderUserInfo(info) {
 async function loadAllPlaylists() {
   try {
     showToast(t('toast_loading_playlists'), 'info');
-    APP.playlists = await fetchAllPages('playlists', {
+    const owned = await fetchAllPages('playlists', {
       part: 'snippet,contentDetails,status',
       mine: true
     });
+    // Refresh bookmarked playlist metadata in parallel (bookmarks are separate
+    // from `mine=true` — YouTube doesn't expose saved external playlists via API)
+    let bookmarked = [];
+    try {
+      bookmarked = await fetchBookmarkedMetadata();
+    } catch (e) {
+      log('warn', 'action', 'bookmark refresh failed', { error: String(e && e.message || e) });
+    }
+    // Merge: bookmarks first dedupe against owned, then concat
+    const ownedIds = new Set(owned.map(p => p.id));
+    const dedupedBookmarks = bookmarked.filter(b => !ownedIds.has(b.id));
+    APP.playlists = owned.concat(dedupedBookmarks);
     APP.playlists.sort((a, b) => (a.snippet?.title || '').localeCompare(b.snippet?.title || ''));
     showToast(t('toast_playlists_loaded', { count: APP.playlists.length }), 'success');
   } catch (err) {
@@ -5151,7 +5480,11 @@ async function loadAllPlaylists() {
 }
 
 async function loadPlaylistVideos(playlistId) {
-  if (APP.allVideos[playlistId]) return APP.allVideos[playlistId];
+  // Treat an empty cached array as "never loaded" — protects against cache
+  // poisoning when a bookmarked playlist is restored from a backup that
+  // serialized an empty videos array (the user hadn't opened it yet).
+  const cached = APP.allVideos[playlistId];
+  if (Array.isArray(cached) && cached.length > 0) return cached;
   const videos = await fetchAllPages('playlistItems', {
     part: 'snippet,contentDetails,status',
     playlistId: playlistId
@@ -6443,18 +6776,38 @@ function switchView(viewName) {
 
 function refreshPlaylistsList() {
   const html = APP.playlists.map(pl => {
-    const videoCount = APP.allVideos[pl.id]?.length || 0;
+    // Prefer the cached video count (accurate, includes filters applied locally),
+    // but fall back to the playlist's reported itemCount when no videos are loaded.
+    // We can't use `?? itemCount` because a cached empty array has length 0, which
+    // isn't nullish — this matters for bookmarked playlists never opened in detail.
+    const cachedVideos = APP.allVideos[pl.id];
+    const videoCount = (Array.isArray(cachedVideos) && cachedVideos.length > 0)
+      ? cachedVideos.length
+      : (pl.contentDetails?.itemCount ?? 0);
     const tags = APP.tags[pl.id] || [];
+    const isBookmark = pl._isBookmark === true;
+    // Badge shown over the thumbnail for bookmarked playlists
+    const bookmarkBadge = isBookmark ? `
+      <div class="pl-bookmark-badge" title="${t('bookmark_readonly_tooltip')}">
+        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        <span>${t('bookmark_badge_label')}</span>
+      </div>
+    ` : '';
+    // Action buttons: owned → rename/delete, bookmarked → remove bookmark
+    const actions = isBookmark
+      ? `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); confirmRemoveBookmark('${pl.id}')" data-i18n-title="bookmark_remove" title="${t('bookmark_remove')}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg></button>`
+      : `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); showRenamePlaylistModal('${pl.id}')" title="Rename"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></button>
+         <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deletePlaylist('${pl.id}')" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`;
     return `
-      <div class="playlist-card" data-playlist-id="${pl.id}" onclick="openPlaylistDetail('${pl.id}')">
+      <div class="playlist-card${isBookmark ? ' is-bookmark' : ''}" data-playlist-id="${pl.id}" onclick="openPlaylistDetail('${pl.id}')">
+        ${bookmarkBadge}
         <img src="${pl.snippet.thumbnails?.medium?.url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22226%22 height=%22226%22%3E%3Crect fill=%22%23303030%22 width=%22226%22 height=%22226%22/%3E%3C/svg%3E'}" class="playlist-thumbnail" alt="${pl.snippet.title}">
         <div class="playlist-info">
           <div class="playlist-title" title="${pl.snippet.title}">${pl.snippet.title}</div>
           <div class="playlist-stats">${videoCount} vidéos</div>
           <div class="playlist-tags">${tags.map(t => renderTagWithIcon(t)).join('')}</div>
           <div class="playlist-actions gap-8">
-            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); showRenamePlaylistModal('${pl.id}')" title="Rename"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></button>
-            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deletePlaylist('${pl.id}')" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            ${actions}
           </div>
         </div>
       </div>
@@ -6480,6 +6833,13 @@ async function openPlaylistDetail(playlistId) {
   // Switch to detail view
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('playlistDetail').classList.add('active');
+
+  // Bookmark-aware UI: show read-only banner + hide write controls for external playlists
+  const isBookmark = playlist._isBookmark === true;
+  const banner = document.getElementById('playlistDetailReadonlyBanner');
+  if (banner) banner.style.display = isBookmark ? 'flex' : 'none';
+  const reorderBtn = document.getElementById('reorderBtn');
+  if (reorderBtn) reorderBtn.style.display = isBookmark ? 'none' : '';
 
   document.getElementById('playlistDetailTitle').textContent = playlist.snippet.title;
   document.getElementById('playlistDetailYTLink').href = `https://www.youtube.com/playlist?list=${playlistId}`;
@@ -9551,7 +9911,8 @@ async function createFullBackup() {
     folders: APP.folders,
     folderAssignments: APP.folderAssignments,
     deckColumns: APP.deckColumns,
-    watchQueue: APP.watchQueue
+    watchQueue: APP.watchQueue,
+    bookmarkedPlaylists: APP.bookmarkedPlaylists,
   };
 
   const json = JSON.stringify(backup, null, 2);
