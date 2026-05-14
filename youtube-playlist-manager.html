@@ -480,6 +480,27 @@
   /* Dashboard drill-down rows (#64) — legend + bar chart per-playlist clickables */
   .dash-pl-row { cursor: pointer; padding: 2px 4px; margin: 0 -4px; border-radius: 4px; transition: background 0.12s; }
   .dash-pl-row:hover { background: var(--surface2); }
+  /* Read-only mode (#43) — header pill + hide most visible write actions */
+  .readonly-pill {
+    display: none;
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-line);
+    padding: 3px 8px;
+    border-radius: var(--r-sm);
+    cursor: help;
+  }
+  body.read-only .readonly-pill { display: inline-flex; align-items: center; gap: 4px; }
+  /* Hide major write-action buttons on the dashboard when read-only.
+     Defense in depth — ytApi also blocks the network call. */
+  body.read-only .dash-write-action { display: none !important; }
+  body.read-only .playlist-actions { display: none !important; }
+  body.read-only #reorderBtn { display: none !important; }
+
   /* Bookmark badge on playlist cards (#63) — distinguishes saved external playlists */
   .pl-bookmark-badge {
     position: absolute; top: 8px; left: 8px;
@@ -1032,6 +1053,7 @@
     <div class="header-right">
       <div class="quota-info" id="backupInfo" data-i18n-title="header_last_backup" title="Dernier backup" style="cursor:pointer;" onclick="switchView('backup')">--</div>
       <div class="quota-info" id="quotaInfo">Quota: --</div>
+      <div class="readonly-pill" id="readonlyPill" data-i18n-title="readonly_pill_tooltip" title="Read-only mode is active — write actions are disabled"><span data-i18n="readonly_pill_label">READ-ONLY</span></div>
       <button class="btn-icon header-tool" onclick="switchView('backup')" data-i18n-title="header_backup_tooltip" title="Backup">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
       </button>
@@ -1207,10 +1229,10 @@
         <div id="dashboardCharts"></div>
         <h2 style="margin-top: 32px; margin-bottom: 24px;" data-i18n="dash_my_playlists">Mes Playlists</h2>
         <div style="display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;">
-          <button class="btn btn-primary" onclick="showCreatePlaylistModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> <span data-i18n="dash_create">New playlist</span></button>
+          <button class="btn btn-primary dash-write-action" onclick="showCreatePlaylistModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> <span data-i18n="dash_create">New playlist</span></button>
           <button class="btn btn-secondary" onclick="showAddBookmarkModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> <span data-i18n="bookmark_btn">Add by URL</span></button>
-          <button class="btn btn-secondary" onclick="showRenamePlaylistModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg> <span data-i18n="dash_rename">Rename</span></button>
-          <button class="btn btn-danger" onclick="showDeletePlaylistModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> <span data-i18n="dash_delete">Delete</span></button>
+          <button class="btn btn-secondary dash-write-action" onclick="showRenamePlaylistModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg> <span data-i18n="dash_rename">Rename</span></button>
+          <button class="btn btn-danger dash-write-action" onclick="showDeletePlaylistModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> <span data-i18n="dash_delete">Delete</span></button>
         </div>
         <div class="playlists-container" id="playlistsList"></div>
       </div>
@@ -2060,6 +2082,22 @@
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;" data-i18n="help_ytmusic_desc">YouTube Music shares the same playlist library as YouTube. All changes made here will be reflected in YouTube Music and vice-versa.</p>
           </div>
 
+          <div class="stat-card" style="cursor: default; border-color: var(--accent-line);">
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+            <div style="font-size: 13px; font-weight: 600; color: var(--text);" data-i18n="help_system_playlists_title">System playlists</div>
+            <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;" data-i18n="help_system_playlists_desc">YouTube's built-in playlists — Liked Videos, Watch Later, History — are not exposed by the YouTube Data API. They are never displayed here and cannot be modified by backup, restore, or any other action in this app. Your private system playlists are safe.</p>
+          </div>
+
+        </div>
+
+        <!-- Read-only mode (#43) — disable writes app-wide -->
+        <div style="margin-top: 32px; padding: 18px 20px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface);">
+          <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;" data-i18n="readonly_section_title">Read-only / demo mode</h3>
+          <p style="margin: 0 0 12px 0; color: var(--text2); font-size: 12px; line-height: 1.5;" data-i18n="readonly_section_hint">Disable all write operations against YouTube. Useful for demos, sharing your screen, or letting someone try the app without risk of changing your playlists. Bookmark add (read-only by nature) still works.</p>
+          <label style="display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none;">
+            <input type="checkbox" id="readOnlyToggle" onchange="setReadOnlyMode(this.checked)" style="accent-color: var(--accent); width: 16px; height: 16px;">
+            <span style="font-size: 13px;" data-i18n="readonly_toggle_label">Enable read-only mode</span>
+          </label>
         </div>
 
         <!-- Diagnostic log (#66) — user-shareable support log -->
@@ -2214,6 +2252,15 @@ const I18N = {
     bookmark_readonly_tooltip: 'Playlist d\'un autre utilisateur — lecture seule',
     bookmark_detail_readonly_banner: 'Playlist en lecture seule — appartient à un autre utilisateur. Les actions d\'écriture (ajout/suppression de vidéos, renommage) ne sont pas disponibles.',
     bookmark_quota_unit_label: 'unité de quota',
+    // Read-only mode (#43)
+    readonly_section_title: 'Mode lecture seule / démo',
+    readonly_section_hint: 'Désactive toutes les opérations d\'écriture sur YouTube. Utile pour les démos, le partage d\'écran ou pour laisser quelqu\'un essayer l\'app sans risque de modifier vos playlists. L\'ajout par URL (lecture seule par nature) reste disponible.',
+    readonly_toggle_label: 'Activer le mode lecture seule',
+    readonly_pill_label: 'LECTURE SEULE',
+    readonly_pill_tooltip: 'Mode lecture seule actif — les actions d\'écriture sont désactivées',
+    readonly_toast_enabled: '🔒 Mode lecture seule activé — les actions d\'écriture sont désactivées',
+    readonly_toast_disabled: '🔓 Mode lecture seule désactivé — vous pouvez à nouveau modifier vos playlists',
+    error_read_only: 'Mode lecture seule actif — désactivez-le dans Aide pour effectuer cette action',
     login_privacy: 'Politique de confidentialité',
     login_delete_data: 'Supprimer mes données',
     login_powered: 'Powered by YouTube Data API',
@@ -2717,6 +2764,9 @@ const I18N = {
     // Help - YouTube Music
     help_ytmusic_title: 'YouTube Music',
     help_ytmusic_desc: 'YouTube Music partage la même bibliothèque de playlists que YouTube. Toutes les modifications effectuées ici (création, suppression, ajout/retrait de vidéos) seront automatiquement reflétées dans votre application YouTube Music et vice-versa. Vous pouvez donc utiliser cet outil pour gérer vos playlists musicales.',
+    // Help - System playlists (#46)
+    help_system_playlists_title: 'Playlists système',
+    help_system_playlists_desc: 'Les playlists intégrées de YouTube — Vidéos likées, À regarder plus tard, Historique — ne sont pas exposées par l\'API YouTube Data. Elles ne sont jamais affichées ici et ne peuvent pas être modifiées par les sauvegardes, restaurations ou toute autre action de cette app. Vos playlists système privées sont en sécurité.',
 
     // Common / Shared
     confirm_remove_video: 'Retirer cette vidéo de cette playlist ?',
@@ -2794,6 +2844,15 @@ const I18N = {
     bookmark_readonly_tooltip: 'Saved from another user — read-only',
     bookmark_detail_readonly_banner: 'Read-only playlist — owned by another user. Write actions (add/remove videos, rename) are unavailable.',
     bookmark_quota_unit_label: 'quota unit',
+    // Read-only mode (#43)
+    readonly_section_title: 'Read-only / demo mode',
+    readonly_section_hint: 'Disable all write operations against YouTube. Useful for demos, sharing your screen, or letting someone try the app without risk of changing your playlists. Bookmark add (read-only by nature) still works.',
+    readonly_toggle_label: 'Enable read-only mode',
+    readonly_pill_label: 'READ-ONLY',
+    readonly_pill_tooltip: 'Read-only mode is active — write actions are disabled',
+    readonly_toast_enabled: '🔒 Read-only mode enabled — write actions are disabled',
+    readonly_toast_disabled: '🔓 Read-only mode disabled — you can edit playlists again',
+    error_read_only: 'Read-only mode is active — disable it in Help to perform this action',
     login_privacy: 'Privacy Policy',
     login_delete_data: 'Delete my data',
     login_powered: 'Powered by YouTube Data API',
@@ -3297,6 +3356,9 @@ const I18N = {
     // Help - YouTube Music
     help_ytmusic_title: 'YouTube Music',
     help_ytmusic_desc: 'YouTube Music shares the same playlist library as YouTube. All changes made here (creating, deleting, adding/removing videos) will automatically be reflected in your YouTube Music app and vice-versa. You can use this tool to manage your music playlists as well.',
+    // Help - System playlists (#46)
+    help_system_playlists_title: 'System playlists',
+    help_system_playlists_desc: 'YouTube\'s built-in playlists — Liked Videos, Watch Later, History — are not exposed by the YouTube Data API. They are never displayed here and cannot be modified by backup, restore, or any other action in this app. Your private system playlists are safe.',
 
     // Common / Shared
     confirm_remove_video: 'Remove this video from this playlist?',
@@ -3393,6 +3455,9 @@ const APP = {
   // YouTube Data API has no "saved playlists" endpoint for non-owned content,
   // so we keep a local pointer list and fetch metadata on each refresh.
   bookmarkedPlaylists: JSON.parse(localStorage.getItem('bookmarkedPlaylists') || '[]'),
+  // Read-only / demo mode (#43) — when true, all write operations are blocked at
+  // the ytApi level and the most visible write buttons are hidden via CSS.
+  readOnlyMode: localStorage.getItem('readOnlyMode') === '1',
 };
 
 // ============================================================================
@@ -3637,6 +3702,29 @@ function showLogConsentModal() {
     </div>
   `;
   openModal(content);
+}
+
+// ============================================================================
+// READ-ONLY MODE (#43) — block all write operations app-wide for demo/freemium.
+// State is persisted in localStorage; ytApi gates writes; CSS hides write buttons.
+// ============================================================================
+
+function applyReadOnlyMode() {
+  // Sync DOM with APP.readOnlyMode — toggles body class and pill visibility.
+  // Safe to call anytime, including before the DOM is fully built (no-op then).
+  try {
+    document.body.classList.toggle('read-only', !!APP.readOnlyMode);
+  } catch (_) {}
+}
+
+function setReadOnlyMode(enabled) {
+  APP.readOnlyMode = !!enabled;
+  try { localStorage.setItem('readOnlyMode', APP.readOnlyMode ? '1' : '0'); } catch (_) {}
+  applyReadOnlyMode();
+  log('info', 'action', 'read-only mode ' + (APP.readOnlyMode ? 'enabled' : 'disabled'));
+  showToast(t(APP.readOnlyMode ? 'readonly_toast_enabled' : 'readonly_toast_disabled'), 'info');
+  // Re-render the dashboard so any newly-hidden / revealed write buttons settle
+  try { refreshPlaylistsList(); } catch (_) {}
 }
 
 // ============================================================================
@@ -4185,6 +4273,8 @@ function init() {
   // Diagnostic log (#66) — load persisted tail from previous session first
   loadPersistedLog();
   log('info', 'app', `init() — v${APP_VERSION}, theme=${APP.theme}, lang pending`);
+  // Read-only mode (#43) — apply body class so the pill + write-action hiding take effect
+  applyReadOnlyMode();
   // Auto-load last backup from localStorage
   loadBackupFromStorage();
   // Restore quota counter from previous session (audit #47 — Pacific Time daily reset)
@@ -4974,6 +5064,12 @@ function updateSidebarLabels() {
 // ============================================================================
 
 async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
+  // Read-only mode (#43): bulletproof gate — block all writes before any network or
+  // quota work. Caller gets a clean, localized error to surface in their handler.
+  if (method !== 'GET' && APP.readOnlyMode) {
+    log('warn', 'action', 'write blocked by read-only mode', { endpoint, method });
+    throw new Error(t('error_read_only'));
+  }
   // Scope upgrade: if write operation with readonly scope, request upgrade
   if (method !== 'GET' && currentScope !== SCOPE_FULL) {
     if (!ensureWriteScope()) {
@@ -5485,9 +5581,13 @@ async function loadPlaylistVideos(playlistId) {
   // serialized an empty videos array (the user hadn't opened it yet).
   const cached = APP.allVideos[playlistId];
   if (Array.isArray(cached) && cached.length > 0) return cached;
+  // #57: fields= partial response — strip server-side everything we don't read.
+  // Saves ~30-50% bandwidth on large playlists (etag, channel resource, snippets
+  // we never display, etc). Same quota cost, just smaller payload + faster JSON parse.
   const videos = await fetchAllPages('playlistItems', {
     part: 'snippet,contentDetails,status',
-    playlistId: playlistId
+    playlistId: playlistId,
+    fields: 'nextPageToken,items(id,contentDetails(videoId),snippet(title,position,publishedAt,thumbnails(medium(url),high(url),default(url)),videoOwnerChannelTitle,channelTitle,resourceId(videoId)),status(privacyStatus))',
   });
   APP.allVideos[playlistId] = videos;
   return videos;
@@ -5501,9 +5601,14 @@ async function getVideoDetails(videoIds) {
     const batch = videoIds.slice(i, i + 50).filter(Boolean);
     if (!batch.length) continue;
     try {
+      // #57: fields= partial response — drop server-side payload we never display.
+      // getVideoDetails fills videoDetailsCache, consumed only for duration,
+      // thumbnails, channelTitle, and (rarely) categoryId. Statistics is fetched
+      // by Discover separately, not from this cache.
       const data = await ytApi('videos', {
         part: 'contentDetails,statistics,snippet',
-        id: batch.join(',')
+        id: batch.join(','),
+        fields: 'items(id,contentDetails(duration),snippet(title,channelTitle,thumbnails(medium(url),high(url),default(url)),categoryId))',
       });
       data.items?.forEach(item => {
         details[item.id] = item;
@@ -6758,6 +6863,9 @@ function switchView(viewName) {
     else if (viewName === 'help') {
       const badge = document.getElementById('logEntryCount');
       if (badge) badge.textContent = ((APP.log && APP.log.length) || 0) + ' entries';
+      // Sync the read-only toggle (#43) with the persisted state
+      const roToggle = document.getElementById('readOnlyToggle');
+      if (roToggle) roToggle.checked = !!APP.readOnlyMode;
     }
     else if (viewName === 'subscriptions') {
       if (APP.subscriptions.length === 0) {
@@ -7193,10 +7301,17 @@ async function createPlaylist() {
     });
 
     APP.playlists.push(res);
-    APP.allVideos[res.id] = [];
+    // Sort to match the alphabetical order loadAllPlaylists() applies, so the new
+    // playlist lands in its correct position instead of at the end (#45)
+    APP.playlists.sort((a, b) => (a.snippet?.title || '').localeCompare(b.snippet?.title || ''));
+    // Don't seed APP.allVideos[id] = [] — that would mask the "never loaded" state
+    // for the new (empty) playlist. loadPlaylistVideos treats [] as "fetch from API".
+    refreshDashboard();
+    populateSelectDropdowns();
     refreshPlaylistsList();
     closeModal();
     showToast(t('toast_playlist_created'), 'success');
+    log('info', 'action', 'playlist created', { id: res.id, title: name });
   } catch (err) {
     showToast(t('toast_error', { msg: err.message }), 'error');
   }
@@ -7628,7 +7743,12 @@ async function performDiscoverSearch() {
         q: query,
         type: 'video',
         maxResults: Math.min(50, maxResults - allVideoIds.length),
-        order: 'relevance'
+        order: 'relevance',
+        // #57: fields= partial response — the Discover flow only extracts
+        // item.id.videoId from each search result, then fetches the rest via
+        // videos.list. Strip snippet entirely from the payload. Quota cost is
+        // still 100 units per page (search.list is expensive regardless).
+        fields: 'nextPageToken,items(id(videoId))',
       };
       if (pageToken) params.pageToken = pageToken;
 
