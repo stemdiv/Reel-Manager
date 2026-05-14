@@ -3402,6 +3402,97 @@ function isRetryableStatus(status) {
   return status === 429 || (status >= 500 && status < 600);
 }
 
+// ============================================================================
+// API response cache (audit items #54 ETag, #55 If-Match, #60 HTTP cache)
+// ============================================================================
+// Two-tier strategy:
+//   1. Fresh-cache hit (within TTL): return body immediately, ZERO network call, ZERO quota cost.
+//      This is the real quota savings — most refreshes happen within seconds of each other.
+//   2. Stale cache: make the network call but send `If-None-Match: <etag>`. If server returns 304,
+//      we refresh the cache timestamp and return the stored body (saves bandwidth + latency).
+//      Note: 304 still costs the full quota per Google's spec — ETag does NOT save quota.
+
+const API_CACHE = new Map(); // urlKey → { etag, body, savedAt, sizeBytes }
+
+const API_CACHE_CONFIG = {
+  // TTL per endpoint.GET — how long a cached response is considered fresh (no network call needed)
+  ttlMs: {
+    'activities.GET':          60_000,        // 1 min
+    'channels.GET':            5 * 60_000,    // 5 min (channel info rarely changes)
+    'channelSections.GET':     5 * 60_000,
+    'commentThreads.GET':      30_000,
+    'comments.GET':            30_000,
+    'i18nLanguages.GET':       60 * 60_000,   // 1 hour (basically static)
+    'i18nRegions.GET':         60 * 60_000,
+    'members.GET':             5 * 60_000,
+    'membershipsLevels.GET':   60 * 60_000,
+    'playlistItems.GET':       30_000,        // 30s — items can change during use
+    'playlists.GET':           60_000,        // 1 min
+    'search.GET':              5 * 60_000,    // 5 min — expensive (100 units), cache aggressively
+    'subscriptions.GET':       5 * 60_000,
+    'videoCategories.GET':     60 * 60_000,   // 1 hour
+    'videos.GET':              5 * 60_000,
+  },
+  defaultTtlMs: 0,           // unknown endpoints → don't cache
+  maxEntries: 500,           // LRU cap — drop oldest when exceeded
+  maxBodyBytes: 250_000,     // skip caching responses larger than ~250KB (huge playlist dumps)
+};
+
+// Compute the endpoint+method key from a URL+method pair (e.g. 'playlists.GET')
+function cacheTtlFor(endpoint, method) {
+  if (method !== 'GET') return 0;
+  const base = String(endpoint).split('?')[0].split('/')[0];
+  return API_CACHE_CONFIG.ttlMs[`${base}.GET`] ?? API_CACHE_CONFIG.defaultTtlMs;
+}
+
+function cacheGet(key) {
+  const entry = API_CACHE.get(key);
+  if (!entry) return null;
+  // Move to end (LRU)
+  API_CACHE.delete(key);
+  API_CACHE.set(key, entry);
+  return entry;
+}
+
+function cacheSet(key, entry) {
+  // Estimate size; skip if too large
+  if (entry.sizeBytes > API_CACHE_CONFIG.maxBodyBytes) return;
+  API_CACHE.set(key, entry);
+  // LRU eviction if over cap
+  while (API_CACHE.size > API_CACHE_CONFIG.maxEntries) {
+    const oldest = API_CACHE.keys().next().value;
+    API_CACHE.delete(oldest);
+  }
+}
+
+// Invalidate cache entries affected by a write op.
+// After a PUT/DELETE/POST on a resource, any cached list/get that could contain it must be flushed.
+function invalidateCacheForWrite(endpoint, params, body) {
+  const base = String(endpoint).split('?')[0].split('/')[0];
+  const affectedIds = new Set();
+  if (params?.id) affectedIds.add(params.id);
+  if (body?.id) affectedIds.add(body.id);
+  if (body?.snippet?.playlistId) affectedIds.add(body.snippet.playlistId);
+  if (body?.snippet?.resourceId?.videoId) affectedIds.add(body.snippet.resourceId.videoId);
+
+  // Cross-resource dependencies — writes on playlistItems affect cached playlists too (itemCount changes)
+  const alsoFlush = new Set([base]);
+  if (base === 'playlistItems') alsoFlush.add('playlists');
+  if (base === 'subscriptions') alsoFlush.add('channels');
+
+  for (const key of [...API_CACHE.keys()]) {
+    // Flush any cached URL whose endpoint matches the affected resource type
+    if ([...alsoFlush].some(b => key.includes(`/${b}?`) || key.includes(`/${b}/`))) {
+      API_CACHE.delete(key);
+      continue;
+    }
+    // Flush any cached URL containing an affected ID (catches search results, sub-lists, etc.)
+    for (const id of affectedIds) {
+      if (id && key.includes(id)) { API_CACHE.delete(key); break; }
+    }
+  }
+}
+
 // Video details cache — MUST be declared before loadBackupFromStorage() to avoid TDZ
 let videoDetailsCache = {};
 
@@ -4116,8 +4207,26 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
     }
   }
 
+  // Support `params._bypassCache = true` for callers that need fresh data (strip before building URL)
+  const bypassCache = params?._bypassCache === true;
+  const cleanParams = { ...params };
+  delete cleanParams._bypassCache;
+
   const url = new URL(`${API_BASE}/${endpoint}`);
-  Object.keys(params).forEach(k => url.searchParams.append(k, params[k]));
+  Object.keys(cleanParams).forEach(k => url.searchParams.append(k, cleanParams[k]));
+  const cacheKey = url.toString();
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Cache lookup (audit #60) — applies only to GETs
+  // ──────────────────────────────────────────────────────────────────────────
+  const ttl = cacheTtlFor(endpoint, method);
+  const cached = method === 'GET' ? cacheGet(cacheKey) : null;
+
+  // Fresh-cache hit: no network call, no quota cost, no retry loop. Real quota savings.
+  if (cached && ttl > 0 && !bypassCache && (Date.now() - cached.savedAt) < ttl) {
+    console.debug(`[ytApi] cache hit (fresh): ${method} ${endpoint}`);
+    return cached.body;
+  }
 
   const opts = {
     method,
@@ -4128,8 +4237,23 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
   };
   if (body) opts.body = JSON.stringify(body);
 
-  // Daily reset check + quota increment happens ONCE regardless of retries.
-  // Google charges the full cost on the first attempt; retries don't multiply the charge for the same logical request.
+  // ──────────────────────────────────────────────────────────────────────────
+  // Conditional headers (audit #54 If-None-Match, #55 If-Match)
+  // ──────────────────────────────────────────────────────────────────────────
+  // Stale GET with a cached etag: ask server if anything changed
+  if (method === 'GET' && cached?.etag && !bypassCache) {
+    opts.headers['If-None-Match'] = cached.etag;
+  }
+  // Write on a specific resource id: send If-Match for optimistic concurrency
+  // (only if we previously fetched this resource and cached its etag)
+  if ((method === 'PUT' || method === 'DELETE') && cached?.etag) {
+    opts.headers['If-Match'] = cached.etag;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Quota accounting — happens ONCE regardless of retries.
+  // Google charges full cost per logical request, including 304 responses.
+  // ──────────────────────────────────────────────────────────────────────────
   checkQuotaDailyReset();
   const cost = getQuotaCost(endpoint, method);
   APP.apiCalls++;
@@ -4149,7 +4273,6 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
       try {
         res = await fetch(url, opts);
       } catch (networkErr) {
-        // Network-level failure (offline, DNS, CORS, aborted, etc.)
         lastError = networkErr;
         if (attempt < RETRY_CONFIG.maxRetries) {
           const delay = computeBackoffDelay(attempt);
@@ -4160,10 +4283,23 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
         throw new Error(`Network error: ${networkErr.message || 'request failed'}`);
       }
 
+      // 304 Not Modified — server confirms our cache is still valid
+      if (res.status === 304 && cached) {
+        console.debug(`[ytApi] 304 not-modified: ${method} ${endpoint} (cache refreshed)`);
+        cached.savedAt = Date.now();
+        cacheSet(cacheKey, cached); // re-set to move to LRU end
+        return cached.body;
+      }
+
+      // 412 Precondition Failed — our If-Match etag is stale; another client modified the resource
+      if (res.status === 412) {
+        API_CACHE.delete(cacheKey);
+        throw new Error('Cette ressource a été modifiée ailleurs — rafraîchissez et réessayez.');
+      }
+
       // Retryable status codes (429 rate-limit, 5xx server errors)
       if (isRetryableStatus(res.status)) {
         if (attempt < RETRY_CONFIG.maxRetries) {
-          // For 429, honor Retry-After header if present; otherwise use exponential backoff.
           let delay;
           if (res.status === 429) {
             const retryAfter = parseRetryAfter(res.headers.get('Retry-After'));
@@ -4176,7 +4312,6 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
           await sleep(delay);
           continue;
         }
-        // Out of retries on a retryable status — surface a clean error
         if (res.status === 429) {
           throw new Error(t('error_rate_limited') || 'Rate limit exceeded — please try again in a moment');
         }
@@ -4189,7 +4324,6 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
         const errMsg = err?.error?.message || '';
         const errCode = res.status;
 
-        // Detect common Google OAuth / API errors and provide clear user guidance
         if (errCode === 403) {
           const reason = err?.error?.errors?.[0]?.reason || '';
           if (reason === 'forbidden' || errMsg.toLowerCase().includes('not registered') || errMsg.toLowerCase().includes('has not completed') || errMsg.toLowerCase().includes('access not configured')) {
@@ -4205,10 +4339,32 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
         throw new Error(errMsg || `Erreur API (${errCode})`);
       }
 
-      // Success path
-      if (method !== 'GET') markDirty();
+      // ────────────────────────────────────────────────────────────────────
+      // Success path — invalidate on writes, cache on GETs
+      // ────────────────────────────────────────────────────────────────────
+      if (method !== 'GET') {
+        markDirty();
+        invalidateCacheForWrite(endpoint, cleanParams, body);
+      }
       if (method === 'DELETE') return null;
-      return await res.json();
+
+      const responseBody = await res.json();
+
+      // Cache GET responses with their ETag for future If-None-Match
+      if (method === 'GET' && ttl > 0) {
+        const etag = res.headers.get('ETag');
+        if (etag) {
+          const serialized = JSON.stringify(responseBody);
+          cacheSet(cacheKey, {
+            etag,
+            body: responseBody,
+            savedAt: Date.now(),
+            sizeBytes: serialized.length,
+          });
+        }
+      }
+
+      return responseBody;
     }
 
     // Defensive fallback — shouldn't reach here given the loop structure
