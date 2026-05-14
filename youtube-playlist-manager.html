@@ -3252,9 +3252,115 @@ const APP = {
   subscriptions: [],
 };
 
-// YouTube API v3 quota costs per method
-const QUOTA_COSTS = { GET: 1, POST: 50, PUT: 50, DELETE: 50 };
+// YouTube Data API v3 quota costs per endpoint+method
+// Source: developers.google.com/youtube/v3/determine_quota_cost (snapshot 2026-04-28)
+// Daily quotas reset at midnight Pacific Time. Pagination multiplies (each page = full cost).
+const YT_QUOTA_COSTS = {
+  // Reads (most 1 unit; search.list and captions.list are exceptions)
+  'activities.GET': 1,
+  'captions.GET': 50,
+  'channels.GET': 1,
+  'channelSections.GET': 1,
+  'comments.GET': 1,
+  'commentThreads.GET': 1,
+  'guideCategories.GET': 1,
+  'i18nLanguages.GET': 1,
+  'i18nRegions.GET': 1,
+  'members.GET': 1,
+  'membershipsLevels.GET': 1,
+  'playlistItems.GET': 1,
+  'playlists.GET': 1,
+  'search.GET': 100,              // ⚠️ 100 units per page (pagination multiplies)
+  'subscriptions.GET': 1,
+  'videoAbuseReportReasons.GET': 1,
+  'videoCategories.GET': 1,
+  'videos.GET': 1,
+  // Writes (most 50; videos.insert=100; captions.insert/update=400/450)
+  'captions.POST': 400,           // ⚠️ caption upload
+  'captions.PUT': 450,            // ⚠️ caption update
+  'captions.DELETE': 50,
+  'channels.PUT': 50,
+  'channelBanners.POST': 50,
+  'channelSections.POST': 50,
+  'channelSections.PUT': 50,
+  'channelSections.DELETE': 50,
+  'comments.POST': 50,
+  'comments.PUT': 50,
+  'comments.DELETE': 50,
+  'commentThreads.POST': 50,
+  'commentThreads.PUT': 50,
+  'playlistItems.POST': 50,
+  'playlistItems.PUT': 50,
+  'playlistItems.DELETE': 50,
+  'playlists.POST': 50,
+  'playlists.PUT': 50,
+  'playlists.DELETE': 50,
+  'subscriptions.POST': 50,
+  'subscriptions.DELETE': 50,
+  'thumbnails.POST': 50,
+  'videos.POST': 100,             // ⚠️ video upload
+  'videos.PUT': 50,
+  'videos.DELETE': 50,
+  'watermarks.POST': 50,
+};
+
+// Look up cost for an API call. endpoint may include query string ('playlists?part=...')
+function getQuotaCost(endpoint, method) {
+  const base = String(endpoint).split('?')[0].split('/')[0]; // 'playlists' from 'playlists?part=...'
+  const key = `${base}.${method}`;
+  return YT_QUOTA_COSTS[key] || (method === 'GET' ? 1 : 50);
+}
+
 const QUOTA_DAILY_LIMIT = 10000;
+
+// Daily quota persistence + Pacific Time reset (audit item #47)
+// YouTube quota resets at midnight Pacific (America/Los_Angeles), NOT UTC, NOT local.
+function getPacificDateString() {
+  // Returns YYYY-MM-DD for the current moment in America/Los_Angeles
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const y = parts.find(p => p.type === 'year').value;
+  const m = parts.find(p => p.type === 'month').value;
+  const d = parts.find(p => p.type === 'day').value;
+  return `${y}-${m}-${d}`;
+}
+
+function checkQuotaDailyReset() {
+  const today = getPacificDateString();
+  const savedDate = localStorage.getItem('quotaResetDate');
+  if (savedDate !== today) {
+    // Pacific date rolled over → reset counters
+    APP.quotaUnits = 0;
+    APP.apiCalls = 0;
+    localStorage.setItem('quotaResetDate', today);
+    localStorage.setItem('quotaUnits', '0');
+    localStorage.setItem('apiCalls', '0');
+  }
+}
+
+function saveQuotaState() {
+  try {
+    localStorage.setItem('quotaUnits', String(APP.quotaUnits));
+    localStorage.setItem('apiCalls', String(APP.apiCalls));
+    localStorage.setItem('quotaResetDate', getPacificDateString());
+  } catch (e) { /* storage full or disabled — silent fail, counter still works in-memory */ }
+}
+
+function loadQuotaState() {
+  const today = getPacificDateString();
+  const savedDate = localStorage.getItem('quotaResetDate');
+  if (savedDate === today) {
+    APP.quotaUnits = parseInt(localStorage.getItem('quotaUnits') || '0', 10) || 0;
+    APP.apiCalls = parseInt(localStorage.getItem('apiCalls') || '0', 10) || 0;
+  } else {
+    // Stale state from a previous Pacific day → fresh start
+    APP.quotaUnits = 0;
+    APP.apiCalls = 0;
+    localStorage.setItem('quotaResetDate', today);
+  }
+}
 
 // Video details cache — MUST be declared before loadBackupFromStorage() to avoid TDZ
 let videoDetailsCache = {};
@@ -3285,6 +3391,8 @@ function init() {
   }
   // Auto-load last backup from localStorage
   loadBackupFromStorage();
+  // Restore quota counter from previous session (audit #47 — Pacific Time daily reset)
+  loadQuotaState();
   updateQuotaIndicator();
   // Apply saved language
   currentLang = localStorage.getItem('appLang') || 'fr';
@@ -3497,15 +3605,28 @@ function updateQuotaIndicator() {
 }
 
 function estimateQuotaCost(action, count) {
-  // Returns estimated cost in quota units for a bulk action
+  // Returns estimated cost in quota units for a bulk action.
+  // Costs sourced from YT_QUOTA_COSTS (developers.google.com/youtube/v3/determine_quota_cost).
+  const INSERT = YT_QUOTA_COSTS['playlistItems.POST']; // 50
+  const DELETE = YT_QUOTA_COSTS['playlistItems.DELETE']; // 50
+  const UPDATE_PLAYLIST = YT_QUOTA_COSTS['playlists.PUT']; // 50
+  const DELETE_PLAYLIST = YT_QUOTA_COSTS['playlists.DELETE']; // 50
+  const INSERT_PLAYLIST = YT_QUOTA_COSTS['playlists.POST']; // 50
+  const SEARCH_PAGE = YT_QUOTA_COSTS['search.GET']; // 100
+  const CAPTION_INSERT = YT_QUOTA_COSTS['captions.POST']; // 400
+  const CAPTION_UPDATE = YT_QUOTA_COSTS['captions.PUT']; // 450
+
   const costs = {
-    'delete_playlists': count * 50,
-    'merge': count * 50 + 50,       // N inserts + 1 possible delete
-    'move': count * 50,              // N inserts (+ N deletes if removing from source)
-    'bulk_rename': count * 50,       // N updates
-    'clean_ghosts': count * 50,      // N deletes
-    'rename_playlists': count * 50,  // N updates
-    'discover_create': count * 50 + 50, // N inserts + 1 playlist creation
+    'delete_playlists': count * DELETE_PLAYLIST,
+    'merge': count * INSERT + DELETE,                     // N inserts into target + 1 delete of source playlist
+    'move': count * (INSERT + DELETE),                    // FIX (#58): move = delete from source + insert into target = 100/item
+    'bulk_rename': count * UPDATE_PLAYLIST,
+    'clean_ghosts': count * DELETE,
+    'rename_playlists': count * UPDATE_PLAYLIST,
+    'discover_create': count * INSERT + INSERT_PLAYLIST,  // N inserts into new playlist + 1 playlist creation
+    'discover_search_pages': count * SEARCH_PAGE,         // For caps: cost = pages × 100
+    'caption_upload': count * CAPTION_INSERT,             // ⚠️ very expensive: 400/track
+    'caption_update': count * CAPTION_UPDATE,             // ⚠️ very expensive: 450/track
   };
   return costs[action] || count;
 }
@@ -3968,9 +4089,12 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
   if (body) opts.body = JSON.stringify(body);
 
   try {
-    const cost = QUOTA_COSTS[method] || 1;
+    // Daily reset check (Pacific Time) before incrementing
+    checkQuotaDailyReset();
+    const cost = getQuotaCost(endpoint, method);
     APP.apiCalls++;
     APP.quotaUnits += cost;
+    saveQuotaState();
     updateQuotaIndicator();
 
     const res = await fetch(url, opts);
@@ -4004,9 +4128,13 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
   }
 }
 
-async function fetchAllPages(endpoint, params = {}, itemsKey = 'items') {
+async function fetchAllPages(endpoint, params = {}, itemsKey = 'items', maxPages = 20) {
+  // Pagination cap (audit #51): YouTube returns up to 50 items/page, so maxPages=20 → 1000 items max.
+  // Cheap endpoints (playlists.list, playlistItems.list = 1 unit/page) won't burn quota even at the cap.
+  // For expensive endpoints (search.list = 100 units/page), callers should pass a smaller maxPages.
   let allItems = [];
   let nextPageToken = null;
+  let pageCount = 0;
 
   do {
     const p = { ...params };
@@ -4017,11 +4145,16 @@ async function fetchAllPages(endpoint, params = {}, itemsKey = 'items') {
       const data = await ytApi(endpoint, p);
       allItems.push(...(data[itemsKey] || []));
       nextPageToken = data.nextPageToken;
+      pageCount++;
     } catch (err) {
       console.error('Pagination error:', err);
       break;
     }
-  } while (nextPageToken);
+  } while (nextPageToken && pageCount < maxPages);
+
+  if (nextPageToken && pageCount >= maxPages) {
+    console.warn(`[fetchAllPages] Hit page cap (${maxPages}) for endpoint "${endpoint}" — more results exist but were not fetched. Pass a higher maxPages if needed.`);
+  }
 
   return allItems;
 }
