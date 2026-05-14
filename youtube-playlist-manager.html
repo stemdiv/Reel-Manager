@@ -109,7 +109,9 @@
     border: 1px solid var(--border);
     padding: 4px 10px;
     border-radius: var(--r-sm);
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
+  .quota-info[onclick]:hover, .quota-info[style*="cursor:pointer"]:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
 
   .btn {
     display: inline-flex; align-items: center; gap: 8px;
@@ -255,9 +257,9 @@
     padding: 16px;
     margin-bottom: 12px;
     background: var(--bg2);
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
-  .beta-feature-card:hover { border-color: var(--accent); }
+  .beta-feature-card:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
   .beta-feature-card h3 { margin: 0 0 6px 0; display: flex; align-items: center; gap: 8px; }
   .beta-feature-card p { margin: 0; font-size: 13px; color: var(--text2); line-height: 1.5; }
   .beta-status {
@@ -282,8 +284,8 @@
   .studio-picker-toggle .btn-icon { min-width: 32px; min-height: 32px; padding: 4px; opacity: 0.5; }
   .studio-picker-toggle .btn-icon.active { opacity: 1; background: var(--surface3); }
   .studio-thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; max-height: 320px; overflow-y: auto; padding: 4px 0; }
-  .studio-thumb-item { cursor: pointer; border-radius: var(--r-sm); border: 2px solid transparent; overflow: hidden; transition: border-color .15s, transform .1s; position: relative; }
-  .studio-thumb-item:hover { border-color: var(--border); transform: scale(1.02); }
+  .studio-thumb-item { cursor: pointer; border-radius: var(--r-sm); border: 2px solid transparent; overflow: hidden; transition: border-color .15s, transform .1s, box-shadow .15s; position: relative; }
+  .studio-thumb-item:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); transform: scale(1.02); }
   .studio-thumb-item.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
   .studio-thumb-item img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; }
   .studio-thumb-item .studio-thumb-title { font-size: 10px; padding: 4px 6px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--surface1); }
@@ -474,7 +476,17 @@
     cursor: pointer;
     transition: border-color .15s, box-shadow .15s;
   }
-  .playlist-card:hover { border-color: var(--border2); box-shadow: var(--shadow-1); }
+  .playlist-card:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
+  /* Dashboard drill-down rows (#64) — legend + bar chart per-playlist clickables */
+  .dash-pl-row { cursor: pointer; padding: 2px 4px; margin: 0 -4px; border-radius: 4px; transition: background 0.12s; }
+  .dash-pl-row:hover { background: var(--surface2); }
+  /* Flash highlight when dashboard legend drills down to a playlist card */
+  @keyframes plCardFlash {
+    0%   { box-shadow: 0 0 0 1px var(--accent-soft); border-color: var(--accent); }
+    50%  { box-shadow: 0 0 0 4px var(--accent-soft); border-color: var(--accent); }
+    100% { box-shadow: 0 0 0 1px transparent; border-color: var(--border); }
+  }
+  .playlist-card.flash { animation: plCardFlash 1.6s ease-out; }
   .playlist-thumbnail { width: 100%; aspect-ratio: 16/9; background: linear-gradient(135deg, var(--surface3), var(--surface2)); object-fit: cover; position: relative; }
   .playlist-info { padding: 12px; }
   .playlist-title { font-weight: 500; font-size: 13px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
@@ -613,7 +625,7 @@
     cursor: pointer;
     transition: border-color .15s, transform .15s, box-shadow .15s;
   }
-  .video-card:hover { border-color: var(--border2); }
+  .video-card:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
   .reorder-mode .video-card { display: flex; flex-direction: row; align-items: center; cursor: default; }
   .reorder-mode .video-card.dragging { opacity: 0.4; transform: scale(0.97); }
   .reorder-mode .video-card.drag-over { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
@@ -639,9 +651,9 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     margin-bottom: 8px;
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
-  .sub-card:hover { border-color: var(--border2); }
+  .sub-card:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
   .sub-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
   .sub-info { display: flex; flex-direction: column; gap: 3px; }
   .sub-title { font-weight: 600; font-size: 13px; }
@@ -696,7 +708,9 @@
     background: var(--surface); border: 1px solid var(--border);
     border-radius: var(--r-lg); display: flex; flex-direction: column;
     scroll-snap-align: start;
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
+  .deck-column:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
   .deck-column-header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 12px 16px; border-bottom: 1px solid var(--border);
@@ -748,8 +762,8 @@
   /* Watch Plan view modes */
   .watchViewToggle.active { background: var(--accent); color: #fff; }
   .watch-thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
-  .watch-thumb-card { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; cursor: pointer; transition: border-color 0.15s; }
-  .watch-thumb-card:hover { border-color: var(--accent); }
+  .watch-thumb-card { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+  .watch-thumb-card:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
   .watch-thumb-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(212,101,74,0.25); }
   .watch-thumb-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; }
   .watch-thumb-card .watch-thumb-info { padding: 6px 8px; }
@@ -955,6 +969,15 @@
       <button class="login-btn" onclick="handleLogin()" data-i18n="login_btn">Connexion</button>
     </div>
   </div>
+
+  <!-- Empty-state recovery: import a local backup file without OAuth/quota cost -->
+  <div id="loginImportSection" style="margin-top: 20px; padding: 14px 18px; border: 1px dashed var(--border2); border-radius: var(--r-sm); max-width: 520px; width: 100%;">
+    <div style="font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 4px;" data-i18n="login_import_section_title">Already have a backup?</div>
+    <div style="font-size: 12px; color: var(--text2); margin-bottom: 10px; line-height: 1.4;" data-i18n="login_import_hint">Import a backup file to view your playlists without using API quota. You can sign in later to sync.</div>
+    <input type="file" id="loginImportInput" accept=".json" style="display: none;" onchange="importBackupFromLoginScreen(this)">
+    <button class="btn btn-sm" onclick="document.getElementById('loginImportInput').click()" style="font-size: 12px;" data-i18n="login_import_btn">Import backup...</button>
+  </div>
+
   <div style="margin-top: 32px; text-align: center; font-size: 11px; color: var(--text3);">
     <a href="#" onclick="showPrivacyPolicy(); return false;" style="color: var(--text3); text-decoration: underline;" data-i18n="login_privacy">Privacy Policy</a>
     <span style="margin: 0 8px;">|</span>
@@ -2011,6 +2034,16 @@
           </div>
 
         </div>
+
+        <!-- Diagnostic log (#66) — user-shareable support log -->
+        <div style="margin-top: 32px; padding: 18px 20px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface);">
+          <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;" data-i18n="log_section_title">Diagnostic log</h3>
+          <p style="margin: 0 0 12px 0; color: var(--text2); font-size: 12px; line-height: 1.5;" data-i18n="log_section_hint">If you hit a bug or quota issue, download the log and share it with support. The log is local to your browser and contains only your session activity — no passwords or tokens.</p>
+          <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="showLogConsentModal()" data-i18n="log_download_btn">Download diagnostic log…</button>
+            <span class="mono" style="font-size: 11px; color: var(--text3);" id="logEntryCount">—</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -2117,6 +2150,25 @@ const I18N = {
     login_step5b: 'aux URI autorisés',
     login_step6: 'Collez votre Client ID ci-dessous',
     login_btn: 'Connexion',
+    login_import_section_title: 'Vous avez déjà un backup ?',
+    login_import_hint: 'Importez un fichier de backup pour voir vos playlists sans consommer de quota API. Vous pourrez vous connecter plus tard pour synchroniser.',
+    login_import_btn: 'Importer un backup…',
+    toast_import_success: '✅ Backup importé — {count} playlists chargées',
+    toast_import_error: 'Impossible de lire le fichier de backup',
+    toast_import_invalid: 'Ce fichier n\'est pas un backup JSON valide',
+    dashboard_drill_to_library: 'Voir dans Mes playlists',
+    dashboard_drill_to_detail: 'Ouvrir la playlist',
+    // Diagnostic log (#66)
+    log_section_title: 'Journal de diagnostic',
+    log_section_hint: 'En cas de bug ou de souci de quota, téléchargez le journal et partagez-le avec le support. Le journal est local à votre navigateur et ne contient que l\'activité de votre session — aucun mot de passe ni jeton.',
+    log_download_btn: 'Télécharger le journal…',
+    log_consent_title: 'Télécharger le journal de diagnostic',
+    log_consent_body: 'Ce fichier contient l\'historique récent de votre activité YouTube (playlists touchées, erreurs, utilisation du quota). Ne le partagez qu\'avec le support. Aucun mot de passe ni jeton n\'est inclus.',
+    log_consent_confirm: 'Je comprends et je veux télécharger ce fichier',
+    log_filename_prefix: 'reel-manager-log',
+    log_empty: 'Aucune entrée à exporter pour le moment.',
+    log_truncated_notice: '(Les plus anciennes entrées peuvent avoir été supprimées du tampon.)',
+    cancel: 'Annuler',
     login_privacy: 'Politique de confidentialité',
     login_delete_data: 'Supprimer mes données',
     login_powered: 'Powered by YouTube Data API',
@@ -2660,6 +2712,25 @@ const I18N = {
     login_step5b: 'to authorized URIs',
     login_step6: 'Paste your Client ID below',
     login_btn: 'Sign in',
+    login_import_section_title: 'Already have a backup?',
+    login_import_hint: 'Import a backup file to view your playlists without using API quota. You can sign in later to sync.',
+    login_import_btn: 'Import backup…',
+    toast_import_success: '✅ Backup imported — {count} playlists loaded',
+    toast_import_error: 'Could not read the backup file',
+    toast_import_invalid: 'This file is not a valid JSON backup',
+    dashboard_drill_to_library: 'View in My Playlists',
+    dashboard_drill_to_detail: 'Open playlist',
+    // Diagnostic log (#66)
+    log_section_title: 'Diagnostic log',
+    log_section_hint: 'If you hit a bug or quota issue, download the log and share it with support. The log is local to your browser and contains only your session activity — no passwords or tokens.',
+    log_download_btn: 'Download diagnostic log…',
+    log_consent_title: 'Download diagnostic log',
+    log_consent_body: 'This file contains your recent YouTube activity (playlists touched, errors, quota usage). Share it ONLY with support. No passwords or tokens are included.',
+    log_consent_confirm: 'I understand and want to download this file',
+    log_filename_prefix: 'reel-manager-log',
+    log_empty: 'No entries to export yet.',
+    log_truncated_notice: '(Older entries may have been dropped from the buffer.)',
+    cancel: 'Cancel',
     login_privacy: 'Privacy Policy',
     login_delete_data: 'Delete my data',
     login_powered: 'Powered by YouTube Data API',
@@ -3254,7 +3325,283 @@ const APP = {
   deckFolderExpanded: {},
   watchQueue: JSON.parse(localStorage.getItem('watchQueue') || '[]'),
   subscriptions: [],
+  log: [], // Diagnostic log ring buffer (#66) — populated by `log()` helper below
 };
+
+// ============================================================================
+// DIAGNOSTIC LOG (#66) — in-memory ring buffer for user-shareable support logs.
+// Captures API calls, quota events, OAuth lifecycle, backup ops, SW events,
+// and uncaught errors. Export from Help view as a redacted text file.
+// ============================================================================
+
+const APP_VERSION = '1.0.0'; // bump per release
+
+const LOG_CONFIG = {
+  // info+ default (matches user choice for E3). Set to 'debug' to capture everything.
+  minLevel: 'info',
+  // Levels in ascending severity — used by shouldLog()
+  levels: { debug: 10, info: 20, warn: 30, error: 40 },
+  // Ring-buffer cap; entries beyond this drop the oldest
+  capacity: 1000,
+  // How many tail entries survive to localStorage on persist
+  persistTail: 200,
+  // localStorage key for the persisted tail
+  storageKey: 'diagnosticLog',
+  // Levels that mirror to console (in addition to capture)
+  consoleMirror: { warn: true, error: true },
+  // Already warned about localStorage failure once? (avoid noise on Safari private)
+  storageWarned: false,
+};
+
+// Re-entrancy guard: prevents the logger from recursively logging
+// when something inside the logger itself throws or warns.
+let _logBusy = false;
+
+function _logShouldCapture(level) {
+  return (LOG_CONFIG.levels[level] || 0) >= (LOG_CONFIG.levels[LOG_CONFIG.minLevel] || 0);
+}
+
+/**
+ * Append an entry to the diagnostic ring buffer.
+ * Safe to call before APP.log exists (no-op).
+ *
+ * @param {'debug'|'info'|'warn'|'error'} level
+ * @param {'api'|'quota'|'oauth'|'ui'|'backup'|'sw'|'action'|'app'} category
+ * @param {string} msg                  — short human-readable summary
+ * @param {Object} [data]               — optional structured payload (will be redacted)
+ */
+function log(level, category, msg, data) {
+  if (_logBusy) return;
+  if (!_logShouldCapture(level)) return;
+  if (!APP || !Array.isArray(APP.log)) return;
+  _logBusy = true;
+  try {
+    const entry = {
+      ts: new Date().toISOString(),
+      level,
+      category,
+      msg: String(msg || ''),
+    };
+    if (data !== undefined && data !== null) {
+      entry.data = _logRedact(data);
+    }
+    APP.log.push(entry);
+    // Ring-buffer wrap
+    if (APP.log.length > LOG_CONFIG.capacity) {
+      APP.log.splice(0, APP.log.length - LOG_CONFIG.capacity);
+      // Mark the wrap once so users see the boundary on export
+      if (!APP._logWrappedNoticed) {
+        APP._logWrappedNoticed = true;
+        APP.log.push({
+          ts: new Date().toISOString(),
+          level: 'warn',
+          category: 'app',
+          msg: 'log buffer wrap — older entries discarded',
+        });
+      }
+    }
+    // Console mirror for high-severity entries
+    if (LOG_CONFIG.consoleMirror[level]) {
+      const prefix = `[${category}]`;
+      if (level === 'error') console.error(prefix, msg, data ?? '');
+      else if (level === 'warn') console.warn(prefix, msg, data ?? '');
+    }
+  } catch (_) {
+    // Never propagate logger errors — they would mask the real problem
+  } finally {
+    _logBusy = false;
+  }
+}
+
+/**
+ * Strip known sensitive values from a data payload before persisting/exporting.
+ * Defensive copy — does not mutate the input.
+ */
+function _logRedact(input) {
+  try {
+    const seen = new WeakSet();
+    const redact = (v) => {
+      if (v === null || v === undefined) return v;
+      if (typeof v === 'string') {
+        // Bearer tokens
+        if (/^Bearer\s+\S+/i.test(v)) return 'Bearer …';
+        // Raw OAuth-looking tokens (long alphanumeric with dots/dashes)
+        if (/^ya29\.[A-Za-z0-9_\-\.]+$/.test(v)) return 'ya29.…';
+        // Google OAuth client IDs (xxxxxxxxxxxx-yyyy.apps.googleusercontent.com)
+        // Keep first 8 chars so devs can correlate without exposing the full ID
+        const cidMatch = v.match(/^([A-Za-z0-9_\-]{8})[A-Za-z0-9_\-]+(-[A-Za-z0-9_\-]+\.apps\.googleusercontent\.com)$/);
+        if (cidMatch) return cidMatch[1] + '…' + cidMatch[2];
+        return v;
+      }
+      if (typeof v !== 'object') return v;
+      if (seen.has(v)) return '[circular]';
+      seen.add(v);
+      if (Array.isArray(v)) return v.map(redact);
+      const out = {};
+      for (const k of Object.keys(v)) {
+        // Block-list: known token/secret keys
+        if (/^(accessToken|access_token|refreshToken|refresh_token|token|password|secret|authorization)$/i.test(k)) {
+          out[k] = '[redacted]';
+        } else {
+          out[k] = redact(v[k]);
+        }
+      }
+      return out;
+    };
+    return redact(input);
+  } catch (_) {
+    return '[redact-error]';
+  }
+}
+
+/** Persist the last N entries to localStorage so logs survive a refresh/crash. */
+function persistLog() {
+  if (!APP || !Array.isArray(APP.log) || APP.log.length === 0) return;
+  try {
+    const tail = APP.log.slice(-LOG_CONFIG.persistTail);
+    localStorage.setItem(LOG_CONFIG.storageKey, JSON.stringify(tail));
+  } catch (err) {
+    if (!LOG_CONFIG.storageWarned) {
+      LOG_CONFIG.storageWarned = true;
+      console.warn('[log] localStorage persist failed (private mode?):', err.message);
+    }
+  }
+}
+
+/** Load the persisted log tail on app start and prepend it to the in-memory buffer. */
+function loadPersistedLog() {
+  try {
+    const raw = localStorage.getItem(LOG_CONFIG.storageKey);
+    if (!raw) return;
+    const tail = JSON.parse(raw);
+    if (!Array.isArray(tail) || tail.length === 0) return;
+    // Insert at the head so chronological order is preserved
+    APP.log.unshift(...tail);
+    log('info', 'app', `loaded ${tail.length} persisted log entries from previous session`);
+  } catch (_) {
+    // Corrupted persisted log — drop it silently
+    try { localStorage.removeItem(LOG_CONFIG.storageKey); } catch (_) {}
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Diagnostic log — export UI (consent modal + download)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Build the system-info header that prepends every exported log file. */
+async function _logBuildHeader() {
+  const nowIso = new Date().toISOString();
+  // Pacific date for cross-referencing with quota reset behaviour
+  let pacificDate = '';
+  try { pacificDate = getPacificDateString(); } catch (_) {}
+
+  // Anonymised user identity — first 8 hex chars of SHA-256(clientId)
+  let userHash = '';
+  try {
+    if (APP.clientId && window.crypto && window.crypto.subtle) {
+      const enc = new TextEncoder().encode(APP.clientId);
+      const buf = await window.crypto.subtle.digest('SHA-256', enc);
+      userHash = Array.from(new Uint8Array(buf)).slice(0, 4).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+  } catch (_) {}
+
+  const playlistCount = (APP.playlists && APP.playlists.length) || 0;
+  const videoCount = APP.allVideos ? Object.values(APP.allVideos).reduce((s, v) => s + (Array.isArray(v) ? v.length : 0), 0) : 0;
+  const quotaUsed = APP.quotaUnits || 0;
+  const quotaLimit = 10000;
+  const quotaPct = Math.round((quotaUsed / quotaLimit) * 100);
+  const skin = localStorage.getItem('appSkin') || 'coral';
+  const lang = (typeof currentLang !== 'undefined' && currentLang) || 'fr';
+  const swActive = ('serviceWorker' in navigator) && !!navigator.serviceWorker.controller;
+
+  return [
+    '════════════════════════════════════════════════════════════',
+    `  Reel-Manager Diagnostic Log`,
+    '════════════════════════════════════════════════════════════',
+    `Generated:        ${nowIso}`,
+    `Pacific date:     ${pacificDate}`,
+    `App version:      ${APP_VERSION}`,
+    `User-Agent:       ${navigator.userAgent}`,
+    `Language:         ${lang}`,
+    `Theme:            ${APP.theme || 'dark'}    Skin: ${skin}`,
+    `User (anon):      ${userHash || '(no clientId / crypto unavailable)'}`,
+    `Quota:            ${quotaUsed} / ${quotaLimit} (${quotaPct}%)`,
+    `Local backup:     ${playlistCount} playlists, ${videoCount} videos`,
+    `Service Worker:   ${swActive ? 'active' : 'inactive'}`,
+    `Log entries:      ${APP.log.length}  (min level: ${LOG_CONFIG.minLevel}, cap: ${LOG_CONFIG.capacity})`,
+    '────────────────────────────────────────────────────────────',
+    '',
+  ].join('\n');
+}
+
+/** Render a single log entry as one or two text lines (entry + optional data line). */
+function _logFormatEntry(e) {
+  const lvl = (e.level || 'info').toUpperCase().padEnd(5);
+  const cat = (e.category || '?').padEnd(7);
+  const head = `[${e.ts}] [${lvl}] [${cat}] ${e.msg}`;
+  if (e.data !== undefined) {
+    try {
+      return head + '\n                          └─ ' + JSON.stringify(e.data);
+    } catch (_) {
+      return head + '\n                          └─ [unserializable]';
+    }
+  }
+  return head;
+}
+
+/** Show the consent modal — user must check "I understand" before download enables. */
+function showLogConsentModal() {
+  // Update the entry-count badge in the Help section live
+  const badge = document.getElementById('logEntryCount');
+  if (badge) badge.textContent = (APP.log.length || 0) + ' entries';
+
+  const content = `
+    <div style="max-width: 540px; padding: 24px;">
+      <h2 style="margin: 0 0 12px 0; font-size: 18px;">${t('log_consent_title')}</h2>
+      <p style="margin: 0 0 16px 0; color: var(--text2); font-size: 13px; line-height: 1.55;">${t('log_consent_body')}</p>
+      <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface2); border-radius: var(--r-sm); cursor: pointer; margin-bottom: 16px;">
+        <input type="checkbox" id="logConsentCheckbox" onchange="document.getElementById('logDownloadConfirmBtn').disabled = !this.checked;" style="accent-color: var(--accent); width: 16px; height: 16px;">
+        <span style="font-size: 13px;">${t('log_consent_confirm')}</span>
+      </label>
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button class="btn btn-secondary btn-sm" onclick="closeModal({target: document.getElementById('modalOverlay')})">${t('cancel') || 'Cancel'}</button>
+        <button class="btn btn-primary btn-sm" id="logDownloadConfirmBtn" disabled onclick="downloadDiagnosticLog()">${t('log_download_btn')}</button>
+      </div>
+    </div>
+  `;
+  openModal(content);
+}
+
+/** Build the export text and trigger a download. Closes the consent modal on success. */
+async function downloadDiagnosticLog() {
+  try {
+    // Note any in-flight bulk action so the user / support knows export was mid-flight
+    const inFlight = !!APP._bulkInFlight;
+    const header = await _logBuildHeader();
+    const body = APP.log.map(_logFormatEntry).join('\n');
+    const tail = inFlight ? '\n\n[NOTE] active bulk action in progress at export time\n' : '\n';
+    const text = header + body + tail;
+
+    const stamp = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const fname = `${t('log_filename_prefix') || 'reel-manager-log'}-${stamp.getFullYear()}${pad(stamp.getMonth() + 1)}${pad(stamp.getDate())}-${pad(stamp.getHours())}${pad(stamp.getMinutes())}.txt`;
+
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fname;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    log('info', 'app', 'diagnostic log exported', { entries: APP.log.length, sizeKb: Math.round(text.length / 1024), filename: fname });
+    closeModal({ target: document.getElementById('modalOverlay') });
+    showToast(`✓ ${fname}`, 'success');
+  } catch (err) {
+    console.error('[log] export failed:', err);
+    showToast(t('toast_import_error') || 'Export failed', 'error');
+  }
+}
 
 // YouTube Data API v3 quota costs per endpoint+method
 // Source: developers.google.com/youtube/v3/determine_quota_cost (snapshot 2026-04-28)
@@ -3336,11 +3683,29 @@ function checkQuotaDailyReset() {
   const savedDate = localStorage.getItem('quotaResetDate');
   if (savedDate !== today) {
     // Pacific date rolled over → reset counters
+    log('info', 'quota', 'Pacific daily reset', { previousDate: savedDate || '(none)', newDate: today, previousUnits: APP.quotaUnits });
     APP.quotaUnits = 0;
     APP.apiCalls = 0;
+    APP._quotaThresholdsHit = []; // reset threshold-hit flags for the new day
     localStorage.setItem('quotaResetDate', today);
     localStorage.setItem('quotaUnits', '0');
     localStorage.setItem('apiCalls', '0');
+  }
+}
+
+// Quota threshold logging — fires once per threshold per day.
+// Called from saveQuotaState/updateQuotaIndicator so we don't double-log.
+function _logQuotaThresholds() {
+  if (!APP._quotaThresholdsHit) APP._quotaThresholdsHit = [];
+  const limit = 10000;
+  const pct = (APP.quotaUnits / limit) * 100;
+  const thresholds = [50, 75, 90, 100];
+  for (const th of thresholds) {
+    if (pct >= th && !APP._quotaThresholdsHit.includes(th)) {
+      APP._quotaThresholdsHit.push(th);
+      const level = th >= 90 ? 'warn' : 'info';
+      log(level, 'quota', `quota crossed ${th}%`, { used: APP.quotaUnits, limit, pct: Math.round(pct) });
+    }
   }
 }
 
@@ -3350,6 +3715,8 @@ function saveQuotaState() {
     localStorage.setItem('apiCalls', String(APP.apiCalls));
     localStorage.setItem('quotaResetDate', getPacificDateString());
   } catch (e) { /* storage full or disabled — silent fail, counter still works in-memory */ }
+  // Trigger any newly-crossed quota thresholds for the diagnostic log
+  _logQuotaThresholds();
 }
 
 function loadQuotaState() {
@@ -3522,6 +3889,9 @@ function init() {
     const input = document.getElementById('clientIdInput');
     if (input) input.value = savedId;
   }
+  // Diagnostic log (#66) — load persisted tail from previous session first
+  loadPersistedLog();
+  log('info', 'app', `init() — v${APP_VERSION}, theme=${APP.theme}, lang pending`);
   // Auto-load last backup from localStorage
   loadBackupFromStorage();
   // Restore quota counter from previous session (audit #47 — Pacific Time daily reset)
@@ -3608,6 +3978,7 @@ function loadBackupFromStorage() {
     console.log(`[Backup auto-load] Using source: ${source}`);
     const backup = JSON.parse(raw);
     if (!backup.playlists || !Array.isArray(backup.playlists)) return;
+    log('info', 'backup', 'auto-loaded from localStorage', { source, playlists: backup.playlists.length, sizeKb: Math.round(raw.length / 1024) });
 
     // Restore full playlist objects if available
     if (backup.playlistObjects && Array.isArray(backup.playlistObjects) && backup.playlistObjects.length > 0) {
@@ -3675,6 +4046,73 @@ function loadBackupFromStorage() {
     console.warn('[Backup auto-load] Erreur de chargement:', err.message);
   }
   updateBackupIndicator();
+}
+
+/**
+ * Empty-state recovery: import a backup file from the login screen.
+ * Bridges the gap when localStorage is wiped (new browser, cleared site data,
+ * cache eviction) but the user still has their downloaded backup JSON on disk.
+ *
+ * Strategy: write the parsed backup into localStorage.lastBackup, then reload
+ * the page so the existing `init()` → `loadBackupFromStorage()` → `showAppFromCache()`
+ * path runs unmodified. Single tested code path; no duplication of restore logic.
+ */
+function importBackupFromLoginScreen(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+
+  // We only accept JSON for empty-state recovery — CSV restore is for the
+  // selective restore flow in the Backup view which requires user choices.
+  if (!file.name.toLowerCase().endsWith('.json')) {
+    showToast(t('toast_import_invalid'), 'error');
+    input.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const text = e.target.result;
+      const backup = JSON.parse(text);
+
+      // Minimum validation: must have a playlists array
+      if (!backup || !backup.playlists || !Array.isArray(backup.playlists) || backup.playlists.length === 0) {
+        showToast(t('toast_import_invalid'), 'error');
+        input.value = '';
+        return;
+      }
+
+      // Stamp the backup so it looks like a freshly-created one to the auto-loader
+      if (!backup.timestamp) backup.timestamp = new Date().toISOString();
+
+      try {
+        localStorage.setItem('lastBackup', JSON.stringify(backup));
+        localStorage.setItem('lastBackupTimestamp', backup.timestamp);
+      } catch (storageErr) {
+        console.warn('[Import] localStorage write failed:', storageErr.message);
+        showToast(t('toast_import_error'), 'error');
+        input.value = '';
+        return;
+      }
+
+      const count = backup.playlists.length;
+      log('info', 'backup', 'imported from login screen', { playlists: count, sizeKb: Math.round(text.length / 1024) });
+      try { persistLog(); } catch (_) {} // survive the reload
+      showToast(t('toast_import_success', { count }), 'success');
+
+      // Brief pause so the user sees the toast, then reload to let init() pick it up.
+      setTimeout(() => { window.location.reload(); }, 800);
+    } catch (err) {
+      console.error('[Import] Parse error:', err);
+      showToast(t('toast_import_invalid'), 'error');
+      input.value = '';
+    }
+  };
+  reader.onerror = () => {
+    showToast(t('toast_import_error'), 'error');
+    input.value = '';
+  };
+  reader.readAsText(file);
 }
 
 function checkBackupSafety(actionName) {
@@ -3796,13 +4234,17 @@ function checkQuotaBudget(actionName, action, count) {
 function ensureWriteScope() {
   if (currentScope === SCOPE_FULL) return true;
 
+  log('info', 'oauth', 'write scope upgrade requested');
   const upgrade = confirm(t('confirm_write_scope'));
   if (upgrade) {
     currentScope = SCOPE_FULL;
     localStorage.setItem('oauthScope', SCOPE_FULL);
+    log('info', 'oauth', 'write scope upgrade accepted — redirecting');
     // Stash a marker so checkAuth() can notify the user after the redirect (audit #44)
     sessionStorage.setItem('pendingActionAfterOAuth', String(Date.now()));
     startOAuth(SCOPE_FULL);
+  } else {
+    log('warn', 'oauth', 'write scope upgrade declined');
   }
   return false; // Will redirect, so always return false here
 }
@@ -4026,15 +4468,20 @@ function handleLogin() {
   const clientId = document.getElementById('clientIdInput').value.trim();
   if (!clientId) {
     showToast(t('toast_enter_client_id'), 'error');
+    log('warn', 'oauth', 'login attempt without client id');
     return;
   }
   APP.clientId = clientId;
   localStorage.setItem('youtubeClientId', clientId);
+  log('info', 'oauth', 'login flow started');
   startOAuth();
 }
 
 function startOAuth(scope) {
   const s = scope || currentScope;
+  log('info', 'oauth', 'redirecting to Google OAuth', { scope: s });
+  // Persist the in-memory log before redirecting away — we'd lose it otherwise
+  try { persistLog(); } catch (_) {}
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
     `client_id=${encodeURIComponent(APP.clientId)}&` +
     `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
@@ -4049,6 +4496,7 @@ function checkAuth() {
     const params = new URLSearchParams(hash.substring(1));
     APP.accessToken = params.get('access_token');
     if (APP.accessToken) {
+      log('info', 'oauth', 'access token received', { scope: currentScope });
       // Clear explicit logout flag on successful re-auth
       sessionStorage.removeItem('loggedOut');
       // Record login timestamp for auto-purge mechanism
@@ -4073,6 +4521,8 @@ function checkAuth() {
 }
 
 function handleLogout() {
+  log('info', 'oauth', 'logout');
+  try { persistLog(); } catch (_) {}
   APP.accessToken = '';
   APP.userInfo = null;
   // Mark as explicitly logged out so init() doesn't auto-show from cache
@@ -4241,8 +4691,13 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
   // Fresh-cache hit: no network call, no quota cost, no retry loop. Real quota savings.
   if (cached && ttl > 0 && !bypassCache && (Date.now() - cached.savedAt) < ttl) {
     console.debug(`[ytApi] cache hit (fresh): ${method} ${endpoint}`);
+    log('debug', 'api', 'cache hit (fresh)', { endpoint, method });
     return cached.body;
   }
+
+  // Track call shape for the post-call log entry
+  const _logCallStart = Date.now();
+  let _logRetries = 0;
 
   const opts = {
     method,
@@ -4293,6 +4748,8 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
         if (attempt < RETRY_CONFIG.maxRetries) {
           const delay = computeBackoffDelay(attempt);
           console.warn(`[ytApi] Network error on ${method} ${endpoint}, retry ${attempt + 1}/${RETRY_CONFIG.maxRetries} in ${delay}ms`, networkErr);
+          log('warn', 'api', 'network error — retrying', { endpoint, method, attempt: attempt + 1, delay });
+          _logRetries++;
           await sleep(delay);
           continue;
         }
@@ -4302,6 +4759,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
       // 304 Not Modified — server confirms our cache is still valid
       if (res.status === 304 && cached) {
         console.debug(`[ytApi] 304 not-modified: ${method} ${endpoint} (cache refreshed)`);
+        log('info', 'api', '304 not-modified', { endpoint, method, cost, durationMs: Date.now() - _logCallStart, retries: _logRetries });
         cached.savedAt = Date.now();
         cacheSet(cacheKey, cached); // re-set to move to LRU end
         return cached.body;
@@ -4321,10 +4779,13 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
             const retryAfter = parseRetryAfter(res.headers.get('Retry-After'));
             delay = retryAfter ?? computeBackoffDelay(attempt);
             console.warn(`[ytApi] 429 rate-limited on ${method} ${endpoint}, retry ${attempt + 1}/${RETRY_CONFIG.maxRetries} in ${delay}ms (Retry-After=${res.headers.get('Retry-After') || 'absent'})`);
+            log('warn', 'api', '429 rate-limited — retrying', { endpoint, method, attempt: attempt + 1, delay, retryAfter });
           } else {
             delay = computeBackoffDelay(attempt);
             console.warn(`[ytApi] ${res.status} server error on ${method} ${endpoint}, retry ${attempt + 1}/${RETRY_CONFIG.maxRetries} in ${delay}ms`);
+            log('warn', 'api', 'server error — retrying', { endpoint, method, status: res.status, attempt: attempt + 1, delay });
           }
+          _logRetries++;
           await sleep(delay);
           continue;
         }
@@ -4362,7 +4823,10 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
         markDirty();
         invalidateCacheForWrite(endpoint, cleanParams, body);
       }
-      if (method === 'DELETE') return null;
+      if (method === 'DELETE') {
+        log('info', 'api', 'API call ok', { endpoint, method, status: 204, cost, durationMs: Date.now() - _logCallStart, retries: _logRetries });
+        return null;
+      }
 
       const responseBody = await res.json();
 
@@ -4380,6 +4844,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
         }
       }
 
+      log('info', 'api', 'API call ok', { endpoint, method, status: res.status, cost, durationMs: Date.now() - _logCallStart, retries: _logRetries });
       return responseBody;
     }
 
@@ -4387,6 +4852,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
     throw lastError || new Error('Erreur API inconnue après retries');
   } catch (err) {
     console.error('API Error:', err);
+    log('error', 'api', 'API call failed', { endpoint, method, cost, durationMs: Date.now() - _logCallStart, retries: _logRetries, error: String(err && err.message || err) });
     throw err;
   }
 }
@@ -4864,7 +5330,7 @@ function generateDashboardCharts() {
 
   // All playlists sorted by video count for the donut
   const sortedPl = [...APP.playlists]
-    .map((pl, origIdx) => ({ name: pl.snippet.title, value: pl.contentDetails?.itemCount || 0, origIdx }))
+    .map((pl, origIdx) => ({ id: pl.id, name: pl.snippet.title, value: pl.contentDetails?.itemCount || 0, origIdx }))
     .sort((a, b) => b.value - a.value);
 
   const totalVideos2 = sortedPl.reduce((s, p) => s + p.value, 0) || 1;
@@ -4900,7 +5366,7 @@ function generateDashboardCharts() {
   const othersVideos = sortedPl.slice(legendMax).reduce((s, p) => s + p.value, 0);
 
   let legendHtml = legendEntries.map((p, i) =>
-    `<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:2px 0;">
+    `<div class="dash-pl-row" data-playlist-id="${p.id}" title="${p.name} — ${t('dashboard_drill_to_library')}" onclick="event.stopPropagation(); drillFromDashboard('${p.id}', 'library')" style="display:flex;align-items:center;gap:8px;font-size:12px;">
       <div style="width:10px;height:10px;border-radius:2px;background:${rainbowColor(i)};flex-shrink:0;"></div>
       <span style="color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}</span>
       <span class="mono" style="font-size:11px;font-weight:500;">${p.value}</span>
@@ -4919,9 +5385,9 @@ function generateDashboardCharts() {
   const barsMax = sortedPl.length;
   const maxVal = sortedPl.length ? sortedPl[0].value : 1;
   const barsHtml = sortedPl.map((p, i) =>
-    `<div style="display:grid;grid-template-columns:1fr 50px;gap:12px;align-items:center;">
+    `<div class="dash-pl-row" data-playlist-id="${p.id}" title="${p.name} — ${t('dashboard_drill_to_detail')}" onclick="event.stopPropagation(); drillFromDashboard('${p.id}', 'detail')" style="display:grid;grid-template-columns:1fr 50px;gap:12px;align-items:center;">
       <div style="display:flex;flex-direction:column;gap:4px;">
-        <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;" title="${p.name}">${p.name}</div>
+        <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;">${p.name}</div>
         <div style="height:6px;background:var(--surface3);border-radius:3px;overflow:hidden;">
           <div style="height:100%;width:${Math.max((p.value / maxVal) * 100, 2)}%;background:${rainbowColor(i)};border-radius:3px;"></div>
         </div>
@@ -4956,6 +5422,41 @@ function generateDashboardCharts() {
   `;
 
   document.getElementById('dashboardCharts').innerHTML = chartsHtml;
+}
+
+/**
+ * Dashboard tile drill-down (#64).
+ * - mode === 'library': stay on dashboard, scroll to the playlist card below and flash it
+ * - mode === 'detail':  open the playlist detail view directly
+ * Empty-area clicks on the chart-container still bubble to switchView('statistics').
+ */
+function drillFromDashboard(playlistId, mode) {
+  if (!playlistId) return;
+  if (mode === 'detail') {
+    openPlaylistDetail(playlistId);
+    return;
+  }
+  // Default: 'library' — scroll & flash the playlist card on the same dashboard view
+  scrollToPlaylistCard(playlistId);
+}
+
+function scrollToPlaylistCard(playlistId) {
+  // Cards may not yet exist if the dashboard hasn't rendered the playlist list
+  // (e.g. layout edge cases). Render then scroll on the next frame.
+  const ensureRendered = () => document.querySelector(`.playlist-card[data-playlist-id="${playlistId}"]`);
+  let card = ensureRendered();
+  if (!card) {
+    try { refreshPlaylistsList(); } catch (_) {}
+    card = ensureRendered();
+  }
+  if (!card) return;
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Reset the flash class so consecutive clicks re-trigger the animation
+  card.classList.remove('flash');
+  // Force reflow so the animation restarts
+  void card.offsetWidth;
+  card.classList.add('flash');
+  setTimeout(() => card.classList.remove('flash'), 1700);
 }
 
 // ============================================================================
@@ -5921,6 +6422,10 @@ function switchView(viewName) {
     else if (viewName === 'export') renderExportPlaylistList();
     else if (viewName === 'backup') runCacheDiagnostic();
     else if (viewName === 'beta') { renderBetaFeatures(); initStudioCreator(); }
+    else if (viewName === 'help') {
+      const badge = document.getElementById('logEntryCount');
+      if (badge) badge.textContent = ((APP.log && APP.log.length) || 0) + ' entries';
+    }
     else if (viewName === 'subscriptions') {
       if (APP.subscriptions.length === 0) {
         loadSubscriptions();
@@ -5941,7 +6446,7 @@ function refreshPlaylistsList() {
     const videoCount = APP.allVideos[pl.id]?.length || 0;
     const tags = APP.tags[pl.id] || [];
     return `
-      <div class="playlist-card" onclick="openPlaylistDetail('${pl.id}')">
+      <div class="playlist-card" data-playlist-id="${pl.id}" onclick="openPlaylistDetail('${pl.id}')">
         <img src="${pl.snippet.thumbnails?.medium?.url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22226%22 height=%22226%22%3E%3Crect fill=%22%23303030%22 width=%22226%22 height=%22226%22/%3E%3C/svg%3E'}" class="playlist-thumbnail" alt="${pl.snippet.title}">
         <div class="playlist-info">
           <div class="playlist-title" title="${pl.snippet.title}">${pl.snippet.title}</div>
@@ -9071,6 +9576,7 @@ async function createFullBackup() {
 
   const videoCount = backup.playlists.reduce((sum, pl) => sum + pl.videos.length, 0);
   APP_DIRTY = false; // Reset dirty flag after successful backup
+  log('info', 'backup', 'JSON backup created', { playlists: backup.playlists.length, videos: videoCount, sizeKb: Math.round(json.length / 1024) });
   showToast(t('toast_backup_json', { playlists: backup.playlists.length, videos: videoCount }), 'success');
 }
 
@@ -9953,10 +10459,57 @@ if ((!APP.clientId && !APP.accessToken && !localStorage.getItem('lastBackup') &&
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js')
-      .then(reg => console.log('[SW] registered, scope:', reg.scope))
-      .catch(err => console.warn('[SW] registration failed:', err));
+      .then(reg => {
+        console.log('[SW] registered, scope:', reg.scope);
+        log('info', 'sw', 'service worker registered', { scope: reg.scope });
+        // Notify on updates
+        reg.addEventListener('updatefound', () => {
+          log('info', 'sw', 'service worker update found');
+          const nw = reg.installing;
+          if (nw) {
+            nw.addEventListener('statechange', () => {
+              log('info', 'sw', 'service worker state', { state: nw.state });
+            });
+          }
+        });
+      })
+      .catch(err => {
+        console.warn('[SW] registration failed:', err);
+        log('warn', 'sw', 'service worker registration failed', { error: String(err && err.message || err) });
+      });
   });
 }
+
+// ============================================================================
+// DIAGNOSTIC LOG (#66) — global error capture + persistence on unload
+// ============================================================================
+
+window.addEventListener('error', (e) => {
+  try {
+    log('error', 'app', 'uncaught error', {
+      message: e.message,
+      source: e.filename,
+      line: e.lineno,
+      col: e.colno,
+      stack: e.error && e.error.stack ? String(e.error.stack).split('\n').slice(0, 6).join('\n') : undefined,
+    });
+  } catch (_) {}
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+  try {
+    const reason = e.reason;
+    log('error', 'app', 'unhandled promise rejection', {
+      message: reason && reason.message ? reason.message : String(reason),
+      stack: reason && reason.stack ? String(reason.stack).split('\n').slice(0, 6).join('\n') : undefined,
+    });
+  } catch (_) {}
+});
+
+// Persist the last N entries on unload so logs survive a refresh/crash
+window.addEventListener('beforeunload', () => {
+  try { persistLog(); } catch (_) {}
+});
 </script>
 
 </body>
