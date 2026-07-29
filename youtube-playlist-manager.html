@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#d4613a">
+<!-- CSP: blocks external script injection and exfiltration to non-whitelisted origins.
+     'unsafe-inline' is required for now (single-file app with inline handlers); tightening
+     it needs the event-delegation refactor tracked in the backlog. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://*.ytimg.com https://*.ggpht.com https://*.googleusercontent.com; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'">
 <meta name="description" content="Manage, organize and analyze your YouTube playlists with advanced tools">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -4672,7 +4676,7 @@ async function deleteAllUserData() {
     'youtubeClientId', 'appTheme', 'appSkin', 'playlistTags', 'tagIcons', 'watchQueue',
     'playlistFolders', 'folderAssignments', 'folderExpanded', 'deckColumns',
     'lastBackup', 'lastBackupTimestamp', 'autoCache', 'autoCacheTimestamp',
-    'oauthScope', 'lastLoginTimestamp', 'recentSearches'
+    'oauthScope', 'lastLoginTimestamp', 'recentSearches', 'userInfo'
   ];
   appKeys.forEach(k => localStorage.removeItem(k));
 
@@ -4694,7 +4698,7 @@ function checkAutoPurge() {
     const appKeys = [
       'playlistTags', 'tagIcons', 'watchQueue', 'playlistFolders', 'folderAssignments',
       'folderExpanded', 'deckColumns', 'lastBackup', 'lastBackupTimestamp',
-      'autoCache', 'autoCacheTimestamp', 'oauthScope', 'recentSearches'
+      'autoCache', 'autoCacheTimestamp', 'oauthScope', 'recentSearches', 'userInfo'
     ];
     appKeys.forEach(k => localStorage.removeItem(k));
     localStorage.removeItem('lastLoginTimestamp');
@@ -5544,7 +5548,7 @@ function renderUserInfo(info) {
   const pic = info.picture || '';
   document.getElementById('userInfo').innerHTML = `
     ${pic ? `<img src="${pic}" class="user-avatar" alt="">` : ''}
-    <span>${name}</span>
+    <span>${escapeHtml(name)}</span>
   `;
 }
 
@@ -5575,12 +5579,15 @@ async function loadAllPlaylists() {
   }
 }
 
-async function loadPlaylistVideos(playlistId) {
+async function loadPlaylistVideos(playlistId, opts) {
   // Treat an empty cached array as "never loaded" — protects against cache
   // poisoning when a bookmarked playlist is restored from a backup that
   // serialized an empty videos array (the user hadn't opened it yet).
-  const cached = APP.allVideos[playlistId];
-  if (Array.isArray(cached) && cached.length > 0) return cached;
+  // opts.force bypasses the cache after a write (reorder/merge/move).
+  if (!opts?.force) {
+    const cached = APP.allVideos[playlistId];
+    if (Array.isArray(cached) && cached.length > 0) return cached;
+  }
   // #57: fields= partial response — strip server-side everything we don't read.
   // Saves ~30-50% bandwidth on large playlists (etag, channel resource, snippets
   // we never display, etc). Same quota cost, just smaller payload + faster JSON parse.
@@ -5677,7 +5684,7 @@ async function refreshDashboard() {
       <div style="flex:1;height:3px;background:var(--surface3);border-radius:2px;overflow:hidden;">
         <div style="height:100%;width:${pct}%;background:${colors[i]};border-radius:2px;"></div>
       </div>
-      <span style="font-size:9px;color:var(--text4);white-space:nowrap;max-width:60px;overflow:hidden;text-overflow:ellipsis;">${name}</span>
+      <span style="font-size:9px;color:var(--text4);white-space:nowrap;max-width:60px;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(name)}</span>
     </div>`;
   }).join('');
 
@@ -6028,10 +6035,14 @@ function playPlaylist(playlistId, startIndex) {
   const videos = APP.allVideos[playlistId] || [];
   if (videos.length === 0) { showToast(t('player_no_videos'), 'error'); return; }
 
+  // APP.allVideos holds raw playlistItems — ids/titles live under contentDetails/snippet
   PLAYER.queue = videos.map(v => ({
-    videoId: v.videoId, title: v.title, channelTitle: v.channelTitle,
-    thumbnail: v.thumbnail, playlistId: playlistId
-  }));
+    videoId: v.contentDetails?.videoId || v.snippet?.resourceId?.videoId,
+    title: v.snippet?.title || '',
+    channelTitle: v.snippet?.videoOwnerChannelTitle || v.snippet?.channelTitle || '',
+    thumbnail: v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url || '',
+    playlistId: playlistId
+  })).filter(q => q.videoId);
   PLAYER.currentIndex = startIndex || 0;
 
   if (PLAYER.shuffle) shuffleQueue();
@@ -6179,7 +6190,7 @@ function renderQueueList() {
   list.innerHTML = PLAYER.queue.map((item, i) => `
     <div class="player-queue-item ${i === PLAYER.currentIndex ? 'active' : ''}" onclick="jumpToQueueIndex(${i})">
       <img src="${item.thumbnail || ''}" alt="" onerror="this.style.display='none'">
-      <span class="pq-title">${item.title}</span>
+      <span class="pq-title">${escapeHtml(item.title)}</span>
       <button onclick="event.stopPropagation();removeFromQueue(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;" title="${t('player_remove')}">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
@@ -6466,7 +6477,7 @@ function renderStudioThumbGrid(panel) {
     if (!thumbUrl) thumbUrl = detail?.snippet?.thumbnails?.medium?.url || detail?.snippet?.thumbnails?.default?.url || '';
 
     const selected = videoId === currentVal ? ' selected' : '';
-    html += `<div class="studio-thumb-item${selected}" onclick="selectStudioThumbVideo('${panel}','${videoId}')" title="${title}">
+    html += `<div class="studio-thumb-item${selected}" onclick="selectStudioThumbVideo('${panel}','${videoId}')" title="${escapeHtml(title)}">
       <img src="${thumbUrl || placeholder}" alt="" onerror="this.src='${placeholder}'">
       <div class="studio-thumb-title">${title.substring(0, 40)}</div>
     </div>`;
@@ -6616,7 +6627,7 @@ async function loadCaptionsList() {
           <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface2);border-radius:var(--r-sm);margin-bottom:4px;">
             <div>
               <span style="font-weight:500;font-size:13px;">${c.snippet?.language || '?'}</span>
-              <span class="text-muted" style="font-size:11px;margin-left:8px;">${c.snippet?.name || ''}</span>
+              <span class="text-muted" style="font-size:11px;margin-left:8px;">${escapeHtml(c.snippet?.name || '')}</span>
               <span class="text-muted" style="font-size:11px;margin-left:8px;">${c.snippet?.trackKind || ''}</span>
             </div>
             <button class="btn btn-danger btn-sm" onclick="deleteCaption('${c.id}','${videoId}')" style="font-size:11px;padding:2px 8px;">${t('btn_delete')}</button>
@@ -6909,9 +6920,9 @@ function refreshPlaylistsList() {
     return `
       <div class="playlist-card${isBookmark ? ' is-bookmark' : ''}" data-playlist-id="${pl.id}" onclick="openPlaylistDetail('${pl.id}')">
         ${bookmarkBadge}
-        <img src="${pl.snippet.thumbnails?.medium?.url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22226%22 height=%22226%22%3E%3Crect fill=%22%23303030%22 width=%22226%22 height=%22226%22/%3E%3C/svg%3E'}" class="playlist-thumbnail" alt="${pl.snippet.title}">
+        <img src="${pl.snippet.thumbnails?.medium?.url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22226%22 height=%22226%22%3E%3Crect fill=%22%23303030%22 width=%22226%22 height=%22226%22/%3E%3C/svg%3E'}" class="playlist-thumbnail" alt="${escapeHtml(pl.snippet.title)}">
         <div class="playlist-info">
-          <div class="playlist-title" title="${pl.snippet.title}">${pl.snippet.title}</div>
+          <div class="playlist-title" title="${escapeHtml(pl.snippet.title)}">${escapeHtml(pl.snippet.title)}</div>
           <div class="playlist-stats">${videoCount} vidéos</div>
           <div class="playlist-tags">${tags.map(t => renderTagWithIcon(t)).join('')}</div>
           <div class="playlist-actions gap-8">
@@ -7093,16 +7104,16 @@ function renderFilteredVideos(videos) {
     const cardDrag = isReorder ? `draggable="true" ondragstart="onVideoDragStart(event)" ondragover="onVideoDragOver(event)" ondragleave="onVideoDragLeave(event)" ondrop="onVideoDrop(event)" data-item-id="${playlistItemId}" data-video-id="${v.videoId}" data-position="${v.position}"` : '';
 
     return `
-      <div class="video-card" ${cardDrag} title="${v.title}">
+      <div class="video-card" ${cardDrag} title="${escapeHtml(v.title)}">
         <div class="drag-handle"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg></div>
         <div style="position: relative;" ${clickPlay}>
-          <img src="${v.thumbnail}" class="video-thumbnail" alt="${v.title}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%2290%22%3E%3Crect fill=%22%23303030%22 width=%22120%22 height=%2290%22/%3E%3C/svg%3E'">
+          <img src="${v.thumbnail}" class="video-thumbnail" alt="${escapeHtml(v.title)}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%2290%22%3E%3Crect fill=%22%23303030%22 width=%22120%22 height=%2290%22/%3E%3C/svg%3E'">
           ${isReorder ? '' : '<div class="play-overlay"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>'}
           <span style="position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,0.8); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 3px; z-index: 1;">${v.durationFormatted}</span>
         </div>
         <div class="video-info" ${clickPlay} style="${isReorder ? '' : 'cursor:pointer;'}">
-          <div class="video-title">${v.title}</div>
-          <div class="video-meta">${v.channelTitle} <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-size:10px;">YT&nearr;</a></div>
+          <div class="video-title">${escapeHtml(v.title)}</div>
+          <div class="video-meta">${escapeHtml(v.channelTitle)} <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-size:10px;">YT&nearr;</a></div>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
             <span style="font-size: 11px; color: var(--text2);">${dateStr}</span>
             ${statusBadge}
@@ -7221,8 +7232,8 @@ async function onVideoDrop(e) {
       }
     });
 
-    // Reload the playlist to get fresh positions from YouTube
-    const videos = await loadPlaylistVideos(currentDetailPlaylistId);
+    // Reload the playlist to get fresh positions from YouTube (bypass cache)
+    const videos = await loadPlaylistVideos(currentDetailPlaylistId, { force: true });
     currentDetailVideos = videos.map((v, idx) => {
       const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId;
       const detail = videoDetailsCache[videoId];
@@ -7323,7 +7334,7 @@ function showRenamePlaylistModal(playlistId = null) {
     const selectHtml = APP.playlists.map(pl => `
       <div class="form-checkbox">
         <input type="checkbox" value="${pl.id}" class="rename-playlist-select">
-        <span class="checkbox-label">${pl.snippet.title}</span>
+        <span class="checkbox-label">${escapeHtml(pl.snippet.title)}</span>
       </div>
     `).join('');
 
@@ -7355,7 +7366,7 @@ function showRenamePlaylistModal(playlistId = null) {
       <div class="modal-body">
         <div class="form-group">
           <label class="form-label">Nouveau nom</label>
-          <input type="text" class="form-control" id="renamePlaylistInput" value="${playlist.snippet.title}">
+          <input type="text" class="form-control" id="renamePlaylistInput" value="${escapeHtml(playlist.snippet.title)}">
         </div>
       </div>
       <div class="modal-footer">
@@ -7426,7 +7437,7 @@ function showDeletePlaylistModal() {
   const selectHtml = APP.playlists.map(pl => `
     <div class="form-checkbox">
       <input type="checkbox" value="${pl.id}" class="delete-playlist-select">
-      <span class="checkbox-label">${pl.snippet.title}</span>
+      <span class="checkbox-label">${escapeHtml(pl.snippet.title)}</span>
     </div>
   `).join('');
 
@@ -7515,7 +7526,7 @@ async function performGlobalSearch() {
   lastSearchVideoIds = [];
   const html = Object.entries(resultsByPlaylist).map(([playlistId, { playlist, matches }]) => `
     <div class="search-result-group">
-      <div class="search-result-group-title">${playlist.snippet.title} (${matches.length})</div>
+      <div class="search-result-group-title">${escapeHtml(playlist.snippet.title)} (${matches.length})</div>
       <div class="video-grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
         ${matches.map(v => {
           const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
@@ -7536,8 +7547,8 @@ async function performGlobalSearch() {
               ${playOverlayHTML(videoId, v.snippet?.title || '', channel, thumbUrl)}
             </div>
             <div class="video-info" onclick="playVideo('${videoId}','${safeTitle}','${safeChannel}','${safeThumb}')">
-              <div class="video-title">${v.snippet?.title || t('untitled')}</div>
-              <div class="video-meta">${channel}${videoId ? ` · <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);font-size:11px;">YouTube ↗</a>` : ''}</div>
+              <div class="video-title">${escapeHtml(v.snippet?.title || t('untitled'))}</div>
+              <div class="video-meta">${escapeHtml(channel)}${videoId ? ` · <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);font-size:11px;">YouTube ↗</a>` : ''}</div>
             </div>
           </div>`;
         }).join('')}
@@ -7841,7 +7852,7 @@ function renderDiscoverResults(query) {
   container.innerHTML = discoverResults.map((v, i) => {
     // Truncate description to ~150 chars
     const desc = v.description.length > 150 ? v.description.slice(0, 150).trim() + '...' : v.description;
-    const escapedDesc = desc.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, ' ');
+    const escapedDesc = escapeHtml(desc).replace(/\n/g, ' ');
 
     return `
     <div class="discover-item" style="display:flex;gap:12px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;align-items:flex-start;">
@@ -7863,8 +7874,8 @@ function renderDiscoverResults(query) {
       <div style="flex:1;min-width:0;">
         <div style="font-weight:600;font-size:13px;color:var(--text);cursor:pointer;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;"
           onclick="event.stopPropagation();playVideo('${v.videoId}','${(v.title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.channel||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.thumbnail||'').replace(/'/g,"\\'")}')">
-          ${v.title}</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:4px;">${v.channel}</div>
+          ${escapeHtml(v.title)}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px;">${escapeHtml(v.channel)}</div>
         <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;">
           <span title="Views">${v.views} ${t('views_label')}</span>
           <span title="Likes">${v.likes} ${t('likes_label')}</span>
@@ -7978,6 +7989,7 @@ async function createPlaylistFromDiscover() {
       }
     }
 
+    delete APP.allVideos[playlistId]; // ensure fresh load of the new playlist's items
     showToast(t('discover_created', { name, added, total: selected.length }), 'success');
 
     // Refresh playlists and dashboard
@@ -8018,7 +8030,7 @@ function refreshMergeUI() {
   const html = APP.playlists.map(pl => `
     <div class="form-checkbox">
       <input type="checkbox" value="${pl.id}" class="merge-playlist-select">
-      <span class="checkbox-label">${pl.snippet.title} (${APP.allVideos[pl.id]?.length || 0} vidéos)</span>
+      <span class="checkbox-label">${escapeHtml(pl.snippet.title)} (${APP.allVideos[pl.id]?.length || 0} vidéos)</span>
     </div>
   `).join('');
 
@@ -8075,6 +8087,7 @@ async function performMerge() {
       }
     }
 
+    delete APP.allVideos[destId]; // evict stale destination cache
     await loadAllPlaylists();
     showToast(t('toast_merged', { count: moved }), 'success');
   } catch (err) {
@@ -8109,7 +8122,7 @@ function renderMoveVideos() {
     container.innerHTML = moveVideosCache.map(v => `
       <div class="form-checkbox">
         <input type="checkbox" value="${v.contentDetails?.videoId}" class="move-video-select">
-        <span class="checkbox-label">${v.snippet?.title}</span>
+        <span class="checkbox-label">${escapeHtml(v.snippet?.title)}</span>
       </div>
     `).join('');
   } else {
@@ -8135,8 +8148,8 @@ function renderMoveVideos() {
             </a>
           </div>
           <div class="video-info" style="cursor:pointer;" onclick="this.parentElement.querySelector('.move-video-select').click()">
-            <div class="video-title">${v.snippet?.title || t('untitled')}</div>
-            <div class="video-meta">${v.snippet?.channelTitle || ''}</div>
+            <div class="video-title">${escapeHtml(v.snippet?.title || t('untitled'))}</div>
+            <div class="video-meta">${escapeHtml(v.snippet?.channelTitle || '')}</div>
           </div>
         </div>`;
       }).join('')}
@@ -8226,6 +8239,7 @@ async function performMove() {
       });
     }
 
+    delete APP.allVideos[destId]; // evict stale destination cache
     await loadAllPlaylists();
     showToast(t('toast_moved'), 'success');
   } catch (err) {
@@ -8267,8 +8281,8 @@ async function scanGhostVideos() {
 
   const html = ghosts.length ? ghosts.map(g => `
     <div class="p-16" style="background: var(--surface); border-radius: var(--radius); margin-bottom: 12px;">
-      <div>${g.title}</div>
-      <div class="text-muted" style="font-size: 12px;">${g.playlistTitle}</div>
+      <div>${escapeHtml(g.title)}</div>
+      <div class="text-muted" style="font-size: 12px;">${escapeHtml(g.playlistTitle)}</div>
       <button class="btn btn-danger btn-sm mt-16" onclick="removeGhostVideo('${g.playlistId}', '${g.itemId}')">${t('btn_delete')}</button>
     </div>
   `).join('') : `<p class="text-muted">${t('no_ghost')}</p>`;
@@ -8574,7 +8588,7 @@ function refreshTagsList() {
     return `
       <div class="p-16" style="background: var(--surface); border-radius: var(--radius); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
         <div>
-          <div><strong>${pl.snippet.title}</strong></div>
+          <div><strong>${escapeHtml(pl.snippet.title)}</strong></div>
           <div class="flex gap-8" style="margin-top: 8px;">
             ${tags.length ? tags.map(tg => renderTagWithIcon(tg)).join('') : `<span class="text-muted">${t('tags_no_tag')}</span>`}
           </div>
@@ -8606,7 +8620,7 @@ function editPlaylistTags(playlistId) {
 
   openModal(`
     <div class="modal-header">
-      <div class="modal-title">Tags pour ${playlist.snippet.title}</div>
+      <div class="modal-title">Tags pour ${escapeHtml(playlist.snippet.title)}</div>
     </div>
     <div class="modal-body">
       <div class="form-group">
@@ -8678,7 +8692,7 @@ function showAddTagModal() {
   const html = APP.playlists.map(pl => `
     <div class="form-checkbox">
       <input type="checkbox" value="${pl.id}" class="tag-playlist-select">
-      <span class="checkbox-label">${pl.snippet.title}</span>
+      <span class="checkbox-label">${escapeHtml(pl.snippet.title)}</span>
     </div>
   `).join('');
 
@@ -8769,7 +8783,7 @@ function renderFolderTree() {
       <div style="font-size: 12px; font-weight: 600; color: var(--text3); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">${t('folders_no_playlists')} (${unassigned.length})</div>
       ${unassigned.map(pl => `
         <div class="folder-playlist-item">
-          <span style="flex:1;">${pl.snippet.title}</span>
+          <span style="flex:1;">${escapeHtml(pl.snippet.title)}</span>
           <span class="playlist-count">${pl.contentDetails?.itemCount || 0}</span>
         </div>
       `).join('')}
@@ -8806,7 +8820,7 @@ function renderFolderNode(folder) {
         ${playlists.map(pl => `
           <div class="folder-playlist-item">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M21 15V6"/><path d="M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/><path d="M12 12V3"/><path d="M9.5 15a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/><path d="M3 9V0"/></svg>
-            <span style="flex:1;">${pl.snippet.title}</span>
+            <span style="flex:1;">${escapeHtml(pl.snippet.title)}</span>
             <span class="playlist-count">${pl.contentDetails?.itemCount || 0}</span>
             <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); unassignPlaylist('${pl.id}')" title="Remove" style="padding: 2px 4px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </div>
@@ -8877,7 +8891,7 @@ function showCreateFolderModal(parentId = null) {
   document.getElementById('folderPlaylistsList').innerHTML = available.map(pl => `
     <div class="form-checkbox">
       <input type="checkbox" value="${pl.id}" class="folder-playlist-select">
-      <span class="checkbox-label">${pl.snippet.title} (${pl.contentDetails?.itemCount || 0})</span>
+      <span class="checkbox-label">${escapeHtml(pl.snippet.title)} (${pl.contentDetails?.itemCount || 0})</span>
     </div>
   `).join('') || `<p class="text-muted">${t('folders_no_playlists')}</p>`;
 
@@ -8954,7 +8968,7 @@ function showEditFolderModal(folderId) {
   document.getElementById('folderPlaylistsList').innerHTML = allRelevant.map(pl => `
     <div class="form-checkbox">
       <input type="checkbox" value="${pl.id}" class="folder-playlist-select" ${APP.folderAssignments[pl.id] === folderId ? 'checked' : ''}>
-      <span class="checkbox-label">${pl.snippet.title} (${pl.contentDetails?.itemCount || 0})</span>
+      <span class="checkbox-label">${escapeHtml(pl.snippet.title)} (${pl.contentDetails?.itemCount || 0})</span>
     </div>
   `).join('') || `<p class="text-muted">${t('folders_no_playlists')}</p>`;
 }
@@ -9049,7 +9063,7 @@ function renderDeckPlaylistColumn(col, idx) {
     <div class="deck-column">
       <div class="deck-column-header">
         <div style="display:flex; align-items:center; min-width:0;">
-          <span class="deck-column-title">${title}</span>
+          <span class="deck-column-title">${escapeHtml(title)}</span>
           ${videos.length ? `<span class="deck-column-count">${videos.length}</span>` : ''}
         </div>
         <div style="display:flex; gap:4px;">
@@ -9076,7 +9090,7 @@ function renderDeckFolderColumn(col, idx) {
     <div class="deck-column">
       <div class="deck-column-header">
         <div style="display:flex; align-items:center; min-width:0;">
-          <span class="deck-column-title">${title}</span>
+          <span class="deck-column-title">${escapeHtml(title)}</span>
           <span class="deck-column-count">${totalVideos}</span>
         </div>
         <div style="display:flex; gap:4px;">
@@ -9130,7 +9144,7 @@ function renderDeckFolderContent(folderId, colIdx) {
       <div class="deck-playlist-section">
         <div class="deck-playlist-header" onclick="toggleDeckPlaylistSection(${colIdx}, '${pl.id}')">
           <svg class="deck-folder-toggle ${!isExpanded ? 'collapsed' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
-          <span style="flex:1;">${pl.snippet.title}</span>
+          <span style="flex:1;">${escapeHtml(pl.snippet.title)}</span>
           <span style="font-size:10px; color:var(--text4); font-family:'Geist Mono',monospace;">${videos.length || pl.contentDetails?.itemCount || 0}</span>
         </div>
         <div class="deck-playlist-videos ${!isExpanded ? 'collapsed' : ''}">
@@ -9160,7 +9174,7 @@ function getDeckFolderVideoCount(folderId) {
 
 function renderDeckSourceSelector(colIdx) {
   const playlistOptions = APP.playlists.map(pl =>
-    `<option value="p_${pl.id}">${pl.snippet.title} (${pl.contentDetails?.itemCount || 0})</option>`
+    `<option value="p_${pl.id}">${escapeHtml(pl.snippet.title)} (${pl.contentDetails?.itemCount || 0})</option>`
   ).join('');
 
   const folderOptions = APP.folders.length ? APP.folders.map(f => {
@@ -9199,8 +9213,8 @@ function renderDeckVideoItem(video) {
         </div>
       </div>
       <div class="deck-video-info" style="cursor:pointer;" onclick="event.stopPropagation();playVideo('${videoId}','${escapedTitle}','${escapedChannel}','${escapedThumb}')">
-        <div class="deck-video-title">${title}</div>
-        <div class="deck-video-meta">${channel} <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-size:9px;">YT&nearr;</a></div>
+        <div class="deck-video-title">${escapeHtml(title)}</div>
+        <div class="deck-video-meta">${escapeHtml(channel)} <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-size:9px;">YT&nearr;</a></div>
       </div>
     </div>
   `;
@@ -9554,15 +9568,15 @@ function renderWatchVideoSelector(videos) {
       const escapedThumb = thumb.replace(/'/g, "\\'");
 
       return `<div class="watch-thumb-card" data-idx="${i}" onclick="toggleWatchThumbSelect(this)">
-        <input type="checkbox" class="watch-thumb-check watch-video-select" value="${videoId}|${title}|${channel}|${thumb}" onclick="event.stopPropagation();" onchange="toggleWatchThumbSelect(this.closest('.watch-thumb-card'), this.checked)">
+        <input type="checkbox" class="watch-thumb-check watch-video-select" value="${videoId}|${escapeHtml(title)}|${escapeHtml(channel)}|${thumb}" onclick="event.stopPropagation();" onchange="toggleWatchThumbSelect(this.closest('.watch-thumb-card'), this.checked)">
         ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : `<div style="width:100%;aspect-ratio:16/9;background:var(--surface3);"></div>`}
         ${durStr ? `<div style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.8);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;font-family:'Geist Mono',monospace;pointer-events:none;">${durStr}</div>` : ''}
         <div class="watch-thumb-play" onclick="event.stopPropagation();playVideo('${videoId}','${escapedTitle}','${escapedChannel}','${escapedThumb}')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
         </div>
         <div class="watch-thumb-info">
-          <div class="watch-thumb-title">${title}</div>
-          <div class="watch-thumb-meta">${channel}</div>
+          <div class="watch-thumb-title">${escapeHtml(title)}</div>
+          <div class="watch-thumb-meta">${escapeHtml(channel)}</div>
         </div>
       </div>`;
     }).join('')}</div>`;
@@ -9580,7 +9594,7 @@ function renderWatchVideoSelector(videos) {
       const escapedThumb = thumb.replace(/'/g, "\\'");
 
       return `<div class="watch-list-item">
-        <input type="checkbox" class="watch-video-select" value="${videoId}|${title}|${channel}|${thumb}" style="accent-color:var(--accent);width:14px;height:14px;flex-shrink:0;">
+        <input type="checkbox" class="watch-video-select" value="${videoId}|${escapeHtml(title)}|${escapeHtml(channel)}|${thumb}" style="accent-color:var(--accent);width:14px;height:14px;flex-shrink:0;">
         <div style="position:relative;flex-shrink:0;width:48px;height:27px;cursor:pointer;border-radius:3px;overflow:hidden;" onclick="event.stopPropagation();playVideo('${videoId}','${escapedTitle}','${escapedChannel}','${escapedThumb}')">
           ${thumb ? `<img src="${thumb}" style="width:100%;height:100%;object-fit:cover;">` : `<div style="width:100%;height:100%;background:var(--surface3);"></div>`}
           <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;background:rgba(0,0,0,0.45);"
@@ -9588,7 +9602,7 @@ function renderWatchVideoSelector(videos) {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           </div>
         </div>
-        <span style="font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${title}</span>
+        <span style="font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(title)}</span>
         ${durStr ? `<span class="mono" style="font-size:10px;color:var(--text3);flex-shrink:0;">${durStr}</span>` : ''}
       </div>`;
     }).join('');
@@ -9672,7 +9686,7 @@ function refreshWatchQueue() {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
         </div>
       </div>` : ''}
-      <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">${item.title}</div>
+      <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;">${escapeHtml(item.title)}</div>
       <button class="btn btn-danger btn-sm" onclick="removeFromWatchQueue(${idx})" style="flex-shrink:0;padding:2px 6px;">✕</button>
     </div>`;
   }).join('') : `<p class="text-muted">${t('no_video')}</p>`;
@@ -9802,9 +9816,9 @@ function renderSubscriptions() {
 
     return `
       <div class="sub-card">
-        <img src="${thumb}" class="sub-avatar" alt="${sub.snippet?.title}">
+        <img src="${thumb}" class="sub-avatar" alt="${escapeHtml(sub.snippet?.title)}">
         <div class="sub-info">
-          <div class="sub-title">${sub.snippet?.title}</div>
+          <div class="sub-title">${escapeHtml(sub.snippet?.title)}</div>
           <div class="sub-desc">${desc}</div>
           <div class="sub-meta">
             ${dateStr} · ${totalVideos} videos (${newVideos} new)
@@ -9812,7 +9826,7 @@ function renderSubscriptions() {
         </div>
         <div class="sub-actions">
           <button class="btn btn-secondary btn-sm" onclick="window.open('https://www.youtube.com/channel/${channelId}', '_blank')">Channel</button>
-          <button class="btn btn-danger btn-sm" onclick="confirmUnsubscribe('${sub.id}', '${(sub.snippet?.title || '').replace(/'/g, "\\'")}')">Unsubscribe</button>
+          <button class="btn btn-danger btn-sm" onclick="confirmUnsubscribe('${sub.id}', '${escapeHtml((sub.snippet?.title || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')">Unsubscribe</button>
         </div>
       </div>
     `;
@@ -9873,21 +9887,21 @@ async function performPlaylistDiff() {
         <h3 style="margin-bottom: 12px;">Seulement dans ${pl1.snippet.title}</h3>
         <div class="text-muted" style="margin-bottom: 12px;">${unique1.length} vidéos</div>
         <div style="max-height: 300px; overflow-y: auto; font-size: 13px;">
-          ${unique1.map(([id, title]) => `<div style="padding: 4px 0; border-bottom: 1px solid var(--border);">${title}</div>`).join('')}
+          ${unique1.map(([id, title]) => `<div style="padding: 4px 0; border-bottom: 1px solid var(--border);">${escapeHtml(title)}</div>`).join('')}
         </div>
       </div>
       <div class="p-16" style="background: var(--surface); border-radius: var(--radius);">
         <h3 style="margin-bottom: 12px;">Seulement dans ${pl2.snippet.title}</h3>
         <div class="text-muted" style="margin-bottom: 12px;">${unique2.length} vidéos</div>
         <div style="max-height: 300px; overflow-y: auto; font-size: 13px;">
-          ${unique2.map(([id, title]) => `<div style="padding: 4px 0; border-bottom: 1px solid var(--border);">${title}</div>`).join('')}
+          ${unique2.map(([id, title]) => `<div style="padding: 4px 0; border-bottom: 1px solid var(--border);">${escapeHtml(title)}</div>`).join('')}
         </div>
       </div>
       <div class="p-16" style="background: var(--surface); border-radius: var(--radius);">
         <h3 style="margin-bottom: 12px;">En commun</h3>
         <div class="text-muted" style="margin-bottom: 12px;">${common.length} vidéos</div>
         <div style="max-height: 300px; overflow-y: auto; font-size: 13px;">
-          ${common.map(([id, title]) => `<div style="padding: 4px 0; border-bottom: 1px solid var(--border);">${title}</div>`).join('')}
+          ${common.map(([id, title]) => `<div style="padding: 4px 0; border-bottom: 1px solid var(--border);">${escapeHtml(title)}</div>`).join('')}
         </div>
       </div>
     </div>
@@ -9936,7 +9950,7 @@ function updateBulkRenameUI() {
   const selectHtml = APP.playlists.map(pl => `
     <div class="form-checkbox">
       <input type="checkbox" value="${pl.id}" class="bulkrename-select">
-      <span class="checkbox-label">${pl.snippet.title}</span>
+      <span class="checkbox-label">${escapeHtml(pl.snippet.title)}</span>
     </div>
   `).join('');
 
@@ -10491,9 +10505,13 @@ function cancelRestore() {
 }
 
 function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  // Escapes quotes too, so output is safe in attribute values (title="...", value="...")
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // ============================================================================
@@ -10645,7 +10663,7 @@ async function exportLibrary() {
 // ============================================================================
 
 function populateSelectDropdowns() {
-  const options = APP.playlists.map(pl => `<option value="${pl.id}">${pl.snippet.title}</option>`).join('');
+  const options = APP.playlists.map(pl => `<option value="${pl.id}">${escapeHtml(pl.snippet.title)}</option>`).join('');
   const baseHtml = '<option value="">Sélectionner...</option>' + options;
   
   document.getElementById('moveSourcePlaylist').innerHTML = baseHtml;
