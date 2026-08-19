@@ -286,6 +286,21 @@
     .pb-track, .pb-time { display: none; }
   }
 
+  /* ── Confirm dialog ────────────────────────────────────────────────── */
+  .ask-overlay {
+    position: fixed; inset: 0; z-index: 70; display: none;
+    align-items: center; justify-content: center; padding: 20px;
+    background: rgba(0,0,0,.62); backdrop-filter: blur(3px);
+  }
+  .ask-overlay.open { display: flex; }
+  .ask {
+    background: var(--surface); border: 1px solid var(--border2); border-radius: var(--r-xl);
+    padding: 22px; max-width: 430px; width: 100%;
+  }
+  .ask h3 { font-family: var(--font-display); font-weight: 600; font-size: 16px; margin-bottom: 8px; }
+  .ask p { font-size: 13px; color: var(--text2); line-height: 1.6; margin-bottom: 18px; }
+  .ask-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
   /* ── Palette panel ─────────────────────────────────────────────────── */
   .palette-toggle {
     position: fixed; top: 22px; right: 22px; z-index: 60;
@@ -363,6 +378,14 @@
   <div class="pal-card" id="palCard"></div>
 </aside>
 
+<div class="ask-overlay" id="askOverlay">
+  <div class="ask">
+    <h3 id="askTitle"></h3>
+    <p id="askBody"></p>
+    <div class="ask-actions" id="askActions"></div>
+  </div>
+</div>
+
 <div id="app"></div>
 
 <div class="player-sheet" id="playerSheet">
@@ -412,7 +435,7 @@
 // Strictly read-only: no API calls, no writes to the app's data keys.
 // ═══════════════════════════════════════════════════════════════════════
 
-const STUDIO_VERSION = '0.3.1';
+const STUDIO_VERSION = '0.4.0';
 
 // ── i18n ───────────────────────────────────────────────────────────────
 const LANG = (localStorage.getItem('appLang') || 'fr') === 'en' ? 'en' : 'fr';
@@ -445,6 +468,9 @@ const S = {
     palTitle: 'Palette', reset: 'Réinitialiser', perso: 'perso',
     playAll: '▶ Lancer la file', nowPlaying: 'En lecture', queueLabel: 'File de lecture',
     openYT: 'Ouvrir sur YouTube', playHere: 'Lire ici',
+    extTitle: 'Un onglet YouTube est encore ouvert',
+    extBody: 'Reel Studio a ouvert une vidéo dans un onglet YouTube et cet onglet est toujours là. Le navigateur ne permet pas de mettre en pause un autre onglet — seulement de le fermer.',
+    extClose: 'Fermer l’onglet et lire ici', extAnyway: 'Lire ici quand même', cancel: 'Annuler',
     secBi: '3A — Accent (noir fixe)', secTri: '3B — Trio', secDuo: '3C — Duo',
   },
   en: {
@@ -475,6 +501,9 @@ const S = {
     palTitle: 'Palette', reset: 'Reset', perso: 'custom',
     playAll: '▶ Play queue', nowPlaying: 'Now playing', queueLabel: 'Queue',
     openYT: 'Open on YouTube', playHere: 'Play here',
+    extTitle: 'A YouTube tab is still open',
+    extBody: 'Reel Studio opened a video in a YouTube tab and that tab is still there. Browsers cannot pause another tab — only close it.',
+    extClose: 'Close the tab and play here', extAnyway: 'Play here anyway', cancel: 'Cancel',
     secBi: '3A — Accent (black locked)', secTri: '3B — Trio', secDuo: '3C — Duo',
   },
 }[LANG];
@@ -802,8 +831,8 @@ function videoRow(v, showPlaylist, i) {
       </span>
       <span class="row-right">
         ${esc(fmtClock(v.seconds))}
-        <a class="row-open" href="${v.videoId ? ytUrl(v.videoId) : '#'}" target="_blank" rel="noopener noreferrer"
-           title="${esc(tr('openYT'))}" onclick="event.stopPropagation()">↗</a>
+        <a class="row-open" href="${v.videoId ? ytUrl(v.videoId) : '#'}" target="_blank" rel="noopener"
+           title="${esc(tr('openYT'))}" onclick="return openOnYouTube(event, '${v.videoId ? ytUrl(v.videoId) : '#'}')">↗</a>
       </span>
     </div>`;
 }
@@ -984,7 +1013,8 @@ function viewPlaylistDetail(pl) {
       <h2>${esc(pl.title)}</h2>
       <span class="count">${nf(pl.count)} ${esc(tr('items'))} · ${fmtHours(pl.seconds)}</span>
       <button class="chip" onclick="playPlaylistById('${esc(pl.id)}')">${esc(tr('playAll'))}</button>
-      <a class="chip" style="text-decoration:none" href="${plUrl(pl.id)}" target="_blank" rel="noopener noreferrer">YouTube ↗</a>
+      <a class="chip" style="text-decoration:none" href="${plUrl(pl.id)}" target="_blank" rel="noopener"
+         onclick="return openOnYouTube(event, '${plUrl(pl.id)}')">YouTube ↗</a>
     </div>
     ${pl.tags.length ? `<div class="pl-tags" style="margin-bottom:14px">${pl.tags.map(t => `<span class="tag-pill">${esc(t)}</span>`).join('')}</div>` : ''}
     <div class="toolbar">
@@ -1066,7 +1096,8 @@ function viewDupes() {
     <div>${d.dupes.slice(0, 200).map(list => `
       <div class="dupe">
         <div class="dupe-title">
-          <a href="${ytUrl(list[0].videoId)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none">${esc(list[0].title)}</a>
+          <a href="${ytUrl(list[0].videoId)}" target="_blank" rel="noopener" style="text-decoration:none"
+             onclick="return openOnYouTube(event, '${ytUrl(list[0].videoId)}')">${esc(list[0].title)}</a>
         </div>
         <div class="dupe-where">${esc(tr('inPlaylists', { n: list.length }))} — ${list.map(v => esc(v.playlistTitle)).join(' · ')}</div>
       </div>`).join('')}</div>
@@ -1184,15 +1215,66 @@ window.onYouTubeIframeAPIReady = function () {
   if (PLAY.pending) { const p = PLAY.pending; PLAY.pending = null; startPlayback(p.queue, p.index, p.label); }
 };
 
+// ── External YouTube tab ───────────────────────────────────────────────
+// We can reuse and close a tab WE opened (named target + the WindowProxy it
+// returns). We cannot read it or pause it — it is cross-origin. A tab the user
+// opened by hand is invisible to us, so the guard below only knows about ours.
+const EXT = { win: null };
+const YT_TAB = 'reel-studio-youtube';
+
+const externalTabAlive = () => { try { return !!(EXT.win && !EXT.win.closed); } catch (_) { return false; } };
+
+function openOnYouTube(ev, url) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  // Handing playback over: stop ours first.
+  if (PLAY.yt && PLAY.yt.pauseVideo) { try { PLAY.yt.pauseVideo(); } catch (_) {} }
+  // Named target: navigates the tab we already opened instead of piling up tabs.
+  const w = window.open(url, YT_TAB);
+  if (w) { EXT.win = w; try { w.focus(); } catch (_) {} }
+  return false;
+}
+
+function ask(title, body, actions) {
+  return new Promise(resolve => {
+    const overlay = document.getElementById('askOverlay');
+    document.getElementById('askTitle').textContent = title;
+    document.getElementById('askBody').textContent = body;
+    const host = document.getElementById('askActions');
+    host.innerHTML = '';
+    actions.forEach(a => {
+      const b = document.createElement('button');
+      b.className = 'btn btn-sm ' + (a.primary ? 'btn-primary' : 'btn-ghost');
+      b.textContent = a.label;
+      b.onclick = () => { overlay.classList.remove('open'); resolve(a.value); };
+      host.appendChild(b);
+    });
+    overlay.classList.add('open');
+  });
+}
+
+// false when the user cancels.
+async function guardExternalTab() {
+  if (!externalTabAlive()) return true;
+  const choice = await ask(tr('extTitle'), tr('extBody'), [
+    { label: tr('cancel'), value: 'cancel' },
+    { label: tr('extAnyway'), value: 'anyway' },
+    { label: tr('extClose'), value: 'close', primary: true },
+  ]);
+  if (choice === 'cancel') return false;
+  if (choice === 'close') { try { EXT.win.close(); } catch (_) {} EXT.win = null; }
+  return true;
+}
+
 function playFromList(i) {
   playQueue(CURRENT_LIST, i, PLAY.label || tr('queueLabel'));
 }
 
-function playQueue(list, index, label) {
+async function playQueue(list, index, label) {
   const queue = (list || []).filter(v => v && v.videoId && !v.ghost);
   if (!queue.length) return;
   const target = list[index];
   const start = Math.max(0, queue.findIndex(v => v === target));
+  if (!(await guardExternalTab())) return;
   if (!PLAY.ready) { loadYouTubeAPI(); PLAY.pending = { queue, index: start, label }; return; }
   startPlayback(queue, start, label);
 }
