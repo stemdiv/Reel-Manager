@@ -17,6 +17,8 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-512.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<!-- #69 - fonts for the "Studio / Music" named theme -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Space+Grotesk:wght@400;500;600;700&display=swap">
 <style>
   :root {
     /* Surfaces — desaturated charcoals */
@@ -59,6 +61,20 @@
     --r-xl: 20px;
     --shadow: 0 12px 40px -12px rgba(0,0,0,0.6), 0 0 0 1px var(--border);
     --shadow-1: 0 1px 0 0 rgba(255,255,255,0.04) inset, 0 1px 2px rgba(0,0,0,0.3);
+    /* Type — swapped as a batch by named themes (#69) */
+    --font-body: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    --font-display: var(--font-body);
+    --font-mono: 'Geist Mono', ui-monospace, monospace;
+    --font-features: 'cv11', 'ss01';
+    /* Shape */
+    --pill: 999px;
+    /* Motion */
+    --ease: cubic-bezier(.2,.8,.2,1);
+    --dur: 180ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root { --dur: 0ms; }
   }
 
   body.light-theme {
@@ -78,14 +94,14 @@
   * { margin:0; padding:0; box-sizing:border-box; }
   html { scroll-behavior: smooth; }
   body {
-    font-family: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-    font-feature-settings: 'cv11', 'ss01';
+    font-family: var(--font-body);
+    font-feature-settings: var(--font-features);
     background: var(--bg);
     color: var(--text);
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
   }
-  .mono { font-family: 'Geist Mono', ui-monospace, monospace; font-feature-settings: 'tnum'; }
+  .mono { font-family: var(--font-mono); font-feature-settings: 'tnum'; }
   button { cursor: pointer; font-family: inherit; border: none; background: none; color: inherit; }
 
   .header {
@@ -100,13 +116,13 @@
     z-index: 100;
   }
   .header-left { display: flex; align-items: center; gap: 12px; }
-  .logo { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
+  .logo { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; letter-spacing: -0.02em; font-family: var(--font-display); }
   .logo .logo-sub { color: var(--text3); font-weight: 400; }
   .header-right { display: flex; align-items: center; gap: 8px; }
   .user-info { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text2); }
   .user-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
   .quota-info {
-    font-family: 'Geist Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 11px;
     color: var(--text3);
     background: var(--surface2);
@@ -153,6 +169,63 @@
   .skin-swatch:hover { transform: scale(1.15); }
   .skin-swatch.active { border-color: var(--text); }
   .skin-swatch-label { font-size: 9px; color: var(--text3); text-align: center; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Named-theme chips (#69) */
+  .theme-picker-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .theme-chip {
+    display: flex; align-items: center; gap: 6px; padding: 5px 10px;
+    border: 1px solid var(--border); border-radius: var(--pill);
+    background: var(--surface2); color: var(--text2); font-size: 11px; cursor: pointer;
+    transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .theme-chip:hover { border-color: var(--accent-line); color: var(--text); }
+  .theme-chip.active { border-color: var(--accent); color: var(--text); }
+  .theme-chip-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .theme-accent-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
+  .theme-accent-slot {
+    width: 22px; height: 22px; padding: 0; border: none; border-radius: 50%;
+    cursor: pointer; background: none;
+  }
+  .theme-accent-slot.active { outline: 2px solid var(--text); outline-offset: 2px; }
+  .theme-preset-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+  .theme-preset {
+    width: 13px; height: 13px; border-radius: 50%; cursor: pointer;
+    border: 1px solid var(--border); transition: transform var(--dur) var(--ease);
+  }
+  .theme-preset:hover { transform: scale(1.25); }
+
+  /* #70 — reactive tiles, Studio themes only */
+  :root[data-theme^="studio"] .beta-feature-card,
+  :root[data-theme^="studio"] .studio-thumb-item,
+  :root[data-theme^="studio"] .stat-card[onclick],
+  :root[data-theme^="studio"] .playlist-card,
+  :root[data-theme^="studio"] .chart-container[onclick],
+  :root[data-theme^="studio"] .video-card,
+  :root[data-theme^="studio"] .sub-card,
+  :root[data-theme^="studio"] .watch-thumb-card {
+    transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
+  }
+  :root[data-theme^="studio"] .beta-feature-card:hover,
+  :root[data-theme^="studio"] .studio-thumb-item:hover,
+  :root[data-theme^="studio"] .stat-card[onclick]:hover,
+  :root[data-theme^="studio"] .playlist-card:hover,
+  :root[data-theme^="studio"] .chart-container[onclick]:hover,
+  :root[data-theme^="studio"] .video-card:hover,
+  :root[data-theme^="studio"] .sub-card:hover,
+  :root[data-theme^="studio"] .watch-thumb-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent-line), 0 12px 28px -14px var(--accent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :root[data-theme^="studio"] .beta-feature-card:hover,
+  :root[data-theme^="studio"] .studio-thumb-item:hover,
+  :root[data-theme^="studio"] .stat-card[onclick]:hover,
+  :root[data-theme^="studio"] .playlist-card:hover,
+  :root[data-theme^="studio"] .chart-container[onclick]:hover,
+  :root[data-theme^="studio"] .video-card:hover,
+  :root[data-theme^="studio"] .sub-card:hover,
+  :root[data-theme^="studio"] .watch-thumb-card:hover { transform: none; }
+  }
 
   .login-screen {
     display: flex;
@@ -163,14 +236,14 @@
     text-align: center;
     gap: 24px;
   }
-  .login-screen h1 { font-size: 42px; font-weight: 600; letter-spacing: -0.03em; color: var(--text); }
+  .login-screen h1 { font-size: 42px; font-weight: 600; letter-spacing: -0.03em; color: var(--text); font-family: var(--font-display); }
   .login-screen h1 .accent { color: var(--accent); }
   .login-screen p { color: var(--text2); max-width: 600px; line-height: 1.6; font-size: 15px; }
   .setup-guide { max-width: 700px; text-align: left; background: var(--surface); border: 1px solid var(--border); padding: 30px; border-radius: var(--r-lg); }
   .setup-guide h2 { font-size: 16px; font-weight: 600; margin-bottom: 15px; color: var(--text); }
   .setup-guide ol { padding-left: 20px; color: var(--text2); }
   .setup-guide li { margin: 8px 0; line-height: 1.6; font-size: 13px; }
-  .setup-guide code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-family: 'Geist Mono', monospace; font-size: 12px; }
+  .setup-guide code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 12px; }
   .client-id-input { display: flex; gap: 8px; margin-top: 20px; }
   .client-id-input input { flex: 1; padding: 10px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--text); font-size: 13px; font-family: inherit; outline: none; transition: border-color .15s; }
   .client-id-input input:focus { border-color: var(--accent-line); }
@@ -193,7 +266,7 @@
   .sidebar-section-label {
     padding: 4px 10px 6px; font-size: 10px; letter-spacing: 0.08em;
     text-transform: uppercase; color: var(--text4); font-weight: 500;
-    font-family: 'Geist Mono', monospace;
+    font-family: var(--font-mono);
     margin-top: 12px;
   }
   .sidebar-section-label:first-child { margin-top: 8px; }
@@ -223,7 +296,7 @@
   }
   .sidebar-item .icon { display: flex; align-items: center; flex-shrink: 0; }
   .sidebar-item .nav-badge {
-    font-family: 'Geist Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 10px;
     margin-left: auto;
   }
@@ -234,7 +307,7 @@
     border-radius: 100px;
   }
   .sidebar-item .beta-tag {
-    font-family: 'Geist Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 9px;
     font-weight: 600;
     text-transform: uppercase;
@@ -246,7 +319,7 @@
     border-radius: 100px;
   }
   .sidebar-section-label .beta-section-tag {
-    font-family: 'Geist Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 8px;
     font-weight: 700;
     text-transform: uppercase;
@@ -267,7 +340,7 @@
   .beta-feature-card h3 { margin: 0 0 6px 0; display: flex; align-items: center; gap: 8px; }
   .beta-feature-card p { margin: 0; font-size: 13px; color: var(--text2); line-height: 1.5; }
   .beta-status {
-    font-family: 'Geist Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 9px;
     font-weight: 600;
     text-transform: uppercase;
@@ -333,7 +406,7 @@
   .player-controls button.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
   .player-controls button svg { width: 14px; height: 14px; }
   .player-controls .player-pos {
-    font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--text3); margin-left: auto;
+    font-family: var(--font-mono); font-size: 11px; color: var(--text3); margin-left: auto;
   }
   .player-controls select {
     background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
@@ -432,7 +505,7 @@
   .view { display: none; }
   .view.active { display: block; animation: fadeIn 0.3s; }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  .view > h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+  .view > h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; font-family: var(--font-display); }
   .view h2 { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
   .view h3 { font-size: 14px; font-weight: 500; }
 
@@ -455,14 +528,14 @@
     box-shadow: 0 0 0 1px var(--accent-soft);
   }
   .stat-card-label {
-    font-family: 'Geist Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
     color: var(--text3); font-weight: 500; margin-bottom: 8px;
   }
   .stat-card-value-row { display: flex; align-items: baseline; gap: 6px; }
   .stat-card-value { font-size: 36px; font-weight: 600; letter-spacing: -0.03em; line-height: 1; color: var(--text); }
-  .stat-card-unit { color: var(--text2); font-size: 11px; font-family: 'Geist Mono', monospace; }
-  .stat-card-sub { color: var(--text3); font-size: 11px; font-family: 'Geist Mono', monospace; margin-top: 6px; }
+  .stat-card-unit { color: var(--text2); font-size: 11px; font-family: var(--font-mono); }
+  .stat-card-sub { color: var(--text3); font-size: 11px; font-family: var(--font-mono); margin-top: 6px; }
   .stat-card-visual { margin-top: auto; }
   .stat-card-bar { height: 4px; border-radius: 2px; background: var(--surface3); overflow: hidden; }
   .stat-card-bar-fill { height: 100%; border-radius: 2px; }
@@ -487,7 +560,7 @@
   /* Read-only mode (#43) — header pill + hide most visible write actions */
   .readonly-pill {
     display: none;
-    font-family: 'Geist Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -536,7 +609,7 @@
   .playlist-thumbnail { width: 100%; aspect-ratio: 16/9; background: linear-gradient(135deg, var(--surface3), var(--surface2)); object-fit: cover; position: relative; }
   .playlist-info { padding: 12px; }
   .playlist-title { font-weight: 500; font-size: 13px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
-  .playlist-stats { font-size: 11px; color: var(--text3); font-family: 'Geist Mono', monospace; }
+  .playlist-stats { font-size: 11px; color: var(--text3); font-family: var(--font-mono); }
   .playlist-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
   .tag {
     display: inline-flex; align-items: center; gap: 4px;
@@ -627,7 +700,7 @@
     overflow: hidden;
   }
   .progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; }
-  .progress-text { font-size: 11px; color: var(--text3); margin-top: 6px; text-align: center; font-family: 'Geist Mono', monospace; }
+  .progress-text { font-size: 11px; color: var(--text3); margin-top: 6px; text-align: center; font-family: var(--font-mono); }
 
   .kanban-container {
     display: grid;
@@ -647,7 +720,7 @@
   }
   .kanban-card:active { cursor: grabbing; opacity: 0.8; }
   .kanban-card-title { font-weight: 500; font-size: 13px; margin-bottom: 4px; }
-  .kanban-card-count { font-size: 11px; color: var(--text3); font-family: 'Geist Mono', monospace; }
+  .kanban-card-count { font-size: 11px; color: var(--text3); font-family: var(--font-mono); }
 
   .chart-container {
     background: var(--surface); padding: 20px; border-radius: var(--r-lg);
@@ -704,7 +777,7 @@
   .sub-info { display: flex; flex-direction: column; gap: 3px; }
   .sub-title { font-weight: 600; font-size: 13px; }
   .sub-desc { font-size: 12px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 500px; }
-  .sub-meta { font-size: 11px; color: var(--text3); font-family: 'Geist Mono', monospace; }
+  .sub-meta { font-size: 11px; color: var(--text3); font-family: var(--font-mono); }
   .sub-actions { display: flex; gap: 8px; }
   .video-meta { font-size: 11px; color: var(--text3); }
 
@@ -723,7 +796,7 @@
   .folder-toggle.leaf { visibility: hidden; }
   .folder-icon { font-size: 16px; flex-shrink: 0; }
   .folder-name { font-weight: 500; font-size: 13px; flex: 1; }
-  .folder-count { font-size: 11px; color: var(--text3); font-family: 'Geist Mono', monospace; }
+  .folder-count { font-size: 11px; color: var(--text3); font-family: var(--font-mono); }
   .folder-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; }
   .folder-header:hover .folder-actions { opacity: 1; }
   .folder-children { padding-left: 24px; }
@@ -736,7 +809,7 @@
     transition: background 0.12s;
   }
   .folder-playlist-item:hover { background: var(--surface2); }
-  .folder-playlist-item .playlist-count { color: var(--text3); font-family: 'Geist Mono', monospace; font-size: 11px; }
+  .folder-playlist-item .playlist-count { color: var(--text3); font-family: var(--font-mono); font-size: 11px; }
   .folder-unassigned { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
 
   /* Deck multi-column */
@@ -764,7 +837,7 @@
     border-radius: var(--r-lg) var(--r-lg) 0 0;
   }
   .deck-column-title { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .deck-column-count { font-size: 11px; color: var(--text3); font-family: 'Geist Mono', monospace; margin-left: 8px; }
+  .deck-column-count { font-size: 11px; color: var(--text3); font-family: var(--font-mono); margin-left: 8px; }
   .deck-column-body {
     flex: 1; overflow-y: auto; padding: 8px;
     max-height: calc(100vh - 220px);
@@ -1028,8 +1101,12 @@
     <a href="#" onclick="showPrivacyPolicy(); return false;" style="color: var(--text3); text-decoration: underline;" data-i18n="login_privacy">Privacy Policy</a>
     <span style="margin: 0 8px;">|</span>
     <a href="#" onclick="deleteAllUserData(); return false;" style="color: var(--text3); text-decoration: underline;" data-i18n="login_delete_data">Delete my data</a>
-    <div style="margin-top: 10px; font-family: 'Geist Mono', monospace; font-size: 10px; opacity: 0.6;">
+    <div style="margin-top: 10px; font-family: var(--font-mono); font-size: 10px; opacity: 0.6;">
       Powered by YouTube Data API v3
+    </div>
+    <div style="margin-top: 8px;">
+      <a href="#" onclick="showVersionInfo(); return false;" id="loginVersionLink"
+         style="font-family: var(--font-mono); font-size: 10px; color: var(--accent); text-decoration: none;">v—</a>
     </div>
   </div>
 </div>
@@ -1065,12 +1142,16 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
       </button>
       <div class="user-info" id="userInfo"></div>
-      <button class="btn-icon header-tool" onclick="toggleLanguage()" id="langToggle" data-i18n-title="header_lang_toggle" title="Langue" style="font-size: 11px; font-weight: 600; font-family: 'Geist Mono', monospace;">FR</button>
+      <button class="btn-icon header-tool" onclick="toggleLanguage()" id="langToggle" data-i18n-title="header_lang_toggle" title="Langue" style="font-size: 11px; font-weight: 600; font-family: var(--font-mono);">FR</button>
       <div class="header-tool" style="position:relative;display:inline-block;" id="skinPickerWrap">
         <button class="btn-icon" onclick="toggleSkinPicker()" data-i18n-title="header_skin_toggle" title="Skin">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
         </button>
         <div class="skin-picker-dropdown" id="skinPickerDropdown" style="display:none;">
+          <div class="skin-picker-title" data-i18n="theme_picker_title">Theme</div>
+          <div class="theme-picker-row" id="themePickerRow"></div>
+          <div class="theme-accent-row" id="themeAccentRow"></div>
+          <div class="theme-preset-row" id="themePresetRow"></div>
           <div class="skin-picker-title" data-i18n="skin_picker_title">Skin</div>
           <div class="skin-picker-grid" id="skinPickerGrid"></div>
           <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;">
@@ -1194,12 +1275,12 @@
         <div class="sidebar-item" onclick="toggleLanguage(); closeSidebar();">
           <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
           <span data-i18n="nav_language">Language</span>
-          <span id="sidebarLangLabel" style="margin-left:auto;font-size:11px;font-weight:600;font-family:'Geist Mono',monospace;color:var(--text3);">FR</span>
+          <span id="sidebarLangLabel" style="margin-left:auto;font-size:11px;font-weight:600;font-family:var(--font-mono);color:var(--text3);">FR</span>
         </div>
         <div class="sidebar-item" onclick="toggleTheme(); closeSidebar();">
           <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span>
           <span data-i18n="nav_theme">Theme</span>
-          <span id="sidebarThemeLabel" style="margin-left:auto;font-size:11px;font-family:'Geist Mono',monospace;color:var(--text3);">Dark</span>
+          <span id="sidebarThemeLabel" style="margin-left:auto;font-size:11px;font-family:var(--font-mono);color:var(--text3);">Dark</span>
         </div>
         <div class="sidebar-item" onclick="toggleSkinPickerSidebar();">
           <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
@@ -1214,6 +1295,10 @@
         <a href="#" onclick="deleteAllUserData(); return false;" style="color: var(--danger); text-decoration: underline;" data-i18n="nav_delete_data">Delete data</a>
         <div style="margin-top: 6px;">
           <a href="#" onclick="handleLogout(); return false;" class="mobile-logout-link" style="display: none; color: var(--text3); text-decoration: underline;" data-i18n="logout_btn">Logout</a>
+        </div>
+        <div style="margin-top: 6px;">
+          <a href="#" onclick="showVersionInfo(); return false;" class="mono" id="sidebarVersionLink"
+             style="font-size: 10px; color: var(--accent); text-decoration: none;">v—</a>
         </div>
         <div class="mono" style="margin-top: 6px; font-size: 9px; opacity: 0.5;" data-i18n="nav_powered">YouTube Data API v3</div>
       </div>
@@ -1259,6 +1344,10 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/><polyline points="7 3 3 6 7 9"/><polyline points="17 15 21 18 17 21"/></svg>
             <span data-i18n="detail_reorder">Réorganiser</span>
           </button>
+          <button id="musicModeBtn" class="btn btn-secondary btn-sm" onclick="toggleMusicMode()" style="display:flex;align-items:center;gap:4px;" title="Afficher uniquement la musique (topics + catégorie)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            <span>Mode Musique</span>
+          </button>
           <a id="playlistDetailYTLink" href="#" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" data-i18n-title="detail_view_youtube" title="Ouvrir sur YouTube">▶ YouTube</a>
         </div>
         <div id="playlistDetailStats" style="margin-bottom: 16px; font-size: 13px; color: var(--text2);"></div>
@@ -1276,6 +1365,10 @@
               <option value="short" data-i18n="detail_duration_short">Court (&lt; 4 min)</option>
               <option value="medium" data-i18n="detail_duration_medium">Moyen (4-20 min)</option>
               <option value="long" data-i18n="detail_duration_long">Long (&gt; 20 min)</option>
+              <option value="30_60" data-i18n="search_dur_30_60">Entre 30 et 60 min</option>
+              <option value="gte_1h" data-i18n="search_dur_1h">1 heure et plus</option>
+              <option value="gte_2h" data-i18n="search_dur_2h">2 heures et plus</option>
+              <option value="gt_3h" data-i18n="search_dur_3h">Plus de 3 h</option>
             </select>
           </div>
           <div>
@@ -1288,6 +1381,21 @@
             </select>
           </div>
           <div>
+            <label style="font-size: 12px; color: var(--text2); display: block; margin-bottom: 4px;" data-i18n="detail_type">Type de contenu</label>
+            <select class="form-control" id="filterType" style="padding: 6px 10px; font-size: 13px;" onchange="onFilterTypeChange()">
+              <option value="all" data-i18n="detail_type_all">Tous les types</option>
+              <option value="music" data-i18n="detail_type_music">Musique seulement</option>
+              <option value="nonmusic" data-i18n="detail_type_nonmusic">Exclure musique</option>
+              <option value="notuto" data-i18n="detail_type_notuto">Exclure tutos/démos</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 12px; color: var(--text2); display: block; margin-bottom: 4px;" data-i18n="detail_category">Catégorie</label>
+            <select class="form-control" id="filterCategory" style="padding: 6px 10px; font-size: 13px;" onchange="onCategoryFilterChange()">
+              <option value="all" data-i18n="detail_all_categories">Toutes catégories</option>
+            </select>
+          </div>
+          <div>
             <label style="font-size: 12px; color: var(--text2); display: block; margin-bottom: 4px;" data-i18n="detail_sort">Tri</label>
             <select class="form-control" id="filterSort" style="padding: 6px 10px; font-size: 13px;" onchange="applyVideoFilters()">
               <option value="position" data-i18n="detail_sort_position">Position (défaut)</option>
@@ -1297,6 +1405,7 @@
               <option value="date_oldest" data-i18n="detail_sort_date_old">Ajout ancien</option>
               <option value="duration_asc" data-i18n="detail_sort_dur_asc">Durée croissante</option>
               <option value="duration_desc" data-i18n="detail_sort_dur_desc">Durée décroissante</option>
+              <option value="category" data-i18n="detail_sort_category">Catégorie</option>
             </select>
           </div>
           <div style="align-self: flex-end;">
@@ -1321,6 +1430,48 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
             <span data-i18n="btn_load_thumbnails">Load thumbnails</span>
           </button>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin:14px 0;padding:12px;background:var(--surface2);border-radius:var(--radius);">
+          <div><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="detail_duration">Durée</label>
+            <select class="form-control" id="gsDuration" style="padding:6px 10px;font-size:13px;" onchange="performGlobalSearch()">
+              <option value="all" data-i18n="detail_duration_all">Toutes</option>
+              <option value="short" data-i18n="detail_duration_short">Court (&lt; 4 min)</option>
+              <option value="medium" data-i18n="detail_duration_medium">Moyen (4-20 min)</option>
+              <option value="long" data-i18n="detail_duration_long">Long (&gt; 20 min)</option>
+              <option value="30_60" data-i18n="search_dur_30_60">Entre 30 et 60 min</option>
+              <option value="gte_1h" data-i18n="search_dur_1h">1 heure et plus</option>
+              <option value="gte_2h" data-i18n="search_dur_2h">2 heures et plus</option>
+              <option value="gt_3h" data-i18n="search_dur_3h">Plus de 3 h</option>
+            </select></div>
+          <div><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="detail_status">Statut</label>
+            <select class="form-control" id="gsStatus" style="padding:6px 10px;font-size:13px;" onchange="performGlobalSearch()">
+              <option value="all" data-i18n="detail_status_all">Tous</option>
+              <option value="available" data-i18n="detail_status_available">Disponible</option>
+              <option value="deleted" data-i18n="detail_status_deleted">Supprimée</option>
+              <option value="private" data-i18n="detail_status_private">Privée</option>
+            </select></div>
+          <div><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="detail_type">Type de contenu</label>
+            <select class="form-control" id="gsType" style="padding:6px 10px;font-size:13px;" onchange="onGlobalClassChange()">
+              <option value="all" data-i18n="detail_type_all">Tous les types</option>
+              <option value="music" data-i18n="detail_type_music">Musique seulement</option>
+              <option value="nonmusic" data-i18n="detail_type_nonmusic">Exclure musique</option>
+              <option value="notuto" data-i18n="detail_type_notuto">Exclure tutos/démos</option>
+            </select></div>
+          <div><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="detail_category">Catégorie</label>
+            <select class="form-control" id="gsCategory" style="padding:6px 10px;font-size:13px;" onchange="onGlobalClassChange()">
+              <option value="all" data-i18n="detail_all_categories">Toutes catégories</option>
+            </select></div>
+          <div><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="detail_sort">Tri</label>
+            <select class="form-control" id="gsSort" style="padding:6px 10px;font-size:13px;" onchange="performGlobalSearch()">
+              <option value="relevance" data-i18n="search_sort_relevance">Pertinence</option>
+              <option value="title_asc" data-i18n="detail_sort_title_asc">Titre A-Z</option>
+              <option value="title_desc" data-i18n="detail_sort_title_desc">Titre Z-A</option>
+              <option value="date_newest" data-i18n="detail_sort_date_new">Ajout récent</option>
+              <option value="date_oldest" data-i18n="detail_sort_date_old">Ajout ancien</option>
+              <option value="duration_asc" data-i18n="detail_sort_dur_asc">Durée croissante</option>
+              <option value="duration_desc" data-i18n="detail_sort_dur_desc">Durée décroissante</option>
+              <option value="category" data-i18n="detail_sort_category">Catégorie</option>
+            </select></div>
         </div>
         <div id="globalSearchResults"></div>
       </div>
@@ -1450,6 +1601,12 @@
               </button>
             </div>
           </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+            <label class="form-label" style="margin:0;font-size:12px;color:var(--text2);" data-i18n="move_select_by_category">Sélectionner par catégorie</label>
+            <select class="form-control" id="moveCategoryFilter" onchange="onMoveCategorySelect()" style="max-width:280px;padding:6px 10px;font-size:13px;">
+              <option value="">— Catégorie —</option>
+            </select>
+          </div>
           <div id="moveVideosList"></div>
         </div>
         <button class="btn btn-primary" onclick="performMove()">Deplacer</button>
@@ -1554,11 +1711,17 @@
                   </div>
                 </div>
               </div>
-              <button class="btn btn-primary mt-16" onclick="addToWatchQueue()" style="width: 100%;" data-i18n="watch_add_queue">Ajouter à la queue</button>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+                <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:2px;" data-i18n="detail_duration">Durée</label><select class="form-control" id="watchFilterDuration" onchange="applyWatchFilters()" style="padding:5px 8px;font-size:12px;"><option value="all" data-i18n="detail_duration_all">Toutes</option><option value="short" data-i18n="detail_duration_short">Court (&lt; 4 min)</option><option value="medium" data-i18n="detail_duration_medium">Moyen (4-20 min)</option><option value="long" data-i18n="detail_duration_long">Long (&gt; 20 min)</option><option value="30_60" data-i18n="search_dur_30_60">Entre 30 et 60 min</option><option value="gte_1h" data-i18n="search_dur_1h">1 heure et plus</option><option value="gte_2h" data-i18n="search_dur_2h">2 heures et plus</option><option value="gt_3h" data-i18n="search_dur_3h">Plus de 3 h</option></select></div>
+                <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:2px;" data-i18n="detail_status">Statut</label><select class="form-control" id="watchFilterStatus" onchange="applyWatchFilters()" style="padding:5px 8px;font-size:12px;"><option value="all" data-i18n="detail_status_all">Tous</option><option value="available" data-i18n="detail_status_available">Disponible</option><option value="deleted" data-i18n="detail_status_deleted">Supprimée</option><option value="private" data-i18n="detail_status_private">Privée</option></select></div>
+                <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:2px;" data-i18n="detail_type">Type</label><select class="form-control" id="watchFilterType" onchange="onWatchClassChange()" style="padding:5px 8px;font-size:12px;"><option value="all" data-i18n="detail_type_all">Tous les types</option><option value="music" data-i18n="detail_type_music">Musique seulement</option><option value="nonmusic" data-i18n="detail_type_nonmusic">Exclure musique</option><option value="notuto" data-i18n="detail_type_notuto">Exclure tutos/démos</option></select></div>
+                <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:2px;" data-i18n="detail_category">Catégorie</label><select class="form-control" id="watchFilterCategory" onchange="onWatchClassChange()" style="padding:5px 8px;font-size:12px;"><option value="all" data-i18n="detail_all_categories">Toutes catégories</option></select></div>
+              </div>
+              <button class="btn btn-primary mt-16" onclick="addToWatchQueue()" style="width: 100%;" data-i18n="watch_add_queue">Ajouter à la file d'attente</button>
             </div>
             <div id="watchVideoSelector" style="margin-top: 12px; max-height: 60vh; overflow-y: auto;"></div>
             <div id="watchBottomAddBtn" style="display:none;">
-              <button class="btn btn-primary mt-16" onclick="addToWatchQueue()" style="width: 100%;" data-i18n="watch_add_queue">Ajouter à la queue</button>
+              <button class="btn btn-primary mt-16" onclick="addToWatchQueue()" style="width: 100%;" data-i18n="watch_add_queue">Ajouter à la file d'attente</button>
             </div>
           </div>
           <!-- RIGHT: Queue + Player -->
@@ -1713,7 +1876,7 @@
           <h3 style="margin:0; font-size:14px;" data-i18n="cache_diag_title">Cache Diagnostic</h3>
           <button class="btn btn-sm btn-secondary" onclick="runCacheDiagnostic()" data-i18n="cache_diag_refresh">Refresh</button>
         </div>
-        <div id="cacheDiagContent" style="font-size:12px; color:var(--text2); font-family:'Geist Mono',monospace; line-height:1.8;"></div>
+        <div id="cacheDiagContent" style="font-size:12px; color:var(--text2); font-family:var(--font-mono); line-height:1.8;"></div>
       </div>
 
       <!-- BETA / FEATURE LAB VIEW -->
@@ -2277,6 +2440,17 @@ const I18N = {
     header_lang_toggle: 'Langue',
     header_theme_toggle: 'Thème',
     header_skin_toggle: 'Apparence',
+    theme_picker_title: 'Thème',
+    theme_default: 'Standard',
+    theme_bichrome: 'Bichrome',
+    theme_duochrome: 'Duochrome',
+    theme_trichrome: 'Trichrome',
+    theme_accents: 'Accent',
+    version_title: 'Version et journal des modifications',
+    version_current: 'en cours',
+    version_theme: 'Thème actif',
+    version_hint: 'Si la version affichée ici ne correspond pas à la dernière livrée, rechargez avec Ctrl+Maj+R — le service worker sert une copie en cache.',
+    version_studio: 'Ouvrir Reel Studio (UI alternative, lecture seule)',
     skin_picker_title: 'Couleur',
     skin_toggle_mode: 'Sombre / Clair',
     header_logged_in: 'Connecté',
@@ -2401,6 +2575,20 @@ const I18N = {
     detail_duration_medium: 'Moyen (4-20 min)',
     detail_duration_long: 'Long (> 20 min)',
     detail_status: 'Statut',
+    detail_type: 'Type de contenu',
+    detail_type_all: 'Tous les types',
+    detail_type_music: 'Musique seulement',
+    detail_type_nonmusic: 'Exclure musique',
+    detail_type_notuto: 'Exclure tutos/démos',
+    detail_category: 'Catégorie',
+    move_select_by_category: 'Sélectionner par catégorie',
+    detail_all_categories: 'Toutes catégories',
+    detail_sort_category: 'Catégorie',
+    search_sort_relevance: 'Pertinence',
+    search_dur_30_60: 'Entre 30 et 60 min',
+    search_dur_1h: '1 heure et plus',
+    search_dur_2h: '2 heures et plus',
+    search_dur_3h: 'Plus de 3 h',
     detail_status_all: 'Tous',
     detail_status_available: 'Disponible',
     detail_status_deleted: 'Supprimée',
@@ -2515,10 +2703,10 @@ const I18N = {
     watch_title: 'Watch Plan',
     watch_add_videos: 'Ajouter des vidéos',
     watch_select_playlist: 'Sélectionner une playlist...',
-    watch_add_queue: 'Ajouter à la queue',
+    watch_add_queue: 'Ajouter à la file d\'attente',
     watch_queue: "File d'attente",
     watch_total: 'Durée totale',
-    watch_clear: 'Vider la queue',
+    watch_clear: 'Vider la file d\'attente',
     watch_start: 'Lecture',
     watch_end: 'Fin de la playlist',
     watch_videos_label: 'VIDÉOS',
@@ -2643,8 +2831,8 @@ const I18N = {
     toast_tags_added: 'Tags ajoutés',
     toast_categorized: '{count} playlists catégorisées',
     toast_videos_added_queue: '{count} vidéo(s) ajoutée(s)',
-    toast_queue_cleared: 'Queue vidée',
-    toast_add_videos_first: 'Ajoutez des vidéos à la queue',
+    toast_queue_cleared: 'File d\'attente vidée',
+    toast_add_videos_first: 'Ajoutez des vidéos à la file d\'attente',
     toast_loading_subs: 'Chargement des abonnements...',
     toast_subs_loaded: '{count} abonnements chargés',
     toast_unsubscribing: 'Suppression en cours...',
@@ -2869,6 +3057,17 @@ const I18N = {
     header_lang_toggle: 'Language',
     header_theme_toggle: 'Theme',
     header_skin_toggle: 'Appearance',
+    theme_picker_title: 'Theme',
+    theme_default: 'Default',
+    theme_bichrome: 'Bichrome',
+    theme_duochrome: 'Duochrome',
+    theme_trichrome: 'Trichrome',
+    theme_accents: 'Accent',
+    version_title: 'Version & changelog',
+    version_current: 'current',
+    version_theme: 'Active theme',
+    version_hint: 'If the version shown here is not the latest shipped one, hard-reload with Ctrl+Shift+R — the service worker is serving a cached copy.',
+    version_studio: 'Open Reel Studio (alternative UI, read-only)',
     skin_picker_title: 'Color',
     skin_toggle_mode: 'Dark / Light',
     header_logged_in: 'Connected',
@@ -2993,6 +3192,20 @@ const I18N = {
     detail_duration_medium: 'Medium (4-20 min)',
     detail_duration_long: 'Long (> 20 min)',
     detail_status: 'Status',
+    detail_type: 'Content type',
+    detail_type_all: 'All types',
+    detail_type_music: 'Music only',
+    detail_type_nonmusic: 'Exclude music',
+    detail_type_notuto: 'Exclude tutorials/demos',
+    detail_category: 'Category',
+    move_select_by_category: 'Select by category',
+    detail_all_categories: 'All categories',
+    detail_sort_category: 'Category',
+    search_sort_relevance: 'Relevance',
+    search_dur_30_60: 'Between 30 and 60 min',
+    search_dur_1h: '1 hour or more',
+    search_dur_2h: '2 hours or more',
+    search_dur_3h: 'More than 3 h',
     detail_status_all: 'All',
     detail_status_available: 'Available',
     detail_status_deleted: 'Deleted',
@@ -3470,7 +3683,28 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.0.0'; // bump per release
+const APP_VERSION = '1.3.0'; // bump per release
+
+// Shipped increments, newest first. Surfaced by showVersionInfo() so the running
+// build is identifiable at a glance — a stale service worker is otherwise silent.
+const CHANGELOG = [
+  { v: '1.3.0', date: '2026-08-19', items: [
+    'Panneau Version — build en cours + journal des modifications, accessible depuis les deux pieds de page',
+    'Reel Studio v0.3.0 — UI alternative 3a : 8 vues navigables, panneau Palette (3A/3B/3C), lecteur interne à file (mini-barre + sheet)',
+  ]},
+  { v: '1.2.0', date: '2026-08-19', items: [
+    '#70 — thèmes Bichrome / Duochrome / Trichrome : noir verrouillé + 1, 2 ou 3 accents éditables',
+    '#70 — palette catégorielle dérivée des accents (rampe monochrome en Bichrome) + 12 présets',
+    '#70 — tuiles réactives au survol dans les thèmes Studio',
+  ]},
+  { v: '1.1.0', date: '2026-08-19', items: [
+    '#69 — moteur de thèmes nommés (typo, palette, rayons, mouvement appliqués en un appel)',
+    '#69 — thème Studio / Music, remplacé depuis par les trois thèmes de #70',
+  ]},
+  { v: '1.0.0', date: '2026-07-29', items: [
+    'CR1–CR5 — échappement XSS + CSP, file de lecture, cache obsolète, comptage quota, purge RGPD',
+  ]},
+];
 
 const LOG_CONFIG = {
   // info+ default (matches user choice for E3). Set to 'debug' to capture everything.
@@ -4262,9 +4496,10 @@ function init() {
   if (APP.theme === 'light') {
     document.body.classList.add('light-theme');
   }
-  // Restore saved skin
-  const savedSkin = localStorage.getItem('appSkin');
-  if (savedSkin && savedSkin !== 'coral') applySkin(savedSkin);
+  // Restore saved named theme (#69) — applies the token batch, then re-layers
+  // the saved accent skin on top of it.
+  applyTheme(currentTheme());
+  updateVersionLinks();
   // Restore OAuth scope preference
   currentScope = localStorage.getItem('oauthScope') || SCOPE_READONLY;
 
@@ -4673,7 +4908,7 @@ async function deleteAllUserData() {
 
   // Clear all localStorage keys used by this app
   const appKeys = [
-    'youtubeClientId', 'appTheme', 'appSkin', 'playlistTags', 'tagIcons', 'watchQueue',
+    'youtubeClientId', 'appTheme', 'appSkin', 'appNamedTheme', 'themeAccents', 'customAccent', 'playlistTags', 'tagIcons', 'watchQueue',
     'playlistFolders', 'folderAssignments', 'folderExpanded', 'deckColumns',
     'lastBackup', 'lastBackupTimestamp', 'autoCache', 'autoCacheTimestamp',
     'oauthScope', 'lastLoginTimestamp', 'recentSearches', 'userInfo'
@@ -4932,11 +5167,248 @@ function handleLogout() {
   location.reload();
 }
 
+function showVersionInfo() {
+  const rows = CHANGELOG.map((rel, i) => `
+    <div style="padding: 12px 0; border-top: 1px solid var(--border);">
+      <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px;">
+        <span class="mono" style="font-weight: 600; color: ${i === 0 ? 'var(--accent)' : 'var(--text2)'};">v${rel.v}</span>
+        <span class="mono" style="font-size: 11px; color: var(--text3);">${rel.date}</span>
+        ${i === 0 ? `<span style="font-size: 10px; background: var(--accent-soft); color: var(--accent); border-radius: var(--pill); padding: 2px 8px;">${t('version_current')}</span>` : ''}
+      </div>
+      ${rel.items.map(it => `<div style="font-size: 12px; color: var(--text2); line-height: 1.6;">· ${it}</div>`).join('')}
+    </div>`).join('');
+
+  openModal(`
+    <div class="modal-header"><h2>${t('version_title')}</h2></div>
+    <div class="modal-body">
+      <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+        <div>
+          <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--text3);">Reel Manager</div>
+          <div class="mono" style="font-size: 22px; font-weight: 600; color: var(--accent);">v${APP_VERSION}</div>
+        </div>
+        <div>
+          <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--text3);">${t('version_theme')}</div>
+          <div class="mono" style="font-size: 22px; font-weight: 600;">${(THEMES[currentTheme()] || {}).name || '—'}</div>
+        </div>
+      </div>
+      <p style="font-size: 12px; color: var(--text3); margin: 12px 0 2px;">${t('version_hint')}</p>
+      ${rows}
+      <div style="padding-top: 12px; border-top: 1px solid var(--border);">
+        <a href="reel-studio.html" style="color: var(--accent); font-size: 12px; text-decoration: none;">${t('version_studio')} →</a>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal({target: document.getElementById('modalOverlay')})">${t('modal_close')}</button>
+    </div>
+  `);
+}
+
+function updateVersionLinks() {
+  ['sidebarVersionLink', 'loginVersionLink'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = 'v' + APP_VERSION;
+  });
+}
+
 function toggleTheme() {
   APP.theme = APP.theme === 'dark' ? 'light' : 'dark';
   localStorage.setItem('appTheme', APP.theme);
   document.body.classList.toggle('light-theme');
   updateSidebarLabels();
+}
+
+// The black base is locked — only the accents below are user-editable.
+const STUDIO_BASE = {
+  '--font-body': "'Space Grotesk', system-ui, sans-serif",
+  '--font-display': "'Unbounded', system-ui, sans-serif",
+  '--font-features': 'normal',
+  '--r-sm': '8px', '--radius': '12px', '--r-lg': '16px', '--r-xl': '22px',
+  '--bg': '#07070b', '--surface': '#0a0a0f', '--surface2': '#15151c',
+  '--surface3': '#22222a', '--surface4': '#26262c',
+  '--border': '#2a2a33', '--border2': '#34343c',
+  '--ease': 'cubic-bezier(.2,.8,.2,1)', '--dur': '180ms',
+};
+
+// The 12 accents offered by the Tweaks panel of the UI explorations.
+const THEME_PRESETS = ['#ff2d55', '#ff6a00', '#ffb02e', '#f5e642', '#2fd07f', '#00e5c3',
+                       '#3fd0ff', '#4d7dff', '#a05bff', '#ff4dd8', '#ff8fa3', '#e8e8e8'];
+
+const THEMES = {
+  default: { id: 'default', i18n: 'theme_default', name: 'Default', preview: '#e8604c', accents: 0, vars: {} },
+  'studio-bi': {
+    id: 'studio-bi', i18n: 'theme_bichrome', name: 'Bichrome', preview: '#ff2d55',
+    accents: 1, defaults: ['#ff2d55'], vars: STUDIO_BASE,
+  },
+  'studio-duo': {
+    id: 'studio-duo', i18n: 'theme_duochrome', name: 'Duochrome', preview: '#3fd0ff',
+    accents: 2, defaults: ['#ff2d55', '#3fd0ff'], vars: STUDIO_BASE,
+  },
+  'studio-tri': {
+    id: 'studio-tri', i18n: 'theme_trichrome', name: 'Trichrome', preview: '#ffb02e',
+    accents: 3, defaults: ['#ff2d55', '#3fd0ff', '#ffb02e'], vars: STUDIO_BASE,
+  },
+};
+
+// ── Colour helpers ───────────────────────────────────────────────────────
+function hexToHsl(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  const int = m ? parseInt(m[1], 16) : 0xff2d55;
+  const r = ((int >> 16) & 255) / 255, g = ((int >> 8) & 255) / 255, b = (int & 255) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  let h = 0;
+  if (d) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  const l = (max + min) / 2;
+  const s = d ? d / (1 - Math.abs(2 * l - 1)) : 0;
+  return { h, s: s * 100, l: l * 100 };
+}
+
+function hsl(c, dL) {
+  const l = Math.max(8, Math.min(94, c.l + (dL || 0)));
+  return `hsl(${c.h.toFixed(1)} ${c.s.toFixed(1)}% ${l.toFixed(1)}%)`;
+}
+
+// Bichrome: one accent declined in intensities, per the "Bichrome" exploration.
+function accentRamp(hex) {
+  const c = hexToHsl(hex);
+  const steps = [16, 6, -4, -14, -24, -32];
+  return steps.map(d => hsl(c, d));
+}
+
+// The categorical palette each theme derives from its accents.
+function categoricalsFor(theme, accents) {
+  if (theme.accents === 1) return accentRamp(accents[0]);
+  const c = accents.map(hexToHsl);
+  if (theme.accents === 2) {
+    return [accents[0], accents[1], hsl(c[0], 14), hsl(c[1], 14), hsl(c[0], -18), hsl(c[1], -18)];
+  }
+  return [accents[0], accents[1], accents[2], hsl(c[0], 15), hsl(c[1], 15), hsl(c[2], 15)];
+}
+
+// ── Accent storage (per theme) ───────────────────────────────────────────
+function readAccentStore() {
+  try { return JSON.parse(localStorage.getItem('themeAccents') || '{}') || {}; } catch (_) { return {}; }
+}
+
+function accentsFor(themeId) {
+  const theme = THEMES[themeId];
+  if (!theme || !theme.accents) return [];
+  const saved = readAccentStore()[themeId];
+  const out = theme.defaults.slice();
+  if (Array.isArray(saved)) saved.slice(0, theme.accents).forEach((hex, i) => { if (hex) out[i] = hex; });
+  return out;
+}
+
+function setThemeAccent(slot, hex) {
+  const themeId = currentTheme();
+  const theme = THEMES[themeId];
+  if (!theme || !theme.accents) return;
+  const accents = accentsFor(themeId);
+  accents[slot] = hex;
+  const store = readAccentStore();
+  store[themeId] = accents;
+  localStorage.setItem('themeAccents', JSON.stringify(store));
+  applyAccents(theme, accents);
+  renderSkinPicker();
+  renderThemePicker('sidebarThemeRow');
+}
+
+let activeAccentSlot = 0;
+function selectAccentSlot(slot) {
+  activeAccentSlot = slot;
+  renderSkinPicker();
+  renderThemePicker('sidebarThemeRow');
+}
+
+function applyAccents(theme, accents) {
+  setAccentVars(accents[0]);
+  const root = document.documentElement;
+  categoricalsFor(theme, accents).forEach((col, i) => root.style.setProperty(`--c${i + 1}`, col));
+}
+
+// ── Named themes (#69, #70) ──────────────────────────────────────────────
+// A skin varies the accent only. A named theme swaps a batch of tokens
+// (type, palette, shape, motion) in one call — see Theme-Token-Spec.md.
+// Everything is written to documentElement, theme first then accents, so
+// body.light-theme keeps overriding surfaces in light mode.
+
+// Every property any theme can set — cleared before applying the next one.
+const THEME_VAR_KEYS = [...new Set(Object.values(THEMES).flatMap(t => Object.keys(t.vars)))];
+const MOTION_VAR_KEYS = ['--ease', '--dur'];
+
+function applyTheme(themeId) {
+  const theme = THEMES[themeId] || THEMES.default;
+  const root = document.documentElement;
+  THEME_VAR_KEYS.forEach(k => root.style.removeProperty(k));
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  Object.entries(theme.vars).forEach(([k, v]) => {
+    if (reduceMotion && MOTION_VAR_KEYS.includes(k)) return;
+    root.style.setProperty(k, v);
+  });
+  localStorage.setItem('appNamedTheme', theme.id);
+  root.dataset.theme = theme.id;
+  activeAccentSlot = 0;
+  // Re-apply the accent layer on top of the fresh token batch.
+  if (theme.accents) {
+    applyAccents(theme, accentsFor(theme.id));
+  } else {
+    const savedSkin = localStorage.getItem('appSkin');
+    if (savedSkin === 'custom') setAccentVars(localStorage.getItem('customAccent') || '#e8604c');
+    else setSkinVars(savedSkin || 'coral');
+  }
+  renderSkinPicker();
+  renderThemePicker('sidebarThemeRow');
+  renderAccentPicker('sidebarAccentRow', 'sidebarPresetRow');
+}
+
+function currentTheme() {
+  const saved = localStorage.getItem('appNamedTheme');
+  if (saved === 'studio') return 'studio-bi';  // #69 shipped one Studio theme; #70 split it in three
+  return THEMES[saved] ? saved : 'default';
+}
+
+// The accent slots + presets that replace the skin swatches while a Studio theme is on.
+function renderAccentPicker(containerId, presetContainerId) {
+  const row = document.getElementById(containerId);
+  const presets = document.getElementById(presetContainerId);
+  if (!row) return;
+  const theme = THEMES[currentTheme()];
+  if (!theme || !theme.accents) {
+    row.innerHTML = '';
+    if (presets) presets.innerHTML = '';
+    return;
+  }
+  const accents = accentsFor(theme.id);
+  row.innerHTML = accents.map((hex, i) => `
+    <input type="color" class="theme-accent-slot${i === activeAccentSlot ? ' active' : ''}"
+           value="${hex}" title="${t('theme_accents')} ${i + 1}"
+           onclick="selectAccentSlot(${i})"
+           oninput="setThemeAccent(${i}, this.value)">
+  `).join('');
+  if (presets) {
+    presets.innerHTML = THEME_PRESETS.map(hex => `
+      <div class="theme-preset" style="background:${hex};" title="${hex}"
+           onclick="setThemeAccent(activeAccentSlot, '${hex}')"></div>
+    `).join('');
+  }
+}
+
+function renderThemePicker(containerId) {
+  const row = document.getElementById(containerId);
+  if (!row) return;
+  const current = currentTheme();
+  row.innerHTML = Object.values(THEMES).map(theme => `
+    <div class="theme-chip${theme.id === current ? ' active' : ''}"
+         onclick="applyTheme('${theme.id}')">
+      <span class="theme-chip-dot" style="background:${theme.preview};"></span>
+      <span data-i18n="${theme.i18n}">${t(theme.i18n)}</span>
+    </div>
+  `).join('');
 }
 
 // ── Skin / Color Themes ──────────────────────────────────────────────────
@@ -4954,8 +5426,22 @@ const SKINS = [
 ];
 
 function applySkin(skinId) {
+  const theme = THEMES[currentTheme()];
+  if (theme && theme.accents) {
+    // Studio themes own the palette — route the swatch to the active accent slot.
+    const skin = SKINS.find(s => s.id === skinId);
+    if (skin) setThemeAccent(activeAccentSlot, skin.preview);
+    return;
+  }
+  if (!setSkinVars(skinId)) return;
+  localStorage.setItem('appSkin', skinId);
+  renderSkinPicker();
+}
+
+// Pure token setter — no persistence, so applyTheme() can re-layer the accent.
+function setSkinVars(skinId) {
   const skin = SKINS.find(s => s.id === skinId);
-  if (!skin) return;
+  if (!skin) return false;
   const root = document.documentElement;
   const h = skin.hue;
   const c = skin.chroma;
@@ -4969,8 +5455,28 @@ function applySkin(skinId) {
     const catHue = (h + i * 60) % 360;
     root.style.setProperty(`--c${i + 1}`, `oklch(0.72 0.13 ${catHue})`);
   }
-  localStorage.setItem('appSkin', skinId);
+  return true;
+}
+
+function applyCustomAccent(hex) {
+  const theme = THEMES[currentTheme()];
+  if (theme && theme.accents) { setThemeAccent(activeAccentSlot, hex); return; }
+  if (!setAccentVars(hex)) return;
+  localStorage.setItem('appSkin', 'custom');
+  localStorage.setItem('customAccent', hex);
   renderSkinPicker();
+}
+
+// Pure token setter — see setSkinVars().
+function setAccentVars(hex) {
+  if (!hex) return false;
+  const root = document.documentElement;
+  root.style.setProperty('--accent', hex);
+  root.style.setProperty('--accent-soft', `color-mix(in srgb, ${hex} 14%, transparent)`);
+  root.style.setProperty('--accent-line', `color-mix(in srgb, ${hex} 40%, transparent)`);
+  root.style.setProperty('--red', hex);
+  root.style.setProperty('--red-dark', `color-mix(in srgb, ${hex} 82%, black)`);
+  return true;
 }
 
 function toggleSkinPicker() {
@@ -4996,6 +5502,8 @@ function closeSkinPickerOutside(e) {
 
 function renderSkinPicker() {
   const current = localStorage.getItem('appSkin') || 'coral';
+  renderThemePicker('themePickerRow');
+  renderAccentPicker('themeAccentRow', 'themePresetRow');
   const grid = document.getElementById('skinPickerGrid');
   if (!grid) return;
   grid.innerHTML = SKINS.map(s => `
@@ -5007,6 +5515,17 @@ function renderSkinPicker() {
       <div class="skin-swatch-label">${s.name}</div>
     </div>
   `).join('');
+  const customHex = localStorage.getItem('customAccent') || '#e8604c';
+  const customActive = current === 'custom';
+  grid.innerHTML += `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+      <input type="color" id="customAccentInput" value="${customHex}"
+             onchange="applyCustomAccent(this.value)"
+             title="Custom"
+             style="width:24px;height:24px;padding:0;border:none;border-radius:50%;cursor:pointer;background:none;${customActive ? 'outline:2px solid var(--accent);outline-offset:2px;' : ''}">
+      <div class="skin-swatch-label">Custom</div>
+    </div>
+  `;
 }
 
 function toggleLanguage() {
@@ -5039,7 +5558,10 @@ function toggleSkinPickerSidebar() {
   if (!grid) return;
   if (grid.style.display === 'none') {
     const current = localStorage.getItem('appSkin') || 'coral';
-    grid.innerHTML = SKINS.map(s => `
+    grid.innerHTML = '<div class="theme-picker-row" id="sidebarThemeRow"></div>'
+                   + '<div class="theme-accent-row" id="sidebarAccentRow"></div>'
+                   + '<div class="theme-preset-row" id="sidebarPresetRow"></div>';
+    grid.innerHTML += SKINS.map(s => `
       <div style="display:inline-block;margin:3px;">
         <div class="skin-swatch${s.id === current ? ' active' : ''}"
              style="background:${s.preview};"
@@ -5047,6 +5569,18 @@ function toggleSkinPickerSidebar() {
              title="${s.name}"></div>
       </div>
     `).join('');
+    const customHex = localStorage.getItem('customAccent') || '#e8604c';
+    const customActive = current === 'custom';
+    grid.innerHTML += `
+      <div style="display:inline-block;margin:3px;">
+        <input type="color" id="customAccentInputSidebar" value="${customHex}"
+               onchange="applyCustomAccent(this.value); updateSidebarLabels();"
+               title="Custom"
+               style="width:24px;height:24px;padding:0;border:none;border-radius:50%;cursor:pointer;vertical-align:middle;background:none;${customActive ? 'outline:2px solid var(--accent);outline-offset:2px;' : ''}">
+      </div>
+    `;
+    renderThemePicker('sidebarThemeRow');
+    renderAccentPicker('sidebarAccentRow', 'sidebarPresetRow');
     grid.style.display = 'block';
   } else {
     grid.style.display = 'none';
@@ -5613,9 +6147,9 @@ async function getVideoDetails(videoIds) {
       // thumbnails, channelTitle, and (rarely) categoryId. Statistics is fetched
       // by Discover separately, not from this cache.
       const data = await ytApi('videos', {
-        part: 'contentDetails,statistics,snippet',
+        part: 'contentDetails,snippet,topicDetails',
         id: batch.join(','),
-        fields: 'items(id,contentDetails(duration),snippet(title,channelTitle,thumbnails(medium(url),high(url),default(url)),categoryId))',
+        fields: 'items(id,contentDetails(duration),snippet(title,channelTitle,thumbnails(medium(url),high(url),default(url)),categoryId),topicDetails(topicCategories))',
       });
       data.items?.forEach(item => {
         details[item.id] = item;
@@ -5801,7 +6335,7 @@ function generateDashboardCharts() {
     <circle cx="${donutSize/2}" cy="${donutSize/2}" r="${r}" fill="none" stroke="var(--surface3)" stroke-width="14"/>
     ${donutSegments}
     <text x="${donutSize/2}" y="${donutSize/2 - 4}" text-anchor="middle" fill="var(--text)" font-size="22" font-weight="600" letter-spacing="-0.02em">${plCount}</text>
-    <text x="${donutSize/2}" y="${donutSize/2 + 12}" text-anchor="middle" fill="var(--text3)" font-size="9" font-family="Geist Mono, monospace" letter-spacing="0.08em">PLAYLISTS</text>
+    <text x="${donutSize/2}" y="${donutSize/2 + 12}" text-anchor="middle" fill="var(--text3)" font-size="9" font-family="var(--font-mono)" letter-spacing="0.08em">PLAYLISTS</text>
   </svg>`;
 
   // Legend — show top 8 playlists, then "X others"
@@ -6997,6 +7531,7 @@ async function openPlaylistDetail(playlistId) {
       addedAt: v.snippet?.publishedAt || '',
       position: v.snippet?.position ?? idx,
       status: isDeleted ? 'deleted' : isPrivate ? 'private' : 'available',
+      categoryId: (detail && detail.snippet ? detail.snippet.categoryId : undefined) || undefined,
     };
   });
 
@@ -7028,11 +7563,143 @@ function formatDuration(seconds) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+// YouTube video categories (IDs are global/stable; labels localized). Source: videoCategories.list FR+EN.
+const VIDEO_CATEGORIES = { "1":{fr:"Films et animations",en:"Film & Animation",a:1}, "2":{fr:"Auto/Moto",en:"Autos & Vehicles",a:1}, "10":{fr:"Musique",en:"Music",a:1}, "15":{fr:"Animaux",en:"Pets & Animals",a:1}, "17":{fr:"Sport",en:"Sports",a:1}, "18":{fr:"Courts métrages",en:"Short Movies",a:0}, "19":{fr:"Voyages et événements",en:"Travel & Events",a:1}, "20":{fr:"Jeux vidéo",en:"Gaming",a:1}, "21":{fr:"Blogs vidéo",en:"Videoblogging",a:0}, "22":{fr:"People et blogs",en:"People & Blogs",a:1}, "23":{fr:"Humour",en:"Comedy",a:1}, "24":{fr:"Divertissement",en:"Entertainment",a:1}, "25":{fr:"Actualités et politique",en:"News & Politics",a:1}, "26":{fr:"Vie pratique et style",en:"Howto & Style",a:1}, "27":{fr:"Éducation",en:"Education",a:1}, "28":{fr:"Science et technologie",en:"Science & Technology",a:1}, "29":{fr:"Associations et bénévolat",en:"Nonprofits & Activism",a:1}, "30":{fr:"Films",en:"Movies",a:0}, "31":{fr:"Dessins animés/films d'animation",en:"Anime/Animation",a:0}, "32":{fr:"Action/aventure",en:"Action/Adventure",a:0}, "33":{fr:"Classique",en:"Classics",a:0}, "34":{fr:"Humour",en:"Comedy",a:0}, "35":{fr:"Documentaire",en:"Documentary",a:0}, "36":{fr:"Drame",en:"Drama",a:0}, "37":{fr:"Famille",en:"Family",a:0}, "38":{fr:"Étranger",en:"Foreign",a:0}, "39":{fr:"Horreur",en:"Horror",a:0}, "40":{fr:"Science-fiction/fantastique",en:"Sci-Fi/Fantasy",a:0}, "41":{fr:"Thriller",en:"Thriller",a:0}, "42":{fr:"Court métrage",en:"Shorts",a:0}, "43":{fr:"Émissions",en:"Shows",a:0}, "44":{fr:"Bandes-annonces",en:"Trailers",a:0} };
+function assignableCategoryOptionsHTML() {
+  let h = '';
+  for (const cid of Object.keys(VIDEO_CATEGORIES)) { if (VIDEO_CATEGORIES[cid].a) h += '<option value="' + cid + '">' + escapeHtml(getCategoryName(cid)) + '</option>'; }
+  return h;
+}
+function getCategoryName(id, lang) {
+  if (id === undefined || id === null || id === '') return '';
+  const c = VIDEO_CATEGORIES[String(id)];
+  const l = lang || ((typeof currentLang !== 'undefined' && currentLang) || 'fr');
+  if (!c) return '#' + id;
+  return c[l] || c.fr || c.en || ('#' + id);
+}
+function isCategoryAssignable(id) { const c = VIDEO_CATEGORIES[String(id)]; return c ? !!c.a : false; }
+
+const GENRE_LABELS = { 'Electronic_music':'Électronique / EDM', 'Hip_hop_music':'Hip-hop / Rap', 'Pop_music':'Pop', 'Rock_music':'Rock', 'Rhythm_and_blues':'R&B', 'Soul_music':'Soul', 'Classical_music':'Classique', 'Country_music':'Country', 'Christian_music':'Gospel / Chrétienne', 'Independent_music':'Indé', 'Music_of_Latin_America':'Latino', 'Music_of_Asia':'Asie', 'Jazz':'Jazz', 'Reggae':'Reggae', 'Blues':'Blues' };
+
+async function ensureClassificationData(videos) {
+  try {
+    if (!Array.isArray(videos) || !videos.length) return 0;
+    const ids = videos.map(v => v.videoId).filter(Boolean);
+    const need = ids.filter(id => {
+      const d = videoDetailsCache[id];
+      const hasCat = d && d.snippet && d.snippet.categoryId !== undefined && d.snippet.categoryId !== null;
+      const hasTop = d && d.topicDetails && Array.isArray(d.topicDetails.topicCategories);
+      return !hasCat && !hasTop;
+    });
+    if (need.length) {
+      const details = await getVideoDetails(need);
+      Object.assign(videoDetailsCache, details);
+    }
+    for (const v of videos) {
+      const d = videoDetailsCache[v.videoId];
+      if (d) {
+        if (d.snippet && d.snippet.categoryId !== undefined) v.categoryId = d.snippet.categoryId;
+        if (d.topicDetails && d.topicDetails.topicCategories) v.topicCategories = d.topicDetails.topicCategories;
+      }
+    }
+    try { refreshCategoryFilterOptions(); } catch (e) {}
+    return need.length;
+  } catch (e) { console.warn('ensureClassificationData', e); return 0; }
+}
+
+function classifyVideoType(v) {
+  try {
+    v = v || {};
+    const title = (v.title || '').toLowerCase();
+    const channel = (v.channelTitle || '').toLowerCase();
+    let categoryId = v.categoryId;
+    if (categoryId === undefined || categoryId === null) {
+      try {
+        const cache = (typeof videoDetailsCache !== 'undefined') ? videoDetailsCache : (typeof window !== 'undefined' ? window.videoDetailsCache : undefined);
+        if (v.videoId && cache && cache[v.videoId]) {
+          categoryId = cache[v.videoId] && cache[v.videoId].snippet ? cache[v.videoId].snippet.categoryId : undefined;
+        }
+      } catch (e) { /* ignore */ }
+    }
+    let topics = v.topicCategories;
+    if (!topics) { try { const _c = (typeof videoDetailsCache !== 'undefined') ? videoDetailsCache : undefined; if (v.videoId && _c && _c[v.videoId] && _c[v.videoId].topicDetails) topics = _c[v.videoId].topicDetails.topicCategories; } catch (e) {} }
+    topics = Array.isArray(topics) ? topics : [];
+    const topicSegs = topics.map(u => String(u).split('/').pop());
+    const topicIsMusic = topicSegs.some(s => /music/i.test(s) || /^(Jazz|Reggae|Blues|Soul|Country)$/i.test(s));
+    const excludeRe = /\b(tuto|tutorial|tutoriel|how ?to|howto|review|test|unboxing|reaction|r\u00e9action|vlog|explained|explication|cours|lesson|guide|setup|walkthrough|gameplay|podcast|interview|demo|d\u00e9mo|preview|astuce|tips|mixing|mastering|course|beginner|workflow)\b/;
+    const includeRe = /\b(official (video|music video|audio)|clip officiel|lyric[s]? video|concert|full album|album complet|mix|dj ?set|remix|audio|feat\.?|ft\.?|prod\.?|cover|acoustic|bande originale|ost|soundtrack)\b/;
+    const liveRe = /\blive\s*(at|@|in|from|au|aux|à)\b|\(live\)|\[live\]|\blive (session|set|concert|show|performance)\b|\bboiler room\b|\bunplugged\b|\btiny desk\b/;
+    const excludeMatched = excludeRe.test(title);
+    const includeMatched = includeRe.test(title) || liveRe.test(title);
+    let isMusic = topicIsMusic || (String(categoryId) === '10') || includeMatched;
+    if (excludeMatched) isMusic = false;
+    let type;
+    if (isMusic && (liveRe.test(title) || /\bconcert\b/.test(title))) type = 'live';
+    else if (isMusic) type = 'music';
+    else if (excludeMatched) type = 'tutorial';
+    else type = 'other';
+    let genre = null;
+    if (isMusic) {
+      const gseg = topicSegs.find(s => /music/i.test(s) && !/^Music$/i.test(s)) || topicSegs.find(s => /^(Jazz|Reggae|Blues)$/i.test(s));
+      if (gseg) genre = (GENRE_LABELS[gseg] || gseg.replace(/_/g,' '));
+    }
+    return { isMusic: isMusic, type: type, genre: genre };
+  } catch (e) {
+    return { isMusic: false, type: 'other' };
+  }
+}
+
+async function onCategoryFilterChange() {
+  const sel = document.getElementById('filterCategory');
+  const val = sel ? sel.value : 'all';
+  if (val !== 'all' && Array.isArray(currentDetailVideos) && currentDetailVideos.length) {
+    const need = currentDetailVideos.some(x => (x.categoryId === undefined || x.categoryId === null) && !x.topicCategories);
+    if (need) {
+      if (sel) sel.disabled = true;
+      try { showToast('Analyse des catégories…', 'info'); } catch (e) {}
+      await ensureClassificationData(currentDetailVideos);
+      refreshCategoryFilterOptions();
+      if (sel) sel.disabled = false;
+    }
+  }
+  applyVideoFilters();
+}
+function refreshCategoryFilterOptions() {
+  const sel = document.getElementById('filterCategory');
+  if (!sel || !Array.isArray(currentDetailVideos)) return;
+  const counts = {};
+  for (const v of currentDetailVideos) { if (v.categoryId !== undefined && v.categoryId !== null && v.categoryId !== '') { const k = String(v.categoryId); counts[k] = (counts[k] || 0) + 1; } }
+  const ids = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  const cur = sel.value;
+  let html = '<option value="all">' + (typeof t === 'function' ? t('detail_all_categories') : 'Toutes catégories') + '</option>';
+  if (ids.length) { for (const id of ids) { html += '<option value="' + id + '">' + escapeHtml(getCategoryName(id)) + ' (' + counts[id] + ')</option>'; } }
+  else { html += assignableCategoryOptionsHTML(); }
+  sel.innerHTML = html;
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+
+async function onFilterTypeChange() {
+  const sel = document.getElementById('filterType');
+  const val = sel ? sel.value : 'all';
+  if (val !== 'all' && Array.isArray(currentDetailVideos) && currentDetailVideos.length) {
+    const need = currentDetailVideos.some(x => (x.categoryId === undefined || x.categoryId === null) && !x.topicCategories);
+    if (need) {
+      if (sel) sel.disabled = true;
+      try { showToast('Analyse du contenu… (topics)', 'info'); } catch (e) {}
+      const n = await ensureClassificationData(currentDetailVideos);
+      try { showToast('Contenu analysé : ' + n + ' vidéos enrichies', 'success'); } catch (e) {}
+      if (sel) sel.disabled = false;
+    }
+  }
+  applyVideoFilters();
+}
+
 function applyVideoFilters() {
   const search = (document.getElementById('filterSearch').value || '').toLowerCase().trim();
   const duration = document.getElementById('filterDuration').value;
   const status = document.getElementById('filterStatus').value;
   const sort = document.getElementById('filterSort').value;
+  const type = document.getElementById('filterType') ? (document.getElementById('filterType').value || 'all') : 'all';
 
   let filtered = [...currentDetailVideos];
 
@@ -7051,11 +7718,34 @@ function applyVideoFilters() {
     filtered = filtered.filter(v => v.durationSeconds >= 240 && v.durationSeconds <= 1200);
   } else if (duration === 'long') {
     filtered = filtered.filter(v => v.durationSeconds > 1200);
+  } else if (duration === '30_60') {
+    filtered = filtered.filter(v => v.durationSeconds >= 1800 && v.durationSeconds < 3600);
+  } else if (duration === 'gte_1h') {
+    filtered = filtered.filter(v => v.durationSeconds >= 3600);
+  } else if (duration === 'gte_2h') {
+    filtered = filtered.filter(v => v.durationSeconds >= 7200);
+  } else if (duration === 'gt_3h') {
+    filtered = filtered.filter(v => v.durationSeconds > 10800);
   }
 
   // Status filter
   if (status !== 'all') {
     filtered = filtered.filter(v => v.status === status);
+  }
+
+  // Content type / music filter
+  if (type === 'music') {
+    filtered = filtered.filter(v => classifyVideoType(v).isMusic);
+  } else if (type === 'nonmusic') {
+    filtered = filtered.filter(v => !classifyVideoType(v).isMusic);
+  } else if (type === 'notuto') {
+    filtered = filtered.filter(v => classifyVideoType(v).type !== 'tutorial');
+  }
+
+  // Category filter
+  const cat = document.getElementById('filterCategory') ? (document.getElementById('filterCategory').value || 'all') : 'all';
+  if (cat !== 'all') {
+    filtered = filtered.filter(v => String(v.categoryId) === cat);
   }
 
   // Sorting
@@ -7066,6 +7756,7 @@ function applyVideoFilters() {
     case 'date_oldest': filtered.sort((a, b) => new Date(a.addedAt) - new Date(b.addedAt)); break;
     case 'duration_asc': filtered.sort((a, b) => a.durationSeconds - b.durationSeconds); break;
     case 'duration_desc': filtered.sort((a, b) => b.durationSeconds - a.durationSeconds); break;
+    case 'category': filtered.sort((a, b) => getCategoryName(a.categoryId).localeCompare(getCategoryName(b.categoryId))); break;
     default: filtered.sort((a, b) => a.position - b.position);
   }
 
@@ -7099,7 +7790,11 @@ function renderFilteredVideos(videos) {
     const safeChannel = (v.channelTitle || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
     const safeThumb = (v.thumbnail || '').replace(/'/g, "\\'");
     const playlistItemId = v.id || '';
+    let genreBadge = '';
+    try { const _cls = classifyVideoType(v); if (_cls.genre) genreBadge = `<span style="font-size:10px;color:var(--accent);border:1px solid var(--accent-line,rgba(255,45,85,.35));padding:0 6px;border-radius:999px;white-space:nowrap;">${escapeHtml(_cls.genre)}</span>`; } catch (e) {}
 
+    let catBadge = '';
+    try { if (v.categoryId) { const _cn = getCategoryName(v.categoryId); if (_cn) catBadge = `<span style="font-size:10px;color:var(--text2);border:1px solid var(--border,#333);padding:0 6px;border-radius:999px;white-space:nowrap;">${escapeHtml(_cn)}</span>`; } } catch (e) {}
     const clickPlay = isReorder ? '' : `onclick="playVideo('${v.videoId}','${safeTitle}','${safeChannel}','${safeThumb}')"`;
     const cardDrag = isReorder ? `draggable="true" ondragstart="onVideoDragStart(event)" ondragover="onVideoDragOver(event)" ondragleave="onVideoDragLeave(event)" ondrop="onVideoDrop(event)" data-item-id="${playlistItemId}" data-video-id="${v.videoId}" data-position="${v.position}"` : '';
 
@@ -7116,7 +7811,7 @@ function renderFilteredVideos(videos) {
           <div class="video-meta">${escapeHtml(v.channelTitle)} <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-size:10px;">YT&nearr;</a></div>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
             <span style="font-size: 11px; color: var(--text2);">${dateStr}</span>
-            ${statusBadge}
+            <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${catBadge}${genreBadge}${statusBadge}</span>
           </div>
         </div>
         <div class="reorder-pos">#${v.position + 1}</div>
@@ -7127,12 +7822,36 @@ function renderFilteredVideos(videos) {
   document.getElementById('playlistDetailVideos').innerHTML = html;
 }
 
+let musicMode = false;
+try { musicMode = (typeof localStorage !== 'undefined' && localStorage.getItem('reelMusicMode') === '1'); } catch (e) {}
+function updateMusicModeBtn() {
+  const b = document.getElementById('musicModeBtn'); if (!b) return;
+  b.classList.toggle('btn-primary', musicMode);
+  b.classList.toggle('btn-secondary', !musicMode);
+  b.setAttribute('aria-pressed', musicMode ? 'true' : 'false');
+}
+function toggleMusicMode() {
+  musicMode = !musicMode;
+  try { localStorage.setItem('reelMusicMode', musicMode ? '1' : '0'); } catch (e) {}
+  updateMusicModeBtn();
+  const ft = document.getElementById('filterType');
+  if (ft) ft.value = musicMode ? 'music' : 'all';
+  if (musicMode) { try { showToast('Mode Musique activé', 'success'); } catch (e) {} onFilterTypeChange(); }
+  else { try { showToast('Mode Musique désactivé', 'info'); } catch (e) {} applyVideoFilters(); }
+}
+
 function resetVideoFilters() {
   document.getElementById('filterSearch').value = '';
   document.getElementById('filterDuration').value = 'all';
   document.getElementById('filterStatus').value = 'all';
   document.getElementById('filterSort').value = 'position';
-  applyVideoFilters();
+  const ft = document.getElementById('filterType');
+  if (ft) ft.value = musicMode ? 'music' : 'all';
+  const fc = document.getElementById('filterCategory');
+  if (fc) fc.value = 'all';
+  try { refreshCategoryFilterOptions(); } catch (e) {}
+  updateMusicModeBtn();
+  if (musicMode) { onFilterTypeChange(); } else { applyVideoFilters(); }
 }
 
 // ============================================================================
@@ -7254,6 +7973,7 @@ async function onVideoDrop(e) {
         addedAt: v.snippet?.publishedAt || '',
         position: v.snippet?.position ?? idx,
         status: isDeleted ? 'deleted' : isPrivate ? 'private' : 'available',
+        categoryId: (detail && detail.snippet ? detail.snippet.categoryId : undefined) || undefined,
       };
     });
 
@@ -7486,6 +8206,58 @@ async function deletePlaylist(playlistId) {
 
 let lastSearchVideoIds = []; // Track video IDs from last search for thumbnail loading
 
+function gsVideoId(v) { return (v.contentDetails && v.contentDetails.videoId) || (v.snippet && v.snippet.resourceId && v.snippet.resourceId.videoId) || ''; }
+function gsClassifyObj(v) { const id = gsVideoId(v); const d = videoDetailsCache[id]; return { videoId: id, title: (v.snippet && v.snippet.title) || '', channelTitle: (v.snippet && (v.snippet.videoOwnerChannelTitle || v.snippet.channelTitle)) || '', categoryId: d && d.snippet ? d.snippet.categoryId : undefined, topicCategories: d && d.topicDetails ? d.topicDetails.topicCategories : undefined }; }
+function gsPasses(v, dur, stat, type, cat) {
+  const id = gsVideoId(v); const d = videoDetailsCache[id];
+  const title = (v.snippet && v.snippet.title) || '';
+  const status = title.includes('Deleted video') ? 'deleted' : title.includes('Private video') ? 'private' : 'available';
+  if (stat !== 'all' && status !== stat) return false;
+  if (dur !== 'all') { const sec = parseDuration(d && d.contentDetails ? d.contentDetails.duration : ''); if (!sec) return false; if (dur === 'short' && !(sec < 240)) return false; if (dur === 'medium' && !(sec >= 240 && sec <= 1200)) return false; if (dur === 'long' && !(sec > 1200)) return false; if (dur === '30_60' && !(sec >= 1800 && sec < 3600)) return false; if (dur === 'gte_1h' && !(sec >= 3600)) return false; if (dur === 'gte_2h' && !(sec >= 7200)) return false; if (dur === 'gt_3h' && !(sec > 10800)) return false; }
+  if (type !== 'all') { const c = classifyVideoType(gsClassifyObj(v)); if (type === 'music' && !c.isMusic) return false; if (type === 'nonmusic' && c.isMusic) return false; if (type === 'notuto' && c.type === 'tutorial') return false; }
+  if (cat !== 'all') { const catId = d && d.snippet ? d.snippet.categoryId : undefined; if (String(catId) !== cat) return false; }
+  return true;
+}
+function gsSortMatches(arr, mode) {
+  const a = [...arr];
+  const dur = v => parseDuration((videoDetailsCache[gsVideoId(v)] || {}).contentDetails ? videoDetailsCache[gsVideoId(v)].contentDetails.duration : '');
+  const ttl = v => (v.snippet && v.snippet.title) || '';
+  const dt = v => new Date((v.snippet && v.snippet.publishedAt) || 0);
+  switch (mode) {
+    case 'title_asc': a.sort((x, y) => ttl(x).localeCompare(ttl(y))); break;
+    case 'title_desc': a.sort((x, y) => ttl(y).localeCompare(ttl(x))); break;
+    case 'date_newest': a.sort((x, y) => dt(y) - dt(x)); break;
+    case 'date_oldest': a.sort((x, y) => dt(x) - dt(y)); break;
+    case 'duration_asc': a.sort((x, y) => dur(x) - dur(y)); break;
+    case 'duration_desc': a.sort((x, y) => dur(y) - dur(x)); break;
+    case 'category': a.sort((x, y) => getCategoryName((videoDetailsCache[gsVideoId(x)] || {}).snippet ? videoDetailsCache[gsVideoId(x)].snippet.categoryId : '').localeCompare(getCategoryName((videoDetailsCache[gsVideoId(y)] || {}).snippet ? videoDetailsCache[gsVideoId(y)].snippet.categoryId : ''))); break;
+    default: break;
+  }
+  return a;
+}
+function gsRefreshCategoryOptions() {
+  const sel = document.getElementById('gsCategory'); if (!sel) return;
+  const query = (document.getElementById('globalSearchInput') && document.getElementById('globalSearchInput').value.toLowerCase().trim()) || '';
+  const counts = {};
+  if (query) { for (const [pid, videos] of Object.entries(APP.allVideos)) { for (const v of videos) { if (((v.snippet && v.snippet.title) || '').toLowerCase().includes(query)) { const d = videoDetailsCache[gsVideoId(v)]; const c = d && d.snippet ? d.snippet.categoryId : undefined; if (c != null) counts[String(c)] = (counts[String(c)] || 0) + 1; } } } }
+  const ids = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  const cur = sel.value; const lbl = (typeof t === 'function' ? t('detail_all_categories') : 'Toutes catégories');
+  let html = '<option value="all">' + lbl + '</option>';
+  if (ids.length) { for (const id of ids) html += '<option value="' + id + '">' + escapeHtml(getCategoryName(id)) + ' (' + counts[id] + ')</option>'; }
+  else { html += assignableCategoryOptionsHTML(); }
+  sel.innerHTML = html; if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+async function onGlobalClassChange() {
+  const query = (document.getElementById('globalSearchInput').value || '').toLowerCase().trim();
+  if (!query) { performGlobalSearch(); return; }
+  const ids = new Set();
+  for (const [pid, videos] of Object.entries(APP.allVideos)) { for (const v of videos) { if (((v.snippet && v.snippet.title) || '').toLowerCase().includes(query)) { const id = gsVideoId(v); if (id) ids.add(id); } } }
+  const need = [...ids].filter(id => { const d = videoDetailsCache[id]; const hasCat = d && d.snippet && d.snippet.categoryId != null; const hasTop = d && d.topicDetails; return !hasCat && !hasTop; });
+  if (need.length) { try { showToast('Analyse des résultats… (' + need.length + ')', 'info'); const det = await getVideoDetails(need); Object.assign(videoDetailsCache, det); } catch (e) { console.warn('onGlobalClassChange', e); } }
+  gsRefreshCategoryOptions();
+  performGlobalSearch();
+}
+
 async function performGlobalSearch() {
   const query = document.getElementById('globalSearchInput').value.toLowerCase().trim();
   const thumbBtn = document.getElementById('loadThumbsBtn');
@@ -7499,16 +8271,21 @@ async function performGlobalSearch() {
   // Update dropdown filter while typing
   showRecentSearches();
 
+  const gsDur = document.getElementById('gsDuration') ? document.getElementById('gsDuration').value : 'all';
+  const gsStat = document.getElementById('gsStatus') ? document.getElementById('gsStatus').value : 'all';
+  const gsType = document.getElementById('gsType') ? document.getElementById('gsType').value : 'all';
+  const gsCat = document.getElementById('gsCategory') ? document.getElementById('gsCategory').value : 'all';
+  const gsSort = document.getElementById('gsSort') ? document.getElementById('gsSort').value : 'relevance';
+
   const resultsByPlaylist = {};
 
   for (const [playlistId, videos] of Object.entries(APP.allVideos)) {
     const playlist = APP.playlists.find(p => p.id === playlistId);
     if (!playlist) continue;
 
-    const matches = videos.filter(v => {
-      const title = v.snippet?.title?.toLowerCase() || '';
-      return title.includes(query);
-    });
+    let matches = videos.filter(v => ((v.snippet && v.snippet.title) || '').toLowerCase().includes(query));
+    matches = matches.filter(v => gsPasses(v, gsDur, gsStat, gsType, gsCat));
+    matches = gsSortMatches(matches, gsSort);
 
     if (matches.length > 0) {
       resultsByPlaylist[playlistId] = { playlist, matches };
@@ -7557,6 +8334,7 @@ async function performGlobalSearch() {
   `).join('');
 
   document.getElementById('globalSearchResults').innerHTML = html;
+  try { gsRefreshCategoryOptions(); } catch (e) {}
 
   // Save successful search to recent list and hide dropdown
   saveRecentSearch(document.getElementById('globalSearchInput').value.trim());
@@ -7865,7 +8643,7 @@ function renderDiscoverResults(query) {
           ? `<img src="${v.thumbnail}" style="width:160px;aspect-ratio:16/9;object-fit:cover;border-radius:var(--r-sm);display:block;">`
           : `<div style="width:160px;aspect-ratio:16/9;background:var(--surface3);border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--text4);font-size:10px;">No thumb</div>`
         }
-        <div style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,0.8);color:#fff;font-size:10px;padding:1px 4px;border-radius:3px;font-family:'Geist Mono',monospace;">${v.duration}</div>
+        <div style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,0.8);color:#fff;font-size:10px;padding:1px 4px;border-radius:3px;font-family:var(--font-mono);">${v.duration}</div>
         <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;background:rgba(0,0,0,0.4);border-radius:var(--r-sm);"
           onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0'">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff" stroke="none"><path d="m6 3 14 9-14 9V3z"/></svg>
@@ -8168,6 +8946,8 @@ async function loadPlaylistVideosForMove() {
   }
 
   moveVideosCache = APP.allVideos[playlistId] || [];
+  const mcf = document.getElementById('moveCategoryFilter'); if (mcf) mcf.value = '';
+  try { populateMoveCategoryOptions(); } catch (e) {}
   const thumbBtn = document.getElementById('moveLoadThumbsBtn');
   if (thumbBtn) thumbBtn.style.display = moveViewMode === 'grid' && moveVideosCache.length ? 'inline-flex' : 'none';
   renderMoveVideos();
@@ -8215,6 +8995,48 @@ async function loadMoveThumbnails() {
   }
 
   if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg> ' + t('btn_load_thumbnails'); }
+}
+
+function moveVideoCategory(v) {
+  const id = v && (v.contentDetails && v.contentDetails.videoId || (v.snippet && v.snippet.resourceId && v.snippet.resourceId.videoId));
+  const d = id ? videoDetailsCache[id] : null;
+  return d && d.snippet ? d.snippet.categoryId : undefined;
+}
+async function ensureMoveCategories() {
+  if (!moveVideosCache.length) return 0;
+  const ids = moveVideosCache.map(v => (v.contentDetails && v.contentDetails.videoId) || (v.snippet && v.snippet.resourceId && v.snippet.resourceId.videoId)).filter(Boolean);
+  const need = ids.filter(id => { const d = videoDetailsCache[id]; const hasCat = d && d.snippet && d.snippet.categoryId != null; const hasTop = d && d.topicDetails; return !hasCat && !hasTop; });
+  if (need.length) { try { const det = await getVideoDetails(need); Object.assign(videoDetailsCache, det); } catch (e) { console.warn('ensureMoveCategories', e); } }
+  return need.length;
+}
+function populateMoveCategoryOptions() {
+  const sel = document.getElementById('moveCategoryFilter'); if (!sel) return;
+  const counts = {};
+  for (const v of moveVideosCache) { const c = moveVideoCategory(v); if (c != null) counts[String(c)] = (counts[String(c)] || 0) + 1; }
+  const ids = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  const cur = sel.value;
+  const lbl = (typeof t === 'function' ? t('detail_category') : 'Catégorie');
+  let html = '<option value="">— ' + lbl + ' —</option>';
+  if (ids.length) { for (const id of ids) html += '<option value="' + id + '">' + escapeHtml(getCategoryName(id)) + ' (' + counts[id] + ')</option>'; }
+  else { html += assignableCategoryOptionsHTML(); }
+  sel.innerHTML = html;
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+async function onMoveCategorySelect() {
+  const sel = document.getElementById('moveCategoryFilter'); const val = sel ? sel.value : '';
+  if (!val) return;
+  sel.disabled = true;
+  try { showToast('Analyse des catégories…', 'info'); } catch (e) {}
+  await ensureMoveCategories();
+  populateMoveCategoryOptions(); sel.value = val;
+  let n = 0;
+  document.querySelectorAll('#moveVideosList .move-video-select').forEach(cb => {
+    const v = moveVideosCache.find(x => ((x.contentDetails && x.contentDetails.videoId) || (x.snippet && x.snippet.resourceId && x.snippet.resourceId.videoId)) === cb.value);
+    const match = v && String(moveVideoCategory(v)) === val;
+    cb.checked = !!match; if (match) n++;
+  });
+  sel.disabled = false;
+  try { showToast(n + ' vidéo(s) sélectionnée(s) — ' + getCategoryName(val), 'success'); } catch (e) {}
 }
 
 async function performMove() {
@@ -9125,7 +9947,7 @@ function renderDeckFolderContent(folderId, colIdx) {
           <svg class="deck-folder-toggle ${!isExpanded ? 'collapsed' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
           <span>${child.icon || '📁'}</span>
           <span style="flex:1;">${child.name}</span>
-          <span style="font-size:10px; color:var(--text4); font-family:'Geist Mono',monospace;">${childVideoCount}</span>
+          <span style="font-size:10px; color:var(--text4); font-family:var(--font-mono);">${childVideoCount}</span>
         </div>
         <div class="deck-folder-children ${!isExpanded ? 'collapsed' : ''}">
           ${renderDeckFolderContent(child.id, colIdx)}
@@ -9145,7 +9967,7 @@ function renderDeckFolderContent(folderId, colIdx) {
         <div class="deck-playlist-header" onclick="toggleDeckPlaylistSection(${colIdx}, '${pl.id}')">
           <svg class="deck-folder-toggle ${!isExpanded ? 'collapsed' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
           <span style="flex:1;">${escapeHtml(pl.snippet.title)}</span>
-          <span style="font-size:10px; color:var(--text4); font-family:'Geist Mono',monospace;">${videos.length || pl.contentDetails?.itemCount || 0}</span>
+          <span style="font-size:10px; color:var(--text4); font-family:var(--font-mono);">${videos.length || pl.contentDetails?.itemCount || 0}</span>
         </div>
         <div class="deck-playlist-videos ${!isExpanded ? 'collapsed' : ''}">
           ${videos.length ? videos.map(v => renderDeckVideoItem(v)).join('') : `<div style="padding:8px 10px; font-size:11px; color:var(--text4);">${t('deck_no_videos')}</div>`}
@@ -9522,6 +10344,40 @@ function applyCategorization(suggestions) {
 
 let watchViewMode = 'thumb'; // 'list' or 'thumb'
 
+let watchCurrentVideos = [];
+function getWatchSourceVideos() { const pid = document.getElementById('watchPlaylistSelect').value; return (APP.allVideos[pid] || []); }
+function populateWatchCategoryOptions() {
+  const sel = document.getElementById('watchFilterCategory'); if (!sel) return;
+  const all = getWatchSourceVideos(); const counts = {};
+  for (const v of all) { const d = videoDetailsCache[gsVideoId(v)]; const c = d && d.snippet ? d.snippet.categoryId : undefined; if (c != null) counts[String(c)] = (counts[String(c)] || 0) + 1; }
+  const ids = Object.keys(counts).sort((a, b) => counts[b] - counts[a]); const cur = sel.value;
+  const lbl = (typeof t === 'function' ? t('detail_all_categories') : 'Toutes catégories');
+  let html = '<option value="all">' + lbl + '</option>';
+  if (ids.length) { for (const id of ids) html += '<option value="' + id + '">' + escapeHtml(getCategoryName(id)) + ' (' + counts[id] + ')</option>'; }
+  else { html += assignableCategoryOptionsHTML(); }
+  sel.innerHTML = html; if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+function applyWatchFilters() {
+  const dur = (document.getElementById('watchFilterDuration') || {}).value || 'all';
+  const stat = (document.getElementById('watchFilterStatus') || {}).value || 'all';
+  const type = (document.getElementById('watchFilterType') || {}).value || 'all';
+  const cat = (document.getElementById('watchFilterCategory') || {}).value || 'all';
+  const all = getWatchSourceVideos();
+  watchCurrentVideos = all.filter(v => gsPasses(v, dur, stat, type, cat));
+  const cnt = document.getElementById('watchVideoCount');
+  if (cnt) cnt.textContent = watchCurrentVideos.length + ' / ' + all.length + ' ' + (typeof t === 'function' ? t('watch_videos_label').toLowerCase() : 'vidéos');
+  const sa = document.getElementById('watchSelectAll'); if (sa) sa.checked = false;
+  renderWatchVideoSelector(watchCurrentVideos);
+}
+async function onWatchClassChange() {
+  const all = getWatchSourceVideos();
+  const ids = all.map(gsVideoId).filter(Boolean);
+  const miss = ids.filter(id => { const d = videoDetailsCache[id]; return !(d && d.snippet && d.snippet.categoryId != null) && !(d && d.topicDetails); });
+  if (miss.length) { try { showToast('Analyse du contenu… (' + miss.length + ')', 'info'); const det = await getVideoDetails(miss); Object.assign(videoDetailsCache, det); } catch (e) { console.warn('onWatchClassChange', e); } }
+  populateWatchCategoryOptions();
+  applyWatchFilters();
+}
+
 async function loadPlaylistVideosForWatch() {
   const playlistId = document.getElementById('watchPlaylistSelect').value;
   const controls = document.getElementById('watchSelectorControls');
@@ -9543,16 +10399,15 @@ async function loadPlaylistVideosForWatch() {
 
   controls.style.display = '';
   if (bottomBtn) bottomBtn.style.display = videos.length > 6 ? '' : 'none';
-  document.getElementById('watchVideoCount').textContent = `${videos.length} ${t('watch_videos_label').toLowerCase()}`;
+  ['watchFilterDuration','watchFilterStatus','watchFilterType'].forEach(id => { const el = document.getElementById(id); if (el) el.value = 'all'; });
+  const wfc = document.getElementById('watchFilterCategory'); if (wfc) wfc.value = 'all';
+  populateWatchCategoryOptions();
   document.getElementById('watchSelectAll').checked = false;
-  renderWatchVideoSelector(videos);
+  applyWatchFilters();
 }
 
 function renderWatchVideoSelector(videos) {
-  if (!videos) {
-    const playlistId = document.getElementById('watchPlaylistSelect').value;
-    videos = APP.allVideos[playlistId] || [];
-  }
+  if (!videos) { videos = watchCurrentVideos || []; }
   const container = document.getElementById('watchVideoSelector');
 
   if (watchViewMode === 'thumb') {
@@ -9570,7 +10425,7 @@ function renderWatchVideoSelector(videos) {
       return `<div class="watch-thumb-card" data-idx="${i}" onclick="toggleWatchThumbSelect(this)">
         <input type="checkbox" class="watch-thumb-check watch-video-select" value="${videoId}|${escapeHtml(title)}|${escapeHtml(channel)}|${thumb}" onclick="event.stopPropagation();" onchange="toggleWatchThumbSelect(this.closest('.watch-thumb-card'), this.checked)">
         ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : `<div style="width:100%;aspect-ratio:16/9;background:var(--surface3);"></div>`}
-        ${durStr ? `<div style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.8);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;font-family:'Geist Mono',monospace;pointer-events:none;">${durStr}</div>` : ''}
+        ${durStr ? `<div style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.8);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;font-family:var(--font-mono);pointer-events:none;">${durStr}</div>` : ''}
         <div class="watch-thumb-play" onclick="event.stopPropagation();playVideo('${videoId}','${escapedTitle}','${escapedChannel}','${escapedThumb}')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
         </div>
@@ -9816,7 +10671,7 @@ function renderSubscriptions() {
 
     return `
       <div class="sub-card">
-        <img src="${thumb}" class="sub-avatar" alt="${escapeHtml(sub.snippet?.title)}">
+        <img src="${thumb}" class="sub-avatar" alt="${escapeHtml(sub.snippet?.title)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22%3E%3Crect fill=%22%23303030%22 width=%2248%22 height=%2248%22/%3E%3C/svg%3E';">
         <div class="sub-info">
           <div class="sub-title">${escapeHtml(sub.snippet?.title)}</div>
           <div class="sub-desc">${desc}</div>
@@ -10842,7 +11697,7 @@ function drawPieChart(elementId, data) {
   labelText.setAttribute('x', cx); labelText.setAttribute('y', cy + 14);
   labelText.setAttribute('text-anchor', 'middle'); labelText.setAttribute('dominant-baseline', 'middle');
   labelText.setAttribute('font-size', '8'); labelText.setAttribute('fill', '#7a7d85');
-  labelText.setAttribute('font-family', 'Geist Mono, monospace'); labelText.setAttribute('letter-spacing', '0.08em');
+  labelText.setAttribute('font-family', 'var(--font-mono)'); labelText.setAttribute('letter-spacing', '0.08em');
   labelText.textContent = t('watch_videos_label');
   svg.appendChild(labelText);
 }

@@ -21,3 +21,7 @@ youtube-playlist-manager-v2-backup.html
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Timestamped safety copies (local only)
+*.BACKUP-*.html
+*.BACKUP-*.js

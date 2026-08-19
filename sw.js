@@ -3,7 +3,7 @@
 // Strategy: Cache-first for static assets, network-first for API calls
 // ============================================================================
 
-const CACHE_NAME = 'reel-manager-v1';
+const CACHE_NAME = 'reel-manager-v17';
 const STATIC_ASSETS = [
   'youtube-playlist-manager.html',
   'manifest.json',
@@ -41,6 +41,21 @@ self.addEventListener('fetch', event => {
       url.hostname.includes('accounts.google.com') ||
       url.hostname.includes('youtube.com')) {
     return; // Let the browser handle it normally
+  }
+
+  // Network-first for HTML documents: stale-while-revalidate served the PREVIOUS
+  // version on every visit, so an edited page only appeared on the next reload.
+  if (event.request.mode === 'navigate' || event.request.destination === 'document') {
+    event.respondWith(
+      fetch(event.request).then(response => {
+        if (response && response.status === 200) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(event.request))   // offline: fall back to cache
+    );
+    return;
   }
 
   // Cache-first for static assets

@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reel Studio — UI 3a</title>
+<!-- Read-only companion UI. No network calls: it renders the autoCache written by
+     youtube-playlist-manager.html. CSP allows fonts and YouTube thumbnails only. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://*.ytimg.com https://*.ggpht.com https://*.googleusercontent.com; connect-src 'self' https://www.youtube.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    /* Locked black base — shared with the app's Studio themes (#70) */
+    --bg: #07070b;
+    --surface: #0a0a0f;
+    --surface2: #15151c;
+    --surface3: #22222a;
+    --border: #2a2a33;
+    --border2: #34343c;
+    --text: #f2f2f4;
+    --text2: #a8a8b3;
+    --text3: #6c6c78;
+    --accent: #ff2d55;
+    --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+    --accent-line: color-mix(in srgb, var(--accent) 40%, transparent);
+    --c1: var(--accent); --c2: var(--accent); --c3: var(--accent);
+    --c4: var(--accent); --c5: var(--accent); --c6: var(--accent);
+    --font-display: 'Unbounded', system-ui, sans-serif;
+    --font-body: 'Space Grotesk', system-ui, sans-serif;
+    --r: 12px; --r-lg: 16px; --r-xl: 22px; --pill: 999px;
+    --ease: cubic-bezier(.2,.8,.2,1);
+    --dur: 180ms;
+  }
+  @media (prefers-reduced-motion: reduce) { :root { --dur: 0ms; } }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text); font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased; min-height: 100vh; padding: 0 0 130px;
+  }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; border: none; background: none; }
+  a { color: inherit; }
+  .wrap { max-width: 1400px; margin: 0 auto; padding: 0 28px; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: var(--pill); }
+
+  /* ── Top bar ───────────────────────────────────────────────────────── */
+  .topbar { display: flex; align-items: center; gap: 18px; padding: 22px 0 26px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 800; font-size: 19px; letter-spacing: -0.01em; cursor: pointer; }
+  .brand-mark { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); display: grid; place-items: center; color: #0a0a0f; font-size: 13px; }
+  .search {
+    flex: 1; max-width: 520px; display: flex; align-items: center; gap: 10px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--pill); padding: 9px 16px;
+    transition: border-color var(--dur) var(--ease);
+  }
+  .search:focus-within { border-color: var(--accent); }
+  .search input { flex: 1; background: none; border: none; outline: none; font-size: 13px; }
+  .search input::placeholder { color: var(--text3); }
+  .search kbd { font-size: 10px; color: var(--text3); border: 1px solid var(--border2); border-radius: 5px; padding: 2px 6px; font-family: ui-monospace, monospace; }
+  .btn { border-radius: var(--pill); padding: 9px 18px; font-size: 13px; font-weight: 600; transition: transform var(--dur) var(--ease), filter var(--dur) var(--ease); }
+  .btn:hover { transform: translateY(-2px); filter: brightness(1.08); }
+  .btn-sm { padding: 6px 13px; font-size: 12px; }
+  .btn-primary { background: var(--accent); color: #0a0a0f; }
+  .btn-ghost { background: var(--surface2); border: 1px solid var(--border); }
+  @media (prefers-reduced-motion: reduce) { .btn:hover { transform: none; } }
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--surface3); border: 1px solid var(--border2); object-fit: cover; }
+
+  /* ── Greeting + ticker ─────────────────────────────────────────────── */
+  .greeting { display: flex; align-items: flex-end; gap: 24px; padding: 8px 0 30px; }
+  .greeting h1, .greeting h2 { font-family: var(--font-display); font-weight: 800; font-size: clamp(30px, 4.6vw, 58px); line-height: 1.02; letter-spacing: -0.02em; }
+  .greeting h2 { color: color-mix(in srgb, var(--accent) 45%, var(--surface3)); }
+  .eq { margin-left: auto; display: flex; align-items: flex-end; gap: 4px; height: 42px; }
+  .eq span { width: 5px; background: var(--accent); border-radius: 2px; animation: eq 900ms var(--ease) infinite alternate; }
+  .eq span:nth-child(1) { height: 40%; animation-delay: 0ms; }
+  .eq span:nth-child(2) { height: 75%; animation-delay: 120ms; }
+  .eq span:nth-child(3) { height: 55%; animation-delay: 240ms; }
+  .eq span:nth-child(4) { height: 95%; animation-delay: 90ms; }
+  .eq span:nth-child(5) { height: 30%; animation-delay: 300ms; }
+  @keyframes eq { to { height: 18%; } }
+  @media (prefers-reduced-motion: reduce) { .eq span { animation: none; } }
+
+  .ticker { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); overflow: hidden; padding: 11px 0; margin-bottom: 26px; }
+  .ticker-track { display: flex; gap: 30px; white-space: nowrap; width: max-content; animation: ticker 44s linear infinite; }
+  .ticker:hover .ticker-track { animation-play-state: paused; }
+  @keyframes ticker { to { transform: translateX(-50%); } }
+  @media (prefers-reduced-motion: reduce) { .ticker-track { animation: none; } }
+  .tick { display: flex; align-items: baseline; gap: 8px; font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text3); }
+  .tick b { font-family: var(--font-display); font-size: 13px; color: var(--accent); font-weight: 600; }
+  .tick::after { content: '✦'; margin-left: 22px; color: var(--border2); }
+
+  /* ── Cards ─────────────────────────────────────────────────────────── */
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-xl);
+    padding: 20px; position: relative; overflow: hidden;
+    transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), transform var(--dur) var(--ease);
+  }
+  .card.reactive:hover { transform: translateY(-4px); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-line), 0 14px 32px -16px var(--accent); }
+  @media (prefers-reduced-motion: reduce) { .card.reactive:hover { transform: none; } }
+  .card-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); margin-bottom: 10px; }
+
+  /* ── Bento (dashboard) ─────────────────────────────────────────────── */
+  .bento { display: grid; gap: 16px; grid-template-columns: 1.55fr 1fr 1fr 1.55fr; }
+  .hero { grid-column: 1; grid-row: 1 / span 2; display: flex; flex-direction: column; justify-content: flex-end; min-height: 380px; padding: 24px; cursor: pointer; }
+  .hero-cover { position: absolute; inset: 0; background-image: repeating-linear-gradient(115deg, var(--accent) 0 22px, color-mix(in srgb, var(--accent) 62%, #000) 22px 44px); opacity: 0.5; }
+  .hero-cover.has-img { background-image: none; background-size: cover; background-position: center; opacity: 0.55; }
+  .hero-veil { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 8%, var(--surface) 92%); }
+  .hero-hint { position: relative; align-self: flex-start; font-size: 10px; color: var(--text2); background: rgba(0,0,0,.42); border: 1px solid var(--border2); border-radius: 7px; padding: 4px 9px; margin-bottom: auto; }
+  .hero-body { position: relative; }
+  .hero h3 { font-family: var(--font-display); font-weight: 800; font-size: 30px; line-height: 1.1; margin: 6px 0 8px; }
+  .hero-meta { font-size: 12px; color: var(--text2); margin-bottom: 16px; }
+  .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .kpi-1 { grid-column: 2; }
+  .kpi-2 { grid-column: 3; }
+  .kpi { grid-row: 1; display: flex; flex-direction: column; justify-content: center; min-height: 182px; }
+  .kpi-value { font-family: var(--font-display); font-weight: 800; font-size: 38px; line-height: 1; }
+  .kpi-unit { font-size: 14px; color: var(--text2); margin-left: 6px; font-family: var(--font-body); font-weight: 500; }
+  .kpi-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text3); margin-top: 10px; }
+  .cats { grid-column: 4; grid-row: 1; display: flex; align-items: center; gap: 18px; }
+  .legend { display: grid; gap: 7px; font-size: 11.5px; flex: 1; min-width: 0; }
+  .legend-row { display: flex; align-items: center; gap: 8px; }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .legend-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text2); }
+  .legend-val { color: var(--text3); font-size: 11px; }
+  .top { grid-column: 2 / span 2; grid-row: 2; }
+  .health { grid-column: 4; grid-row: 2; }
+  .health-nums { display: flex; gap: 22px; margin-bottom: 16px; }
+  .health-num { font-family: var(--font-display); font-weight: 800; font-size: 28px; }
+  .health-num small { font-family: var(--font-body); font-weight: 400; font-size: 12px; color: var(--text2); margin-left: 5px; }
+  .health-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .bar-row { display: grid; grid-template-columns: 110px 1fr 48px; align-items: center; gap: 10px; margin-bottom: 9px; font-size: 11.5px; }
+  .bar-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text2); cursor: pointer; }
+  .bar-name:hover { color: var(--text); }
+  .bar-track { height: 9px; background: var(--surface3); border-radius: var(--pill); overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: var(--pill); transition: width var(--dur) var(--ease); }
+  .bar-val { text-align: right; color: var(--text3); }
+
+  /* ── Views ─────────────────────────────────────────────────────────── */
+  .view-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+  .view-head h2 { font-family: var(--font-display); font-weight: 800; font-size: clamp(24px, 3vw, 36px); letter-spacing: -0.02em; }
+  .view-head .count { color: var(--text3); font-size: 13px; }
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
+  .field { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--pill); padding: 8px 14px; font-size: 12.5px; outline: none; }
+  .field:focus { border-color: var(--accent); }
+  select.field { cursor: pointer; }
+  .chip { border: 1px solid var(--border); background: var(--surface2); color: var(--text2); border-radius: var(--pill); padding: 6px 13px; font-size: 12px; transition: border-color var(--dur) var(--ease), color var(--dur) var(--ease); }
+  .chip:hover { color: var(--text); border-color: var(--accent-line); }
+  .chip.active { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(224px, 1fr)); }
+  .pl-card { padding: 0; cursor: pointer; display: flex; flex-direction: column; }
+  .pl-thumb { aspect-ratio: 16/9; background: var(--surface3); background-size: cover; background-position: center; position: relative; }
+  .pl-thumb.placeholder { background-image: repeating-linear-gradient(115deg, var(--accent) 0 16px, color-mix(in srgb, var(--accent) 55%, #000) 16px 32px); opacity: .55; }
+  .pl-count { position: absolute; right: 8px; bottom: 8px; background: rgba(0,0,0,.66); border-radius: var(--pill); font-size: 11px; padding: 2px 9px; }
+  .pl-body { padding: 12px 14px 14px; }
+  .pl-title { font-size: 13.5px; font-weight: 600; margin-bottom: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pl-meta { font-size: 11px; color: var(--text3); }
+  .pl-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
+  .tag-pill { font-size: 10px; border-radius: var(--pill); padding: 2px 8px; background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-line); }
+
+  .row {
+    display: grid; grid-template-columns: 104px 1fr auto; gap: 14px; align-items: center;
+    padding: 9px 12px; border-radius: var(--r); border: 1px solid transparent;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+  }
+  .row:hover { background: var(--surface2); border-color: var(--border); transform: translateX(3px); }
+  @media (prefers-reduced-motion: reduce) { .row:hover { transform: none; } }
+  .row-thumb { width: 104px; aspect-ratio: 16/9; border-radius: 8px; background: var(--surface3); background-size: cover; background-position: center; }
+  .row-title { font-size: 13px; margin-bottom: 3px; }
+  .row-sub { font-size: 11px; color: var(--text3); }
+  .row-right { text-align: right; font-size: 11.5px; color: var(--text2); white-space: nowrap; }
+  .row.ghost .row-title { color: var(--text3); text-decoration: line-through; }
+  .row a { text-decoration: none; }
+
+  .kanban { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 8px; }
+  .kan-col { flex: 0 0 262px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-xl); padding: 14px; }
+  .kan-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 12px; }
+  .kan-head b { font-weight: 600; }
+  .kan-head span { margin-left: auto; color: var(--text3); font-size: 11px; }
+  .kan-item { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); padding: 9px 11px; margin-bottom: 8px; cursor: pointer; font-size: 12px; transition: border-color var(--dur) var(--ease), transform var(--dur) var(--ease); }
+  .kan-item:hover { border-color: var(--accent); transform: translateY(-2px); }
+  @media (prefers-reduced-motion: reduce) { .kan-item:hover { transform: none; } }
+  .kan-item small { display: block; color: var(--text3); font-size: 10.5px; margin-top: 3px; }
+
+  .dupe { border: 1px solid var(--border); border-radius: var(--r-lg); padding: 12px 14px; margin-bottom: 10px; background: var(--surface); }
+  .dupe-title { font-size: 13px; margin-bottom: 6px; }
+  .dupe-where { font-size: 11px; color: var(--text3); }
+
+  .stat-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); }
+  .spark { display: flex; align-items: flex-end; gap: 4px; height: 110px; }
+  .spark-col { flex: 1; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 2px; transition: height var(--dur) var(--ease); }
+  .spark-labels { display: flex; gap: 4px; margin-top: 6px; }
+  .spark-labels span { flex: 1; text-align: center; font-size: 9px; color: var(--text3); }
+
+  .empty { text-align: center; padding: 70px 20px; }
+  .empty h2 { font-family: var(--font-display); font-size: 26px; margin-bottom: 12px; }
+  .empty p { color: var(--text2); font-size: 14px; max-width: 520px; margin: 0 auto 22px; line-height: 1.6; }
+  .muted { color: var(--text3); font-size: 12.5px; padding: 16px 0; }
+
+  /* ── Dock ──────────────────────────────────────────────────────────── */
+  .dock {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 22px; z-index: 40;
+    display: flex; gap: 4px; padding: 7px;
+    background: color-mix(in srgb, var(--surface2) 92%, transparent);
+    border: 1px solid var(--border2); border-radius: var(--pill);
+    box-shadow: 0 18px 44px -18px #000; backdrop-filter: blur(14px);
+    max-width: calc(100vw - 40px); overflow-x: auto;
+  }
+  .dock button { border-radius: var(--pill); padding: 8px 15px; font-size: 12.5px; color: var(--text2); white-space: nowrap; transition: background var(--dur) var(--ease), color var(--dur) var(--ease), transform var(--dur) var(--ease); }
+  .dock button:hover { color: var(--text); transform: translateY(-2px); }
+  .dock button.active { background: var(--accent); color: #0a0a0f; font-weight: 600; }
+  @media (prefers-reduced-motion: reduce) { .dock button:hover { transform: none; } }
+
+  /* ── Player ────────────────────────────────────────────────────────── */
+  body.has-player { padding-bottom: 210px; }
+
+  .player-bar {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 84px; z-index: 42;
+    width: min(760px, calc(100vw - 40px));
+    display: none; align-items: center; gap: 12px; padding: 9px 12px;
+    background: color-mix(in srgb, var(--surface2) 94%, transparent);
+    border: 1px solid var(--border2); border-radius: var(--pill);
+    box-shadow: 0 18px 44px -20px #000; backdrop-filter: blur(14px);
+  }
+  body.has-player .player-bar { display: flex; }
+  .pb-thumb { width: 52px; height: 30px; border-radius: 7px; background: var(--surface3); background-size: cover; background-position: center; flex: none; cursor: pointer; }
+  .pb-meta { min-width: 0; flex: 1; cursor: pointer; }
+  .pb-title { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pb-sub { font-size: 10.5px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pb-ctrl { display: flex; align-items: center; gap: 4px; flex: none; }
+  .ctrl {
+    width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+    color: var(--text2); font-size: 13px; transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  }
+  .ctrl:hover { background: var(--surface3); color: var(--text); }
+  .ctrl.on { color: var(--accent); }
+  .ctrl.play { background: var(--accent); color: #0a0a0f; width: 36px; height: 36px; font-size: 14px; }
+  .ctrl.play:hover { background: var(--accent); filter: brightness(1.1); }
+  .pb-time { font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--text3); flex: none; }
+
+  .track { height: 5px; border-radius: var(--pill); background: var(--surface3); cursor: pointer; position: relative; }
+  .track-fill { height: 100%; border-radius: var(--pill); background: var(--accent); width: 0; }
+  .pb-track { flex: 2; min-width: 70px; }
+
+  .player-sheet {
+    position: fixed; left: 50%; bottom: 0; z-index: 58;
+    width: min(880px, 100vw); max-height: 92vh; overflow-y: auto;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: var(--r-xl) var(--r-xl) 0 0; padding: 16px 20px 26px;
+    transform: translate(-50%, 110%); transition: transform var(--dur) var(--ease);
+    box-shadow: 0 -20px 60px -24px #000;
+  }
+  .player-sheet.open { transform: translate(-50%, 0); }
+  .sheet-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .sheet-head .card-label { margin: 0; }
+  .sheet-video { aspect-ratio: 16/9; background: #000; border-radius: var(--r-lg); overflow: hidden; margin-bottom: 14px; }
+  .sheet-video iframe, .sheet-video > div { width: 100%; height: 100%; border: 0; }
+  .sheet-title { font-family: var(--font-display); font-weight: 600; font-size: 17px; margin-bottom: 4px; }
+  .sheet-sub { font-size: 12px; color: var(--text3); margin-bottom: 14px; }
+  .sheet-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .sheet-row .track { flex: 1; }
+  .sheet-queue { border-top: 1px solid var(--border); padding-top: 12px; }
+  .q-item {
+    display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center;
+    padding: 7px 9px; border-radius: var(--r); font-size: 12.5px; cursor: pointer;
+    transition: background var(--dur) var(--ease);
+  }
+  .q-item:hover { background: var(--surface2); }
+  .q-item.current { background: var(--accent-soft); }
+  .q-item.current .q-title { color: var(--accent); }
+  .q-num { font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--text3); text-align: right; }
+  .q-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .q-sub { font-size: 10.5px; color: var(--text3); }
+  .q-dur { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text3); }
+
+  .row-open { color: var(--text3); font-size: 12px; text-decoration: none; padding: 0 4px; }
+  .row-open:hover { color: var(--accent); }
+
+  @media (max-width: 640px) {
+    .player-bar { gap: 8px; }
+    .pb-track, .pb-time { display: none; }
+  }
+
+  /* ── Palette panel ─────────────────────────────────────────────────── */
+  .palette-toggle {
+    position: fixed; top: 22px; right: 22px; z-index: 60;
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: var(--pill); padding: 8px 18px; font-size: 12.5px; font-weight: 600;
+  }
+  .palette {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 318px; z-index: 55;
+    background: var(--bg); border-left: 1px solid var(--border);
+    padding: 70px 18px 26px; overflow-y: auto;
+    transform: translateX(100%); transition: transform var(--dur) var(--ease);
+  }
+  .palette.open { transform: none; }
+  .pal-card { border: 1px solid var(--border); border-radius: var(--r-xl); padding: 16px; background: var(--surface); }
+  .pal-sec { margin-bottom: 22px; }
+  .pal-sec:last-of-type { margin-bottom: 12px; }
+  .pal-head {
+    display: block; width: 100%; text-align: left; font-size: 10px; letter-spacing: 0.11em;
+    text-transform: uppercase; color: var(--text3); margin-bottom: 10px; font-weight: 600;
+  }
+  .pal-sec.active .pal-head { color: var(--accent); }
+  .combos { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
+  .combo {
+    display: flex; overflow: hidden; border-radius: 9px; border: 2px solid transparent;
+    outline: 1px solid var(--border); outline-offset: -1px;
+    transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+  .combo:hover { transform: scale(1.06); }
+  .combo.selected { border-color: var(--text); outline-color: transparent; }
+  .combo i { display: block; height: 30px; }
+  .combo.single { border-radius: 50%; }
+  .combo.single i { width: 30px; }
+  .combo.multi i { width: 22px; }
+  @media (prefers-reduced-motion: reduce) { .combo:hover { transform: none; } }
+  .slot-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .slot-chip { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border2); padding: 0; background: none; cursor: pointer; flex: none; }
+  .slot-hex {
+    flex: 1; min-width: 0; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 9px; padding: 7px 10px; font-family: ui-monospace, monospace; font-size: 12px; outline: none;
+  }
+  .slot-hex:focus { border-color: var(--accent); }
+  .slot-hex.bad { border-color: #ff3b3b; }
+  .slot-label { font-size: 10.5px; color: var(--text3); width: 34px; flex: none; }
+  .pal-reset { width: 100%; border: 1px solid var(--border); border-radius: var(--pill); padding: 9px; font-size: 12.5px; color: var(--text2); background: var(--surface2); }
+  .pal-reset:hover { color: var(--text); border-color: var(--accent-line); }
+  .pal-meta { margin-top: 16px; font-size: 11px; color: var(--text3); line-height: 1.6; }
+  .pal-meta b { color: var(--accent); }
+  .pal-meta a { color: var(--accent); text-decoration: none; }
+  .palette-close { position: absolute; top: 20px; left: 18px; color: var(--text3); font-size: 20px; line-height: 1; }
+
+  @media (max-width: 1100px) {
+    .bento { grid-template-columns: 1fr 1fr; }
+    .hero { grid-column: 1 / span 2; grid-row: auto; min-height: 300px; }
+    .kpi, .kpi-1, .kpi-2, .cats, .top, .health { grid-column: auto; grid-row: auto; }
+    .top { grid-column: 1 / span 2; }
+  }
+  @media (max-width: 640px) {
+    .bento { grid-template-columns: 1fr; }
+    .hero, .top, .kpi-1, .kpi-2 { grid-column: 1; }
+    .greeting { flex-direction: column; align-items: flex-start; gap: 6px; }
+    .eq { margin-left: 0; }
+    .row { grid-template-columns: 76px 1fr; }
+    .row-right { grid-column: 2; text-align: left; }
+    .row-thumb { width: 76px; }
+    .palette { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<button class="palette-toggle" onclick="togglePalette()" id="paletteToggle">Palette</button>
+
+<aside class="palette" id="palette">
+  <button class="palette-close" onclick="togglePalette()">×</button>
+  <div class="pal-card" id="palCard"></div>
+</aside>
+
+<div id="app"></div>
+
+<div class="player-sheet" id="playerSheet">
+  <div class="sheet-head">
+    <div class="card-label" id="sheetLabel">—</div>
+    <button class="ctrl" style="margin-left:auto" onclick="collapsePlayer()" title="↓">↓</button>
+  </div>
+  <div class="sheet-video"><div id="ytHost"></div></div>
+  <div class="sheet-title" id="sheetTitle">—</div>
+  <div class="sheet-sub" id="sheetSub"></div>
+  <div class="sheet-row">
+    <button class="ctrl" id="shuffleBtn" onclick="toggleShuffle()" title="shuffle">⤨</button>
+    <button class="ctrl" onclick="playPrev()" title="prev">⏮</button>
+    <button class="ctrl play" id="sheetPlayBtn" onclick="togglePlay()">▶</button>
+    <button class="ctrl" onclick="playNext()" title="next">⏭</button>
+    <button class="ctrl" id="repeatBtn" onclick="cycleRepeat()" title="repeat">↻</button>
+    <span class="pb-time" id="sheetTime">0:00</span>
+    <div class="track" onclick="seekFromEvent(event, this)"><div class="track-fill" id="sheetFill"></div></div>
+    <span class="pb-time" id="sheetDur">0:00</span>
+  </div>
+  <div class="sheet-queue"><div class="card-label" id="queueLabel">File</div><div id="queueList"></div></div>
+</div>
+
+<div class="player-bar" id="playerBar">
+  <span class="pb-thumb" id="barThumb" onclick="expandPlayer()"></span>
+  <span class="pb-meta" onclick="expandPlayer()">
+    <span class="pb-title" id="barTitle">—</span>
+    <span class="pb-sub" id="barSub"></span>
+  </span>
+  <span class="pb-ctrl">
+    <button class="ctrl" onclick="playPrev()" title="prev">⏮</button>
+    <button class="ctrl play" id="barPlayBtn" onclick="togglePlay()">▶</button>
+    <button class="ctrl" onclick="playNext()" title="next">⏭</button>
+  </span>
+  <span class="pb-time" id="barTime">0:00</span>
+  <div class="track pb-track" onclick="seekFromEvent(event, this)"><div class="track-fill" id="barFill"></div></div>
+  <span class="pb-time" id="barDur">0:00</span>
+  <button class="ctrl" onclick="stopPlayer()" title="stop">×</button>
+</div>
+
+<nav class="dock" id="dock"></nav>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// Reel Studio — companion UI for Reel Manager (exploration 3a).
+// Renders the autoCache written by youtube-playlist-manager.html.
+// Strictly read-only: no API calls, no writes to the app's data keys.
+// ═══════════════════════════════════════════════════════════════════════
+
+const STUDIO_VERSION = '0.3.1';
+
+// ── i18n ───────────────────────────────────────────────────────────────
+const LANG = (localStorage.getItem('appLang') || 'fr') === 'en' ? 'en' : 'fr';
+const S = {
+  fr: {
+    search: 'Rechercher dans {n} vidéos…', create: '+ Créer',
+    greet: 'Bonsoir, {name}.', greet2: 'Votre bibliothèque, en grand.',
+    playlists: 'Playlists', videos: 'Vidéos', content: 'De contenu', duplicates: 'Doublons détectés',
+    ghosts: 'Vidéos fantômes', tags: 'Tags', month: 'Vidéos ce mois', synced: 'Dernière synchro',
+    moment: 'Playlist du moment', cover: 'couverture — définie par la playlist',
+    play: '▶ Ouvrir sur YouTube', organise: 'Voir les vidéos',
+    categories: 'Catégories', topPlaylists: 'Top playlists', health: 'Santé de la bibliothèque',
+    dupes: 'doublons', ghostsShort: 'fantômes', cleanAll: 'Voir les doublons', details: 'Voir les fantômes',
+    dock: { dashboard: 'Dashboard', playlists: 'Playlists', search: 'Recherche', kanban: 'Kanban',
+            dupes: 'Doublons', stats: 'Statistiques', queue: 'File de lecture', tags: 'Tags' },
+    emptyTitle: 'Aucune donnée en cache',
+    emptyBody: 'Cette page lit le cache écrit par Reel Manager. Ouvrez l’app principale, connectez-vous une fois, puis revenez ici — vos playlists apparaîtront sans aucun appel API.',
+    emptyBtn: 'Ouvrir Reel Manager',
+    hours: 'h', items: 'vidéos', never: 'jamais', all: 'Toutes',
+    sortCount: 'Nombre de vidéos', sortTitle: 'Titre A→Z', sortDuration: 'Durée',
+    filterPlaylists: 'Filtrer les playlists…', filterVideos: 'Filtrer les vidéos…',
+    searchAll: 'Rechercher un titre ou une chaîne…', noResult: 'Aucun résultat.',
+    short: 'Court (<4 min)', medium: 'Moyen (4–20 min)', long: 'Long (>20 min)',
+    available: 'Disponibles', unavailable: 'Indisponibles',
+    back: '← Retour', noTag: 'Sans catégorie', inPlaylists: 'Dans {n} playlists',
+    queueEmpty: 'Votre file de lecture est vide.', tagsEmpty: 'Aucun tag défini.',
+    dupesEmpty: 'Aucun doublon — bibliothèque propre.', ghostsEmpty: 'Aucune vidéo fantôme.',
+    statTop: 'Top 10 playlists', statDur: 'Répartition par durée', statMonth: 'Ajouts par mois',
+    statChan: 'Top chaînes', added: 'ajoutée', readonly: 'Lecture seule — les actions d’écriture restent dans Reel Manager.',
+    palTitle: 'Palette', reset: 'Réinitialiser', perso: 'perso',
+    playAll: '▶ Lancer la file', nowPlaying: 'En lecture', queueLabel: 'File de lecture',
+    openYT: 'Ouvrir sur YouTube', playHere: 'Lire ici',
+    secBi: '3A — Accent (noir fixe)', secTri: '3B — Trio', secDuo: '3C — Duo',
+  },
+  en: {
+    search: 'Search across {n} videos…', create: '+ Create',
+    greet: 'Good evening, {name}.', greet2: 'Your library, writ large.',
+    playlists: 'Playlists', videos: 'Videos', content: 'Of content', duplicates: 'Duplicates found',
+    ghosts: 'Ghost videos', tags: 'Tags', month: 'Videos this month', synced: 'Last sync',
+    moment: 'Playlist of the moment', cover: 'cover — set by the playlist',
+    play: '▶ Open on YouTube', organise: 'See videos',
+    categories: 'Categories', topPlaylists: 'Top playlists', health: 'Library health',
+    dupes: 'duplicates', ghostsShort: 'ghosts', cleanAll: 'See duplicates', details: 'See ghosts',
+    dock: { dashboard: 'Dashboard', playlists: 'Playlists', search: 'Search', kanban: 'Kanban',
+            dupes: 'Duplicates', stats: 'Statistics', queue: 'Watch queue', tags: 'Tags' },
+    emptyTitle: 'No cached data',
+    emptyBody: 'This page reads the cache written by Reel Manager. Open the main app, sign in once, then come back — your playlists will show up with zero API calls.',
+    emptyBtn: 'Open Reel Manager',
+    hours: 'h', items: 'videos', never: 'never', all: 'All',
+    sortCount: 'Video count', sortTitle: 'Title A→Z', sortDuration: 'Duration',
+    filterPlaylists: 'Filter playlists…', filterVideos: 'Filter videos…',
+    searchAll: 'Search a title or a channel…', noResult: 'No result.',
+    short: 'Short (<4 min)', medium: 'Medium (4–20 min)', long: 'Long (>20 min)',
+    available: 'Available', unavailable: 'Unavailable',
+    back: '← Back', noTag: 'Untagged', inPlaylists: 'In {n} playlists',
+    queueEmpty: 'Your watch queue is empty.', tagsEmpty: 'No tags defined.',
+    dupesEmpty: 'No duplicates — clean library.', ghostsEmpty: 'No ghost videos.',
+    statTop: 'Top 10 playlists', statDur: 'Duration breakdown', statMonth: 'Additions per month',
+    statChan: 'Top channels', added: 'added', readonly: 'Read-only — write actions stay in Reel Manager.',
+    palTitle: 'Palette', reset: 'Reset', perso: 'custom',
+    playAll: '▶ Play queue', nowPlaying: 'Now playing', queueLabel: 'Queue',
+    openYT: 'Open on YouTube', playHere: 'Play here',
+    secBi: '3A — Accent (black locked)', secTri: '3B — Trio', secDuo: '3C — Duo',
+  },
+}[LANG];
+
+const tr = (key, params) => {
+  let s = S[key] != null ? S[key] : key;
+  if (params) for (const k in params) s = String(s).replaceAll('{' + k + '}', params[k]);
+  return s;
+};
+
+// ── Palette / themes ───────────────────────────────────────────────────
+const SINGLES = ['#ff2d55', '#ff6a00', '#ffb02e', '#f5e642', '#2fd07f', '#00e5c3',
+                 '#3fd0ff', '#4d7dff', '#a05bff', '#ff4dd8', '#ff8fa3', '#e8e8e8'];
+
+const TRIOS = [
+  ['#ff2d55', '#3fd0ff', '#ffb02e'], ['#ff6a00', '#a05bff', '#2fd07f'],
+  ['#00e5c3', '#ff4dd8', '#f5e642'], ['#2fd07f', '#4d7dff', '#ff8fa3'],
+  ['#a05bff', '#00e5c3', '#ff6a00'], ['#e8e8e8', '#ff2d55', '#4d7dff'],
+];
+
+const DUOS = [
+  ['#ff2d55', '#3fd0ff'], ['#ffb02e', '#a05bff'], ['#2fd07f', '#ff4dd8'],
+  ['#f5e642', '#4d7dff'], ['#00e5c3', '#ff6a00'], ['#e8e8e8', '#ff2d55'],
+];
+
+const THEMES = {
+  'studio-bi':  { id: 'studio-bi',  label: 'secBi',  accents: 1, defaults: ['#ff2d55'],                       combos: SINGLES.map(h => [h]) },
+  'studio-tri': { id: 'studio-tri', label: 'secTri', accents: 3, defaults: ['#ff2d55', '#3fd0ff', '#ffb02e'], combos: TRIOS },
+  'studio-duo': { id: 'studio-duo', label: 'secDuo', accents: 2, defaults: ['#ff2d55', '#3fd0ff'],            combos: DUOS },
+};
+
+function hexToHsl(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim());
+  const int = m ? parseInt(m[1], 16) : 0xff2d55;
+  const r = ((int >> 16) & 255) / 255, g = ((int >> 8) & 255) / 255, b = (int & 255) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  let h = 0;
+  if (d) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  const l = (max + min) / 2;
+  return { h, s: (d ? d / (1 - Math.abs(2 * l - 1)) : 0) * 100, l: l * 100 };
+}
+const hsl = (c, dL) => `hsl(${c.h.toFixed(1)} ${c.s.toFixed(1)}% ${Math.max(8, Math.min(94, c.l + (dL || 0))).toFixed(1)}%)`;
+const isHex = v => /^#?[0-9a-f]{6}$/i.test(String(v).trim());
+const norm = v => (String(v).trim()[0] === '#' ? String(v).trim() : '#' + String(v).trim()).toLowerCase();
+
+// Bichrome declines its single accent in intensities; the others alternate.
+function categoricalsFor(theme, accents) {
+  if (theme.accents === 1) return [16, 6, -4, -14, -24, -32].map(d => hsl(hexToHsl(accents[0]), d));
+  const c = accents.map(hexToHsl);
+  if (theme.accents === 2) return [accents[0], accents[1], hsl(c[0], 14), hsl(c[1], 14), hsl(c[0], -18), hsl(c[1], -18)];
+  return [accents[0], accents[1], accents[2], hsl(c[0], 15), hsl(c[1], 15), hsl(c[2], 15)];
+}
+
+const readStore = () => { try { return JSON.parse(localStorage.getItem('studioAccents') || '{}') || {}; } catch (_) { return {}; } };
+
+function accentsFor(themeId) {
+  const theme = THEMES[themeId];
+  const saved = readStore()[themeId];
+  const out = theme.defaults.slice();
+  if (Array.isArray(saved)) saved.slice(0, theme.accents).forEach((hex, i) => { if (isHex(hex)) out[i] = norm(hex); });
+  return out;
+}
+
+let themeId = THEMES[localStorage.getItem('studioTheme')] ? localStorage.getItem('studioTheme') : 'studio-bi';
+
+function paintTheme(id) {
+  const accents = accentsFor(id);
+  const root = document.documentElement;
+  root.style.setProperty('--accent', accents[0]);
+  categoricalsFor(THEMES[id], accents).forEach((col, i) => root.style.setProperty('--c' + (i + 1), col));
+}
+
+function applyTheme(id, skipRender) {
+  themeId = THEMES[id] ? id : 'studio-bi';
+  localStorage.setItem('studioTheme', themeId);
+  paintTheme(themeId);
+  if (!skipRender) { renderPalette(); renderView(); }
+}
+
+function setAccents(id, accents, live) {
+  const store = readStore();
+  store[id] = accents;
+  localStorage.setItem('studioAccents', JSON.stringify(store));
+  if (!live) { applyTheme(id); return; }
+  // Live drag inside the colour picker: repaint tokens and the view, but leave
+  // #palCard untouched so the open picker survives.
+  if (id !== themeId) { themeId = id; localStorage.setItem('studioTheme', id); }
+  paintTheme(id);
+  renderView();
+}
+
+function pickCombo(id, combo) { setAccents(id, combo.slice()); }
+
+function setSlot(id, slot, value, live) {
+  if (!isHex(value)) return false;
+  const accents = accentsFor(id);
+  accents[slot] = norm(value);
+  setAccents(id, accents, live);
+  return true;
+}
+
+// While the picker is open: paint live and keep the hex field in sync by hand.
+function dragSlot(input, id, slot) {
+  setSlot(id, slot, input.value, true);
+  const hex = input.parentElement && input.parentElement.querySelector('.slot-hex');
+  if (hex) hex.value = norm(input.value);
+}
+
+function onHexInput(el, id, slot) {
+  const ok = setSlot(id, slot, el.value);
+  el.classList.toggle('bad', !ok);
+}
+
+function resetPalette() {
+  localStorage.removeItem('studioAccents');
+  applyTheme('studio-bi');
+}
+
+const togglePalette = () => document.getElementById('palette').classList.toggle('open');
+
+function renderPalette() {
+  const sections = ['studio-bi', 'studio-tri', 'studio-duo'].map(id => {
+    const theme = THEMES[id];
+    const accents = accentsFor(id);
+    const isActive = id === themeId;
+    const selectedCombo = theme.combos.findIndex(c => c.length === accents.length && c.every((h, i) => h === accents[i]));
+
+    const combos = theme.combos.map((combo, i) => `
+      <button class="combo ${combo.length === 1 ? 'single' : 'multi'}${isActive && i === selectedCombo ? ' selected' : ''}"
+              onclick="pickCombo('${id}', ${JSON.stringify(combo).replace(/"/g, '&quot;')})"
+              title="${combo.join(' · ')}">
+        ${combo.map(h => `<i style="background:${h}"></i>`).join('')}
+      </button>`).join('');
+
+    const slots = accents.map((hex, i) => `
+      <div class="slot-row">
+        <input type="color" class="slot-chip" value="${hex}"
+               oninput="dragSlot(this, '${id}', ${i})" onchange="setSlot('${id}', ${i}, this.value)">
+        <input class="slot-hex" value="${hex}" spellcheck="false"
+               onchange="onHexInput(this, '${id}', ${i})">
+        <span class="slot-label">${theme.accents === 1 ? tr('perso') : 'C' + i}</span>
+      </div>`).join('');
+
+    return `<div class="pal-sec${isActive ? ' active' : ''}">
+        <button class="pal-head" onclick="applyTheme('${id}')">${tr(theme.label)}</button>
+        <div class="combos">${combos}</div>
+        ${slots}
+      </div>`;
+  }).join('');
+
+  document.getElementById('palCard').innerHTML = sections +
+    `<button class="pal-reset" onclick="resetPalette()">${tr('reset')}</button>` +
+    `<div class="pal-meta">Reel Studio <b>v${STUDIO_VERSION}</b><br>${esc(tr('readonly'))}<br>
+       <a href="youtube-playlist-manager.html">← Reel Manager</a></div>`;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const parseDuration = iso => {
+  const m = String(iso || '').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  return m ? (parseInt(m[1] || 0) * 3600) + (parseInt(m[2] || 0) * 60) + parseInt(m[3] || 0) : 0;
+};
+const isGhost = title => String(title).includes('Deleted video') || String(title).includes('Private video');
+const nf = n => new Intl.NumberFormat(LANG === 'en' ? 'en-US' : 'fr-FR').format(n);
+const fmtClock = sec => {
+  if (!sec) return '--:--';
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
+};
+const fmtHours = sec => Math.round(sec / 3600) + ' ' + tr('hours');
+const ytUrl = id => 'https://www.youtube.com/watch?v=' + encodeURIComponent(id);
+const plUrl = id => 'https://www.youtube.com/playlist?list=' + encodeURIComponent(id);
+function ago(iso) {
+  if (!iso) return tr('never');
+  const mins = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  if (!isFinite(mins)) return tr('never');
+  if (mins < 60) return mins + 'm';
+  if (mins < 1440) return Math.round(mins / 60) + 'h';
+  return Math.round(mins / 1440) + 'd';
+}
+const catColor = i => getComputedStyle(document.documentElement).getPropertyValue('--c' + ((i % 6) + 1)).trim() || '#ff2d55';
+
+// ── Data ───────────────────────────────────────────────────────────────
+function loadData() {
+  let cache;
+  try { cache = JSON.parse(localStorage.getItem('autoCache') || 'null'); } catch (_) { return null; }
+  if (!cache || !Array.isArray(cache.playlists) || !cache.playlists.length) return null;
+
+  let userInfo = {};
+  try { userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}') || {}; } catch (_) {}
+
+  const objects = {};
+  (cache.playlistObjects || []).forEach(p => { objects[p.id] = p; });
+  const tagMap = cache.tags || {};
+
+  const occurrences = new Map();   // videoId -> [{playlist, title}]
+  const channels = new Map();
+  const months = new Map();
+  let seconds = 0, ghosts = 0, thisMonth = 0, videoCount = 0;
+  const monthAgo = Date.now() - 30 * 864e5;
+
+  const playlists = cache.playlists.map(pl => {
+    const videos = (pl.videos || []).map(v => {
+      const dur = parseDuration(v.duration);
+      const ghost = isGhost(v.title || '');
+      seconds += dur; videoCount++;
+      if (ghost) ghosts++;
+      if (v.channel) channels.set(v.channel, (channels.get(v.channel) || 0) + 1);
+      if (v.addedAt) {
+        const ts = Date.parse(v.addedAt);
+        if (ts > monthAgo) thisMonth++;
+        if (isFinite(ts)) {
+          const key = new Date(ts).toISOString().slice(0, 7);
+          months.set(key, (months.get(key) || 0) + 1);
+        }
+      }
+      return { ...v, seconds: dur, ghost, playlistId: pl.id, playlistTitle: pl.title || '' };
+    });
+    videos.forEach(v => {
+      if (!v.videoId) return;
+      if (!occurrences.has(v.videoId)) occurrences.set(v.videoId, []);
+      occurrences.get(v.videoId).push(v);
+    });
+    return {
+      id: pl.id,
+      title: pl.title || '(sans titre)',
+      description: pl.description || '',
+      videos,
+      count: videos.length,
+      seconds: videos.reduce((a, v) => a + v.seconds, 0),
+      thumb: objects[pl.id]?.snippet?.thumbnails?.medium?.url || videos[0]?.thumbnail || '',
+      privacy: objects[pl.id]?.status?.privacyStatus || '',
+      tags: tagMap[pl.id] || [],
+    };
+  }).sort((a, b) => b.count - a.count);
+
+  const dupes = [...occurrences.values()].filter(list => list.length > 1)
+    .sort((a, b) => b.length - a.length);
+
+  const tagTotals = {};
+  playlists.forEach(pl => pl.tags.forEach(tag => {
+    tagTotals[tag] = tagTotals[tag] || { name: tag, playlists: [], videos: 0 };
+    tagTotals[tag].playlists.push(pl);
+    tagTotals[tag].videos += pl.count;
+  }));
+
+  let watchQueue = [];
+  try { watchQueue = JSON.parse(localStorage.getItem('watchQueue') || 'null') || cache.watchQueue || []; } catch (_) { watchQueue = cache.watchQueue || []; }
+
+  return {
+    name: (userInfo.given_name || userInfo.name || '').split(' ')[0] || (LANG === 'en' ? 'there' : 'vous'),
+    picture: userInfo.picture || '',
+    timestamp: cache.timestamp || localStorage.getItem('autoCacheTimestamp') || '',
+    playlists,
+    allVideos: playlists.flatMap(p => p.videos),
+    videos: videoCount,
+    seconds,
+    hours: Math.round(seconds / 3600),
+    ghosts,
+    thisMonth,
+    dupes,
+    dupeCount: dupes.reduce((a, l) => a + l.length - 1, 0),
+    tags: Object.values(tagTotals).sort((a, b) => b.videos - a.videos),
+    channels: [...channels.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
+    months: [...months.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-12),
+    watchQueue: Array.isArray(watchQueue) ? watchQueue : [],
+  };
+}
+
+let DATA = null;
+
+// ── Router ─────────────────────────────────────────────────────────────
+const VIEWS = ['dashboard', 'playlists', 'search', 'kanban', 'dupes', 'stats', 'queue', 'tags'];
+let route = { view: 'dashboard', id: null };
+const UI = { plFilter: '', plSort: 'count', plTag: '', vidFilter: '', q: '', durFilter: '', statusFilter: '' };
+
+function parseHash() {
+  const raw = (location.hash || '').replace(/^#\/?/, '');
+  const [view, id] = raw.split('/');
+  route = { view: VIEWS.includes(view) ? view : 'dashboard', id: id ? decodeURIComponent(id) : null };
+}
+
+function go(view, id) {
+  location.hash = '#/' + view + (id ? '/' + encodeURIComponent(id) : '');
+}
+
+window.addEventListener('hashchange', () => { parseHash(); renderView(); window.scrollTo({ top: 0 }); });
+
+// ── Shared chrome ──────────────────────────────────────────────────────
+function topbar() {
+  const d = DATA;
+  return `
+    <header class="topbar">
+      <div class="brand" onclick="go('dashboard')"><span class="brand-mark">▶</span>REEL.</div>
+      <label class="search">
+        <span style="color:var(--text3);font-size:13px;">⌕</span>
+        <input id="globalSearch" value="${esc(UI.q)}" placeholder="${esc(tr('search', { n: nf(d.videos) }))}"
+               oninput="UI.q=this.value; if(route.view!=='search') go('search'); else renderSearchResults();">
+        <kbd>⌘K</kbd>
+      </label>
+      <div class="topbar-right">
+        <a class="btn btn-ghost" style="text-decoration:none;" href="youtube-playlist-manager.html">Reel Manager</a>
+        ${d.picture ? `<img class="avatar" src="${esc(d.picture)}" alt="" referrerpolicy="no-referrer">` : '<div class="avatar"></div>'}
+      </div>
+    </header>`;
+}
+
+function dock() {
+  return VIEWS.map(v => `<button class="${route.view === v ? 'active' : ''}" onclick="go('${v}')">${esc(S.dock[v === 'dashboard' ? 'dashboard' : v])}</button>`).join('');
+}
+
+function videoRow(v, showPlaylist, i) {
+  return `
+    <div class="row${v.ghost ? ' ghost' : ''}" ${v.ghost ? '' : `onclick="playFromList(${i})"`} style="${v.ghost ? '' : 'cursor:pointer'}">
+      <span class="row-thumb" style="${v.thumbnail ? `background-image:url('${esc(v.thumbnail)}')` : ''}"></span>
+      <span>
+        <span class="row-title">${esc(v.title)}</span>
+        <span class="row-sub">${esc(v.channel || '—')}${showPlaylist && v.playlistTitle ? ' · ' + esc(v.playlistTitle) : ''}</span>
+      </span>
+      <span class="row-right">
+        ${esc(fmtClock(v.seconds))}
+        <a class="row-open" href="${v.videoId ? ytUrl(v.videoId) : '#'}" target="_blank" rel="noopener noreferrer"
+           title="${esc(tr('openYT'))}" onclick="event.stopPropagation()">↗</a>
+      </span>
+    </div>`;
+}
+
+function playlistCard(pl) {
+  return `
+    <article class="card pl-card reactive" onclick="go('playlists','${esc(pl.id)}')">
+      <div class="pl-thumb${pl.thumb ? '' : ' placeholder'}" ${pl.thumb ? `style="background-image:url('${esc(pl.thumb)}')"` : ''}>
+        <span class="pl-count">${nf(pl.count)}</span>
+      </div>
+      <div class="pl-body">
+        <div class="pl-title" title="${esc(pl.title)}">${esc(pl.title)}</div>
+        <div class="pl-meta">${fmtHours(pl.seconds)}${pl.privacy ? ' · ' + esc(pl.privacy) : ''}</div>
+        ${pl.tags.length ? `<div class="pl-tags">${pl.tags.map(t => `<span class="tag-pill">${esc(t)}</span>`).join('')}</div>` : ''}
+      </div>
+    </article>`;
+}
+
+// ── Views ──────────────────────────────────────────────────────────────
+function viewDashboard() {
+  const d = DATA;
+  const hero = d.playlists[0] || { id: '', title: '—', count: 0, seconds: 0, thumb: '' };
+  const ticks = [
+    [d.playlists.length, tr('playlists')], [nf(d.videos), tr('videos')], [d.hours + ' ' + tr('hours'), tr('content')],
+    [d.dupeCount, tr('duplicates')], [d.ghosts, tr('ghosts')], [d.tags.length, tr('tags')],
+    ['+' + d.thisMonth, tr('month')], [ago(d.timestamp), tr('synced')],
+  ].map(([v, l]) => `<span class="tick"><b>${esc(v)}</b>${esc(l)}</span>`).join('');
+
+  return `
+    <section class="greeting">
+      <div>
+        <h1>${esc(tr('greet', { name: d.name }))}</h1>
+        <h2>${esc(tr('greet2'))}</h2>
+      </div>
+      <div class="eq"><span></span><span></span><span></span><span></span><span></span></div>
+    </section>
+
+    <div class="ticker"><div class="ticker-track">${ticks}${ticks}</div></div>
+
+    <main class="bento">
+      <article class="card hero reactive" onclick="go('playlists','${esc(hero.id)}')">
+        <div class="hero-cover${hero.thumb ? ' has-img' : ''}" ${hero.thumb ? `style="background-image:url('${esc(hero.thumb)}')"` : ''}></div>
+        <div class="hero-veil"></div>
+        <div class="hero-hint">${esc(tr('cover'))}</div>
+        <div class="hero-body">
+          <div class="card-label">${esc(tr('moment'))}</div>
+          <h3>${esc(hero.title)}</h3>
+          <div class="hero-meta">${nf(hero.count)} ${esc(tr('items'))} · ${fmtHours(hero.seconds)}</div>
+          <div class="hero-actions">
+            <button class="btn btn-primary" onclick="event.stopPropagation(); playPlaylistById('${esc(hero.id)}')">${esc(tr('playAll'))}</button>
+            <button class="btn btn-ghost">${esc(tr('organise'))}</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="card kpi kpi-1 reactive" onclick="go('search')">
+        <div class="kpi-value">${nf(d.videos)}</div>
+        <div class="kpi-label">${esc(tr('videos'))}</div>
+      </article>
+
+      <article class="card kpi kpi-2 reactive" onclick="go('stats')">
+        <div class="kpi-value">${nf(d.hours)}<span class="kpi-unit">${esc(tr('hours'))}</span></div>
+        <div class="kpi-label">${esc(tr('content'))}</div>
+      </article>
+
+      <article class="card cats reactive" onclick="go('${d.tags.length ? 'tags' : 'playlists'}')">
+        <div id="donut"></div>
+        <div>
+          <div class="card-label">${esc(d.tags.length ? tr('categories') : tr('topPlaylists'))}</div>
+          <div class="legend" id="legend"></div>
+        </div>
+      </article>
+
+      <article class="card top reactive">
+        <div class="card-label">${esc(tr('topPlaylists'))}</div>
+        <div id="bars"></div>
+      </article>
+
+      <article class="card health reactive">
+        <div class="card-label">${esc(tr('health'))}</div>
+        <div class="health-nums">
+          <div class="health-num">${nf(d.dupeCount)}<small>${esc(tr('dupes'))}</small></div>
+          <div class="health-num">${nf(d.ghosts)}<small>${esc(tr('ghostsShort'))}</small></div>
+        </div>
+        <div class="health-actions">
+          <button class="btn btn-primary btn-sm" onclick="go('dupes')">${esc(tr('cleanAll'))}</button>
+          <button class="btn btn-ghost btn-sm" onclick="UI.statusFilter='unavailable'; go('search')">${esc(tr('details'))}</button>
+        </div>
+      </article>
+    </main>`;
+}
+
+function renderDashboardCharts() {
+  const d = DATA;
+  const source = d.tags.length ? d.tags.map(t => ({ name: t.name, count: t.videos })) : d.playlists.slice(0, 6).map(p => ({ name: p.title, count: p.count }));
+  const six = source.slice(0, 6);
+  const total = six.reduce((a, s) => a + s.count, 0) || 1;
+
+  const size = 132, r = 52, cx = size / 2, stroke = 16, circ = 2 * Math.PI * r;
+  let offset = 0;
+  const arcs = six.map((s, i) => {
+    const frac = s.count / total;
+    const el = `<circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${catColor(i)}" stroke-width="${stroke}"
+      stroke-dasharray="${(frac * circ).toFixed(2)} ${circ.toFixed(2)}" stroke-dashoffset="${(-offset * circ).toFixed(2)}"
+      transform="rotate(-90 ${cx} ${cx})"></circle>`;
+    offset += frac;
+    return el;
+  }).join('');
+
+  const donut = document.getElementById('donut');
+  if (donut) donut.innerHTML = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      ${arcs}
+      <text x="${cx}" y="${cx - 2}" text-anchor="middle" fill="var(--text)" font-size="21" font-family="var(--font-display)" font-weight="800">${six.length}</text>
+      <text x="${cx}" y="${cx + 15}" text-anchor="middle" fill="var(--text3)" font-size="8" letter-spacing="1.4">${d.tags.length ? 'TAGS' : 'TOP'}</text>
+    </svg>`;
+
+  const legend = document.getElementById('legend');
+  if (legend) legend.innerHTML = six.map((s, i) => `
+    <div class="legend-row">
+      <span class="legend-dot" style="background:${catColor(i)}"></span>
+      <span class="legend-name">${esc(s.name)}</span>
+      <span class="legend-val">${Math.round(s.count / total * 100)}%</span>
+    </div>`).join('');
+
+  const bars = document.getElementById('bars');
+  const top = d.playlists.slice(0, 6);
+  const max = top[0]?.count || 1;
+  if (bars) bars.innerHTML = top.map((p, i) => `
+    <div class="bar-row">
+      <span class="bar-name" title="${esc(p.title)}" onclick="go('playlists','${esc(p.id)}')">${esc(p.title)}</span>
+      <span class="bar-track"><span class="bar-fill" style="width:${(p.count / max * 100).toFixed(1)}%;background:${catColor(i)}"></span></span>
+      <span class="bar-val">${nf(p.count)}</span>
+    </div>`).join('');
+}
+
+function viewPlaylists() {
+  const d = DATA;
+  if (route.id) return viewPlaylistDetail(d.playlists.find(p => p.id === route.id));
+
+  let list = d.playlists.slice();
+  if (UI.plTag) list = list.filter(p => p.tags.includes(UI.plTag));
+  if (UI.plFilter) {
+    const q = UI.plFilter.toLowerCase();
+    list = list.filter(p => p.title.toLowerCase().includes(q));
+  }
+  if (UI.plSort === 'title') list.sort((a, b) => a.title.localeCompare(b.title));
+  else if (UI.plSort === 'duration') list.sort((a, b) => b.seconds - a.seconds);
+  else list.sort((a, b) => b.count - a.count);
+
+  return `
+    <div class="view-head"><h2>${esc(tr('playlists'))}</h2>
+      <span class="count">${nf(list.length)} / ${nf(d.playlists.length)}${UI.plTag ? ' · ' + esc(UI.plTag) : ''}</span></div>
+    <div class="toolbar">
+      <input class="field" id="plFilterField" style="min-width:230px" placeholder="${esc(tr('filterPlaylists'))}" value="${esc(UI.plFilter)}"
+             oninput="UI.plFilter=this.value; renderView(true)">
+      <select class="field" onchange="UI.plSort=this.value; renderView()">
+        <option value="count"${UI.plSort === 'count' ? ' selected' : ''}>${esc(tr('sortCount'))}</option>
+        <option value="title"${UI.plSort === 'title' ? ' selected' : ''}>${esc(tr('sortTitle'))}</option>
+        <option value="duration"${UI.plSort === 'duration' ? ' selected' : ''}>${esc(tr('sortDuration'))}</option>
+      </select>
+      ${UI.plTag ? `<button class="chip active" onclick="UI.plTag=''; renderView()">${esc(UI.plTag)} ×</button>` : ''}
+    </div>
+    <div class="grid">${list.map(playlistCard).join('') || `<div class="muted">${esc(tr('noResult'))}</div>`}</div>`;
+}
+
+function viewPlaylistDetail(pl) {
+  if (!pl) return `<div class="muted">${esc(tr('noResult'))}</div>`;
+  let videos = pl.videos.slice();
+  PLAY.label = pl.title;
+  if (UI.vidFilter) {
+    const q = UI.vidFilter.toLowerCase();
+    videos = videos.filter(v => (v.title || '').toLowerCase().includes(q) || (v.channel || '').toLowerCase().includes(q));
+  }
+  CURRENT_LIST = videos;
+  return `
+    <div class="toolbar"><button class="chip" onclick="UI.vidFilter=''; go('playlists')">${esc(tr('back'))}</button></div>
+    <div class="view-head">
+      <h2>${esc(pl.title)}</h2>
+      <span class="count">${nf(pl.count)} ${esc(tr('items'))} · ${fmtHours(pl.seconds)}</span>
+      <button class="chip" onclick="playPlaylistById('${esc(pl.id)}')">${esc(tr('playAll'))}</button>
+      <a class="chip" style="text-decoration:none" href="${plUrl(pl.id)}" target="_blank" rel="noopener noreferrer">YouTube ↗</a>
+    </div>
+    ${pl.tags.length ? `<div class="pl-tags" style="margin-bottom:14px">${pl.tags.map(t => `<span class="tag-pill">${esc(t)}</span>`).join('')}</div>` : ''}
+    <div class="toolbar">
+      <input class="field" id="vidFilterField" style="min-width:260px" placeholder="${esc(tr('filterVideos'))}" value="${esc(UI.vidFilter)}"
+             oninput="UI.vidFilter=this.value; renderView(true)">
+      <span class="count" style="color:var(--text3);font-size:12px">${nf(videos.length)}</span>
+    </div>
+    <div>${videos.map((v, i) => videoRow(v, false, i)).join('') || `<div class="muted">${esc(tr('noResult'))}</div>`}</div>`;
+}
+
+function matchesFilters(v) {
+  if (UI.durFilter === 'short' && !(v.seconds > 0 && v.seconds < 240)) return false;
+  if (UI.durFilter === 'medium' && !(v.seconds >= 240 && v.seconds <= 1200)) return false;
+  if (UI.durFilter === 'long' && !(v.seconds > 1200)) return false;
+  if (UI.statusFilter === 'available' && v.ghost) return false;
+  if (UI.statusFilter === 'unavailable' && !v.ghost) return false;
+  return true;
+}
+
+function viewSearch() {
+  const chip = (key, val, label) => `<button class="chip${UI[key] === val ? ' active' : ''}" onclick="UI.${key}='${UI[key] === val ? '' : val}'; renderSearchResults(); renderChips();">${esc(label)}</button>`;
+  return `
+    <div class="view-head"><h2>${esc(S.dock.search)}</h2><span class="count" id="searchCount"></span></div>
+    <div class="toolbar">
+      <input class="field" id="searchField" style="min-width:300px" placeholder="${esc(tr('searchAll'))}" value="${esc(UI.q)}"
+             oninput="UI.q=this.value; document.getElementById('globalSearch').value=this.value; renderSearchResults();">
+    </div>
+    <div class="toolbar" id="searchChips">
+      ${chip('durFilter', 'short', tr('short'))}${chip('durFilter', 'medium', tr('medium'))}${chip('durFilter', 'long', tr('long'))}
+      ${chip('statusFilter', 'available', tr('available'))}${chip('statusFilter', 'unavailable', tr('unavailable'))}
+    </div>
+    <div id="searchResults"></div>`;
+}
+
+function renderChips() {
+  const host = document.getElementById('searchChips');
+  if (!host) return;
+  const chip = (key, val, label) => `<button class="chip${UI[key] === val ? ' active' : ''}" onclick="UI.${key}='${UI[key] === val ? '' : val}'; renderSearchResults(); renderChips();">${esc(label)}</button>`;
+  host.innerHTML = chip('durFilter', 'short', tr('short')) + chip('durFilter', 'medium', tr('medium')) + chip('durFilter', 'long', tr('long'))
+                 + chip('statusFilter', 'available', tr('available')) + chip('statusFilter', 'unavailable', tr('unavailable'));
+}
+
+function renderSearchResults() {
+  const host = document.getElementById('searchResults');
+  if (!host) return;
+  const q = UI.q.trim().toLowerCase();
+  let list = DATA.allVideos.filter(matchesFilters);
+  if (q) list = list.filter(v => (v.title || '').toLowerCase().includes(q) || (v.channel || '').toLowerCase().includes(q));
+  const shown = list.slice(0, 300);
+  const countEl = document.getElementById('searchCount');
+  if (countEl) countEl.textContent = nf(list.length) + (list.length > shown.length ? ' — 300 max' : '');
+  CURRENT_LIST = shown;
+  PLAY.label = S.dock.search;
+  host.innerHTML = shown.map((v, i) => videoRow(v, true, i)).join('') || `<div class="muted">${esc(tr('noResult'))}</div>`;
+}
+
+function viewKanban() {
+  const d = DATA;
+  const cols = d.tags.map(t => ({ name: t.name, playlists: t.playlists }));
+  const untagged = d.playlists.filter(p => !p.tags.length);
+  if (untagged.length) cols.push({ name: tr('noTag'), playlists: untagged });
+  return `
+    <div class="view-head"><h2>${esc(S.dock.kanban)}</h2><span class="count">${cols.length} ${esc(tr('tags'))}</span></div>
+    <div class="kanban">${cols.map((c, i) => `
+      <div class="kan-col">
+        <div class="kan-head">
+          <span class="legend-dot" style="background:${catColor(i)}"></span>
+          <b>${esc(c.name)}</b><span>${c.playlists.length}</span>
+        </div>
+        ${c.playlists.map(p => `<div class="kan-item" onclick="go('playlists','${esc(p.id)}')">${esc(p.title)}<small>${nf(p.count)} ${esc(tr('items'))} · ${fmtHours(p.seconds)}</small></div>`).join('')}
+      </div>`).join('')}</div>`;
+}
+
+function viewDupes() {
+  const d = DATA;
+  if (!d.dupes.length) return `<div class="view-head"><h2>${esc(S.dock.dupes)}</h2></div><div class="muted">${esc(tr('dupesEmpty'))}</div>`;
+  return `
+    <div class="view-head"><h2>${esc(S.dock.dupes)}</h2><span class="count">${nf(d.dupes.length)} ${esc(tr('videos')).toLowerCase()} · ${nf(d.dupeCount)} ${esc(tr('dupes'))}</span></div>
+    <div>${d.dupes.slice(0, 200).map(list => `
+      <div class="dupe">
+        <div class="dupe-title">
+          <a href="${ytUrl(list[0].videoId)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none">${esc(list[0].title)}</a>
+        </div>
+        <div class="dupe-where">${esc(tr('inPlaylists', { n: list.length }))} — ${list.map(v => esc(v.playlistTitle)).join(' · ')}</div>
+      </div>`).join('')}</div>
+    ${d.dupes.length > 200 ? `<div class="muted">200 max</div>` : ''}`;
+}
+
+function viewStats() {
+  const d = DATA;
+  const top = d.playlists.slice(0, 10);
+  const maxTop = top[0]?.count || 1;
+
+  const buckets = [
+    { label: tr('short'), n: 0 }, { label: tr('medium'), n: 0 }, { label: tr('long'), n: 0 },
+  ];
+  d.allVideos.forEach(v => {
+    if (!v.seconds) return;
+    if (v.seconds < 240) buckets[0].n++;
+    else if (v.seconds <= 1200) buckets[1].n++;
+    else buckets[2].n++;
+  });
+  const maxBucket = Math.max(...buckets.map(b => b.n), 1);
+  const maxMonth = Math.max(...d.months.map(m => m[1]), 1);
+  const chan = d.channels.slice(0, 8);
+  const maxChan = chan[0]?.count || 1;
+
+  return `
+    <div class="view-head"><h2>${esc(S.dock.stats)}</h2></div>
+    <div class="stat-grid">
+      <div class="card">
+        <div class="card-label">${esc(tr('statTop'))}</div>
+        ${top.map((p, i) => `
+          <div class="bar-row">
+            <span class="bar-name" onclick="go('playlists','${esc(p.id)}')" title="${esc(p.title)}">${esc(p.title)}</span>
+            <span class="bar-track"><span class="bar-fill" style="width:${(p.count / maxTop * 100).toFixed(1)}%;background:${catColor(i)}"></span></span>
+            <span class="bar-val">${nf(p.count)}</span>
+          </div>`).join('')}
+      </div>
+
+      <div class="card">
+        <div class="card-label">${esc(tr('statDur'))}</div>
+        ${buckets.map((b, i) => `
+          <div class="bar-row">
+            <span class="bar-name">${esc(b.label)}</span>
+            <span class="bar-track"><span class="bar-fill" style="width:${(b.n / maxBucket * 100).toFixed(1)}%;background:${catColor(i)}"></span></span>
+            <span class="bar-val">${nf(b.n)}</span>
+          </div>`).join('')}
+      </div>
+
+      <div class="card">
+        <div class="card-label">${esc(tr('statMonth'))}</div>
+        <div class="spark">${d.months.map(m => `<span class="spark-col" style="height:${(m[1] / maxMonth * 100).toFixed(1)}%" title="${m[0]} — ${m[1]}"></span>`).join('') || ''}</div>
+        <div class="spark-labels">${d.months.map(m => `<span>${m[0].slice(5)}</span>`).join('')}</div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">${esc(tr('statChan'))}</div>
+        ${chan.map((c, i) => `
+          <div class="bar-row">
+            <span class="bar-name" title="${esc(c.name)}">${esc(c.name)}</span>
+            <span class="bar-track"><span class="bar-fill" style="width:${(c.count / maxChan * 100).toFixed(1)}%;background:${catColor(i)}"></span></span>
+            <span class="bar-val">${nf(c.count)}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function playPlaylistById(id) {
+  const pl = DATA.playlists.find(p => p.id === id);
+  if (pl) playQueue(pl.videos, 0, pl.title);
+}
+
+function viewQueue() {
+  const q = DATA.watchQueue.map(item => ({ ...item, channel: item.channelTitle || '', seconds: 0 }));
+  CURRENT_LIST = q;
+  PLAY.label = S.dock.queue;
+  return `
+    <div class="view-head"><h2>${esc(S.dock.queue)}</h2><span class="count">${nf(q.length)}</span></div>
+    ${q.length ? `<div class="toolbar"><button class="btn btn-primary btn-sm" onclick="playQueue(CURRENT_LIST, 0, S.dock.queue)">${esc(tr('playAll'))}</button></div>`
+               + q.map((item, i) => videoRow(item, false, i)).join('') : `<div class="muted">${esc(tr('queueEmpty'))}</div>`}`;
+}
+
+function viewTags() {
+  const d = DATA;
+  if (!d.tags.length) return `<div class="view-head"><h2>${esc(S.dock.tags)}</h2></div><div class="muted">${esc(tr('tagsEmpty'))}</div>`;
+  return `
+    <div class="view-head"><h2>${esc(S.dock.tags)}</h2><span class="count">${d.tags.length}</span></div>
+    <div class="grid">${d.tags.map((t, i) => `
+      <article class="card reactive" style="cursor:pointer" onclick="UI.plTag='${esc(t.name)}'; go('playlists')">
+        <div class="legend-dot" style="background:${catColor(i)};width:12px;height:12px;margin-bottom:10px"></div>
+        <div style="font-family:var(--font-display);font-weight:800;font-size:19px;margin-bottom:6px">${esc(t.name)}</div>
+        <div class="pl-meta">${t.playlists.length} ${esc(tr('playlists').toLowerCase())} · ${nf(t.videos)} ${esc(tr('items'))}</div>
+      </article>`).join('')}</div>`;
+}
+
+// ── Player ─────────────────────────────────────────────────────────────
+// YouTube IFrame API. Playback is a read operation — no OAuth, no quota.
+// The sheet is never display:none and the host div is never re-parented, so
+// audio survives collapsing the sheet.
+const PLAY = { yt: null, ready: false, pending: null, queue: [], index: -1,
+               shuffle: false, repeat: 'none', playing: false, timer: null, label: '' };
+
+let CURRENT_LIST = [];   // what the visible view would enqueue
+
+function loadYouTubeAPI() {
+  if (window.YT && window.YT.Player) { PLAY.ready = true; return; }
+  if (document.getElementById('ytApiScript')) return;
+  const tag = document.createElement('script');
+  tag.id = 'ytApiScript';
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
+}
+
+window.onYouTubeIframeAPIReady = function () {
+  PLAY.ready = true;
+  if (PLAY.pending) { const p = PLAY.pending; PLAY.pending = null; startPlayback(p.queue, p.index, p.label); }
+};
+
+function playFromList(i) {
+  playQueue(CURRENT_LIST, i, PLAY.label || tr('queueLabel'));
+}
+
+function playQueue(list, index, label) {
+  const queue = (list || []).filter(v => v && v.videoId && !v.ghost);
+  if (!queue.length) return;
+  const target = list[index];
+  const start = Math.max(0, queue.findIndex(v => v === target));
+  if (!PLAY.ready) { loadYouTubeAPI(); PLAY.pending = { queue, index: start, label }; return; }
+  startPlayback(queue, start, label);
+}
+
+function startPlayback(queue, index, label) {
+  PLAY.queue = queue;
+  PLAY.index = index;
+  PLAY.label = label || tr('queueLabel');
+  document.body.classList.add('has-player');
+  const videoId = PLAY.queue[PLAY.index].videoId;
+  if (PLAY.yt && PLAY.yt.loadVideoById) {
+    PLAY.yt.loadVideoById(videoId);
+  } else {
+    document.getElementById('ytHost').innerHTML = '<div id="ytFrame"></div>';
+    PLAY.yt = new YT.Player('ytFrame', {
+      videoId,
+      playerVars: { autoplay: 1, rel: 0, modestbranding: 1, playsinline: 1, origin: location.origin },
+      events: {
+        onReady: e => { e.target.playVideo(); startTimer(); },
+        onStateChange: onPlayerState,
+        onError: () => playNext(),
+      },
+    });
+  }
+  expandPlayer();
+  renderPlayer();
+}
+
+function onPlayerState(e) {
+  PLAY.playing = e.data === YT.PlayerState.PLAYING;
+  if (e.data === YT.PlayerState.ENDED) {
+    if (PLAY.repeat === 'one') { PLAY.yt.seekTo(0); PLAY.yt.playVideo(); }
+    else playNext(true);
+  }
+  renderPlayer();
+}
+
+function startTimer() {
+  clearInterval(PLAY.timer);
+  PLAY.timer = setInterval(() => {
+    if (!PLAY.yt || !PLAY.yt.getDuration) return;
+    const dur = PLAY.yt.getDuration() || 0;
+    const cur = PLAY.yt.getCurrentTime() || 0;
+    const pct = dur ? (cur / dur * 100) : 0;
+    ['barFill', 'sheetFill'].forEach(id => { const el = document.getElementById(id); if (el) el.style.width = pct.toFixed(2) + '%'; });
+    const t = fmtClock(Math.floor(cur)), d = fmtClock(Math.floor(dur));
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('barTime', t); set('sheetTime', t); set('barDur', d); set('sheetDur', d);
+  }, 500);
+}
+
+function togglePlay() {
+  if (!PLAY.yt) return;
+  if (PLAY.playing) PLAY.yt.pauseVideo(); else PLAY.yt.playVideo();
+}
+
+function playNext(auto) {
+  if (!PLAY.queue.length) return;
+  let next;
+  if (PLAY.shuffle) {
+    next = PLAY.queue.length === 1 ? 0 : (PLAY.index + 1 + Math.floor(Math.random() * (PLAY.queue.length - 1))) % PLAY.queue.length;
+  } else {
+    next = PLAY.index + 1;
+    if (next >= PLAY.queue.length) {
+      if (auto && PLAY.repeat !== 'all') { PLAY.playing = false; renderPlayer(); return; }
+      next = 0;
+    }
+  }
+  PLAY.index = next;
+  PLAY.yt.loadVideoById(PLAY.queue[next].videoId);
+  renderPlayer();
+}
+
+function playPrev() {
+  if (!PLAY.queue.length || !PLAY.yt) return;
+  if (PLAY.yt.getCurrentTime && PLAY.yt.getCurrentTime() > 3) { PLAY.yt.seekTo(0); return; }
+  PLAY.index = (PLAY.index - 1 + PLAY.queue.length) % PLAY.queue.length;
+  PLAY.yt.loadVideoById(PLAY.queue[PLAY.index].videoId);
+  renderPlayer();
+}
+
+function jumpTo(i) {
+  if (!PLAY.yt || !PLAY.queue[i]) return;
+  PLAY.index = i;
+  PLAY.yt.loadVideoById(PLAY.queue[i].videoId);
+  renderPlayer();
+}
+
+function toggleShuffle() { PLAY.shuffle = !PLAY.shuffle; renderPlayer(); }
+function cycleRepeat() { PLAY.repeat = PLAY.repeat === 'none' ? 'all' : PLAY.repeat === 'all' ? 'one' : 'none'; renderPlayer(); }
+
+function seekFromEvent(ev, track) {
+  if (!PLAY.yt || !PLAY.yt.getDuration) return;
+  const rect = track.getBoundingClientRect();
+  const frac = Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width));
+  PLAY.yt.seekTo(frac * (PLAY.yt.getDuration() || 0), true);
+}
+
+const expandPlayer = () => document.getElementById('playerSheet').classList.add('open');
+const collapsePlayer = () => document.getElementById('playerSheet').classList.remove('open');
+
+function stopPlayer() {
+  clearInterval(PLAY.timer);
+  if (PLAY.yt && PLAY.yt.destroy) PLAY.yt.destroy();
+  PLAY.yt = null; PLAY.queue = []; PLAY.index = -1; PLAY.playing = false;
+  document.getElementById('ytHost').innerHTML = '';
+  document.body.classList.remove('has-player');
+  collapsePlayer();
+}
+
+function renderPlayer() {
+  const cur = PLAY.queue[PLAY.index];
+  if (!cur) return;
+  const icon = PLAY.playing ? '⏸' : '▶';
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('barPlayBtn', icon); set('sheetPlayBtn', icon);
+  set('barTitle', cur.title); set('sheetTitle', cur.title);
+  set('barSub', cur.channel || cur.channelTitle || '—');
+  set('sheetSub', (cur.channel || cur.channelTitle || '—') + (cur.playlistTitle ? ' · ' + cur.playlistTitle : ''));
+  set('sheetLabel', tr('nowPlaying') + ' — ' + PLAY.label);
+  set('queueLabel', tr('queueLabel') + ' · ' + PLAY.queue.length);
+  const thumb = document.getElementById('barThumb');
+  if (thumb) thumb.style.backgroundImage = cur.thumbnail ? `url('${cur.thumbnail}')` : '';
+  const sh = document.getElementById('shuffleBtn'); if (sh) sh.classList.toggle('on', PLAY.shuffle);
+  const rp = document.getElementById('repeatBtn');
+  if (rp) { rp.classList.toggle('on', PLAY.repeat !== 'none'); rp.textContent = PLAY.repeat === 'one' ? '↻¹' : '↻'; }
+
+  const list = document.getElementById('queueList');
+  if (list) list.innerHTML = PLAY.queue.map((v, i) => `
+    <div class="q-item${i === PLAY.index ? ' current' : ''}" onclick="jumpTo(${i})">
+      <span class="q-num">${i + 1}</span>
+      <span>
+        <span class="q-title">${esc(v.title)}</span>
+        <span class="q-sub">${esc(v.channel || v.channelTitle || '—')}</span>
+      </span>
+      <span class="q-dur">${esc(v.seconds ? fmtClock(v.seconds) : '')}</span>
+    </div>`).join('');
+}
+
+// ── Render ─────────────────────────────────────────────────────────────
+function renderView(preserveFocus) {
+  if (!DATA) {
+    document.getElementById('app').innerHTML = `
+      <div class="wrap"><div class="empty">
+        <h2>${esc(tr('emptyTitle'))}</h2>
+        <p>${esc(tr('emptyBody'))}</p>
+        <a class="btn btn-primary" style="display:inline-block;text-decoration:none;" href="youtube-playlist-manager.html">${esc(tr('emptyBtn'))}</a>
+      </div></div>`;
+    document.getElementById('dock').style.display = 'none';
+    return;
+  }
+
+  const active = preserveFocus && document.activeElement;
+  const activeId = active && active.id;
+  const caret = active && active.selectionStart;
+
+  const body = {
+    dashboard: viewDashboard, playlists: viewPlaylists, search: viewSearch, kanban: viewKanban,
+    dupes: viewDupes, stats: viewStats, queue: viewQueue, tags: viewTags,
+  }[route.view]();
+
+  document.getElementById('app').innerHTML = `<div class="wrap">${topbar()}${body}</div>`;
+  document.getElementById('dock').innerHTML = dock();
+
+  if (route.view === 'dashboard') renderDashboardCharts();
+  if (route.view === 'search') renderSearchResults();
+  if (PLAY.queue.length) renderPlayer();
+
+  if (activeId) {
+    const again = document.getElementById(activeId);
+    if (again) { again.focus(); if (caret != null && again.setSelectionRange) try { again.setSelectionRange(caret, caret); } catch (_) {} }
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    const el = document.getElementById('globalSearch');
+    if (el) el.focus();
+  }
+  if (e.key === 'Escape') document.getElementById('palette').classList.remove('open');
+});
+
+// ── Boot ───────────────────────────────────────────────────────────────
+DATA = loadData();
+parseHash();
+applyTheme(themeId, true);
+renderPalette();
+renderView();
+document.documentElement.lang = LANG;
+</script>
+</body>
+</html>
