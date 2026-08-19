@@ -180,6 +180,16 @@
   .theme-chip:hover { border-color: var(--accent-line); color: var(--text); }
   .theme-chip.active { border-color: var(--accent); color: var(--text); }
   .theme-chip-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  /* Switch to the Studio (music) interface */
+  .studio-switch {
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px;
+    border: 1px solid var(--accent-line); border-radius: var(--pill);
+    color: var(--accent); font-size: 12px; font-weight: 600; text-decoration: none;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
+  .studio-switch:hover { background: var(--accent-soft); border-color: var(--accent); }
+  .studio-switch-nav { text-decoration: none; }
+  .studio-switch-nav .icon { color: var(--accent); }
   .theme-accent-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
   .theme-accent-slot {
     width: 22px; height: 22px; padding: 0; border: none; border-radius: 50%;
@@ -1135,6 +1145,11 @@
       <div class="quota-info" id="backupInfo" data-i18n-title="header_last_backup" title="Dernier backup" style="cursor:pointer;" onclick="switchView('backup')">--</div>
       <div class="quota-info" id="quotaInfo">Quota: --</div>
       <div class="readonly-pill" id="readonlyPill" data-i18n-title="readonly_pill_tooltip" title="Read-only mode is active — write actions are disabled"><span data-i18n="readonly_pill_label">READ-ONLY</span></div>
+      <a class="btn-icon header-tool studio-switch" href="reel-studio.html"
+         data-i18n-title="header_studio_ui" title="Interface Musique">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 14v6M9 4v16M14 9v11M19 6v14"/></svg>
+        <span data-i18n="nav_studio_ui">Musique</span>
+      </a>
       <button class="btn-icon header-tool" onclick="switchView('backup')" data-i18n-title="header_backup_tooltip" title="Backup">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
       </button>
@@ -1267,6 +1282,11 @@
           <span data-i18n="nav_beta">Feature Lab</span>
           <span class="beta-tag" data-i18n="beta_tag">BETA</span>
         </div>
+        <a class="sidebar-item studio-switch-nav" href="reel-studio.html">
+          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 14v6M9 4v16M14 9v11M19 6v14"/></svg></span>
+          <span data-i18n="nav_studio_ui">Musique</span>
+          <span class="beta-tag">UI</span>
+        </a>
       </div>
 
       <!-- Sidebar tools (mobile only) -->
@@ -2446,6 +2466,8 @@ const I18N = {
     theme_duochrome: 'Duochrome',
     theme_trichrome: 'Trichrome',
     theme_accents: 'Accent',
+    nav_studio_ui: 'Musique',
+    header_studio_ui: 'Basculer vers l’interface Musique (Reel Studio)',
     version_title: 'Version et journal des modifications',
     version_current: 'en cours',
     version_theme: 'Thème actif',
@@ -3063,6 +3085,8 @@ const I18N = {
     theme_duochrome: 'Duochrome',
     theme_trichrome: 'Trichrome',
     theme_accents: 'Accent',
+    nav_studio_ui: 'Music',
+    header_studio_ui: 'Switch to the Music interface (Reel Studio)',
     version_title: 'Version & changelog',
     version_current: 'current',
     version_theme: 'Active theme',
@@ -3683,11 +3707,15 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.3.0'; // bump per release
+const APP_VERSION = '1.4.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.4.0', date: '2026-08-19', items: [
+    'Bouton « Musique » — bascule vers Reel Studio depuis l’en-tête et la barre latérale',
+    'Service worker — les pages HTML sont servies réseau d’abord : une version éditée n’arrive plus avec un tour de retard',
+  ]},
   { v: '1.3.0', date: '2026-08-19', items: [
     'Panneau Version — build en cours + journal des modifications, accessible depuis les deux pieds de page',
     'Reel Studio v0.3.0 — UI alternative 3a : 8 vues navigables, panneau Palette (3A/3B/3C), lecteur interne à file (mini-barre + sheet)',
