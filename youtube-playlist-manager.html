@@ -992,6 +992,10 @@
     .header-right .quota-info#backupInfo { display: none; }
     .header-right .btn-sm[data-i18n="logout_btn"] { display: none; }
     .header-right .header-tool { display: none; }
+    /* The UI switch is a destination, not a tool — keep it in portrait,
+       icon-only so it costs no more room than the icons it sits beside. */
+    .header-right .header-tool.studio-switch { display: inline-flex; padding: 5px 8px; }
+    .header-right .studio-switch span { display: none; }
     .header-right { gap: 6px; }
     .sidebar-tools { display: block !important; }
 
@@ -3707,11 +3711,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.4.1'; // bump per release
+const APP_VERSION = '1.4.2'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.4.2', date: '2026-08-19', items: [
+    'Bouton Musique conservé dans l’en-tête en portrait (icône seule) — il tombait sous la règle qui masque les outils d’en-tête sous 768 px',
+  ]},
   { v: '1.4.1', date: '2026-08-19', items: [
     'CR1 — deux sinks restants corrigés : noms de playlists dans Playlist Diff, et escapeJsAttr() pour les arguments des handlers inline (l’antislash n’était pas échappé)',
     'CR4 — videos.insert corrigé à 1600 unités dans la table, et les trois uploads Studio persistent enfin le quota compté (saveQuotaState)',
