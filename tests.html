@@ -51,7 +51,7 @@
 <div class="wrap">
   <h1>Reel — regression tests</h1>
   <p class="sub">
-    Batches B and C, plus #G7 and #G18. Loads <code>youtube-playlist-manager.html</code> in a same-origin iframe and asserts
+    Batches B and C, plus #G7, #G18, #G8 and #G9. Loads <code>youtube-playlist-manager.html</code> in a same-origin iframe and asserts
     against its live functions. Serve both from the same origin (the app's own server) or the iframe is blocked.
   </p>
   <div class="bar">
@@ -231,6 +231,86 @@ async function runMerge(w, opts) {
 // Suites
 // ════════════════════════════════════════════════════════════════════════
 const SUITES = [
+{
+  id: '#G8', title: 'Ghosts detected by metadata', note: 'the old test matched "Deleted"/"Private" anywhere in a title, and ghosts feed a bulk delete',
+  cases: [
+    ['a real video with a thumbnail is available', w =>
+      eq(w.ghostStatus({ snippet: { title: 'Ableton tutorial', thumbnails: { medium: { url: 'u' } }, videoPublishedAt: '2024-01-01T00:00:00Z' } }), 'available')],
+    ['"Private Session Vol. 2" is NOT a ghost', w =>
+      eq(w.ghostStatus({ snippet: { title: 'Private Session Vol. 2', thumbnails: { medium: { url: 'u' } }, videoPublishedAt: '2024-01-01T00:00:00Z' } }), 'available')],
+    ['"Deleted Scenes" is NOT a ghost', w =>
+      eq(w.ghostStatus({ snippet: { title: 'Deleted Scenes — behind the mix', thumbnails: { default: { url: 'u' } }, videoPublishedAt: '2024-01-01T00:00:00Z' } }), 'available')],
+    ['a deleted item is a ghost', w =>
+      eq(w.ghostStatus({ snippet: { title: 'Deleted video', thumbnails: {} }, status: { privacyStatus: 'privacyStatusUnspecified' } }), 'deleted')],
+    ['a private item is a ghost', w =>
+      eq(w.ghostStatus({ snippet: { title: 'Private video', thumbnails: {} }, status: { privacyStatus: 'private' } }), 'private')],
+    ['a localised ghost is caught', w =>
+      // A French account returns "Vidéo supprimée" — the substring test missed it entirely.
+      eq(w.ghostStatus({ snippet: { title: 'Vidéo supprimée', thumbnails: {} } }), 'deleted')],
+    ['a thumbnail alone keeps it available', w =>
+      eq(w.ghostStatus({ snippet: { title: 'Private video', thumbnails: { high: { url: 'u' } } } }), 'available')],
+    ['a video date alone keeps it available', w =>
+      eq(w.ghostStatus({ snippet: { title: 'Deleted video', thumbnails: {}, videoPublishedAt: '2024-01-01T00:00:00Z' } }), 'available')],
+    ['isGhostItem agrees with ghostStatus', w => {
+      const real = { snippet: { title: 'x', thumbnails: { medium: { url: 'u' } }, videoPublishedAt: 'd' } };
+      const gone = { snippet: { title: 'x', thumbnails: {} } };
+      ok(w.isGhostItem(real) === false, 'flagged a real video');
+      return ok(w.isGhostItem(gone) === true, 'missed a ghost');
+    }],
+    ['playlistItems now requests videoPublishedAt', async w => {
+      const calls = [];
+      const real = w.ytApi;
+      w.ytApi = async (endpoint, params) => { calls.push(params); return { items: [] }; };
+      try {
+        await w.loadPlaylistVideos('PL_FIELDS_PROBE', { force: true });
+        const f = calls.find(c => c && c.fields);
+        ok(f, 'no fields parameter sent');
+        return ok(f.fields.includes('videoPublishedAt'), 'videoPublishedAt not requested — detection would degrade');
+      } finally { w.ytApi = real; }
+    }],
+  ],
+},
+{
+  id: '#G9', title: 'Bulk ghost cleanup', note: 'one rescan and one toast, not one of each per ghost',
+  cases: [
+    ['a silent delete raises no toast', async w => {
+      const toasts = [];
+      const real = { ytApi: w.ytApi, showToast: w.showToast, scanGhostVideos: w.scanGhostVideos };
+      let scans = 0;
+      w.ytApi = async () => ({});
+      w.showToast = (m, t2) => toasts.push(t2);
+      w.scanGhostVideos = async () => { scans++; };
+      try {
+        const okRes = await w.removeGhostVideo('PL_X', 'ITEM_X', { silent: true });
+        ok(okRes === true, 'delete reported failure');
+        eq(toasts.length, 0, 'toasts raised in silent mode');
+        return eq(scans, 0, 'rescans triggered in silent mode');
+      } finally { Object.assign(w, real); }
+    }],
+    ['a normal delete still toasts and rescans', async w => {
+      const toasts = [];
+      const real = { ytApi: w.ytApi, showToast: w.showToast, scanGhostVideos: w.scanGhostVideos };
+      let scans = 0;
+      w.ytApi = async () => ({});
+      w.showToast = (m, t2) => toasts.push(t2);
+      w.scanGhostVideos = async () => { scans++; };
+      try {
+        await w.removeGhostVideo('PL_X', 'ITEM_X');
+        ok(toasts.length === 1, 'expected exactly 1 toast, got ' + toasts.length);
+        return eq(scans, 1, 'expected exactly 1 rescan');
+      } finally { Object.assign(w, real); }
+    }],
+    ['a failed delete reports false rather than throwing', async w => {
+      const real = { ytApi: w.ytApi, showToast: w.showToast, scanGhostVideos: w.scanGhostVideos };
+      w.ytApi = async () => { throw new Error('nope'); };
+      w.showToast = () => {};
+      w.scanGhostVideos = async () => {};
+      try {
+        return eq(await w.removeGhostVideo('PL_X', 'ITEM_X', { silent: true }), false);
+      } finally { Object.assign(w, real); }
+    }],
+  ],
+},
 {
   id: '#G18', title: 'Merge targets by id', note: 'two playlists share the title "Musique" — by name it is a coin toss',
   cases: [
