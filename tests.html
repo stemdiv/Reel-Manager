@@ -51,7 +51,7 @@
 <div class="wrap">
   <h1>Reel — regression tests</h1>
   <p class="sub">
-    Batches B, C and #G7. Loads <code>youtube-playlist-manager.html</code> in a same-origin iframe and asserts
+    Batches B and C, plus #G7 and #G18. Loads <code>youtube-playlist-manager.html</code> in a same-origin iframe and asserts
     against its live functions. Serve both from the same origin (the app's own server) or the iframe is blocked.
   </p>
   <div class="bar">
@@ -156,10 +156,124 @@ async function runMove(w, opts) {
   }
 }
 
+// Merge, driven the same way: real performMerge, stubbed ytApi. Two playlists
+// deliberately share the title "Musique" — that ambiguity is the whole bug.
+async function runMerge(w, opts) {
+  opts = opts || {};
+  const calls = [];
+  const real = { ytApi: w.ytApi, loadAllPlaylists: w.loadAllPlaylists, showToast: w.showToast,
+                 checkBackupSafety: w.checkBackupSafety, checkQuotaBudget: w.checkQuotaBudget,
+                 showProgressBar: w.showProgressBar, updateProgressBar: w.updateProgressBar,
+                 refreshMergeUI: w.refreshMergeUI };
+  const snap = snapshot(w, ['autoCache']);
+
+  const host = w.document.createElement('div');
+  host.innerHTML =
+    '<input type="checkbox" class="merge-playlist-select" value="PL_1" checked>' +
+    '<input type="checkbox" class="merge-playlist-select" value="PL_2" checked>' +
+    '<select id="mergeDestPlaylist">' +
+      '<option value="__new__">new</option>' +
+      '<option value="PL_DUPE_A">Musique</option>' +
+      '<option value="PL_DUPE_B">Musique</option>' +
+      '<option value="PL_1">source one</option>' +
+      '<option value="PL_2">source two</option>' +
+    '</select>' +
+    '<input type="text" id="mergeDestName" value="' + (opts.name || 'Musique') + '">' +
+    '<div id="mergeProgress"></div>';
+  ['mergeDestPlaylist', 'mergeDestName', 'mergeProgress'].forEach(id => {
+    const old = w.document.getElementById(id);
+    if (old) old.id = '__parked_' + id;
+  });
+  w.document.body.appendChild(host);
+  host.querySelector('#mergeDestPlaylist').value = opts.dest || '__new__';
+
+  w.ytApi = async (endpoint, params, method, body) => {
+    calls.push({ endpoint, params: params || {}, method: method || 'GET', body });
+    if (endpoint === 'playlists' && method === 'POST') return { id: 'PL_CREATED', snippet: { title: body.snippet.title } };
+    if (opts.failInserts && endpoint === 'playlistItems' && method === 'POST') throw new Error('simulated insert failure');
+    if (endpoint === 'playlistItems' && (!method || method === 'GET')) {
+      const pid = params && params.playlistId;
+      return { items: (pid === 'PL_1' || pid === 'PL_2')
+        ? [{ id: 'ITEM_' + pid, contentDetails: { videoId: 'VID_' + pid },
+             snippet: { title: pid, resourceId: { videoId: 'VID_' + pid } } }]
+        : [] };
+    }
+    return { items: [] };
+  };
+  w.loadAllPlaylists = async () => {};
+  w.refreshMergeUI = () => {};
+  w.checkBackupSafety = () => true;
+  w.checkQuotaBudget = () => true;
+  w.showProgressBar = () => {};
+  w.updateProgressBar = () => {};
+  w.showToast = (msg, type) => { if (opts.toasts) opts.toasts.push({ msg, type }); };
+
+  try {
+    // seed two source playlists with one video each
+    await w.loadPlaylistVideos('PL_1', { force: true });
+    await w.loadPlaylistVideos('PL_2', { force: true });
+    calls.length = 0;
+    await w.performMerge();
+    return calls;
+  } finally {
+    host.remove();
+    ['mergeDestPlaylist', 'mergeDestName', 'mergeProgress'].forEach(id => {
+      const parked = w.document.getElementById('__parked_' + id);
+      if (parked) parked.id = id;
+    });
+    Object.assign(w, real);
+    restore(w, snap);
+  }
+}
+
+
 // ════════════════════════════════════════════════════════════════════════
 // Suites
 // ════════════════════════════════════════════════════════════════════════
 const SUITES = [
+{
+  id: '#G18', title: 'Merge targets by id', note: 'two playlists share the title "Musique" — by name it is a coin toss',
+  cases: [
+    ['an existing destination is used as-is', async w => {
+      const calls = await runMerge(w, { dest: 'PL_DUPE_B' });
+      ok(!calls.some(c => c.endpoint === 'playlists' && c.method === 'POST'), 'created a playlist instead of using the chosen one');
+      const inserts = calls.filter(c => c.endpoint === 'playlistItems' && c.method === 'POST');
+      ok(inserts.length > 0, 'nothing was inserted');
+      return eq([...new Set(inserts.map(i => i.body.snippet.playlistId))], ['PL_DUPE_B'], 'wrong destination');
+    }],
+    ['the twin with the same title is never chosen', async w => {
+      const calls = await runMerge(w, { dest: 'PL_DUPE_B' });
+      const hitA = calls.some(c => c.body?.snippet?.playlistId === 'PL_DUPE_A');
+      return ok(!hitA, 'videos landed in the same-named twin');
+    }],
+    ['new destination creates a playlist', async w => {
+      const calls = await runMerge(w, { dest: '__new__', name: 'Fusion 2026' });
+      const created = calls.find(c => c.endpoint === 'playlists' && c.method === 'POST');
+      ok(created, 'no playlist created');
+      eq(created.body.snippet.title, 'Fusion 2026', 'wrong title');
+      const inserts = calls.filter(c => c.endpoint === 'playlistItems' && c.method === 'POST');
+      return eq([...new Set(inserts.map(i => i.body.snippet.playlistId))], ['PL_CREATED'], 'not inserted into the new playlist');
+    }],
+    ['an existing title no longer hijacks a create', async w => {
+      // "Musique" matches two existing playlists; creating must still create.
+      const calls = await runMerge(w, { dest: '__new__', name: 'Musique' });
+      return ok(calls.some(c => c.endpoint === 'playlists' && c.method === 'POST'),
+                'merged into an existing playlist instead of creating');
+    }],
+    ['merging into a source is refused', async w => {
+      const toasts = [];
+      const calls = await runMerge(w, { dest: 'PL_1', toasts });
+      ok(calls.length === 0, 'requests were issued for a self-merge');
+      return ok(toasts.some(t => t.type === 'error'), 'no error surfaced');
+    }],
+    ['failed inserts are reported, not swallowed', async w => {
+      const toasts = [];
+      await runMerge(w, { dest: 'PL_DUPE_B', failInserts: true, toasts });
+      ok(toasts.length > 0, 'no toast at all');
+      return ok(!toasts.some(t => t.type === 'success'), 'claimed success despite failures');
+    }],
+  ],
+},
 {
   id: '#G7', title: 'Move actually moves', note: 'ytApi is stubbed — no request leaves the browser',
   cases: [

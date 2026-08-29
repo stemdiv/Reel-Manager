@@ -1647,8 +1647,12 @@
           <div id="mergePlaylistsList"></div>
         </div>
         <div class="form-group">
-          <label class="form-label">Destination (nouvelle ou existante)</label>
-          <input type="text" class="form-control" id="mergeDestName" placeholder="Nom de la playlist destination">
+          <label class="form-label" data-i18n="merge_dest_label">Destination</label>
+          <select class="form-control" id="mergeDestPlaylist" onchange="onMergeDestChange()">
+            <option value="__new__" data-i18n="merge_dest_new">➕ New playlist…</option>
+          </select>
+          <input type="text" class="form-control mt-8" id="mergeDestName"
+                 data-i18n-placeholder="merge_dest_name" placeholder="Name of the new playlist">
         </div>
         <button class="btn btn-primary" onclick="performMerge()">Fusionner</button>
         <div id="mergeProgress"></div>
@@ -2921,6 +2925,11 @@ const I18N = {
     toast_merged: '{count} vidéos fusionnées',
     toast_select_merge: 'Sélectionnez au moins 2 playlists et entrez un nom',
     toast_select_source_dest: 'Sélectionnez source, destination et vidéos',
+    merge_dest_label: 'Destination',
+    merge_dest_new: '➕ Nouvelle playlist…',
+    merge_dest_name: 'Nom de la nouvelle playlist',
+    toast_merge_dest_is_source: 'La destination ne peut pas faire partie des playlists à fusionner',
+    toast_merged_partial: '{count} vidéo(s) fusionnée(s), {failed} en échec',
     toast_moved: 'Vidéos déplacées',
     toast_moved_partial: '{moved} vidéo(s) déplacée(s), {stuck} copiée(s) sans être retirée(s) de la playlist source — réessayez sur celles-ci',
     toast_scanning_ghosts: 'Scan des vidéos fantômes... (peut prendre un moment)',
@@ -3555,6 +3564,11 @@ const I18N = {
     toast_merged: '{count} videos merged',
     toast_select_merge: 'Select at least 2 playlists and enter a name',
     toast_select_source_dest: 'Select source, destination and videos',
+    merge_dest_label: 'Destination',
+    merge_dest_new: '➕ New playlist…',
+    merge_dest_name: 'Name of the new playlist',
+    toast_merge_dest_is_source: 'The destination cannot be one of the playlists being merged',
+    toast_merged_partial: '{count} video(s) merged, {failed} failed',
     toast_moved: 'Videos moved',
     toast_moved_partial: '{moved} video(s) moved, {stuck} copied but not removed from the source playlist — retry those',
     toast_scanning_ghosts: 'Scanning ghost videos... (may take a moment)',
@@ -3815,11 +3829,15 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.9.0'; // bump per release
+const APP_VERSION = '1.10.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.10.0', date: '2026-08-19', items: [
+    '#G18 — la fusion choisit sa destination par identifiant : un menu liste les playlists existantes ou permet d en creer une. Elle la cherchait par titre, donc deux playlists homonymes envoyaient les videos dans la premiere venue, et saisir un nom existant fusionnait dedans au lieu de creer',
+    '#G18 — fusionner une playlist dans elle-meme est refuse, et les insertions en echec sont signalees au lieu d etre annoncees comme une fusion propre',
+  ]},
   { v: '1.9.0', date: '2026-08-19', items: [
     '#G7 — Deplacer deplace enfin : l item source est supprime apres l insertion. La fonction ne faisait qu inserer dans la destination, donc elle copiait, et la video restait aussi dans la source',
     '#G7 — le cache de la playlist source est desormais invalide lui aussi, et un echec de suppression est signale au lieu d etre annonce comme un succes',
@@ -9138,15 +9156,42 @@ function refreshMergeUI() {
   `).join('');
 
   document.getElementById('mergePlaylistsList').innerHTML = html;
+
+  // #G18: the destination is chosen by id. Titles are not unique, so matching
+  // one by name could target the wrong playlist entirely.
+  const dest = document.getElementById('mergeDestPlaylist');
+  if (dest) {
+    const previous = dest.value;
+    dest.innerHTML = `<option value="__new__">${escapeHtml(t('merge_dest_new'))}</option>` +
+      APP.playlists.map(pl => `<option value="${escapeHtml(pl.id)}">${escapeHtml(pl.snippet.title)} (${APP.allVideos[pl.id]?.length || 0})</option>`).join('');
+    if (previous && [...dest.options].some(o => o.value === previous)) dest.value = previous;
+    onMergeDestChange();
+  }
+}
+
+// The name field only makes sense when creating; hide it when an existing
+// playlist is the target, so there is no ambiguity about what will happen.
+function onMergeDestChange() {
+  const dest = document.getElementById('mergeDestPlaylist');
+  const nameInput = document.getElementById('mergeDestName');
+  if (!dest || !nameInput) return;
+  nameInput.style.display = dest.value === '__new__' ? '' : 'none';
 }
 
 async function performMerge() {
   if (!checkBackupSafety('Fusion de playlists')) return;
   const selected = Array.from(document.querySelectorAll('.merge-playlist-select:checked')).map(el => el.value);
+  const destChoice = document.getElementById('mergeDestPlaylist')?.value || '__new__';
   const destName = document.getElementById('mergeDestName').value.trim();
+  const creatingNew = destChoice === '__new__';
 
-  if (selected.length < 2 || !destName) {
+  if (selected.length < 2 || (creatingNew && !destName)) {
     showToast(t('toast_select_merge'), 'error');
+    return;
+  }
+  if (!creatingNew && selected.includes(destChoice)) {
+    // Merging a playlist into itself would duplicate every one of its videos.
+    showToast(t('toast_merge_dest_is_source'), 'error');
     return;
   }
 
@@ -9154,20 +9199,22 @@ async function performMerge() {
   if (!checkQuotaBudget('Fusion de playlists', 'merge', totalVideos)) return;
 
   try {
-    // Create destination playlist
-    let destPlaylist = APP.playlists.find(p => p.snippet.title === destName);
-    if (!destPlaylist) {
+    // #G18: resolve the destination by id. The old code looked it up by title,
+    // so two playlists sharing a name sent the videos to whichever came first,
+    // and typing an existing name silently merged into it instead of creating.
+    let destId;
+    if (creatingNew) {
       const res = await ytApi('playlists', { part: 'snippet,status' }, 'POST', {
         snippet: { title: destName, description: 'Merged playlist' },
         status: { privacyStatus: 'private' }
       });
-      destPlaylist = res;
-      APP.playlists.push(destPlaylist);
-      APP.allVideos[destPlaylist.id] = [];
+      APP.playlists.push(res);
+      APP.allVideos[res.id] = [];
+      destId = res.id;
+    } else {
+      destId = destChoice;
     }
-
-    const destId = destPlaylist.id;
-    let moved = 0;
+    let moved = 0, failed = 0;
     const total = selected.reduce((sum, id) => sum + (APP.allVideos[id]?.length || 0), 0);
 
     showProgressBar('mergeProgress', 0, total);
@@ -9185,14 +9232,19 @@ async function performMerge() {
           moved++;
           updateProgressBar('mergeProgress', moved, total);
         } catch (err) {
-          console.error('Error moving video:', err);
+          failed++;
+          log('warn', 'action', 'merge: video not copied', { videoId: video.contentDetails?.videoId, msg: err.message });
         }
       }
     }
 
     delete APP.allVideos[destId]; // evict stale destination cache
     await loadAllPlaylists();
-    showToast(t('toast_merged', { count: moved }), 'success');
+    if (failed) {
+      showToast(t('toast_merged_partial', { count: moved, failed }), 'warning');
+    } else {
+      showToast(t('toast_merged', { count: moved }), 'success');
+    }
   } catch (err) {
     showToast(t('toast_error', { msg: err.message }), 'error');
   }
