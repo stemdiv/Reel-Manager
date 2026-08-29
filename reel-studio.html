@@ -528,7 +528,7 @@
 // Strictly read-only: no API calls, no writes to the app's data keys.
 // ═══════════════════════════════════════════════════════════════════════
 
-const STUDIO_VERSION = '0.7.0';
+const STUDIO_VERSION = '0.7.1';
 
 // ── i18n ───────────────────────────────────────────────────────────────
 const LANG = (localStorage.getItem('appLang') || 'fr') === 'en' ? 'en' : 'fr';
@@ -1694,6 +1694,11 @@ applyTheme(themeId, true);
 renderPalette();
 renderView();
 document.documentElement.lang = LANG;
+
+// Same guard in reverse: going back to the app must not land on a cached build.
+document.querySelectorAll('a[href^="youtube-playlist-manager.html"]').forEach(a => {
+  a.setAttribute('href', 'youtube-playlist-manager.html?v=' + STUDIO_VERSION);
+});
 </script>
 </body>
 </html>

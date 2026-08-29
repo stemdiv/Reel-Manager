@@ -3813,11 +3813,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.7.0'; // bump per release
+const APP_VERSION = '1.7.1'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.7.1', date: '2026-08-19', items: [
+    'Les liens entre les deux interfaces portent le numéro de version : une page conservée par un ancien service worker n’est plus servie après une mise à jour',
+  ]},
   { v: '1.7.0', date: '2026-08-19', items: [
     'Sélecteur de couleur intégré — carré saturation/valeur, curseur de teinte, champs HEX et RVB. <input type="color"> ouvrait la boîte de dialogue du système, très différente entre le bureau et Android et non stylable ; le nouveau sélecteur est identique partout et devient une feuille basse sous 768 px',
   ]},
@@ -5359,6 +5362,11 @@ function updateVersionLinks() {
   ['sidebarVersionLink', 'loginVersionLink'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = 'v' + APP_VERSION;
+  });
+  // Stamp the Studio links with the release. A page cached by an older service
+  // worker kept being served after an update; a changing URL forces a real fetch.
+  document.querySelectorAll('a[href^="reel-studio.html"]').forEach(a => {
+    a.setAttribute('href', 'reel-studio.html?v=' + APP_VERSION);
   });
 }
 
