@@ -3831,11 +3831,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.11.0'; // bump per release
+const APP_VERSION = '1.11.1'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.11.1', date: '2026-08-19', items: [
+    'Correctif du correctif #G10 : la garde anti-formule ajoutait une apostrophe a l export CSV que la restauration ne retirait pas — une playlist nommee -Techno revenait sous le nom apostrophe-Techno. Aller-retour desormais sans perte, et un titre commencant vraiment par une apostrophe est preserve',
+  ]},
   { v: '1.11.0', date: '2026-08-19', items: [
     '#G8 — detection des fantomes par metadonnees (miniature + videoPublishedAt + privacyStatus) au lieu du titre. Le test cherchait Deleted ou Private n importe ou dans le titre : une vraie video nommee Private Session etait signalee, et aucun compte non anglophone n etait couvert',
     '#G9 — nettoyage en lot : une seule re-analyse et un seul message a la fin, au lieu d une re-analyse complete et d un message par suppression ; l element supprime quitte enfin le cache',
@@ -11451,6 +11454,15 @@ function csvRow(fields) {
   return fields.map(csvCell).join(',');
 }
 
+// The exact inverse of csvCell's guard, and nothing more: strip a leading
+// apostrophe only when it shields a formula character, so a real title like
+// "'Round Midnight" survives a round-trip untouched.
+function csvUnescapeCell(value) {
+  const s = String(value == null ? '' : value);
+  return (s.length > 1 && s.charAt(0) === "'" && CSV_FORMULA_PREFIXES.indexOf(s.charAt(1)) !== -1)
+    ? s.slice(1) : s;
+}
+
 // ── Restore state ──
 let restoreData = { playlists: [], metadata: null, paused: false, cancelled: false, running: false };
 
@@ -11522,7 +11534,7 @@ function parseCSVForRestore(text) {
     const row = parseCSVLine(lines[i]);
     if (!row || row.length < 4) continue;
 
-    const plTitle = row[0]?.trim();
+    const plTitle = csvUnescapeCell(row[0]?.trim());
     if (!plTitle) continue;
 
     if (!playlistMap[plTitle]) {
@@ -11533,7 +11545,7 @@ function parseCSVForRestore(text) {
     const url = row[3]?.trim() || '';
     const videoIdMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
     const videoId = videoIdMatch ? videoIdMatch[1] : null;
-    const videoTitle = row[2]?.trim() || '';
+    const videoTitle = csvUnescapeCell(row[2]?.trim() || '');
     const status = row[6]?.trim() || '';
 
     if (videoId && videoTitle && !status.includes('Supprim') && !status.includes('Deleted')) {

@@ -416,6 +416,22 @@ const SUITES = [
     ['quotes still doubled',        w => eq(w.csvRow(['He said "hi"']), '"He said ""hi"""')],
     ['empty cell survives',         w => eq(w.csvRow(['']), '""')],
     ['row separator intact',        w => eq(w.csvRow(['a', '=b', 'c']), '"a","\'=b","c"')],
+    // The guard must be reversible: the app re-imports its own CSV exports.
+    ['round-trip: =1+1',            w => eq(w.csvUnescapeCell("'=1+1"), '=1+1')],
+    ['round-trip: -Techno',         w => eq(w.csvUnescapeCell("'-Techno"), '-Techno')],
+    ['round-trip: @home',           w => eq(w.csvUnescapeCell("'@home"), '@home')],
+    ['a real leading apostrophe survives', w => eq(w.csvUnescapeCell("'Round Midnight"), "'Round Midnight")],
+    ['a lone apostrophe survives',  w => eq(w.csvUnescapeCell("'"), "'")],
+    ['plain titles unchanged',      w => eq(w.csvUnescapeCell('Ableton'), 'Ableton')],
+    ['export then import is lossless', w => {
+      const titles = ['Ableton', '=SUM(A1)', '-Techno', '@home', "'Round Midnight", 'Rock & Roll'];
+      const back = titles.map(tt => {
+        const cell = w.csvRow([tt]);                          // as written to the file
+        const inner = cell.slice(1, -1).replace(/""/g, '"');  // as a CSV reader sees it
+        return w.csvUnescapeCell(inner);
+      });
+      return eq(back, titles, 'a title changed on the way out and back');
+    }],
   ],
 },
 {
