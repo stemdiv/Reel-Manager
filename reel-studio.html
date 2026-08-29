@@ -350,6 +350,13 @@
   .pal-meta b { color: var(--accent); }
   .pal-meta a { color: var(--accent); text-decoration: none; }
   .palette-close { position: absolute; top: 20px; left: 18px; color: var(--text3); font-size: 20px; line-height: 1; }
+  .pal-hex-toggle {
+    display: none; position: absolute; top: 18px; left: 48px;
+    width: 26px; height: 26px; place-items: center; border-radius: 7px;
+    border: 1px solid var(--border); background: var(--surface2);
+    color: var(--text3); font-family: ui-monospace, monospace; font-size: 12px;
+  }
+  .palette.show-hex .pal-hex-toggle { border-color: var(--accent); color: var(--accent); }
 
   @media (max-width: 1100px) {
     .bento { grid-template-columns: 1fr 1fr; }
@@ -357,7 +364,31 @@
     .kpi, .kpi-1, .kpi-2, .cats, .top, .health { grid-column: auto; grid-row: auto; }
     .top { grid-column: 1 / span 2; }
   }
+  /* #72 — the panel was drawn for desktop: full-width in portrait, three sections
+     stacked, hex fields stretching the column. Below 640px it becomes an accordion
+     showing only the active theme, with the hex fields behind a toggle. */
   @media (max-width: 640px) {
+    .pal-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 11px 2px; margin-bottom: 0; font-size: 11px;
+      border-bottom: 1px solid var(--border);
+    }
+    .pal-head::after { content: '+'; font-size: 15px; color: var(--text3); line-height: 1; }
+    .pal-sec.active .pal-head { border-bottom-color: var(--accent-line); }
+    .pal-sec.active .pal-head::after { content: '−'; color: var(--accent); }
+    .pal-sec { margin-bottom: 0; }
+    .pal-sec:not(.active) .combos,
+    .pal-sec:not(.active) .slot-row { display: none; }
+    .pal-sec.active .combos { margin: 12px 0; }
+    .combo i { height: 36px; }
+    .combo.single i { width: 36px; }
+    .combo.multi i { width: 26px; }
+    /* Typing a hex on a phone is a power move, not the default one. */
+    .slot-hex { display: none; }
+    .palette.show-hex .slot-hex { display: block; }
+    .slot-chip { width: 34px; height: 34px; }
+    .pal-hex-toggle { display: grid; }
+
     .bento { grid-template-columns: 1fr; }
     .hero, .top, .kpi-1, .kpi-2 { grid-column: 1; }
     .greeting { flex-direction: column; align-items: flex-start; gap: 6px; }
@@ -375,6 +406,7 @@
 
 <aside class="palette" id="palette">
   <button class="palette-close" onclick="togglePalette()">×</button>
+  <button class="pal-hex-toggle" id="palHexToggle" onclick="togglePaletteHex()" title="#hex">#</button>
   <div class="pal-card" id="palCard"></div>
 </aside>
 
@@ -435,7 +467,7 @@
 // Strictly read-only: no API calls, no writes to the app's data keys.
 // ═══════════════════════════════════════════════════════════════════════
 
-const STUDIO_VERSION = '0.5.0';
+const STUDIO_VERSION = '0.6.0';
 
 // ── i18n ───────────────────────────────────────────────────────────────
 const LANG = (localStorage.getItem('appLang') || 'fr') === 'en' ? 'en' : 'fr';
@@ -630,6 +662,17 @@ function resetPalette() {
 
 const togglePalette = () => document.getElementById('palette').classList.toggle('open');
 
+// #72 — hex fields are hidden in portrait; this reveals them on demand.
+const togglePaletteHex = () => document.getElementById('palette').classList.toggle('show-hex');
+
+// In portrait only the active section is expanded, so switching theme also
+// scrolls its combos into view rather than leaving the panel where it was.
+function revealActiveSection() {
+  if (!window.matchMedia('(max-width: 640px)').matches) return;
+  const active = document.querySelector('.pal-sec.active');
+  if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+}
+
 function renderPalette() {
   const sections = ['studio-bi', 'studio-tri', 'studio-duo'].map(id => {
     const theme = THEMES[id];
@@ -660,10 +703,12 @@ function renderPalette() {
       </div>`;
   }).join('');
 
-  document.getElementById('palCard').innerHTML = sections +
+  const card = document.getElementById('palCard');
+  card.innerHTML = sections +
     `<button class="pal-reset" onclick="resetPalette()">${tr('reset')}</button>` +
     `<div class="pal-meta">Reel Studio <b>v${STUDIO_VERSION}</b><br>${esc(tr('readonly'))}<br>
        <a href="youtube-playlist-manager.html">← Reel Manager</a></div>`;
+  revealActiveSection();
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
