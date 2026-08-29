@@ -51,7 +51,7 @@
 <div class="wrap">
   <h1>Reel — regression tests</h1>
   <p class="sub">
-    Batches B and C, plus #G7, #G18, #G8 and #G9. Loads <code>youtube-playlist-manager.html</code> in a same-origin iframe and asserts
+    Batches B and C, plus #G7, #G18, #G8, #G9 and #76. Loads <code>youtube-playlist-manager.html</code> in a same-origin iframe and asserts
     against its live functions. Serve both from the same origin (the app's own server) or the iframe is blocked.
   </p>
   <div class="bar">
@@ -227,10 +227,108 @@ async function runMerge(w, opts) {
 }
 
 
+// #76 — exercise autoSaveToLocalStorage against a cache seeded on disk. APP is a
+// const, so the in-memory side is seeded through loadPlaylistVideos with a
+// stubbed ytApi, exactly as the move and merge harnesses do.
+async function runAutoSave(w, opts) {
+  opts = opts || {};
+  const snap = snapshot(w, ['autoCache', 'autoCacheTimestamp']);
+  const real = { ytApi: w.ytApi, showToast: w.showToast, updateBackupIndicator: w.updateBackupIndicator };
+  w.showToast = () => {};
+  w.updateBackupIndicator = () => {};
+  // loadAllPlaylists is NOT stubbed: the harness calls it to seed APP.playlists.
+  w.ytApi = async (endpoint, params) => {
+    if (endpoint === 'playlists') {
+      return { items: [{ id: 'PL_SEED', snippet: { title: 'seed' }, contentDetails: { itemCount: 1 }, status: {} }] };
+    }
+    if (endpoint === 'playlistItems' && params && params.playlistId === 'PL_SEED') {
+      return { items: [{ id: 'I1', contentDetails: { videoId: 'V1' },
+                         snippet: { title: 'v', thumbnails: { medium: { url: 'u' } }, resourceId: { videoId: 'V1' } } }] };
+    }
+    return { items: [] };
+  };
+
+  // a cache already holding videos
+  if (opts.existingVideos !== 0) {
+    w.localStorage.setItem('autoCache', JSON.stringify({
+      timestamp: new Date(0).toISOString(),
+      playlists: [{ id: 'PL_OLD', title: 'old', videos: [{ videoId: 'OLD1', title: 'kept' }] }],
+      playlistObjects: [], tags: {}, tagIcons: {}, folders: [], folderAssignments: {},
+      deckColumns: [], watchQueue: [], bookmarkedPlaylists: [],
+    }));
+  } else {
+    w.localStorage.removeItem('autoCache');
+  }
+
+  try {
+    if (opts.withMemoryVideos) {
+      await w.loadAllPlaylists();                      // APP.playlists is a const property, seed it via the app
+      await w.loadPlaylistVideos('PL_SEED', { force: true });
+    }
+    await w.autoSaveToLocalStorage(opts.force ? { force: true } : undefined);
+    const after = JSON.parse(w.localStorage.getItem('autoCache') || 'null');
+    if (!after) return null;
+    const n = (after.playlists || []).reduce((s, p) => s + (p.videos?.length || 0), 0);
+    return { videos: n, wrote: after.timestamp !== new Date(0).toISOString() };
+  } finally {
+    Object.assign(w, real);
+    restore(w, snap);
+  }
+}
+
+
 // ════════════════════════════════════════════════════════════════════════
 // Suites
 // ════════════════════════════════════════════════════════════════════════
 const SUITES = [
+{
+  id: '#76', title: 'The auto-cache cannot erase itself', note: 'it runs after a cache-first startup, when videos may not be in memory yet',
+  cases: [
+    // The predicate carries the decision, so it is asserted directly. The
+    // integration cases below cover the wiring: the app loads its own cache into
+    // memory at startup, so "nothing in memory" cannot be staged from outside.
+    ['refuses a videoless write over a cache with videos', w =>
+      eq(w.shouldSkipAutoSave(0, 1200, false), true)],
+    ['allows a write that carries videos', w =>
+      eq(w.shouldSkipAutoSave(2498, 1200, false), false)],
+    ['allows the very first write', w =>
+      eq(w.shouldSkipAutoSave(0, 0, false), false)],
+    ['force always allows the write', w =>
+      eq(w.shouldSkipAutoSave(0, 1200, true), false)],
+    ['a genuinely empty library still writes once cached is empty', w =>
+      eq(w.shouldSkipAutoSave(0, 0, undefined), false)],
+    ['force overrides the guard', async w => {
+      // Order-independent: APP.allVideos survives between runs, so assert that a
+      // write happened rather than what its contents were.
+      const r = await runAutoSave(w, { withMemoryVideos: false, force: true });
+      return ok(r.wrote === true, 'force did not write');
+    }],
+    ['a save with videos in memory proceeds', async w => {
+      const r = await runAutoSave(w, { withMemoryVideos: true });
+      ok(r.wrote === true, 'a legitimate save was blocked');
+      return ok(r.videos >= 1, 'the save wrote no videos (' + r.videos + ')');
+    }],
+    ['the first ever save is allowed', async w => {
+      const r = await runAutoSave(w, { withMemoryVideos: false, existingVideos: 0 });
+      return ok(r !== null, 'refused to create the very first cache');
+    }],
+    ['cachedVideoCount reads the stored blob', w => {
+      const snap = snapshot(w, ['autoCache']);
+      try {
+        w.localStorage.setItem('autoCache', JSON.stringify({
+          playlists: [{ videos: [1, 2, 3] }, { videos: [4] }] }));
+        return eq(w.cachedVideoCount(), 4);
+      } finally { restore(w, snap); }
+    }],
+    ['cachedVideoCount survives a corrupt blob', w => {
+      const snap = snapshot(w, ['autoCache']);
+      try {
+        w.localStorage.setItem('autoCache', 'not json at all');
+        return eq(w.cachedVideoCount(), 0);
+      } finally { restore(w, snap); }
+    }],
+  ],
+},
 {
   id: '#G8', title: 'Ghosts detected by metadata', note: 'the old test matched "Deleted"/"Private" anywhere in a title, and ghosts feed a bulk delete',
   cases: [
@@ -544,11 +642,30 @@ function appWindow() {
   return w;
 }
 
+// Reload the app before every run. In-memory state (APP.allVideos in
+// particular) survives a run, so without this a later run inherits whatever an
+// earlier one left behind and cases start passing or failing by order.
+function reloadApp() {
+  return new Promise((resolve, reject) => {
+    const frame = document.getElementById('app');
+    const done = () => { frame.removeEventListener('load', done); setTimeout(resolve, 150); };
+    frame.addEventListener('load', done);
+    setTimeout(() => reject(new Error('app iframe did not reload')), 15000);
+    // A unique URL, not location.reload(): the service worker would otherwise
+    // serve a cached build and the suite would silently test the wrong file.
+    frame.src = 'youtube-playlist-manager.html?testrun=' + Date.now();
+  });
+}
+
 async function run() {
   runBtn.disabled = true;
+  hasRun = true;
   results.innerHTML = '';
-  summaryEl.textContent = 'running…';
+  summaryEl.textContent = 'reloading app…';
   let pass = 0, fail = 0;
+
+  try { await reloadApp(); } catch (e) { /* fall through and let appWindow report */ }
+  summaryEl.textContent = 'running…';
 
   let win;
   try { win = appWindow(); }
@@ -590,8 +707,11 @@ async function run() {
 }
 
 runBtn.addEventListener('click', run);
+// Only announce readiness before the first run — after that the summary belongs
+// to the results, and the reload each run performs must not overwrite it.
+let hasRun = false;
 document.getElementById('app').addEventListener('load', () => {
-  summaryEl.textContent = 'app loaded — ready';
+  if (!hasRun) summaryEl.textContent = 'app loaded — ready';
 });
 </script>
 </body>

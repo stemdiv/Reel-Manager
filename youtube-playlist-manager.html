@@ -3831,11 +3831,15 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.11.1'; // bump per release
+const APP_VERSION = '1.12.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.12.0', date: '2026-08-19', items: [
+    '#76 — le cache automatique ne peut plus s effacer lui-meme : une ecriture sans aucune video est refusee si le cache en contient. Il etait reecrit juste apres un demarrage sur cache, quand les videos ne sont pas encore en memoire, ce qui remplacait un cache utilisable par une liste de playlists vides',
+    'Diagnostic Cache — verdict de sante (UTILISABLE / PARTIEL / DEGRADE / VIDE) avec la raison, couverture playlists-avec-videos, marge par rapport a la limite pratique de 5 Mo avec projection sur la bibliotheque complete, et anciennete lisible',
+  ]},
   { v: '1.11.1', date: '2026-08-19', items: [
     'Correctif du correctif #G10 : la garde anti-formule ajoutait une apostrophe a l export CSV que la restauration ne retirait pas — une playlist nommee -Techno revenait sous le nom apostrophe-Techno. Aller-retour desormais sans perte, et un titre commencant vraiment par une apostrophe est preserve',
   ]},
@@ -5218,6 +5222,53 @@ function runCacheDiagnostic() {
     } catch (_) {}
   }
 
+  // Coverage: a cache with playlists but no videos looks fine in the counts and
+  // is useless in practice, which is exactly how it went unnoticed.
+  let cachePlWithVideos = 0;
+  if (cacheRaw) {
+    try {
+      const cb = JSON.parse(cacheRaw);
+      cachePlWithVideos = (cb.playlists || []).filter(p => (p.videos?.length || 0) > 0).length;
+    } catch (_) {}
+  }
+
+  // Health verdict — the line that turns numbers into a diagnosis.
+  let health, healthColour, healthWhy;
+  if (!cacheRaw) {
+    health = 'EMPTY'; healthColour = 'red';
+    healthWhy = 'no cache yet — the next startup fetches everything from the API';
+  } else if (cacheVid === 0) {
+    health = 'DEGRADED'; healthColour = 'red';
+    healthWhy = 'playlists cached but no videos — cache-first cannot work; run a full refresh';
+  } else if (cachePlWithVideos < cachePl) {
+    health = 'PARTIAL'; healthColour = 'yellow';
+    healthWhy = `${cachePl - cachePlWithVideos} of ${cachePl} playlists have no videos cached`;
+  } else {
+    health = 'USABLE'; healthColour = 'green';
+    healthWhy = 'every cached playlist carries its videos';
+  }
+
+  // Headroom: localStorage dies around 5 MB per origin, and #G11 is the plan to
+  // outgrow it. A projection warns before QuotaExceededError truncates silently.
+  const LS_CEILING_KB = 5 * 1024;
+  const usedPct = (totalBytes / 1024 / LS_CEILING_KB) * 100;
+  const bytesPerVideo = cacheVid > 0 ? cacheBytes / cacheVid : 0;
+  const projectedKB = bytesPerVideo > 0 && memVideos > 0
+    ? ((bytesPerVideo * memVideos) / 1024).toFixed(0) : null;
+
+  // Freshness in words rather than a raw ISO string.
+  function ageText(iso) {
+    if (!iso) return null;
+    const mins = Math.round((Date.now() - Date.parse(iso)) / 60000);
+    if (!isFinite(mins)) return null;
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + ' min ago';
+    if (mins < 1440) return Math.round(mins / 60) + ' h ago';
+    return Math.round(mins / 1440) + ' d ago';
+  }
+  const cacheAge = ageText(cacheTs);
+  const manualAge = ageText(manualTs);
+
   // API quota
   const quota = APP.quotaUnits || 0;
 
@@ -5225,20 +5276,34 @@ function runCacheDiagnostic() {
   const red = 'color:var(--danger)';
   const yellow = 'color:var(--yellow)';
 
+  const colours = { green, red, yellow };
+
   el.innerHTML = `
-    <div><b>localStorage:</b> ${totalKB} KB total</div>
+    <div style="margin-bottom:8px;padding:8px 10px;border-radius:8px;background:var(--surface2);">
+      <b>Cache health:</b> <span style="${colours[healthColour]};font-weight:600;">${health}</span>
+      <div style="font-size:11.5px;color:var(--text3);margin-top:2px;">${healthWhy}</div>
+    </div>
+    <div><b>localStorage:</b> ${totalKB} KB total —
+      <span style="${usedPct > 80 ? red : usedPct > 60 ? yellow : green}">${usedPct.toFixed(1)}% of the ~5 MB practical limit</span>
+    </div>
+    ${projectedKB ? `<div><b>Projected at full library:</b>
+      <span style="${projectedKB > LS_CEILING_KB * 0.8 ? red : projectedKB > LS_CEILING_KB * 0.6 ? yellow : green}">~${projectedKB} KB</span>
+      for ${memVideos} videos</div>` : ''}
     <div><b>Storage API:</b> <span id="cacheDiagStorage">checking...</span></div>
     <div style="margin-top:8px;border-bottom:1px solid var(--border);padding-bottom:8px;">
       <div><b>Manual backup (lastBackup):</b>
         ${manualRaw ? `<span style="${green}">YES</span> — ${manualPl} pl, ${manualVid} vid (${backupKB} KB)` : `<span style="${red}">NONE</span>`}
       </div>
-      <div><b>Manual backup date:</b> ${manualTs || '<span style="' + red + '">never</span>'}</div>
+      <div><b>Manual backup date:</b> ${manualTs ? `${manualAge} <span style="color:var(--text3);font-size:11px;">(${manualTs})</span>` : '<span style="' + red + '">never</span>'}</div>
     </div>
     <div style="margin-top:8px;border-bottom:1px solid var(--border);padding-bottom:8px;">
       <div><b>Auto-cache (autoCache):</b>
         ${cacheRaw ? `<span style="${green}">YES</span> — ${cachePl} pl, ${cacheVid} vid (${cacheKB} KB)` : `<span style="${red}">NONE</span>`}
       </div>
-      <div><b>Auto-cache date:</b> ${cacheTs || '<span style="' + red + '">never</span>'}</div>
+      <div><b>Auto-cache coverage:</b>
+        <span style="${cachePlWithVideos === cachePl && cachePl > 0 ? green : red}">${cachePlWithVideos}/${cachePl} playlists carry videos</span>
+      </div>
+      <div><b>Auto-cache date:</b> ${cacheTs ? `${cacheAge} <span style="color:var(--text3);font-size:11px;">(${cacheTs})</span>` : '<span style="' + red + '">never</span>'}</div>
     </div>
     <div style="margin-top:8px;"><b>In-memory (APP):</b>
       ${memPlaylists} playlists, ${memVideos} videos, ${memDetails} cached details
@@ -6237,8 +6302,9 @@ async function fullRefresh() {
     refreshDashboard();
     populateSelectDropdowns();
     refreshPlaylistsList();
-    // Auto-save refreshed data to localStorage
-    autoSaveToLocalStorage();
+    // Auto-save refreshed data to localStorage. force: this path deliberately
+    // reloaded everything, so its result is authoritative even if empty.
+    autoSaveToLocalStorage({ force: true });
     showToast(t('dashboard_updated'), 'success');
   } catch (err) {
     showToast(t('toast_error', { msg: err.message }), 'error');
@@ -6249,8 +6315,41 @@ async function fullRefresh() {
  * Auto-save current in-memory data to localStorage for cache-first startup.
  * Same format as createFullBackup() but silent (no file download).
  */
-function autoSaveToLocalStorage() {
+// Videos held in the current cache, without parsing the whole blob twice.
+function cachedVideoCount() {
   try {
+    const raw = localStorage.getItem('autoCache');
+    if (!raw) return 0;
+    const b = JSON.parse(raw);
+    return (b.playlists || []).reduce((s, p) => s + (p.videos?.length || 0), 0);
+  } catch (_) { return 0; }
+}
+
+// The whole decision, isolated so it can be reasoned about and tested directly:
+// never let a write that carries no videos replace a cache that has some.
+// Not conditioned on playlist count — an early save with nothing loaded at all
+// is just as destructive.
+function shouldSkipAutoSave(memoryVideos, cachedVideos, force) {
+  if (force) return false;
+  return memoryVideos === 0 && cachedVideos > 0;
+}
+
+function autoSaveToLocalStorage(opts) {
+  try {
+    // #76 — the cache used to be able to erase itself. This runs from four
+    // places, including straight after a cache-first startup, where the videos
+    // may not be in memory yet; serialising an empty APP.allVideos then wrote a
+    // playlists-only cache over a good one and silently disabled cache-first.
+    // Refuse that specific overwrite: memory empty, cache not.
+    const memVideos = Object.values(APP.allVideos).reduce((s, v) => s + (v?.length || 0), 0);
+    const onDisk = cachedVideoCount();
+    if (shouldSkipAutoSave(memVideos, onDisk, opts?.force)) {
+      log('warn', 'cache', 'auto-cache write skipped — would drop cached videos',
+          { cachedVideos: onDisk, memoryVideos: memVideos });
+      console.warn('[Auto-cache] skipped: ' + onDisk + ' cached videos would have been replaced by 0');
+      return;
+    }
+
     const cache = {
       timestamp: new Date().toISOString(),
       playlists: APP.playlists.map(pl => ({
