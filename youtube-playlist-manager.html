@@ -169,6 +169,45 @@
   .skin-swatch:hover { transform: scale(1.15); }
   .skin-swatch.active { border-color: var(--text); }
   .skin-swatch-label { font-size: 9px; color: var(--text3); text-align: center; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Colour picker — <input type="color"> opens the OS dialog, which looks
+     completely different on Android than on desktop and cannot be styled. */
+  .cp-backdrop { position: fixed; inset: 0; z-index: 1999; display: none; }
+  .cp-backdrop.open { display: block; }
+  .cp {
+    position: fixed; z-index: 2000; width: 268px; display: none;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: var(--r-lg); padding: 12px; box-shadow: 0 18px 44px -16px #000;
+  }
+  .cp.open { display: block; }
+  .cp-sv { position: relative; height: 148px; border-radius: 10px; margin-bottom: 12px; cursor: crosshair; touch-action: none; overflow: hidden; }
+  .cp-sv-white { position: absolute; inset: 0; background: linear-gradient(to right, #fff, transparent); }
+  .cp-sv-black { position: absolute; inset: 0; background: linear-gradient(to top, #000, transparent); }
+  .cp-hue {
+    position: relative; height: 14px; border-radius: var(--pill); margin-bottom: 12px; touch-action: none; cursor: pointer;
+    background: linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%);
+  }
+  .cp-knob {
+    position: absolute; width: 16px; height: 16px; border-radius: 50%;
+    border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.5);
+    transform: translate(-50%, -50%); pointer-events: none;
+  }
+  .cp-hue .cp-knob { top: 50%; }
+  .cp-fields { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 6px; align-items: end; }
+  .cp-fields input {
+    width: 100%; min-width: 0; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 7px; font-family: var(--font-mono); font-size: 11.5px; text-align: center; outline: none; color: var(--text);
+  }
+  .cp-fields input:focus { border-color: var(--accent); }
+  .cp-fields label { font-size: 9px; color: var(--text3); text-align: center; display: block; margin-bottom: 3px; }
+  .cp-preview { width: 100%; height: 6px; border-radius: var(--pill); margin-bottom: 10px; }
+  .cp-swatch { width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 1px solid var(--border2); cursor: pointer; }
+  @media (max-width: 768px) {
+    .cp { left: 0 !important; right: 0; bottom: 0; top: auto !important; width: 100%; border-radius: var(--r-xl) var(--r-xl) 0 0; padding: 16px 16px 22px; }
+    .cp-sv { height: 190px; }
+    .cp-hue { height: 20px; }
+    .cp-backdrop.open { background: rgba(0,0,0,.45); }
+  }
+
   /* Named-theme chips (#69) */
   .theme-picker-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
   .theme-chip {
@@ -2326,6 +2365,20 @@
   </div>
 </div>
 
+<!-- COLOUR PICKER -->
+<div class="cp-backdrop" id="cpBackdrop" onclick="closePicker()"></div>
+<div class="cp" id="cp">
+  <div class="cp-sv" id="cpSv"><div class="cp-sv-white"></div><div class="cp-sv-black"></div><div class="cp-knob" id="cpSvKnob"></div></div>
+  <div class="cp-hue" id="cpHue"><div class="cp-knob" id="cpHueKnob"></div></div>
+  <div class="cp-preview" id="cpPreview"></div>
+  <div class="cp-fields">
+    <div><label>HEX</label><input id="cpHex" spellcheck="false" onchange="cpFromHex(this.value)"></div>
+    <div><label>R</label><input id="cpR" onchange="cpFromRgb()"></div>
+    <div><label>G</label><input id="cpG" onchange="cpFromRgb()"></div>
+    <div><label>B</label><input id="cpB" onchange="cpFromRgb()"></div>
+  </div>
+</div>
+
 <!-- MODALS -->
 <div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
   <div class="modal" id="modalContent" onclick="event.stopPropagation()"></div>
@@ -3760,11 +3813,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.6.0'; // bump per release
+const APP_VERSION = '1.7.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.7.0', date: '2026-08-19', items: [
+    'Sélecteur de couleur intégré — carré saturation/valeur, curseur de teinte, champs HEX et RVB. <input type="color"> ouvrait la boîte de dialogue du système, très différente entre le bureau et Android et non stylable ; le nouveau sélecteur est identique partout et devient une feuille basse sous 768 px',
+  ]},
   { v: '1.6.0', date: '2026-08-19', items: [
     '#73 — Discover : l’ordre YouTube (pertinence / plus vues / plus récentes / mieux notées) devient un vrai contrôle, il change les résultats et pas seulement leur affichage',
     '#73 — trois tris locaux de plus (engagement, date, durée) et filtres durée + lisible dans le lecteur intégré, sans coût quota supplémentaire',
@@ -5345,6 +5401,115 @@ const THEMES = {
   },
 };
 
+// ── In-page colour picker ────────────────────────────────────────────────
+// PICKER.apply is set when opening, so the same widget drives both the theme
+// accent slots and the custom skin accent.
+const PICKER = { apply: null, h: 0, s: 1, v: 1 };
+
+function hexToRgb(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim());
+  const n = m ? parseInt(m[1], 16) : 0xe8604c;
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+const rgbToHex = (r, g, b) => '#' + [r, g, b].map(v =>
+  Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+
+function rgbToHsv({ r, g, b }) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  let h = 0;
+  if (d) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h = (h * 60 + 360) % 360;
+  }
+  return { h, s: max ? d / max : 0, v: max };
+}
+
+function hsvToRgb(h, s, v) {
+  const c = v * s, hp = (h % 360) / 60, xx = c * (1 - Math.abs((hp % 2) - 1));
+  const seg = [[c, xx, 0], [xx, c, 0], [0, c, xx], [0, xx, c], [xx, 0, c], [c, 0, xx]][Math.floor(hp) % 6];
+  const m = v - c;
+  return { r: (seg[0] + m) * 255, g: (seg[1] + m) * 255, b: (seg[2] + m) * 255 };
+}
+
+const cpHexValue = () => { const { r, g, b } = hsvToRgb(PICKER.h, PICKER.s, PICKER.v); return rgbToHex(r, g, b); };
+
+function openPicker(currentHex, applyFn, anchor) {
+  PICKER.apply = applyFn;
+  Object.assign(PICKER, rgbToHsv(hexToRgb(currentHex)));
+  const cp = document.getElementById('cp');
+  cp.classList.add('open');
+  document.getElementById('cpBackdrop').classList.add('open');
+  if (!window.matchMedia('(max-width: 768px)').matches && anchor) {
+    const r = anchor.getBoundingClientRect();
+    cp.style.left = Math.max(8, Math.min(window.innerWidth - 276, r.left - 120)) + 'px';
+    cp.style.top = Math.min(window.innerHeight - 300, r.bottom + 8) + 'px';
+  }
+  renderPicker(false);
+}
+
+function closePicker() {
+  document.getElementById('cp').classList.remove('open');
+  document.getElementById('cpBackdrop').classList.remove('open');
+  PICKER.apply = null;
+}
+
+function renderPicker(apply) {
+  const hex = cpHexValue();
+  const { r, g, b } = hexToRgb(hex);
+  document.getElementById('cpSv').style.background = `hsl(${PICKER.h.toFixed(1)} 100% 50%)`;
+  const knob = document.getElementById('cpSvKnob');
+  knob.style.left = (PICKER.s * 100) + '%';
+  knob.style.top = ((1 - PICKER.v) * 100) + '%';
+  knob.style.background = hex;
+  const hk = document.getElementById('cpHueKnob');
+  hk.style.left = (PICKER.h / 360 * 100) + '%';
+  hk.style.background = `hsl(${PICKER.h.toFixed(1)} 100% 50%)`;
+  document.getElementById('cpPreview').style.background = hex;
+  const set = (id, v) => { const el = document.getElementById(id); if (el && document.activeElement !== el) el.value = v; };
+  set('cpHex', hex); set('cpR', r); set('cpG', g); set('cpB', b);
+  if (apply !== false && PICKER.apply) PICKER.apply(hex);
+}
+
+function cpFromHex(value) {
+  if (!/^#?[0-9a-f]{6}$/i.test(String(value).trim())) { renderPicker(false); return; }
+  Object.assign(PICKER, rgbToHsv(hexToRgb(value)));
+  renderPicker();
+}
+
+function cpFromRgb() {
+  const v = id => parseInt(document.getElementById(id).value, 10);
+  const r = v('cpR'), g = v('cpG'), b = v('cpB');
+  if ([r, g, b].some(n => !isFinite(n))) { renderPicker(false); return; }
+  Object.assign(PICKER, rgbToHsv({ r, g, b }));
+  renderPicker();
+}
+
+// One pointer path for mouse and touch.
+function cpDrag(el, onMove) {
+  if (!el) return;
+  const handle = ev => {
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    onMove(Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width)),
+           Math.min(1, Math.max(0, (ev.clientY - r.top) / r.height)));
+    renderPicker();
+  };
+  el.addEventListener('pointerdown', ev => {
+    try { el.setPointerCapture(ev.pointerId); } catch (_) {}
+    handle(ev);
+    const move = e => handle(e);
+    const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+  });
+}
+
+cpDrag(document.getElementById('cpSv'), (fx, fy) => { PICKER.s = fx; PICKER.v = 1 - fy; });
+cpDrag(document.getElementById('cpHue'), fx => { PICKER.h = fx * 360; });
+
 // ── Colour helpers ───────────────────────────────────────────────────────
 function hexToHsl(hex) {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
@@ -5481,10 +5646,9 @@ function renderAccentPicker(containerId, presetContainerId) {
   }
   const accents = accentsFor(theme.id);
   row.innerHTML = accents.map((hex, i) => `
-    <input type="color" class="theme-accent-slot${i === activeAccentSlot ? ' active' : ''}"
-           value="${hex}" title="${t('theme_accents')} ${i + 1}"
-           onclick="selectAccentSlot(${i})"
-           oninput="setThemeAccent(${i}, this.value)">
+    <button class="theme-accent-slot${i === activeAccentSlot ? ' active' : ''}"
+            style="background:${hex}" title="${t('theme_accents')} ${i + 1}"
+            onclick="selectAccentSlot(${i}); openPicker('${hex}', hex => setThemeAccent(${i}, hex), this)"></button>
   `).join('');
   if (presets) {
     presets.innerHTML = THEME_PRESETS.map(hex => `
@@ -5615,10 +5779,10 @@ function renderSkinPicker() {
   const customActive = current === 'custom';
   grid.innerHTML += `
     <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-      <input type="color" id="customAccentInput" value="${customHex}"
-             onchange="applyCustomAccent(this.value)"
-             title="Custom"
-             style="width:24px;height:24px;padding:0;border:none;border-radius:50%;cursor:pointer;background:none;${customActive ? 'outline:2px solid var(--accent);outline-offset:2px;' : ''}">
+      <button id="customAccentInput" class="cp-swatch"
+              onclick="openPicker('${customHex}', applyCustomAccent, this)"
+              title="Custom"
+              style="background:${customHex};${customActive ? 'outline:2px solid var(--accent);outline-offset:2px;' : ''}"></button>
       <div class="skin-swatch-label">Custom</div>
     </div>
   `;
@@ -5669,10 +5833,10 @@ function toggleSkinPickerSidebar() {
     const customActive = current === 'custom';
     grid.innerHTML += `
       <div style="display:inline-block;margin:3px;">
-        <input type="color" id="customAccentInputSidebar" value="${customHex}"
-               onchange="applyCustomAccent(this.value); updateSidebarLabels();"
-               title="Custom"
-               style="width:24px;height:24px;padding:0;border:none;border-radius:50%;cursor:pointer;vertical-align:middle;background:none;${customActive ? 'outline:2px solid var(--accent);outline-offset:2px;' : ''}">
+        <button id="customAccentInputSidebar" class="cp-swatch"
+                onclick="openPicker('${customHex}', hex => { applyCustomAccent(hex); updateSidebarLabels(); }, this)"
+                title="Custom"
+                style="vertical-align:middle;background:${customHex};${customActive ? 'outline:2px solid var(--accent);outline-offset:2px;' : ''}"></button>
       </div>
     `;
     renderThemePicker('sidebarThemeRow');
