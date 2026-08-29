@@ -3711,11 +3711,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.4.2'; // bump per release
+const APP_VERSION = '1.5.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.5.0', date: '2026-08-19', items: [
+    '#B12 — le lecteur intégré se met en pause quand l’onglet passe en arrière-plan ou que la page est quittée : plus deux vidéos en lecture simultanée',
+  ]},
   { v: '1.4.2', date: '2026-08-19', items: [
     'Bouton Musique conservé dans l’en-tête en portrait (icône seule) — il tombait sous la règle qui masque les outils d’en-tête sous 768 px',
   ]},
@@ -6507,6 +6510,15 @@ function loadYouTubeAPI() {
 function onYouTubeIframeAPIReady() {
   PLAYER.ready = true;
 }
+
+// #B12 — pause the embedded player when the tab is hidden or the page is being
+// left. Without this, opening the video on youtube.com (or switching to the
+// YouTube app) leaves two videos playing at once.
+function pauseEmbeddedPlayer() {
+  try { if (PLAYER.ytPlayer && PLAYER.ytPlayer.pauseVideo) PLAYER.ytPlayer.pauseVideo(); } catch (_) {}
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) pauseEmbeddedPlayer(); });
+window.addEventListener('pagehide', pauseEmbeddedPlayer);
 
 function createYTPlayer(videoId) {
   if (PLAYER.ytPlayer) { PLAYER.ytPlayer.destroy(); PLAYER.ytPlayer = null; }

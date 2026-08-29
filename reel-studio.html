@@ -435,7 +435,7 @@
 // Strictly read-only: no API calls, no writes to the app's data keys.
 // ═══════════════════════════════════════════════════════════════════════
 
-const STUDIO_VERSION = '0.4.0';
+const STUDIO_VERSION = '0.5.0';
 
 // ── i18n ───────────────────────────────────────────────────────────────
 const LANG = (localStorage.getItem('appLang') || 'fr') === 'en' ? 'en' : 'fr';
@@ -1233,6 +1233,17 @@ function openOnYouTube(ev, url) {
   if (w) { EXT.win = w; try { w.focus(); } catch (_) {} }
   return false;
 }
+
+// #B12 — never leave two videos playing. Leaving the page always pauses. Tab
+// hidden only pauses when a YouTube tab we opened is still alive: this is a music
+// UI, so backgrounding the tab to keep listening is the point, not a bug.
+function pauseEmbedded() {
+  try { if (PLAY.yt && PLAY.yt.pauseVideo) PLAY.yt.pauseVideo(); } catch (_) {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && externalTabAlive()) pauseEmbedded();
+});
+window.addEventListener('pagehide', pauseEmbedded);
 
 function ask(title, body, actions) {
   return new Promise(resolve => {
