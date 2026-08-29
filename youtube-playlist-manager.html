@@ -2922,6 +2922,7 @@ const I18N = {
     toast_select_merge: 'Sélectionnez au moins 2 playlists et entrez un nom',
     toast_select_source_dest: 'Sélectionnez source, destination et vidéos',
     toast_moved: 'Vidéos déplacées',
+    toast_moved_partial: '{moved} vidéo(s) déplacée(s), {stuck} copiée(s) sans être retirée(s) de la playlist source — réessayez sur celles-ci',
     toast_scanning_ghosts: 'Scan des vidéos fantômes... (peut prendre un moment)',
     toast_video_deleted: 'Vidéo supprimée',
     toast_all_ghosts_cleaned: 'Toutes les vidéos fantômes supprimées',
@@ -3555,6 +3556,7 @@ const I18N = {
     toast_select_merge: 'Select at least 2 playlists and enter a name',
     toast_select_source_dest: 'Select source, destination and videos',
     toast_moved: 'Videos moved',
+    toast_moved_partial: '{moved} video(s) moved, {stuck} copied but not removed from the source playlist — retry those',
     toast_scanning_ghosts: 'Scanning ghost videos... (may take a moment)',
     toast_video_deleted: 'Video deleted',
     toast_all_ghosts_cleaned: 'All ghost videos removed',
@@ -3813,11 +3815,15 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.8.0'; // bump per release
+const APP_VERSION = '1.9.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.9.0', date: '2026-08-19', items: [
+    '#G7 — Deplacer deplace enfin : l item source est supprime apres l insertion. La fonction ne faisait qu inserer dans la destination, donc elle copiait, et la video restait aussi dans la source',
+    '#G7 — le cache de la playlist source est desormais invalide lui aussi, et un echec de suppression est signale au lieu d etre annonce comme un succes',
+  ]},
   { v: '1.8.0', date: '2026-08-19', items: [
     'T1 / #G15 — la seconde definition de parseDuration masquait la premiere pour tout le fichier ; la version tolerante aux valeurs vides est conservee, la duplicata et formatSeconds (sans appelant) sont supprimees',
     '#G16 — suppression de drawBarChart, defini mais jamais appele (70 lignes)',
@@ -9371,18 +9377,48 @@ async function performMove() {
   if (!checkQuotaBudget('Déplacement de vidéos', 'move', selected.length)) return;
 
   try {
+    // #G7: this used to insert into the destination and stop, so "Move" was a
+    // copy — the video stayed in the source too. The quota estimate has always
+    // charged insert + delete per item, so the delete was intended all along.
+    const sourceItems = APP.allVideos[sourceId] || [];
+    const stuck = [];   // inserted into the destination but still in the source
+    let moved = 0;
+
     for (const videoId of selected) {
+      const sourceItem = sourceItems.find(v =>
+        (v.contentDetails?.videoId || v.snippet?.resourceId?.videoId) === videoId);
+
       await ytApi('playlistItems', { part: 'snippet' }, 'POST', {
         snippet: {
           playlistId: destId,
           resourceId: { kind: 'youtube#video', videoId }
         }
       });
+
+      if (!sourceItem?.id) {
+        // No playlistItem id to delete with — report rather than pretend.
+        stuck.push(videoId);
+        continue;
+      }
+      try {
+        await ytApi('playlistItems', { id: sourceItem.id }, 'DELETE');
+        moved++;
+      } catch (delErr) {
+        // The copy landed; removing the original failed. Never claim success.
+        log('warn', 'action', 'move: source item not removed', { videoId, msg: delErr.message });
+        stuck.push(videoId);
+      }
     }
 
-    delete APP.allVideos[destId]; // evict stale destination cache
+    delete APP.allVideos[destId];   // evict stale destination cache
+    delete APP.allVideos[sourceId]; // the source lost items too
     await loadAllPlaylists();
-    showToast(t('toast_moved'), 'success');
+
+    if (stuck.length) {
+      showToast(t('toast_moved_partial', { moved, stuck: stuck.length }), 'warning');
+    } else {
+      showToast(t('toast_moved'), 'success');
+    }
   } catch (err) {
     showToast(t('toast_error', { msg: err.message }), 'error');
   }

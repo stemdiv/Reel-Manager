@@ -51,7 +51,7 @@
 <div class="wrap">
   <h1>Reel — regression tests</h1>
   <p class="sub">
-    Batches B and C. Loads <code>youtube-playlist-manager.html</code> in a same-origin iframe and asserts
+    Batches B, C and #G7. Loads <code>youtube-playlist-manager.html</code> in a same-origin iframe and asserts
     against its live functions. Serve both from the same origin (the app's own server) or the iframe is blocked.
   </p>
   <div class="bar">
@@ -99,10 +99,113 @@ function exitPrompts(w) {
   return ev.defaultPrevented;
 }
 
+
+// Drive the real performMove with a stubbed ytApi. APP is a `const`, so the
+// cache is seeded through the app's own loadPlaylistVideos() rather than poked
+// from outside, and every assertion is about which requests were issued.
+const SRC_ITEM = { id: 'ITEM_A', contentDetails: { videoId: 'VID_A' },
+                   snippet: { title: 'A', resourceId: { videoId: 'VID_A' } } };
+
+async function runMove(w, opts) {
+  opts = opts || {};
+  const calls = [];
+  const real = { ytApi: w.ytApi, loadAllPlaylists: w.loadAllPlaylists, showToast: w.showToast,
+                 checkBackupSafety: w.checkBackupSafety, checkQuotaBudget: w.checkQuotaBudget };
+  const snap = snapshot(w, ['autoCache']);
+
+  const host = w.document.createElement('div');
+  host.innerHTML = '<select id="moveSourcePlaylist"><option value="PL_SRC" selected>s</option></select>' +
+                   '<select id="moveDestPlaylist"><option value="PL_DEST" selected>d</option></select>' +
+                   '<input type="checkbox" class="move-video-select" value="VID_A" checked>';
+  const oldSrc = w.document.getElementById('moveSourcePlaylist');
+  const oldDst = w.document.getElementById('moveDestPlaylist');
+  if (oldSrc) oldSrc.id = '__moveSrcParked';
+  if (oldDst) oldDst.id = '__moveDstParked';
+  w.document.body.appendChild(host);
+
+  w.ytApi = async (endpoint, params, method, body) => {
+    calls.push({ endpoint, params: params || {}, method: method || 'GET', body });
+    if (opts.failDelete && method === 'DELETE') throw new Error('simulated delete failure');
+    if (endpoint === 'playlistItems' && (!method || method === 'GET')) {
+      return { items: (params && params.playlistId === 'PL_SRC') ? [SRC_ITEM] : [] };
+    }
+    return { items: [] };
+  };
+  w.loadAllPlaylists = async () => {};
+  w.checkBackupSafety = () => true;
+  w.checkQuotaBudget = () => true;
+  w.showToast = (msg, type) => { if (opts.toasts) opts.toasts.push({ msg, type }); };
+
+  try {
+    await w.loadPlaylistVideos('PL_SRC', { force: true });   // seeds APP.allVideos.PL_SRC
+    calls.length = 0;                                        // only measure the move itself
+    await w.performMove();
+    const during = calls.slice();
+    if (opts.probeRefetch) {
+      calls.length = 0;
+      await w.loadPlaylistVideos('PL_SRC');                  // evicted ⇒ must hit the API again
+      during.refetched = calls.some(c => c.endpoint === 'playlistItems' && c.method === 'GET');
+    }
+    return during;
+  } finally {
+    host.remove();
+    if (oldSrc) oldSrc.id = 'moveSourcePlaylist';
+    if (oldDst) oldDst.id = 'moveDestPlaylist';
+    Object.assign(w, real);
+    restore(w, snap);
+  }
+}
+
 // ════════════════════════════════════════════════════════════════════════
 // Suites
 // ════════════════════════════════════════════════════════════════════════
 const SUITES = [
+{
+  id: '#G7', title: 'Move actually moves', note: 'ytApi is stubbed — no request leaves the browser',
+  cases: [
+    ['a move deletes the source item', async w => {
+      const calls = await runMove(w);
+      const posts = calls.filter(c => c.method === 'POST');
+      const dels  = calls.filter(c => c.method === 'DELETE');
+      ok(posts.length === 1, 'expected 1 insert, got ' + posts.length);
+      ok(dels.length === 1, 'insert without delete — Move is copying (got ' + dels.length + ' deletes)');
+      return posts.length + ' insert / ' + dels.length + ' delete';
+    }],
+    ['it deletes the right playlistItem id', async w => {
+      const calls = await runMove(w);
+      const del = calls.find(c => c.method === 'DELETE');
+      ok(del, 'no DELETE issued');
+      return eq(del.params.id, 'ITEM_A', 'deleted the wrong item');
+    }],
+    ['the insert targets the destination', async w => {
+      const calls = await runMove(w);
+      const post = calls.find(c => c.method === 'POST');
+      eq(post.body.snippet.playlistId, 'PL_DEST', 'wrong destination');
+      return eq(post.body.snippet.resourceId.videoId, 'VID_A', 'wrong video');
+    }],
+    ['the delete comes after the insert', async w => {
+      const calls = await runMove(w);
+      const iPost = calls.findIndex(c => c.method === 'POST');
+      const iDel  = calls.findIndex(c => c.method === 'DELETE');
+      return ok(iPost < iDel, 'source removed before the copy landed');
+    }],
+    ['the source cache is evicted', async w => {
+      // Observable proxy for the eviction: a still-cached source would be
+      // returned without a request, so a fresh GET proves it was dropped.
+      const calls = await runMove(w, { probeRefetch: true });
+      return ok(calls.refetched === true, 'source served from a stale cache after the move');
+    }],
+    ['a failed delete is reported, not swallowed', async w => {
+      const toasts = [];
+      const calls = await runMove(w, { failDelete: true, toasts });
+      ok(calls.some(c => c.method === 'DELETE'), 'no delete attempted');
+      ok(toasts.length > 0, 'no toast shown at all');
+      const kinds = toasts.map(t => t.type).join(',');
+      ok(!toasts.some(t => t.type === 'success'), 'reported success despite a failed delete (' + kinds + ')');
+      return kinds;
+    }],
+  ],
+},
 {
   id: '#G10', title: 'CSV formula injection', note: 'exports must not execute in a spreadsheet',
   cases: [
