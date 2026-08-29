@@ -3813,11 +3813,17 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.7.2'; // bump per release
+const APP_VERSION = '1.8.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.8.0', date: '2026-08-19', items: [
+    'T1 / #G15 — la seconde definition de parseDuration masquait la premiere pour tout le fichier ; la version tolerante aux valeurs vides est conservee, la duplicata et formatSeconds (sans appelant) sont supprimees',
+    '#G16 — suppression de drawBarChart, defini mais jamais appele (70 lignes)',
+    '#G17 — les cartes beta suivaient APP.lang, qui n etait jamais renseigne : elles restaient en francais dans l interface anglaise',
+    '#G19 — l ecriture du cache automatique remet a zero l indicateur de modifications : plus d alerte de sortie alors que tout est deja enregistre',
+  ]},
   { v: '1.7.2', date: '2026-08-19', items: [
     '#G10 — injection de formule CSV : un titre commençant par = + - @ (ou tabulation / retour chariot) etait execute a l ouverture du fichier dans Excel ou Sheets ; il est desormais prefixe',
   ]},
@@ -6272,6 +6278,7 @@ function autoSaveToLocalStorage() {
     }
 
     updateBackupIndicator();
+    APP_DIRTY = false;   // #G19: the cache write IS the save — stop prompting on exit
     const totalVids = cache.playlists.reduce((s, p) => s + p.videos.length, 0);
     console.log(`[Auto-cache] OK — ${cache.playlists.length} playlists, ${totalVids} videos (${sizeKB} KB)`);
     showToast(`Cache saved: ${totalVids} videos (${sizeKB} KB)`, 'success');
@@ -7137,7 +7144,9 @@ const BETA_FEATURES = [
 ];
 
 function renderBetaFeatures() {
-  const lang = APP.lang || 'fr';
+  // #G17: APP.lang was never assigned, so this always fell back to 'fr' and the
+  // beta cards stayed French in the English UI. currentLang is the real one.
+  const lang = currentLang || 'fr';
   const container = document.getElementById('betaFeatureList');
   const emptyState = document.getElementById('betaEmpty');
 
@@ -11956,23 +11965,6 @@ function updateProgressBar(containerId, current, total) {
   showProgressBar(containerId, current, total);
 }
 
-function parseDuration(duration) {
-  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  const hours = parseInt(match?.[1] || 0);
-  const minutes = parseInt(match?.[2] || 0);
-  const seconds = parseInt(match?.[3] || 0);
-  return hours * 3600 + minutes * 60 + seconds;
-}
-
-function formatSeconds(seconds) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
-}
-
 function formatNumber(num) {
   return new Intl.NumberFormat('fr-FR').format(Math.round(num));
 }
@@ -12038,77 +12030,6 @@ function drawPieChart(elementId, data) {
   labelText.setAttribute('font-family', 'var(--font-mono)'); labelText.setAttribute('letter-spacing', '0.08em');
   labelText.textContent = t('watch_videos_label');
   svg.appendChild(labelText);
-}
-
-function drawBarChart(elementId, data) {
-  const svg = document.getElementById(elementId);
-  if (!svg) return;
-
-  while (svg.firstChild) svg.removeChild(svg.firstChild);
-
-  const margin = { top: 10, right: 10, bottom: 30, left: 40 };
-  const vb = svg.getAttribute('viewBox')?.split(' ').map(Number) || [0, 0, 600, 200];
-  const width = vb[2] - margin.left - margin.right;
-  const height = vb[3] - margin.top - margin.bottom;
-
-  const maxValue = Math.max(...data.map(d => d.value), 1);
-  const barWidth = width / data.length;
-
-  // Y-axis
-  const yAxisLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  yAxisLine.setAttribute('x1', margin.left);
-  yAxisLine.setAttribute('y1', margin.top);
-  yAxisLine.setAttribute('x2', margin.left);
-  yAxisLine.setAttribute('y2', height + margin.top);
-  yAxisLine.setAttribute('stroke', 'var(--border)');
-  yAxisLine.setAttribute('stroke-width', '1');
-  svg.appendChild(yAxisLine);
-
-  // X-axis
-  const xAxisLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  xAxisLine.setAttribute('x1', margin.left);
-  xAxisLine.setAttribute('y1', height + margin.top);
-  xAxisLine.setAttribute('x2', width + margin.left);
-  xAxisLine.setAttribute('y2', height + margin.top);
-  xAxisLine.setAttribute('stroke', 'var(--border)');
-  xAxisLine.setAttribute('stroke-width', '1');
-  svg.appendChild(xAxisLine);
-
-  // Bars
-  data.forEach((item, idx) => {
-    const barHeight = (item.value / maxValue) * height;
-    const x = margin.left + idx * barWidth + barWidth * 0.1;
-    const y = margin.top + height - barHeight;
-
-    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    rect.setAttribute('x', x);
-    rect.setAttribute('y', y);
-    rect.setAttribute('width', barWidth * 0.8);
-    rect.setAttribute('height', Math.max(barHeight, 1));
-    rect.setAttribute('fill', '#d4654a');
-    rect.setAttribute('rx', '3');
-    svg.appendChild(rect);
-
-    // Label
-    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('x', x + (barWidth * 0.8) / 2);
-    text.setAttribute('y', height + margin.top + 20);
-    text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('font-size', '12');
-    text.setAttribute('fill', 'var(--text2)');
-    text.textContent = item.name;
-    svg.appendChild(text);
-
-    // Value
-    const val = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    val.setAttribute('x', x + (barWidth * 0.8) / 2);
-    val.setAttribute('y', y - 5);
-    val.setAttribute('text-anchor', 'middle');
-    val.setAttribute('font-size', '11');
-    val.setAttribute('fill', 'var(--text)');
-    val.textContent = item.value;
-    svg.appendChild(val);
-  });
 }
 
 // ============================================================================
