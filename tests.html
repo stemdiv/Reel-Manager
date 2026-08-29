@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reel — regression tests</title>
+<style>
+  :root {
+    --bg: #0a0b0d; --surface: #0f1115; --surface2: #15181d; --border: #2a2f37;
+    --text: #ededec; --text2: #b9bbc0; --text3: #7a7d85;
+    --pass: #2fd07f; --fail: #ff3b3b; --warn: #ffb02e;
+    --mono: ui-monospace, 'Geist Mono', Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; line-height: 1.5;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 21px; margin: 0 0 6px; }
+  .sub { color: var(--text3); font-size: 13px; margin-bottom: 20px; }
+  .sub code { font-family: var(--mono); font-size: 12px; color: var(--text2); }
+  button {
+    background: #e8604c; color: #1a0a06; border: 0; border-radius: 999px;
+    padding: 9px 20px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  .bar { display: flex; gap: 12px; align-items: center; margin-bottom: 22px; flex-wrap: wrap; }
+  .summary { font-family: var(--mono); font-size: 13px; }
+  .summary .ok { color: var(--pass); }
+  .summary .ko { color: var(--fail); }
+  .group { margin-bottom: 20px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .group h2 {
+    margin: 0; padding: 10px 14px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase;
+    background: var(--surface2); color: var(--text2); font-weight: 600;
+  }
+  .group h2 span { color: var(--text3); text-transform: none; letter-spacing: 0; font-weight: 400; margin-left: 8px; }
+  .case { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: baseline;
+          padding: 8px 14px; border-top: 1px solid var(--border); background: var(--surface); font-size: 13px; }
+  .case:first-of-type { border-top: 0; }
+  .mark { font-family: var(--mono); font-weight: 700; }
+  .mark.p { color: var(--pass); }
+  .mark.f { color: var(--fail); }
+  .detail { font-family: var(--mono); font-size: 11.5px; color: var(--text3); text-align: right; white-space: pre-wrap; }
+  .case.fail .detail { color: var(--fail); }
+  .note { font-size: 12px; color: var(--text3); border-left: 2px solid var(--border); padding-left: 10px; margin: 14px 0 0; }
+  iframe { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Reel — regression tests</h1>
+  <p class="sub">
+    Batches B and C. Loads <code>youtube-playlist-manager.html</code> in a same-origin iframe and asserts
+    against its live functions. Serve both from the same origin (the app's own server) or the iframe is blocked.
+  </p>
+  <div class="bar">
+    <button id="run">Run tests</button>
+    <span class="summary" id="summary">not run</span>
+  </div>
+  <div id="results"></div>
+  <p class="note">
+    These tests touch localStorage in the app's origin. Every key they write is snapshotted before and
+    restored afterwards, including your real <code>autoCache</code>, so running this cannot cost you a library.
+  </p>
+  <iframe id="app" src="youtube-playlist-manager.html"></iframe>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════
+// Assertions
+// ════════════════════════════════════════════════════════════════════════
+function eq(actual, expected, label) {
+  const a = JSON.stringify(actual), e = JSON.stringify(expected);
+  if (a !== e) throw new Error((label ? label + ': ' : '') + 'got ' + a + ', expected ' + e);
+  return a;
+}
+function ok(cond, label) {
+  if (!cond) throw new Error(label || 'expected truthy');
+  return 'ok';
+}
+
+// Snapshot/restore so a test can never eat real data.
+function snapshot(win, keys) {
+  const s = {};
+  keys.forEach(k => { s[k] = win.localStorage.getItem(k); });
+  return s;
+}
+function restore(win, s) {
+  Object.entries(s).forEach(([k, v]) => {
+    if (v === null) win.localStorage.removeItem(k); else win.localStorage.setItem(k, v);
+  });
+}
+
+// Does the app currently warn on exit? The only readable signal for APP_DIRTY.
+function exitPrompts(w) {
+  const ev = new w.Event('beforeunload', { cancelable: true });
+  w.dispatchEvent(ev);
+  return ev.defaultPrevented;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Suites
+// ════════════════════════════════════════════════════════════════════════
+const SUITES = [
+{
+  id: '#G10', title: 'CSV formula injection', note: 'exports must not execute in a spreadsheet',
+  cases: [
+    ['= is neutralised',            w => eq(w.csvRow(['=1+1']), '"\'=1+1"')],
+    ['+ is neutralised',            w => eq(w.csvRow(["+cmd|' /c calc'!A1"]), '"\'+cmd|\' /c calc\'!A1"')],
+    ['- is neutralised',            w => eq(w.csvRow(['-2+3']), '"\'-2+3"')],
+    ['@ is neutralised',            w => eq(w.csvRow(['@SUM(1:9)']), '"\'@SUM(1:9)"')],
+    ['leading tab is neutralised',  w => ok(w.csvRow([String.fromCharCode(9) + '=1+1']).startsWith('"\''))],
+    ['leading CR is neutralised',   w => ok(w.csvRow([String.fromCharCode(13) + '=1+1']).startsWith('"\''))],
+    ['HYPERLINK is neutralised',    w => ok(w.csvRow(['=HYPERLINK("http://evil","x")']).startsWith('"\'='))],
+    ['plain title untouched',       w => eq(w.csvRow(['Ableton']), '"Ableton"')],
+    ['ampersand untouched',         w => eq(w.csvRow(['Rock & Roll']), '"Rock & Roll"')],
+    ['apostrophe untouched',        w => eq(w.csvRow(["O'Brien"]), '"O\'Brien"')],
+    ['quotes still doubled',        w => eq(w.csvRow(['He said "hi"']), '"He said ""hi"""')],
+    ['empty cell survives',         w => eq(w.csvRow(['']), '""')],
+    ['row separator intact',        w => eq(w.csvRow(['a', '=b', 'c']), '"a","\'=b","c"')],
+  ],
+},
+{
+  id: '#G13', title: 'OAuth token never lingers', note: 'showApp is stubbed so only the hash handling runs',
+  cases: [
+    ['token stripped from the URL', w => {
+      const snap = snapshot(w, ['lastLoginTimestamp']);
+      const realShowApp = w.showApp;
+      w.showApp = () => {};                       // isolate: no boot, no API calls
+      try {
+        w.history.replaceState({}, '', w.location.pathname + '#access_token=TEST_TOKEN_1&token_type=bearer');
+        ok(w.location.href.includes('access_token'), 'precondition: token is in the URL');
+        w.checkAuth();
+        ok(!w.location.href.includes('access_token'), 'token still in the URL after checkAuth');
+        return 'purged';
+      } finally {
+        w.showApp = realShowApp;
+        w.history.replaceState({}, '', w.location.pathname);
+        restore(w, snap);
+      }
+    }],
+    ['token never written to localStorage', w => {
+      const hit = Object.keys(w.localStorage).find(k => String(w.localStorage.getItem(k)).includes('TEST_TOKEN_1'));
+      return eq(hit, undefined, 'found in key');
+    }],
+    ['token never written to sessionStorage', w => {
+      const hit = Object.keys(w.sessionStorage).find(k => String(w.sessionStorage.getItem(k)).includes('TEST_TOKEN_1'));
+      return eq(hit, undefined, 'found in key');
+    }],
+  ],
+},
+{
+  id: '#G15', title: 'parseDuration deduped', note: 'the removed duplicate threw on empty input',
+  cases: [
+    ['parses hours, minutes, seconds', w => eq(w.parseDuration('PT1H2M3S'), 3723)],
+    ['parses minutes only',            w => eq(w.parseDuration('PT45M'), 2700)],
+    ['parses seconds only',            w => eq(w.parseDuration('PT30S'), 30)],
+    ['undefined returns 0, no throw',  w => eq(w.parseDuration(undefined), 0)],
+    ['null returns 0, no throw',       w => eq(w.parseDuration(null), 0)],
+    ['empty string returns 0',         w => eq(w.parseDuration(''), 0)],
+    ['garbage returns 0',              w => eq(w.parseDuration('not a duration'), 0)],
+    ['formatDuration still formats',   w => eq([w.formatDuration(3723), w.formatDuration(63), w.formatDuration(0)],
+                                               ['1h02m', '1:03', '--:--'])],
+    ['formatSeconds is gone',          w => eq(typeof w.formatSeconds, 'undefined')],
+  ],
+},
+{
+  id: '#G16', title: 'dead code removed',
+  cases: [
+    ['drawBarChart is gone', w => eq(typeof w.drawBarChart, 'undefined')],
+  ],
+},
+{
+  id: '#G17', title: 'beta cards follow the UI language', note: 'they were pinned to French by a variable that never existed',
+  cases: [
+    ['FR and EN render differently', w => {
+      const snap = snapshot(w, ['appLang']);
+      const before = w.currentLang;
+      const read = lang => {
+        w.applyLanguage(lang); w.renderBetaFeatures();
+        const card = w.document.querySelector('#betaFeatureList .beta-feature-card');
+        return card ? card.querySelector('p').textContent.trim() : null;
+      };
+      try {
+        const fr = read('fr'), en = read('en');
+        ok(fr, 'no beta card rendered in FR');
+        ok(en, 'no beta card rendered in EN');
+        ok(fr !== en, 'FR and EN text are identical: ' + JSON.stringify(fr));
+        return fr.slice(0, 18) + ' | ' + en.slice(0, 18);
+      } finally { w.applyLanguage(before); restore(w, snap); }
+    }],
+  ],
+},
+{
+  id: '#G19', title: 'auto-cache clears the dirty flag', note: 'your real autoCache is snapshotted and restored',
+  cases: [
+    // APP_DIRTY is a `let` binding, so it is not readable from here. markDirty()
+    // sets it and the beforeunload handler reports it — that is the whole contract.
+    ['dirty library warns on exit', w => {
+      w.markDirty();
+      return eq(exitPrompts(w), true, 'no warning after markDirty');
+    }],
+    ['auto-cache clears it', async w => {
+      const snap = snapshot(w, ['autoCache', 'autoCacheTimestamp']);
+      const realToast = w.showToast;
+      w.showToast = () => {};
+      try {
+        w.markDirty();
+        ok(exitPrompts(w) === true, 'precondition: should be dirty');
+        await w.autoSaveToLocalStorage();
+        return eq(exitPrompts(w), false, 'still warning after the cache was written');
+      } finally { w.showToast = realToast; restore(w, snap); }
+    }],
+  ],
+},
+];
+
+// ════════════════════════════════════════════════════════════════════════
+// Runner
+// ════════════════════════════════════════════════════════════════════════
+const results = document.getElementById('results');
+const summaryEl = document.getElementById('summary');
+const runBtn = document.getElementById('run');
+
+function appWindow() {
+  const w = document.getElementById('app').contentWindow;
+  if (!w || typeof w.parseDuration !== 'function') {
+    throw new Error('app not loaded — serve this file from the same origin as the app');
+  }
+  return w;
+}
+
+async function run() {
+  runBtn.disabled = true;
+  results.innerHTML = '';
+  summaryEl.textContent = 'running…';
+  let pass = 0, fail = 0;
+
+  let win;
+  try { win = appWindow(); }
+  catch (e) {
+    summaryEl.innerHTML = '<span class="ko">' + e.message + '</span>';
+    runBtn.disabled = false;
+    return;
+  }
+
+  for (const suite of SUITES) {
+    const box = document.createElement('div');
+    box.className = 'group';
+    box.innerHTML = '<h2>' + suite.id + ' — ' + suite.title +
+                    (suite.note ? '<span>' + suite.note + '</span>' : '') + '</h2>';
+    results.appendChild(box);
+
+    for (const [name, fn] of suite.cases) {
+      const row = document.createElement('div');
+      row.className = 'case';
+      let mark, detail;
+      try {
+        const out = await fn(win);
+        mark = '<span class="mark p">✓</span>'; detail = out === undefined ? '' : String(out);
+        pass++;
+      } catch (err) {
+        mark = '<span class="mark f">✗</span>'; detail = err.message;
+        row.classList.add('fail');
+        fail++;
+      }
+      row.innerHTML = mark + '<span>' + name + '</span><span class="detail">' +
+                      String(detail).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])) + '</span>';
+      box.appendChild(row);
+    }
+  }
+
+  summaryEl.innerHTML = '<span class="ok">' + pass + ' passed</span>' +
+                        (fail ? ' · <span class="ko">' + fail + ' failed</span>' : ' · 0 failed');
+  runBtn.disabled = false;
+}
+
+runBtn.addEventListener('click', run);
+document.getElementById('app').addEventListener('load', () => {
+  summaryEl.textContent = 'app loaded — ready';
+});
+</script>
+</body>
+</html>
