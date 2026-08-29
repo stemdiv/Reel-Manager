@@ -3813,11 +3813,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.7.1'; // bump per release
+const APP_VERSION = '1.7.2'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.7.2', date: '2026-08-19', items: [
+    '#G10 — injection de formule CSV : un titre commençant par = + - @ (ou tabulation / retour chariot) etait execute a l ouverture du fichier dans Excel ou Sheets ; il est desormais prefixe',
+  ]},
   { v: '1.7.1', date: '2026-08-19', items: [
     'Les liens entre les deux interfaces portent le numéro de version : une page conservée par un ancien service worker n’est plus servie après une mise à jour',
   ]},
@@ -11292,8 +11295,22 @@ function createCSVBackup() {
   showToast(t('toast_backup_csv', { playlists: APP.playlists.length, videos: videoCount }), 'success');
 }
 
+// #G10 — a cell starting with = + - @ (or a leading tab/CR) is executed as a
+// formula by Excel, Sheets and LibreOffice when the file is opened. Playlist and
+// video titles come from YouTube, so they are attacker-controlled. Prefixing with
+// an apostrophe neutralises it; the apostrophe is not shown by the spreadsheet.
+const CSV_FORMULA_PREFIXES = ['=', '+', '-', '@', String.fromCharCode(9), String.fromCharCode(13)];
+
+function csvCell(value) {
+  let s = String(value == null ? "" : value);
+  // No regex here: the dangerous set includes tab and CR, which are easy to
+  // mangle when this file is generated. A plain lookup cannot go wrong.
+  if (s && CSV_FORMULA_PREFIXES.indexOf(s.charAt(0)) !== -1) s = "'" + s;
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+
 function csvRow(fields) {
-  return fields.map(f => `"${String(f).replace(/"/g, '""')}"`).join(',');
+  return fields.map(csvCell).join(',');
 }
 
 // ── Restore state ──
