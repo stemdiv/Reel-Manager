@@ -1530,15 +1530,36 @@
             <option value="50" selected data-i18n="discover_top_50">Top 50</option>
             <option value="100" data-i18n="discover_top_100">Top 100</option>
           </select>
-          <select class="form-control" id="discoverSortBy" style="width:auto;min-width:120px;" data-i18n-title="discover_sort_tooltip" title="Sort results by" onchange="if(discoverResults.length)resortDiscoverResults()">
+          <select class="form-control" id="discoverOrder" style="width:auto;min-width:130px;" data-i18n-title="discover_order_tooltip" title="What YouTube returns">
+            <option value="relevance" data-i18n="discover_order_relevance">Relevance</option>
+            <option value="viewCount" data-i18n="discover_order_views">Most viewed</option>
+            <option value="date" data-i18n="discover_order_date">Newest</option>
+            <option value="rating" data-i18n="discover_order_rating">Highest rated</option>
+          </select>
+          <select class="form-control" id="discoverSortBy" style="width:auto;min-width:130px;" data-i18n-title="discover_sort_tooltip" title="Sort results by" onchange="if(discoverResults.length)resortDiscoverResults()">
             <option value="views" data-i18n="discover_sort_views">Most viewed</option>
             <option value="likes" data-i18n="discover_sort_likes">Most liked</option>
             <option value="comments" data-i18n="discover_sort_comments">Most commented</option>
+            <option value="engagement" data-i18n="discover_sort_engagement">Best engagement</option>
+            <option value="published" data-i18n="discover_sort_date">Newest</option>
+            <option value="duration" data-i18n="discover_sort_duration">Longest</option>
           </select>
           <button class="btn btn-primary" onclick="performDiscoverSearch()" id="discoverSearchBtn">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
             <span data-i18n="discover_search_btn">Search</span>
           </button>
+        </div>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:12px;color:var(--text2);">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="discoverEmbeddable">
+            <span data-i18n="discover_embeddable">Playable in the built-in player only</span>
+          </label>
+          <select class="form-control" id="discoverDuration" style="width:auto;min-width:120px;font-size:12px;padding:4px 8px;" data-i18n-title="discover_duration_tooltip" title="Duration">
+            <option value="any" data-i18n="discover_dur_any">Any length</option>
+            <option value="short" data-i18n="discover_dur_short">Short (&lt; 4 min)</option>
+            <option value="medium" data-i18n="discover_dur_medium">Medium (4–20 min)</option>
+            <option value="long" data-i18n="discover_dur_long">Long (&gt; 20 min)</option>
+          </select>
         </div>
         <div class="mono" style="font-size:10px;color:var(--text4);margin-bottom:20px;">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
@@ -2914,6 +2935,20 @@ const I18N = {
     discover_top_10: 'Top 10',
     discover_top_50: 'Top 50',
     discover_top_100: 'Top 100',
+    discover_order_relevance: 'Pertinence',
+    discover_order_views: 'Plus vues',
+    discover_order_date: 'Plus récentes',
+    discover_order_rating: 'Mieux notées',
+    discover_order_tooltip: 'Ce que YouTube renvoie (change les résultats, pas seulement leur ordre)',
+    discover_embeddable: 'Lisibles dans le lecteur intégré uniquement',
+    discover_duration_tooltip: 'Durée',
+    discover_dur_any: 'Toutes durées',
+    discover_dur_short: 'Courtes (< 4 min)',
+    discover_dur_medium: 'Moyennes (4–20 min)',
+    discover_dur_long: 'Longues (> 20 min)',
+    discover_sort_engagement: 'Meilleur engagement',
+    discover_sort_date: 'Plus récentes',
+    discover_sort_duration: 'Plus longues',
     discover_sort_views: 'Plus vues',
     discover_sort_likes: 'Plus aimées',
     discover_sort_comments: 'Plus commentées',
@@ -3533,6 +3568,20 @@ const I18N = {
     discover_top_10: 'Top 10',
     discover_top_50: 'Top 50',
     discover_top_100: 'Top 100',
+    discover_order_relevance: 'Relevance',
+    discover_order_views: 'Most viewed',
+    discover_order_date: 'Newest',
+    discover_order_rating: 'Highest rated',
+    discover_order_tooltip: 'What YouTube returns (changes the results, not just their order)',
+    discover_embeddable: 'Playable in the built-in player only',
+    discover_duration_tooltip: 'Duration',
+    discover_dur_any: 'Any length',
+    discover_dur_short: 'Short (< 4 min)',
+    discover_dur_medium: 'Medium (4–20 min)',
+    discover_dur_long: 'Long (> 20 min)',
+    discover_sort_engagement: 'Best engagement',
+    discover_sort_date: 'Newest',
+    discover_sort_duration: 'Longest',
     discover_sort_views: 'Most viewed',
     discover_sort_likes: 'Most liked',
     discover_sort_comments: 'Most commented',
@@ -3711,11 +3760,16 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.5.0'; // bump per release
+const APP_VERSION = '1.6.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.6.0', date: '2026-08-19', items: [
+    '#73 — Discover : l’ordre YouTube (pertinence / plus vues / plus récentes / mieux notées) devient un vrai contrôle, il change les résultats et pas seulement leur affichage',
+    '#73 — trois tris locaux de plus (engagement, date, durée) et filtres durée + lisible dans le lecteur intégré, sans coût quota supplémentaire',
+    '#73 — un compteur masqué (likes cachés, commentaires désactivés) n’est plus compté comme zéro : il s’affiche « — » et passe en fin de tri',
+  ]},
   { v: '1.5.0', date: '2026-08-19', items: [
     '#B12 — le lecteur intégré se met en pause quand l’onglet passe en arrière-plan ou que la page est quittée : plus deux vidéos en lecture simultanée',
   ]},
@@ -8569,6 +8623,9 @@ async function performDiscoverSearch() {
 
   const maxResults = parseInt(document.getElementById('discoverMaxResults').value);
   const sortBy = document.getElementById('discoverSortBy').value;
+  const apiOrder = document.getElementById('discoverOrder').value;
+  const durationFilter = document.getElementById('discoverDuration').value;
+  const embeddableOnly = document.getElementById('discoverEmbeddable').checked;
 
   const btn = document.getElementById('discoverSearchBtn');
   btn.disabled = true;
@@ -8586,13 +8643,17 @@ async function performDiscoverSearch() {
         q: query,
         type: 'video',
         maxResults: Math.min(50, maxResults - allVideoIds.length),
-        order: 'relevance',
+        // #73: order is a real API parameter — it changes WHICH videos come back,
+        // not just their order. The sort dropdown only reorders what we fetched.
+        order: apiOrder,
         // #57: fields= partial response — the Discover flow only extracts
         // item.id.videoId from each search result, then fetches the rest via
         // videos.list. Strip snippet entirely from the payload. Quota cost is
         // still 100 units per page (search.list is expensive regardless).
         fields: 'nextPageToken,items(id(videoId))',
       };
+      if (durationFilter && durationFilter !== 'any') params.videoDuration = durationFilter;
+      if (embeddableOnly) params.videoEmbeddable = 'true';
       if (pageToken) params.pageToken = pageToken;
 
       btn.innerHTML = `<span class="mono" style="font-size:11px;">${pages > 1 ? t('discover_searching_page', {current: p+1, total: pages}) : t('discover_searching')}</span>`;
@@ -8630,11 +8691,16 @@ async function performDiscoverSearch() {
         ? `${Math.floor(totalSec/3600)}:${String(Math.floor((totalSec%3600)/60)).padStart(2,'0')}:${String(totalSec%60).padStart(2,'0')}`
         : `${Math.floor(totalSec/60)}:${String(totalSec%60).padStart(2,'0')}`;
 
-      const views = parseInt(v.statistics?.viewCount || 0);
-      const likes = parseInt(v.statistics?.likeCount || 0);
-      const comments = parseInt(v.statistics?.commentCount || 0);
+      // A hidden like count or disabled comments must not read as zero — that
+      // silently sinks the video to the bottom of the sort. null = unknown.
+      const num = raw => (raw === undefined || raw === null) ? null : parseInt(raw);
+      const views = num(v.statistics?.viewCount);
+      const likes = num(v.statistics?.likeCount);
+      const comments = num(v.statistics?.commentCount);
+      const engagement = (views && likes !== null) ? likes / views : null;
 
-      const formatNum = n => n >= 1000000 ? (n/1000000).toFixed(1) + 'M'
+      const formatNum = n => n === null ? '—'
+                           : n >= 1000000 ? (n/1000000).toFixed(1) + 'M'
                            : n >= 1000 ? (n/1000).toFixed(0) + 'K'
                            : String(n);
 
@@ -8648,6 +8714,9 @@ async function performDiscoverSearch() {
         viewsRaw: views,
         likesRaw: likes,
         commentsRaw: comments,
+        engagementRaw: engagement,
+        durationRaw: totalSec,
+        publishedRaw: Date.parse(v.snippet?.publishedAt || '') || null,
         views: formatNum(views),
         likes: formatNum(likes),
         comments: formatNum(comments),
@@ -8657,7 +8726,7 @@ async function performDiscoverSearch() {
     });
 
     // Sort by selected criterion
-    discoverResults.sort((a, b) => b[sortBy + 'Raw'] - a[sortBy + 'Raw']);
+    discoverResults.sort(discoverComparator(sortBy));
 
     renderDiscoverResults(query);
 
@@ -8727,9 +8796,21 @@ function renderDiscoverResults(query) {
   updateDiscoverQuota();
 }
 
+// Descending, with unknown values (hidden likes, disabled comments) pinned last
+// in every direction rather than treated as zero.
+function discoverComparator(sortBy) {
+  const key = sortBy + 'Raw';
+  return (a, b) => {
+    const av = a[key], bv = b[key];
+    if (av === null || av === undefined) return (bv === null || bv === undefined) ? 0 : 1;
+    if (bv === null || bv === undefined) return -1;
+    return bv - av;
+  };
+}
+
 function resortDiscoverResults() {
   const sortBy = document.getElementById('discoverSortBy').value;
-  discoverResults.sort((a, b) => b[sortBy + 'Raw'] - a[sortBy + 'Raw']);
+  discoverResults.sort(discoverComparator(sortBy));
   const query = document.getElementById('discoverSearchInput').value.trim();
   renderDiscoverResults(query);
 }
