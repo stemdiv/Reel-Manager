@@ -3831,11 +3831,16 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.12.0'; // bump per release
+const APP_VERSION = '1.12.1'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.12.1', date: '2026-08-19', items: [
+    'CORRECTIF CRITIQUE — videoPublishedAt avait ete demande dans snippet() alors qu il appartient a contentDetails. Un selecteur fields invalide ne renvoie pas moins de donnees : il renvoie une erreur 400. Depuis la v1.11.0 aucun chargement de videos ne fonctionnait, et les exports etaient vides',
+    'fetchAllPages ne transforme plus un echec total en liste vide : l erreur de la premiere page remonte, au lieu de se faire passer pour une playlist sans videos',
+    'loadPlaylistVideos reessaie sans le parametre fields si celui-ci echoue — une optimisation de bande passante ne doit jamais couter la bibliotheque',
+  ]},
   { v: '1.12.0', date: '2026-08-19', items: [
     '#76 — le cache automatique ne peut plus s effacer lui-meme : une ecriture sans aucune video est refusee si le cache en contient. Il etait reecrit juste apres un demarrage sur cache, quand les videos ne sont pas encore en memoire, ce qui remplacait un cache utilisable par une liste de playlists vides',
     'Diagnostic Cache — verdict de sante (UTILISABLE / PARTIEL / DEGRADE / VIDE) avec la raison, couverture playlists-avec-videos, marge par rapport a la limite pratique de 5 Mo avec projection sur la bibliotheque complete, et anciennete lisible',
@@ -6193,7 +6198,13 @@ async function fetchAllPages(endpoint, params = {}, itemsKey = 'items', maxPages
       nextPageToken = data.nextPageToken;
       pageCount++;
     } catch (err) {
-      console.error('Pagination error:', err);
+      // Failing on the first page means we have nothing at all. Returning [] here
+      // reads to every caller as "this playlist is empty", which is how a bad
+      // fields= selector silently emptied the whole library in v1.11.0. Propagate
+      // it and let the caller decide; a later page failing is a partial result
+      // worth keeping.
+      if (pageCount === 0) throw err;
+      console.error(`Pagination error after ${pageCount} page(s):`, err);
       break;
     }
   } while (nextPageToken && pageCount < maxPages);
@@ -6535,11 +6546,24 @@ async function loadPlaylistVideos(playlistId, opts) {
   // #57: fields= partial response — strip server-side everything we don't read.
   // Saves ~30-50% bandwidth on large playlists (etag, channel resource, snippets
   // we never display, etc). Same quota cost, just smaller payload + faster JSON parse.
-  const videos = await fetchAllPages('playlistItems', {
+  const params = {
     part: 'snippet,contentDetails,status',
     playlistId: playlistId,
-    fields: 'nextPageToken,items(id,contentDetails(videoId),snippet(title,position,publishedAt,videoPublishedAt,thumbnails(medium(url),high(url),default(url)),videoOwnerChannelTitle,channelTitle,resourceId(videoId)),status(privacyStatus))',
-  });
+    fields: 'nextPageToken,items(id,contentDetails(videoId,videoPublishedAt),snippet(title,position,publishedAt,thumbnails(medium(url),high(url),default(url)),videoOwnerChannelTitle,channelTitle,resourceId(videoId)),status(privacyStatus))',
+  };
+  let videos;
+  try {
+    videos = await fetchAllPages('playlistItems', params);
+  } catch (err) {
+    // A malformed fields= selector is a 400 on every page, and the library stops
+    // loading entirely — that is exactly what a wrong field name cost in v1.11.0.
+    // The selector is a bandwidth optimisation, never a requirement: drop it and
+    // take the bigger payload rather than return nothing.
+    log('warn', 'api', 'playlistItems with fields= failed, retrying without it',
+        { playlistId, msg: err.message });
+    const { fields, ...noFields } = params;
+    videos = await fetchAllPages('playlistItems', noFields);
+  }
   APP.allVideos[playlistId] = videos;
   return videos;
 }
@@ -7981,11 +8005,15 @@ async function openPlaylistDetail(playlistId) {
 // An available item always carries a thumbnail and a videoPublishedAt. An
 // unavailable one carries neither. Both signals must be absent before an item is
 // called a ghost, so partial or older cached data errs towards "available".
+//
+// videoPublishedAt lives on contentDetails, not snippet. Asking for it under
+// snippet in a fields= selector is not ignored — it makes the whole request a
+// 400, which silently killed video loading in v1.11.0.
 function ghostStatus(item) {
   const snippet = item?.snippet || {};
   const thumbs = snippet.thumbnails || {};
   const hasThumb = !!(thumbs.medium?.url || thumbs.high?.url || thumbs.default?.url);
-  const hasVideoDate = !!snippet.videoPublishedAt;
+  const hasVideoDate = !!item?.contentDetails?.videoPublishedAt;
   if (hasThumb || hasVideoDate) return 'available';
   return item?.status?.privacyStatus === 'private' ? 'private' : 'deleted';
 }

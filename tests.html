@@ -348,12 +348,49 @@ const SUITES = [
     ['a thumbnail alone keeps it available', w =>
       eq(w.ghostStatus({ snippet: { title: 'Private video', thumbnails: { high: { url: 'u' } } } }), 'available')],
     ['a video date alone keeps it available', w =>
-      eq(w.ghostStatus({ snippet: { title: 'Deleted video', thumbnails: {}, videoPublishedAt: '2024-01-01T00:00:00Z' } }), 'available')],
+      eq(w.ghostStatus({ snippet: { title: 'Deleted video', thumbnails: {} },
+                         contentDetails: { videoPublishedAt: '2024-01-01T00:00:00Z' } }), 'available')],
     ['isGhostItem agrees with ghostStatus', w => {
       const real = { snippet: { title: 'x', thumbnails: { medium: { url: 'u' } }, videoPublishedAt: 'd' } };
       const gone = { snippet: { title: 'x', thumbnails: {} } };
       ok(w.isGhostItem(real) === false, 'flagged a real video');
       return ok(w.isGhostItem(gone) === true, 'missed a ghost');
+    }],
+    ['videoPublishedAt is requested under contentDetails, not snippet', async w => {
+      // The regression that killed v1.11.0: snippet(videoPublishedAt) is not an
+      // ignored field, it makes the whole request a 400 and no video ever loads.
+      const calls = [];
+      const real = w.ytApi;
+      w.ytApi = async (endpoint, params) => { calls.push(params); return { items: [] }; };
+      try {
+        await w.loadPlaylistVideos('PL_FIELDS_LOC', { force: true });
+        const f = (calls.find(c => c && c.fields) || {}).fields || '';
+        const snippetPart = (f.match(/snippet\(([^)]*(?:\([^)]*\))?[^)]*)\)/) || [])[1] || '';
+        ok(!/videoPublishedAt/.test(snippetPart), 'videoPublishedAt asked for under snippet — that is a 400');
+        return ok(/contentDetails\([^)]*videoPublishedAt/.test(f), 'not requested under contentDetails');
+      } finally { w.ytApi = real; }
+    }],
+    ['ghostStatus reads contentDetails.videoPublishedAt', w => {
+      // Available only because of the date — proves which field is consulted.
+      return eq(w.ghostStatus({ snippet: { title: 'x', thumbnails: {} },
+                                contentDetails: { videoPublishedAt: '2024-01-01T00:00:00Z' } }), 'available');
+    }],
+    ['a snippet-level date does not count', w =>
+      eq(w.ghostStatus({ snippet: { title: 'x', thumbnails: {}, videoPublishedAt: '2024-01-01T00:00:00Z' } }), 'deleted')],
+    ['a failing fields= request falls back instead of losing the library', async w => {
+      const seen = [];
+      const real = w.ytApi;
+      w.ytApi = async (endpoint, params) => {
+        seen.push(params);
+        if (params && params.fields) throw new Error('400 invalid field selection');
+        return { items: [{ id: 'I', contentDetails: { videoId: 'V' }, snippet: { title: 't' } }] };
+      };
+      try {
+        const vids = await w.loadPlaylistVideos('PL_FALLBACK', { force: true });
+        ok(seen.length >= 2, 'no retry was attempted');
+        ok(!seen[seen.length - 1].fields, 'the retry still carried fields=');
+        return ok(vids.length === 1, 'fallback returned no videos');
+      } finally { w.ytApi = real; }
     }],
     ['playlistItems now requests videoPublishedAt', async w => {
       const calls = [];

@@ -3,7 +3,7 @@
 // Strategy: Cache-first for static assets, network-first for API calls
 // ============================================================================
 
-const CACHE_NAME = 'reel-manager-v31';
+const CACHE_NAME = 'reel-manager-v32';
 const STATIC_ASSETS = [
   'youtube-playlist-manager.html',
   'manifest.json',
