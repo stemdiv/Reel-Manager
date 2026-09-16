@@ -92,6 +92,27 @@ function restore(win, s) {
   });
 }
 
+// #76 — the quota buckets live on the app's const APP, which this page cannot
+// reach. Seed the persisted state and let the app's own loader adopt it; read it
+// back through quotaTitleText(), exactly what the header tooltip shows.
+function seedQuota(w, q) {
+  const snap = snapshot(w, ['quotaState', 'quotaUnits', 'quotaResetDate', 'apiCalls']);
+  w.localStorage.removeItem('quotaUnits');
+  w.localStorage.setItem('quotaState', JSON.stringify(q));
+  w.localStorage.setItem('quotaResetDate', w.getPacificDateString());
+  w.loadQuotaState();
+  return snap;
+}
+function unseedQuota(w, snap) {
+  restore(w, snap);
+  w.loadQuotaState(); // put the real counters back in memory too
+}
+function readQuota(w) {
+  const m = w.quotaTitleText().match(/(\d+) \/ 10000 .* (\d+) \/ 100 .* (\d+) \/ 100/);
+  if (!m) throw new Error('unreadable quota tooltip: ' + w.quotaTitleText());
+  return { pool: +m[1], search: +m[2], upload: +m[3] };
+}
+
 // Does the app currently warn on exit? The only readable signal for APP_DIRTY.
 function exitPrompts(w) {
   const ev = new w.Event('beforeunload', { cancelable: true });
@@ -659,6 +680,120 @@ const SUITES = [
         await w.autoSaveToLocalStorage();
         return eq(exitPrompts(w), false, 'still warning after the cache was written');
       } finally { w.showToast = realToast; restore(w, snap); }
+    }],
+  ],
+},
+{
+  id: '#76b', title: 'Three quota buckets', note: 'search.list and videos.insert left the shared pool in the June 2026 API revision',
+  cases: [
+    ['search.list is 1 call in the search bucket', w =>
+      eq(w.getQuotaCost('search', 'GET'), { bucket: 'search', cost: 1 })],
+    ['videos.insert is 1 call in the upload bucket', w =>
+      eq(w.getQuotaCost('videos', 'POST'), { bucket: 'upload', cost: 1 })],
+    ['videos.list still costs the pool', w =>
+      eq(w.getQuotaCost('videos', 'GET'), { bucket: 'pool', cost: 1 })],
+    ['playlists.insert still costs the pool 50', w =>
+      eq(w.getQuotaCost('playlists', 'POST'), { bucket: 'pool', cost: 50 })],
+    ['a query string does not confuse the lookup', w =>
+      eq(w.getQuotaCost('playlists?part=snippet,status', 'POST'), { bucket: 'pool', cost: 50 })],
+    ['an unknown write falls back to pool/50', w =>
+      eq(w.getQuotaCost('somethingNew', 'POST'), { bucket: 'pool', cost: 50 })],
+
+    // APP is a const inside the app's own script — not reachable from here. Every
+    // case below drives the real persistence path instead: seed localStorage,
+    // let loadQuotaState() read it, and read the counters back through the
+    // functions the header itself uses.
+    ['chargeQuota hits only its own bucket', w => {
+      const snap = seedQuota(w, { pool: 0, search: 0, upload: 0 });
+      try {
+        eq(w.chargeQuota('search', 'GET'), { bucket: 'search', cost: 1 }, 'search');
+        eq(w.chargeQuota('videos', 'POST'), { bucket: 'upload', cost: 1 }, 'upload');
+        eq(w.chargeQuota('playlists', 'POST'), { bucket: 'pool', cost: 50 }, 'pool');
+        return eq(readQuota(w), { pool: 50, search: 1, upload: 1 });
+      } finally { unseedQuota(w, snap); }
+    }],
+
+    ['the Pacific reset zeroes all three', w => {
+      const snap = seedQuota(w, { pool: 5000, search: 90, upload: 42 });
+      try {
+        eq(readQuota(w), { pool: 5000, search: 90, upload: 42 }, 'precondition');
+        w.localStorage.setItem('quotaResetDate', '1999-01-01');
+        w.checkQuotaDailyReset();
+        return eq(readQuota(w), { pool: 0, search: 0, upload: 0 });
+      } finally { unseedQuota(w, snap); }
+    }],
+
+    ['the gauge follows the worst of the three', w => {
+      // Pool barely touched, search all but gone. One combined figure read 1%.
+      const snap = seedQuota(w, { pool: 100, search: 95, upload: 0 });
+      try { return eq(Math.round(w.quotaWorstPct()), 95); }
+      finally { unseedQuota(w, snap); }
+    }],
+
+    ['an exhausted bucket caps the gauge at 100%', w => {
+      const snap = seedQuota(w, { pool: 0, search: 100, upload: 0 });
+      try { return eq(Math.round(w.quotaWorstPct()), 100); }
+      finally { unseedQuota(w, snap); }
+    }],
+
+    ['the gauge tooltip names all three buckets', w => {
+      const snap = seedQuota(w, { pool: 1234, search: 12, upload: 0 });
+      try {
+        const txt = w.quotaTitleText();
+        ok(txt.includes('1234 / 10000'), 'pool missing: ' + txt);
+        ok(txt.includes('12 / 100'), 'search missing: ' + txt);
+        ok(txt.includes('0 / 100'), 'upload missing: ' + txt);
+        return txt;
+      } finally { unseedQuota(w, snap); }
+    }],
+
+    ['Discover refuses to search once the search bucket is empty', async w => {
+      const snap = seedQuota(w, { pool: 0, search: 100, upload: 0 });
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      const toasts = [];
+      const host = w.document.createElement('div');
+      host.innerHTML = '<input id="__discQ" value="techno">';
+      w.document.body.appendChild(host);
+      const old = w.document.getElementById('discoverSearchInput');
+      if (old) old.id = '__discParked';
+      w.document.getElementById('__discQ').id = 'discoverSearchInput';
+      let called = false;
+      try {
+        w.ytApi = async () => { called = true; return { items: [] }; };
+        w.showToast = (msg, type) => toasts.push({ msg, type });
+        await w.performDiscoverSearch();
+        ok(called === false, 'search.list was called with an empty bucket');
+        ok(toasts.length === 1 && toasts[0].type === 'error', 'no error toast: ' + JSON.stringify(toasts));
+        ok(/100/.test(toasts[0].msg), 'the limit is not named: ' + toasts[0].msg);
+        return 'refused, 0 calls';
+      } finally {
+        Object.assign(w, real);
+        host.remove(); if (old) old.id = 'discoverSearchInput';
+        unseedQuota(w, snap);
+      }
+    }],
+
+    ['Discover still searches while the bucket has room', async w => {
+      const snap = seedQuota(w, { pool: 0, search: 0, upload: 0 });
+      const real = { ytApi: w.ytApi, showToast: w.showToast, renderDiscoverResults: w.renderDiscoverResults };
+      const calls = [];
+      const host = w.document.createElement('div');
+      host.innerHTML = '<input id="__discQ" value="techno">';
+      w.document.body.appendChild(host);
+      const old = w.document.getElementById('discoverSearchInput');
+      if (old) old.id = '__discParked';
+      w.document.getElementById('__discQ').id = 'discoverSearchInput';
+      try {
+        w.ytApi = async (endpoint) => { calls.push(endpoint); return { items: [] }; };
+        w.showToast = () => {};
+        w.renderDiscoverResults = () => {};
+        await w.performDiscoverSearch();
+        return eq(calls, ['search'], 'the one allowed page should have gone out');
+      } finally {
+        Object.assign(w, real);
+        host.remove(); if (old) old.id = 'discoverSearchInput';
+        unseedQuota(w, snap);
+      }
     }],
   ],
 },

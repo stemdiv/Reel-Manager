@@ -2884,7 +2884,12 @@ const I18N = {
     help_title: 'Mode d\'emploi & FAQ',
     help_subtitle: 'Guide complet de toutes les fonctionnalités de l\'application',
     help_quota_title: 'Quota API',
-    help_quota_text: "L'API YouTube a un quota d'environ 10 000 unités par jour. Chaque action consomme des unités (consultation: 1, création/modification: 50). Vérifiez le statut du quota en haut à droite.",
+    help_quota_text: "L'API YouTube accorde trois quotas quotidiens distincts, partagés par tous les utilisateurs du projet : un pool de 10 000 unités pour les lectures et les écritures ordinaires (consultation : 1, création/modification : 50), 100 recherches (Découvrir) et 100 mises en ligne de vidéos. Épuiser l'un n'entame pas les deux autres. Les trois repartent de zéro à minuit, heure du Pacifique. Le détail des trois compteurs est dans l'infobulle du quota, en haut à droite.",
+    quota_pool_label: 'Pool',
+    quota_search_label: 'Recherches',
+    quota_upload_label: 'Mises en ligne',
+    discover_search_action: 'Recherche Découvrir',
+    error_search_quota_exhausted: "Quota de recherche épuisé — les {limit} recherches quotidiennes du projet sont consommées. Il repart à minuit, heure du Pacifique. Le reste de l'application fonctionne normalement.",
     help_shortcuts: 'Raccourcis clavier',
 
     // Modals
@@ -3524,7 +3529,12 @@ const I18N = {
     help_title: 'User Guide & FAQ',
     help_subtitle: 'Complete guide to all application features',
     help_quota_title: 'API Quota',
-    help_quota_text: 'The YouTube API has a quota of approximately 10,000 units per day. Each action consumes units (read: 1, create/modify: 50). Check the quota status in the top right corner.',
+    help_quota_text: 'The YouTube API grants three separate daily quotas, shared by everyone using the project: a pool of 10,000 units for ordinary reads and writes (read: 1, create/modify: 50), 100 searches (Discover), and 100 video uploads. Exhausting one leaves the other two untouched. All three reset at midnight Pacific Time. The full breakdown is in the quota tooltip, top right.',
+    quota_pool_label: 'Pool',
+    quota_search_label: 'Searches',
+    quota_upload_label: 'Uploads',
+    discover_search_action: 'Discover search',
+    error_search_quota_exhausted: "Search quota exhausted — the project's {limit} daily searches are spent. It resets at midnight Pacific Time. The rest of the app works normally.",
     help_shortcuts: 'Keyboard shortcuts',
 
     // Modals
@@ -3800,7 +3810,9 @@ const APP = {
   clientId: localStorage.getItem('youtubeClientId') || '',
   accessToken: '',
   apiCalls: 0,
-  quotaUnits: 0,
+  // #76 — three independent daily allowances, not one pool. pool is in units,
+  // search and upload count calls. See QUOTA_LIMITS.
+  quota: { pool: 0, search: 0, upload: 0 },
   userInfo: null,
   playlists: [],
   allVideos: {},
@@ -3831,11 +3843,18 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.12.1'; // bump per release
+const APP_VERSION = '1.13.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.13.0', date: '2026-09-16', items: [
+    "#76 — le quota n est plus un pool unique. Depuis la revision d API de juin 2026, search.list et videos.insert ont chacun leur propre allocation quotidienne comptee en APPELS (100 par jour) et ne touchent plus au pool de 10 000 unites. L app comptait encore 100 unites par recherche et 1 600 par mise en ligne : une journee de Decouvrir paraissait avoir vide un quota qui etait en realite intact",
+    "Trois compteurs persistes, remis a zero ensemble a minuit heure du Pacifique ; l ancienne cle quotaUnits est reprise dans le pool puis supprimee",
+    "La jauge prend la couleur du pire des trois ratios — un bucket recherche epuise ne pouvait plus se cacher derriere un pool a 1 % — et son infobulle detaille les trois",
+    "Decouvrir estime son cout en pages contre le bucket recherche, et refuse proprement quand il est epuise au lieu de partir en 403",
+    "Les seuils 50/75/90/100 % et l en-tete du journal de diagnostic sont desormais par bucket",
+  ]},
   { v: '1.12.1', date: '2026-08-19', items: [
     'CORRECTIF CRITIQUE — videoPublishedAt avait ete demande dans snippet() alors qu il appartient a contentDetails. Un selecteur fields invalide ne renvoie pas moins de donnees : il renvoie une erreur 400. Depuis la v1.11.0 aucun chargement de videos ne fonctionnait, et les exports etaient vides',
     'fetchAllPages ne transforme plus un echec total en liste vide : l erreur de la premiere page remonte, au lieu de se faire passer pour une playlist sans videos',
@@ -4083,9 +4102,7 @@ async function _logBuildHeader() {
 
   const playlistCount = (APP.playlists && APP.playlists.length) || 0;
   const videoCount = APP.allVideos ? Object.values(APP.allVideos).reduce((s, v) => s + (Array.isArray(v) ? v.length : 0), 0) : 0;
-  const quotaUsed = APP.quotaUnits || 0;
-  const quotaLimit = 10000;
-  const quotaPct = Math.round((quotaUsed / quotaLimit) * 100);
+  const qPct = b => Math.round(((APP.quota[b] || 0) / QUOTA_LIMITS[b]) * 100);
   const skin = localStorage.getItem('appSkin') || 'coral';
   const lang = (typeof currentLang !== 'undefined' && currentLang) || 'fr';
   const swActive = ('serviceWorker' in navigator) && !!navigator.serviceWorker.controller;
@@ -4101,7 +4118,9 @@ async function _logBuildHeader() {
     `Language:         ${lang}`,
     `Theme:            ${APP.theme || 'dark'}    Skin: ${skin}`,
     `User (anon):      ${userHash || '(no clientId / crypto unavailable)'}`,
-    `Quota:            ${quotaUsed} / ${quotaLimit} (${quotaPct}%)`,
+    `Quota pool:       ${APP.quota.pool} / ${QUOTA_LIMITS.pool} units (${qPct('pool')}%)`,
+    `Quota search:     ${APP.quota.search} / ${QUOTA_LIMITS.search} calls (${qPct('search')}%)`,
+    `Quota upload:     ${APP.quota.upload} / ${QUOTA_LIMITS.upload} calls (${qPct('upload')}%)`,
     `Local backup:     ${playlistCount} playlists, ${videoCount} videos`,
     `Service Worker:   ${swActive ? 'active' : 'inactive'}`,
     `Log entries:      ${APP.log.length}  (min level: ${LOG_CONFIG.minLevel}, cap: ${LOG_CONFIG.capacity})`,
@@ -4415,10 +4434,16 @@ async function downloadDiagnosticLog() {
 }
 
 // YouTube Data API v3 quota costs per endpoint+method
-// Source: developers.google.com/youtube/v3/determine_quota_cost (snapshot 2026-04-28)
+// Source: developers.google.com/youtube/v3/determine_quota_cost (snapshot 2026-06-01)
 // Daily quotas reset at midnight Pacific Time. Pagination multiplies (each page = full cost).
+//
+// #76 — since the June 2026 revision, search.list and videos.insert no longer draw on the
+// shared unit pool at all: each has its own daily allowance counted in CALLS, not units
+// (100 calls/day by default). videos.insert had already dropped from 1600 to 100 units on
+// 4 December 2025 before leaving the pool entirely. Their entries below are therefore 1 —
+// one call — and QUOTA_BUCKETS routes them away from the pool.
 const YT_QUOTA_COSTS = {
-  // Reads (most 1 unit; search.list and captions.list are exceptions)
+  // Reads (most 1 unit; captions.list is the exception — search.list has its own bucket)
   'activities.GET': 1,
   'captions.GET': 50,
   'channels.GET': 1,
@@ -4432,7 +4457,7 @@ const YT_QUOTA_COSTS = {
   'membershipsLevels.GET': 1,
   'playlistItems.GET': 1,
   'playlists.GET': 1,
-  'search.GET': 100,              // ⚠️ 100 units per page (pagination multiplies)
+  'search.GET': 1,                // own bucket: 1 CALL per page out of 100/day (pagination multiplies)
   'subscriptions.GET': 1,
   'videoAbuseReportReasons.GET': 1,
   'videoCategories.GET': 1,
@@ -4460,20 +4485,38 @@ const YT_QUOTA_COSTS = {
   'subscriptions.POST': 50,
   'subscriptions.DELETE': 50,
   'thumbnails.POST': 50,
-  'videos.POST': 1600,            // ⚠️ video upload — the single most expensive call
+  'videos.POST': 1,               // own bucket: 1 CALL out of 100/day (was 1600 units, then 100, now its own quota)
   'videos.PUT': 50,
   'videos.DELETE': 50,
   'watermarks.POST': 50,
 };
 
-// Look up cost for an API call. endpoint may include query string ('playlists?part=...')
+// #76 — the three buckets. Anything not listed here draws on the shared pool.
+const QUOTA_BUCKETS = {
+  'search.GET': 'search',
+  'videos.POST': 'upload',
+};
+
+// Daily allowance per bucket. pool is in units; search and upload are in calls.
+const QUOTA_LIMITS = { pool: 10000, search: 100, upload: 100 };
+
+// Look up bucket + cost for an API call. endpoint may include query string ('playlists?part=...')
 function getQuotaCost(endpoint, method) {
   const base = String(endpoint).split('?')[0].split('/')[0]; // 'playlists' from 'playlists?part=...'
   const key = `${base}.${method}`;
-  return YT_QUOTA_COSTS[key] || (method === 'GET' ? 1 : 50);
+  const bucket = QUOTA_BUCKETS[key] || 'pool';
+  const cost = YT_QUOTA_COSTS[key] || (method === 'GET' ? 1 : 50);
+  return { bucket, cost };
 }
 
-const QUOTA_DAILY_LIMIT = 10000;
+// Charge a call to its bucket. Single entry point — ytApi and the three direct
+// uploads (thumbnails/captions/videos) all go through here, so no bucket can be
+// incremented by hand and drift from the persisted state.
+function chargeQuota(endpoint, method) {
+  const { bucket, cost } = getQuotaCost(endpoint, method);
+  APP.quota[bucket] += cost;
+  return { bucket, cost };
+}
 
 // Daily quota persistence + Pacific Time reset (audit item #47)
 // YouTube quota resets at midnight Pacific (America/Los_Angeles), NOT UTC, NOT local.
@@ -4493,13 +4536,13 @@ function checkQuotaDailyReset() {
   const today = getPacificDateString();
   const savedDate = localStorage.getItem('quotaResetDate');
   if (savedDate !== today) {
-    // Pacific date rolled over → reset counters
-    log('info', 'quota', 'Pacific daily reset', { previousDate: savedDate || '(none)', newDate: today, previousUnits: APP.quotaUnits });
-    APP.quotaUnits = 0;
+    // Pacific date rolled over → reset all three buckets
+    log('info', 'quota', 'Pacific daily reset', { previousDate: savedDate || '(none)', newDate: today, previous: { ...APP.quota } });
+    APP.quota = { pool: 0, search: 0, upload: 0 };
     APP.apiCalls = 0;
-    APP._quotaThresholdsHit = []; // reset threshold-hit flags for the new day
+    APP._quotaThresholdsHit = {}; // reset threshold-hit flags for the new day, per bucket
     localStorage.setItem('quotaResetDate', today);
-    localStorage.setItem('quotaUnits', '0');
+    localStorage.setItem('quotaState', JSON.stringify(APP.quota));
     localStorage.setItem('apiCalls', '0');
   }
 }
@@ -4507,22 +4550,28 @@ function checkQuotaDailyReset() {
 // Quota threshold logging — fires once per threshold per day.
 // Called from saveQuotaState/updateQuotaIndicator so we don't double-log.
 function _logQuotaThresholds() {
-  if (!APP._quotaThresholdsHit) APP._quotaThresholdsHit = [];
-  const limit = 10000;
-  const pct = (APP.quotaUnits / limit) * 100;
+  // #76 — thresholds are per bucket: running out of search calls says nothing
+  // about the pool, and a single combined percentage hid exactly that.
+  if (!APP._quotaThresholdsHit || Array.isArray(APP._quotaThresholdsHit)) APP._quotaThresholdsHit = {};
   const thresholds = [50, 75, 90, 100];
-  for (const th of thresholds) {
-    if (pct >= th && !APP._quotaThresholdsHit.includes(th)) {
-      APP._quotaThresholdsHit.push(th);
-      const level = th >= 90 ? 'warn' : 'info';
-      log(level, 'quota', `quota crossed ${th}%`, { used: APP.quotaUnits, limit, pct: Math.round(pct) });
+  for (const bucket of Object.keys(QUOTA_LIMITS)) {
+    if (!APP._quotaThresholdsHit[bucket]) APP._quotaThresholdsHit[bucket] = [];
+    const limit = QUOTA_LIMITS[bucket];
+    const used = APP.quota[bucket] || 0;
+    const pct = (used / limit) * 100;
+    for (const th of thresholds) {
+      if (pct >= th && !APP._quotaThresholdsHit[bucket].includes(th)) {
+        APP._quotaThresholdsHit[bucket].push(th);
+        const level = th >= 90 ? 'warn' : 'info';
+        log(level, 'quota', `${bucket} quota crossed ${th}%`, { bucket, used, limit, pct: Math.round(pct) });
+      }
     }
   }
 }
 
 function saveQuotaState() {
   try {
-    localStorage.setItem('quotaUnits', String(APP.quotaUnits));
+    localStorage.setItem('quotaState', JSON.stringify(APP.quota));
     localStorage.setItem('apiCalls', String(APP.apiCalls));
     localStorage.setItem('quotaResetDate', getPacificDateString());
   } catch (e) { /* storage full or disabled — silent fail, counter still works in-memory */ }
@@ -4530,15 +4579,36 @@ function saveQuotaState() {
   _logQuotaThresholds();
 }
 
+// Read the persisted buckets, migrating the pre-#76 single 'quotaUnits' key.
+// Exported shape is always the full triplet, so callers never see a hole.
+function readQuotaState() {
+  const q = { pool: 0, search: 0, upload: 0 };
+  try {
+    const raw = localStorage.getItem('quotaState');
+    if (raw) {
+      const parsed = JSON.parse(raw) || {};
+      for (const b of Object.keys(q)) q[b] = parseInt(parsed[b], 10) || 0;
+    }
+  } catch (_) { /* corrupt blob → start from zero rather than throw on boot */ }
+  // Migration: the old single pool key becomes the pool bucket, once.
+  const legacy = localStorage.getItem('quotaUnits');
+  if (legacy !== null) {
+    if (!localStorage.getItem('quotaState')) q.pool = parseInt(legacy, 10) || 0;
+    try { localStorage.removeItem('quotaUnits'); } catch (_) {}
+  }
+  return q;
+}
+
 function loadQuotaState() {
   const today = getPacificDateString();
   const savedDate = localStorage.getItem('quotaResetDate');
   if (savedDate === today) {
-    APP.quotaUnits = parseInt(localStorage.getItem('quotaUnits') || '0', 10) || 0;
+    APP.quota = readQuotaState();
     APP.apiCalls = parseInt(localStorage.getItem('apiCalls') || '0', 10) || 0;
   } else {
     // Stale state from a previous Pacific day → fresh start
-    APP.quotaUnits = 0;
+    readQuotaState(); // still drops the legacy key so it cannot resurface tomorrow
+    APP.quota = { pool: 0, search: 0, upload: 0 };
     APP.apiCalls = 0;
     localStorage.setItem('quotaResetDate', today);
   }
@@ -4608,7 +4678,7 @@ const API_CACHE_CONFIG = {
     'membershipsLevels.GET':   60 * 60_000,
     'playlistItems.GET':       30_000,        // 30s — items can change during use
     'playlists.GET':           60_000,        // 1 min
-    'search.GET':              5 * 60_000,    // 5 min — expensive (100 units), cache aggressively
+    'search.GET':              5 * 60_000,    // 5 min — only 100 CALLS a day (#76), cache aggressively
     'subscriptions.GET':       5 * 60_000,
     'videoCategories.GET':     60 * 60_000,   // 1 hour
     'videos.GET':              5 * 60_000,
@@ -4996,25 +5066,39 @@ function checkBackupSafety(actionName) {
 // QUOTA MONITORING
 // ============================================================================
 
+// #76 — worst of the three ratios. A full search bucket with an untouched pool
+// is still a blocked Discover, so the colour must follow whichever runs out first.
+function quotaWorstPct() {
+  return Object.keys(QUOTA_LIMITS).reduce((worst, b) => {
+    const pct = Math.min(((APP.quota[b] || 0) / QUOTA_LIMITS[b]) * 100, 100);
+    return pct > worst ? pct : worst;
+  }, 0);
+}
+
+function quotaTitleText() {
+  return `${t('quota_pool_label')} ${APP.quota.pool} / ${QUOTA_LIMITS.pool} · ` +
+         `${t('quota_search_label')} ${APP.quota.search} / ${QUOTA_LIMITS.search} · ` +
+         `${t('quota_upload_label')} ${APP.quota.upload} / ${QUOTA_LIMITS.upload}`;
+}
+
 function updateQuotaIndicator() {
   const el = document.getElementById('quotaInfo');
   if (!el) return;
 
-  const pct = Math.min((APP.quotaUnits / QUOTA_DAILY_LIMIT) * 100, 100);
-  let color, label;
+  const pct = quotaWorstPct();
+  let color;
 
   if (pct < 75) {
     color = 'var(--green)';
-    label = '';
   } else if (pct < 90) {
     color = 'var(--yellow)';
-    label = '';
   } else {
     color = 'var(--danger)';
-    label = '';
   }
 
-  el.innerHTML = `<span style="color:${color}" title="Quota YouTube API: ${APP.quotaUnits} / ${QUOTA_DAILY_LIMIT} (${pct.toFixed(1)}%)">${label}${APP.quotaUnits} / ${QUOTA_DAILY_LIMIT}</span>`;
+  // The header stays a single readable figure — the pool, which every ordinary
+  // action spends — and the tooltip carries the full three-bucket breakdown.
+  el.innerHTML = `<span style="color:${color}" title="${escapeHtml(quotaTitleText())}">${APP.quota.pool} / ${QUOTA_LIMITS.pool}</span>`;
   el.style.borderLeft = `2px solid ${color}`;
 }
 
@@ -5026,7 +5110,7 @@ function estimateQuotaCost(action, count) {
   const UPDATE_PLAYLIST = YT_QUOTA_COSTS['playlists.PUT']; // 50
   const DELETE_PLAYLIST = YT_QUOTA_COSTS['playlists.DELETE']; // 50
   const INSERT_PLAYLIST = YT_QUOTA_COSTS['playlists.POST']; // 50
-  const SEARCH_PAGE = YT_QUOTA_COSTS['search.GET']; // 100
+  const SEARCH_PAGE = YT_QUOTA_COSTS['search.GET']; // 1 call in the search bucket (#76)
   const CAPTION_INSERT = YT_QUOTA_COSTS['captions.POST']; // 400
   const CAPTION_UPDATE = YT_QUOTA_COSTS['captions.PUT']; // 450
 
@@ -5038,18 +5122,21 @@ function estimateQuotaCost(action, count) {
     'clean_ghosts': count * DELETE,
     'rename_playlists': count * UPDATE_PLAYLIST,
     'discover_create': count * INSERT + INSERT_PLAYLIST,  // N inserts into new playlist + 1 playlist creation
-    'discover_search_pages': count * SEARCH_PAGE,         // For caps: cost = pages × 100
+    'discover_search_pages': count * SEARCH_PAGE,         // #76: cost = pages × 1 CALL, charged to the search bucket
     'caption_upload': count * CAPTION_INSERT,             // ⚠️ very expensive: 400/track
     'caption_update': count * CAPTION_UPDATE,             // ⚠️ very expensive: 450/track
   };
   return costs[action] || count;
 }
 
-function checkQuotaBudget(actionName, action, count) {
+// bucket defaults to 'pool' — every bulk action except Discover's search spends units.
+function checkQuotaBudget(actionName, action, count, bucket = 'pool') {
   const cost = estimateQuotaCost(action, count);
-  const remaining = QUOTA_DAILY_LIMIT - APP.quotaUnits;
-  const afterAction = APP.quotaUnits + cost;
-  const pctAfter = (afterAction / QUOTA_DAILY_LIMIT) * 100;
+  const limit = QUOTA_LIMITS[bucket] || QUOTA_LIMITS.pool;
+  const used = APP.quota[bucket] || 0;
+  const remaining = limit - used;
+  const afterAction = used + cost;
+  const pctAfter = (afterAction / limit) * 100;
 
   if (cost > remaining) {
     const proceed = confirm(t('confirm_quota_exceed', { action: actionName, cost, remaining }));
@@ -5060,7 +5147,7 @@ function checkQuotaBudget(actionName, action, count) {
   }
 
   if (pctAfter >= 90) {
-    const proceed = confirm(t('confirm_quota_warn', { action: actionName, cost, after: afterAction, limit: QUOTA_DAILY_LIMIT, pct: pctAfter.toFixed(0) }));
+    const proceed = confirm(t('confirm_quota_warn', { action: actionName, cost, after: afterAction, limit, pct: pctAfter.toFixed(0) }));
     if (!proceed) {
       showToast(t('toast_cancelled'), 'warning');
     }
@@ -5274,8 +5361,8 @@ function runCacheDiagnostic() {
   const cacheAge = ageText(cacheTs);
   const manualAge = ageText(manualTs);
 
-  // API quota
-  const quota = APP.quotaUnits || 0;
+  // API quota (pool bucket — the one ordinary browsing spends)
+  const quota = APP.quota.pool || 0;
 
   const green = 'color:var(--green)';
   const red = 'color:var(--danger)';
@@ -6048,9 +6135,8 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
   // Google charges full cost per logical request, including 304 responses.
   // ──────────────────────────────────────────────────────────────────────────
   checkQuotaDailyReset();
-  const cost = getQuotaCost(endpoint, method);
+  const { bucket, cost } = chargeQuota(endpoint, method);
   APP.apiCalls++;
-  APP.quotaUnits += cost;
   saveQuotaState();
   updateQuotaIndicator();
 
@@ -6146,7 +6232,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
         invalidateCacheForWrite(endpoint, cleanParams, body);
       }
       if (method === 'DELETE') {
-        log('info', 'api', 'API call ok', { endpoint, method, status: 204, cost, durationMs: Date.now() - _logCallStart, retries: _logRetries });
+        log('info', 'api', 'API call ok', { endpoint, method, status: 204, bucket, cost, durationMs: Date.now() - _logCallStart, retries: _logRetries });
         return null;
       }
 
@@ -6166,7 +6252,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
         }
       }
 
-      log('info', 'api', 'API call ok', { endpoint, method, status: res.status, cost, durationMs: Date.now() - _logCallStart, retries: _logRetries });
+      log('info', 'api', 'API call ok', { endpoint, method, status: res.status, bucket, cost, durationMs: Date.now() - _logCallStart, retries: _logRetries });
       return responseBody;
     }
 
@@ -6628,9 +6714,9 @@ async function refreshDashboard() {
   const totalHours = Math.round(totalDurationSec / 3600);
   const avgMinPerVideo = loadedVideoCount > 0 ? (totalDurationSec / 60 / loadedVideoCount).toFixed(1) : '—';
 
-  // Quota (real tracked value)
-  const quotaUsed = APP.quotaUnits || 0;
-  const quotaMax = 10000;
+  // Quota (real tracked value — pool bucket)
+  const quotaUsed = APP.quota.pool || 0;
+  const quotaMax = QUOTA_LIMITS.pool;
   const quotaPct = Math.min((quotaUsed / quotaMax) * 100, 100);
   const quotaColor = quotaPct > 80 ? 'var(--danger)' : quotaPct > 50 ? 'var(--yellow)' : 'var(--green)';
 
@@ -7579,7 +7665,7 @@ async function uploadThumbnail() {
       throw new Error(err?.error?.message || `HTTP ${res.status}`);
     }
     APP.apiCalls++;
-    APP.quotaUnits += getQuotaCost('thumbnails', 'POST');
+    chargeQuota('thumbnails', 'POST');
     saveQuotaState();
     updateQuotaIndicator();
     showToast(t('studio_thumb_uploaded'), 'success');
@@ -7653,7 +7739,7 @@ async function uploadCaption() {
       throw new Error(err?.error?.message || `HTTP ${res.status}`);
     }
     APP.apiCalls++;
-    APP.quotaUnits += getQuotaCost('captions', 'POST');
+    chargeQuota('captions', 'POST');
     saveQuotaState();
     updateQuotaIndicator();
     showToast(t('studio_caption_uploaded'), 'success');
@@ -7788,7 +7874,7 @@ async function uploadVideo() {
     });
 
     APP.apiCalls++;
-    APP.quotaUnits += getQuotaCost('videos', 'POST');
+    chargeQuota('videos', 'POST');
     saveQuotaState();
     updateQuotaIndicator();
     showToast(t('studio_video_uploaded'), 'success');
@@ -8992,15 +9078,26 @@ async function performDiscoverSearch() {
   const durationFilter = document.getElementById('discoverDuration').value;
   const embeddableOnly = document.getElementById('discoverEmbeddable').checked;
 
+  // #76 — search.list draws on its own daily allowance of 100 CALLS, not on the
+  // unit pool. One page = one call, so the pre-flight counts pages, and an
+  // exhausted search bucket is refused outright rather than half-spent.
+  const pages = Math.ceil(maxResults / 50);
+  const searchRemaining = QUOTA_LIMITS.search - APP.quota.search;
+  if (searchRemaining <= 0) {
+    showToast(t('error_search_quota_exhausted', { limit: QUOTA_LIMITS.search }), 'error');
+    log('warn', 'quota', 'discover search refused — search bucket exhausted', { used: APP.quota.search, limit: QUOTA_LIMITS.search });
+    return;
+  }
+  if (!checkQuotaBudget(t('discover_search_action'), 'discover_search_pages', pages, 'search')) return;
+
   const btn = document.getElementById('discoverSearchBtn');
   btn.disabled = true;
   btn.innerHTML = `<span class="mono" style="font-size:11px;">${t('discover_searching')}</span>`;
 
   try {
-    // Step 1: Search YouTube — paginate if >50 (each page = 100 quota units)
+    // Step 1: Search YouTube — paginate if >50 (each page = 1 call from the search bucket)
     let allVideoIds = [];
     let pageToken = '';
-    const pages = Math.ceil(maxResults / 50);
 
     for (let p = 0; p < pages; p++) {
       const params = {
@@ -9192,8 +9289,8 @@ function updateDiscoverQuota() {
   const note = document.getElementById('discoverQuotaNote');
   // Creating playlist = 50 quota, each insert = 50 quota
   const cost = count > 0 ? 50 + (count * 50) : 0;
-  const remaining = QUOTA_DAILY_LIMIT - APP.quotaUnits;
-  const pctAfter = (APP.quotaUnits + cost) / QUOTA_DAILY_LIMIT * 100;
+  const remaining = QUOTA_LIMITS.pool - APP.quota.pool;
+  const pctAfter = (APP.quota.pool + cost) / QUOTA_LIMITS.pool * 100;
 
   let color = 'var(--text4)';
   let warning = '';
@@ -9218,15 +9315,15 @@ async function createPlaylistFromDiscover() {
 
   const visibility = document.getElementById('discoverPlaylistVisibility').value;
   const totalCost = 50 + (selected.length * 50);
-  const remaining = QUOTA_DAILY_LIMIT - APP.quotaUnits;
-  const pctAfter = ((APP.quotaUnits + totalCost) / QUOTA_DAILY_LIMIT * 100).toFixed(0);
+  const remaining = QUOTA_LIMITS.pool - APP.quota.pool;
+  const pctAfter = ((APP.quota.pool + totalCost) / QUOTA_LIMITS.pool * 100).toFixed(0);
 
   // Always show explicit confirmation with quota breakdown
   const confirmMsg = t('discover_confirm_title', { name }) + '\n\n' +
     t('discover_confirm_videos', { count: selected.length }) + '\n' +
     t('discover_confirm_cost', { cost: totalCost, count: selected.length }) + '\n' +
-    t('discover_confirm_usage', { current: APP.quotaUnits, limit: QUOTA_DAILY_LIMIT }) + '\n' +
-    t('discover_confirm_after', { after: APP.quotaUnits + totalCost, limit: QUOTA_DAILY_LIMIT, pct: pctAfter }) + '\n' +
+    t('discover_confirm_usage', { current: APP.quota.pool, limit: QUOTA_LIMITS.pool }) + '\n' +
+    t('discover_confirm_after', { after: APP.quota.pool + totalCost, limit: QUOTA_LIMITS.pool, pct: pctAfter }) + '\n' +
     (totalCost > remaining ? '\n' + t('discover_confirm_exceed', { remaining }) + '\n' : '') +
     (pctAfter >= 80 ? '\n' + t('discover_confirm_high', { pct: pctAfter }) + '\n' : '') +
     '\n' + t('discover_confirm_proceed');
@@ -11738,13 +11835,13 @@ function updateRestoreQuota() {
   const playlistCost = selected.length * 50; // playlists.insert = 50 each
   const videoCost = selected.reduce((sum, pl) => sum + pl.videos.length * 50, 0); // playlistItems.insert = 50 each
   const totalCost = playlistCost + videoCost;
-  const remaining = QUOTA_DAILY_LIMIT - APP.quotaUnits;
+  const remaining = QUOTA_LIMITS.pool - APP.quota.pool;
   const isOk = totalCost <= remaining;
   const totalVideos = selected.reduce((sum, pl) => sum + pl.videos.length, 0);
 
   const color = isOk ? 'var(--success, #22c55e)' : 'var(--danger, #ef4444)';
   const statusText = isOk ? t('restore_quota_ok') : t('restore_quota_warning');
-  const pct = Math.min((totalCost / QUOTA_DAILY_LIMIT) * 100, 100);
+  const pct = Math.min((totalCost / QUOTA_LIMITS.pool) * 100, 100);
 
   bar.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
@@ -11776,7 +11873,7 @@ async function executeRestore() {
 
   const totalVideos = selected.reduce((sum, pl) => sum + pl.videos.length, 0);
   const totalCost = selected.length * 50 + totalVideos * 50;
-  const remaining = QUOTA_DAILY_LIMIT - APP.quotaUnits;
+  const remaining = QUOTA_LIMITS.pool - APP.quota.pool;
   const warning = totalCost > remaining
     ? '⚠️ ' + t('restore_quota_warning')
     : '';
@@ -11842,7 +11939,7 @@ async function executeRestore() {
     if (restoreData.cancelled) break;
 
     // Check quota before creating playlist
-    if (APP.quotaUnits + 50 > QUOTA_DAILY_LIMIT) {
+    if (APP.quota.pool + 50 > QUOTA_LIMITS.pool) {
       restoreData.paused = true;
       pauseBtn.textContent = t('restore_resume_btn');
       logMsg('⏸ ' + t('restore_paused'));
@@ -11876,7 +11973,7 @@ async function executeRestore() {
         if (restoreData.cancelled) break;
 
         // Check quota before each video insert
-        if (APP.quotaUnits + 50 > QUOTA_DAILY_LIMIT) {
+        if (APP.quota.pool + 50 > QUOTA_LIMITS.pool) {
           restoreData.paused = true;
           pauseBtn.textContent = t('restore_resume_btn');
           logMsg('⏸ ' + t('restore_paused'));
