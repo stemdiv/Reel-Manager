@@ -99,6 +99,46 @@ function restoreLang(w, snap) {
   w.applyLanguage(w.localStorage.getItem('appLang') || 'fr');
 }
 
+// #G11 — these cases write to the real IndexedDB of the app's origin, which is
+// the user's actual cache. Snapshot it, hand the tests an empty database, and
+// put the real one back afterwards, exactly as the localStorage snapshot does.
+async function idbSnapshot(w) {
+  const before = await w.cacheStore.readAll().catch(() => null);
+  const ls = snapshot(w, ['autoCache', 'autoCacheTimestamp']);
+  await w.cacheStore.clear();
+  return { before, ls };
+}
+async function idbRestore(w, snap) {
+  await w.cacheStore.clear();
+  if (snap.before && Array.isArray(snap.before.playlists) && snap.before.playlists.length) {
+    try { await w.cacheStore.writeAll(snap.before); } catch (_) {}
+  }
+  restore(w, snap.ls);
+}
+
+// A small, complete cache in the shape the app writes.
+function SAMPLE_CACHE() {
+  return {
+    timestamp: '2026-09-16T10:00:00.000Z',
+    playlists: [
+      { id: 'PL_A', title: 'Alpha', description: '', videos: [
+        { videoId: 'V1', title: 'one', thumbnail: 'u1' },
+        { videoId: 'V2', title: 'two', thumbnail: 'u2' },
+      ] },
+      { id: 'PL_B', title: 'Beta', description: '', videos: [
+        { videoId: 'V3', title: 'three', thumbnail: 'u3' },
+      ] },
+    ],
+    playlistObjects: [
+      { id: 'PL_A', snippet: { title: 'Alpha' }, contentDetails: { itemCount: 2 }, status: {} },
+      { id: 'PL_B', snippet: { title: 'Beta' }, contentDetails: { itemCount: 1 }, status: {} },
+    ],
+    tags: { PL_A: ['techno'] },
+    tagIcons: {}, folders: [], folderAssignments: {},
+    deckColumns: [], watchQueue: [], bookmarkedPlaylists: [],
+  };
+}
+
 // #B13 — drive the real ytApi against a stubbed fetch and return the error it
 // throws. GET only, so the write gates are not what is being measured here.
 async function api403(w, apiError, status) {
@@ -284,7 +324,9 @@ async function runMerge(w, opts) {
 // stubbed ytApi, exactly as the move and merge harnesses do.
 async function runAutoSave(w, opts) {
   opts = opts || {};
-  const snap = snapshot(w, ['autoCache', 'autoCacheTimestamp']);
+  // #G11 — the cache lives in IndexedDB now, so it is seeded and read back
+  // through cacheStore rather than through the old localStorage key.
+  const snap = await idbSnapshot(w);
   const real = { ytApi: w.ytApi, showToast: w.showToast, updateBackupIndicator: w.updateBackupIndicator };
   w.showToast = () => {};
   w.updateBackupIndicator = () => {};
@@ -302,14 +344,14 @@ async function runAutoSave(w, opts) {
 
   // a cache already holding videos
   if (opts.existingVideos !== 0) {
-    w.localStorage.setItem('autoCache', JSON.stringify({
+    await w.cacheStore.writeAll({
       timestamp: new Date(0).toISOString(),
       playlists: [{ id: 'PL_OLD', title: 'old', videos: [{ videoId: 'OLD1', title: 'kept' }] }],
       playlistObjects: [], tags: {}, tagIcons: {}, folders: [], folderAssignments: {},
       deckColumns: [], watchQueue: [], bookmarkedPlaylists: [],
-    }));
+    });
   } else {
-    w.localStorage.removeItem('autoCache');
+    await w.cacheStore.clear();
   }
 
   try {
@@ -318,13 +360,13 @@ async function runAutoSave(w, opts) {
       await w.loadPlaylistVideos('PL_SEED', { force: true });
     }
     await w.autoSaveToLocalStorage(opts.force ? { force: true } : undefined);
-    const after = JSON.parse(w.localStorage.getItem('autoCache') || 'null');
+    const after = await w.cacheStore.readAll();
     if (!after) return null;
     const n = (after.playlists || []).reduce((s, p) => s + (p.videos?.length || 0), 0);
     return { videos: n, wrote: after.timestamp !== new Date(0).toISOString() };
   } finally {
     Object.assign(w, real);
-    restore(w, snap);
+    await idbRestore(w, snap);
   }
 }
 
@@ -364,20 +406,22 @@ const SUITES = [
       const r = await runAutoSave(w, { withMemoryVideos: false, existingVideos: 0 });
       return ok(r !== null, 'refused to create the very first cache');
     }],
-    ['cachedVideoCount reads the stored blob', w => {
-      const snap = snapshot(w, ['autoCache']);
+    ['cachedVideoCount counts what is in the store', async w => {
+      const snap = await idbSnapshot(w);
       try {
-        w.localStorage.setItem('autoCache', JSON.stringify({
-          playlists: [{ videos: [1, 2, 3] }, { videos: [4] }] }));
-        return eq(w.cachedVideoCount(), 4);
-      } finally { restore(w, snap); }
+        await w.cacheStore.writeAll({
+          timestamp: new Date(0).toISOString(),
+          playlists: [{ id: 'A', videos: [1, 2, 3] }, { id: 'B', videos: [4] }],
+          playlistObjects: [],
+        });
+        return eq(await w.cachedVideoCount(), 4);
+      } finally { await idbRestore(w, snap); }
     }],
-    ['cachedVideoCount survives a corrupt blob', w => {
-      const snap = snapshot(w, ['autoCache']);
+    ['cachedVideoCount answers zero on an empty store rather than throwing', async w => {
+      const snap = await idbSnapshot(w);
       try {
-        w.localStorage.setItem('autoCache', 'not json at all');
-        return eq(w.cachedVideoCount(), 0);
-      } finally { restore(w, snap); }
+        return eq(await w.cachedVideoCount(), 0);
+      } finally { await idbRestore(w, snap); }
     }],
   ],
 },
@@ -702,7 +746,10 @@ const SUITES = [
       return eq(exitPrompts(w), true, 'no warning after markDirty');
     }],
     ['auto-cache clears it', async w => {
-      const snap = snapshot(w, ['autoCache', 'autoCacheTimestamp']);
+      // #G11 — the cache is in IndexedDB now, so snapshotting the two
+      // localStorage keys is no longer enough to leave the user's cache alone,
+      // and a non-empty cache would make the #76 guard refuse this write.
+      const snap = await idbSnapshot(w);
       const realToast = w.showToast;
       w.showToast = () => {};
       try {
@@ -710,7 +757,7 @@ const SUITES = [
         ok(exitPrompts(w) === true, 'precondition: should be dirty');
         await w.autoSaveToLocalStorage();
         return eq(exitPrompts(w), false, 'still warning after the cache was written');
-      } finally { w.showToast = realToast; restore(w, snap); }
+      } finally { w.showToast = realToast; await idbRestore(w, snap); }
     }],
   ],
 },
@@ -1794,7 +1841,134 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '#G11', title: 'Auto-cache in IndexedDB', note: 'these write to the real database and clear it afterwards; your manual lastBackup is never touched',
+  cases: [
+    ['IndexedDB is the backend here', async w =>
+      eq(await w.cacheStore.available(), true, 'without it the rest of this suite measures the fallback')],
+
+    ['what goes in comes back in the shape the app already knows', async w => {
+      const snap = await idbSnapshot(w);
+      try {
+        await w.cacheStore.writeAll(SAMPLE_CACHE());
+        const back = await w.cacheStore.readAll();
+        eq(back.playlists.length, 2, 'playlists');
+        const a = back.playlists.find(p => p.id === 'PL_A');
+        eq(a.title, 'Alpha', 'title survived');
+        eq(a.videos.length, 2, 'videos reattached to their playlist');
+        eq(a.videos[0].videoId, 'V1', 'video order');
+        eq(back.playlistObjects.length, 2, 'playlist objects');
+        eq(back.tags, { PL_A: ['techno'] }, 'metadata');
+        return eq(back.timestamp, '2026-09-16T10:00:00.000Z', 'timestamp');
+      } finally { await idbRestore(w, snap); }
+    }],
+
+    ['videos are counted without assembling the blob', async w => {
+      const snap = await idbSnapshot(w);
+      try {
+        eq(await w.cacheStore.videoCount(), 0, 'empty');
+        await w.cacheStore.writeAll(SAMPLE_CACHE());
+        return eq(await w.cacheStore.videoCount(), 3, 'two plus one');
+      } finally { await idbRestore(w, snap); }
+    }],
+
+    ['a second write replaces the cache rather than merging into it', async w => {
+      const snap = await idbSnapshot(w);
+      try {
+        await w.cacheStore.writeAll(SAMPLE_CACHE());
+        const smaller = SAMPLE_CACHE();
+        smaller.playlists = [smaller.playlists[0]];
+        smaller.playlistObjects = [smaller.playlistObjects[0]];
+        await w.cacheStore.writeAll(smaller);
+        const back = await w.cacheStore.readAll();
+        // A playlist deleted since the last save must not linger in the cache.
+        return eq(back.playlists.map(p => p.id), ['PL_A'], 'PL_B survived its own deletion');
+      } finally { await idbRestore(w, snap); }
+    }],
+
+    ['clear empties the database', async w => {
+      const snap = await idbSnapshot(w);
+      try {
+        await w.cacheStore.writeAll(SAMPLE_CACHE());
+        await w.cacheStore.clear();
+        const back = await w.cacheStore.readAll();
+        return eq(back, null, 'something survived a clear');
+      } finally { await idbRestore(w, snap); }
+    }],
+
+    ['a legacy localStorage blob migrates once and is then dropped', async w => {
+      const snap = await idbSnapshot(w);
+      try {
+        w.localStorage.setItem('autoCache', JSON.stringify(SAMPLE_CACHE()));
+        const r = await w.cacheStore.migrateLegacy();
+        eq(r.migrated, true, 'migrated');
+        eq(r.videos, 3, 'video count reported');
+        eq(w.localStorage.getItem('autoCache'), null, 'the old key should be gone');
+        const back = await w.cacheStore.readAll();
+        eq(back.playlists.length, 2, 'the data landed in IndexedDB');
+        // Running it again must be a no-op, not a second import.
+        const again = await w.cacheStore.migrateLegacy();
+        return eq(again.migrated, false, 'migrated twice');
+      } finally { await idbRestore(w, snap); }
+    }],
+
+    ['a corrupt legacy blob is discarded, not carried forward', async w => {
+      const snap = await idbSnapshot(w);
+      try {
+        w.localStorage.setItem('autoCache', '{not json at all');
+        const r = await w.cacheStore.migrateLegacy();
+        eq(r.migrated, false, 'nothing to migrate');
+        ok(/corrupt/.test(r.reason), 'reason: ' + r.reason);
+        return eq(w.localStorage.getItem('autoCache'), null, 'an unreadable blob should not be kept');
+      } finally { await idbRestore(w, snap); }
+    }],
+
+    ['the timestamp stays in localStorage as the synchronous "there is a cache" signal', async w => {
+      const snap = await idbSnapshot(w);
+      try {
+        w.localStorage.removeItem('autoCacheTimestamp');
+        await w.cacheStore.writeAll(SAMPLE_CACHE());
+        // The login-screen gate reads this before anything can be awaited.
+        return eq(w.localStorage.getItem('autoCacheTimestamp'), '2026-09-16T10:00:00.000Z');
+      } finally { await idbRestore(w, snap); }
+    }],
+
+    ['the source rule prefers whichever is newer', w => {
+      const older = '2026-09-01T00:00:00.000Z';
+      const newer = '2026-09-16T00:00:00.000Z';
+      eq(w.pickBackupSource(newer, older, true, true), 'lastBackup', 'manual is newer');
+      eq(w.pickBackupSource(older, newer, true, true), 'autoCache', 'cache is newer');
+      eq(w.pickBackupSource(older, null, true, false), 'lastBackup', 'no cache');
+      eq(w.pickBackupSource(null, newer, false, true), 'autoCache', 'no manual backup');
+      eq(w.pickBackupSource(null, null, true, false), 'lastBackup', 'manual with no timestamp');
+      return eq(w.pickBackupSource(null, null, false, false), '', 'nothing at all');
+    }],
+
+    ['the cache write still refuses to erase itself (#76)', w => {
+      // The guard is unchanged by the move, and it is the one that matters most.
+      eq(w.shouldSkipAutoSave(0, 500, false), true, 'empty memory over a full cache');
+      eq(w.shouldSkipAutoSave(0, 0, false), false, 'nothing to lose');
+      eq(w.shouldSkipAutoSave(500, 500, false), false, 'normal save');
+      return eq(w.shouldSkipAutoSave(0, 500, true), false, 'forced');
+    }],
+
+    ['autoSaveToLocalStorage still resolves under its old name', async w => {
+      // Start from an empty cache, or the #76 self-erasure guard correctly
+      // refuses the write (memory is empty in this iframe) and the flag stays.
+      const snap = await idbSnapshot(w);
+      const realToast = w.showToast;
+      try {
+        w.showToast = () => {};
+        w.markDirty();
+        ok(exitPrompts(w) === true, 'precondition: dirty');
+        await w.autoSaveToLocalStorage();
+        return eq(exitPrompts(w), false, 'the cache write must still clear the dirty flag');
+      } finally { w.showToast = realToast; await idbRestore(w, snap); }
+    }],
+  ],
+},
 ];
+
 
 
 

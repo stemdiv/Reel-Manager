@@ -927,10 +927,67 @@ function pickThumb(thumbs, want) {
   return '';
 }
 
+// ── Cache (#G11) ───────────────────────────────────────────────────────
+// The app moved its auto-cache from a localStorage blob to IndexedDB. Studio
+// reads the same database, read-only — no writes, no schema upgrade, no API
+// call, so the CSP is unchanged (IndexedDB is same-origin storage).
+// A legacy blob is still honoured: someone can open Studio on a profile where
+// the app has not run since the migration.
+function readCacheFromIDB() {
+  return new Promise(resolve => {
+    let req;
+    try {
+      if (!self.indexedDB) return resolve(null);
+      // Never create or upgrade from here: opening at a version the app has not
+      // created yet would block the app's own open.
+      req = indexedDB.open('ytpm');
+    } catch (_) { return resolve(null); }
+    req.onerror = () => resolve(null);
+    req.onblocked = () => resolve(null);
+    req.onsuccess = () => {
+      const db = req.result;
+      const need = ['playlists', 'videos', 'meta'];
+      if (!need.every(n => db.objectStoreNames.contains(n))) { db.close(); return resolve(null); }
+      let t;
+      try { t = db.transaction(need, 'readonly'); } catch (_) { db.close(); return resolve(null); }
+      const playlists = [], playlistObjects = [], videosById = {};
+      let meta = null;
+      const plCur = t.objectStore('playlists').openCursor();
+      plCur.onsuccess = () => {
+        const c = plCur.result;
+        if (!c) return;
+        const { object, ...rest } = c.value || {};
+        playlists.push({ ...rest, id: c.key });
+        if (object) playlistObjects.push(object);
+        c.continue();
+      };
+      const vidCur = t.objectStore('videos').openCursor();
+      vidCur.onsuccess = () => {
+        const c = vidCur.result;
+        if (!c) return;
+        videosById[c.key] = c.value;
+        c.continue();
+      };
+      const metaReq = t.objectStore('meta').get('cache');
+      metaReq.onsuccess = () => { meta = metaReq.result || null; };
+      t.oncomplete = () => {
+        db.close();
+        if (!playlists.length) return resolve(null);
+        for (const pl of playlists) pl.videos = videosById[pl.id] || [];
+        resolve({ ...(meta || {}), playlists, playlistObjects });
+      };
+      t.onerror = () => { db.close(); resolve(null); };
+      t.onabort = () => { db.close(); resolve(null); };
+    };
+  });
+}
+
+function readLegacyCache() {
+  try { return JSON.parse(localStorage.getItem('autoCache') || 'null'); } catch (_) { return null; }
+}
+
 // ── Data ───────────────────────────────────────────────────────────────
-function loadData() {
-  let cache;
-  try { cache = JSON.parse(localStorage.getItem('autoCache') || 'null'); } catch (_) { return null; }
+function loadData(cache) {
   if (!cache || !Array.isArray(cache.playlists) || !cache.playlists.length) return null;
 
   let userInfo = {};
@@ -1708,12 +1765,17 @@ document.addEventListener('keydown', e => {
 });
 
 // ── Boot ───────────────────────────────────────────────────────────────
-DATA = loadData();
-parseHash();
+// The theme is applied before the await so the page never flashes the wrong
+// one while the database opens.
 applyTheme(themeId, true);
-renderPalette();
-renderView();
 document.documentElement.lang = LANG;
+
+(async () => {
+  DATA = loadData(await readCacheFromIDB() || readLegacyCache());
+  parseHash();
+  renderPalette();
+  renderView();
+})();
 
 // Same guard in reverse: going back to the app must not land on a cached build.
 document.querySelectorAll('a[href^="youtube-playlist-manager.html"]').forEach(a => {

@@ -3081,6 +3081,7 @@ const I18N = {
     scope_section_title: "Accès en écriture",
     scope_section_hint: "Par défaut, la connexion se fait en lecture seule et l'accès en écriture est demandé à la première modification. Activez cette option pour le demander dès la connexion : moins d'interruptions, mais un accès plus large dès le départ.",
     scope_toggle_label: "Demander l'accès en écriture dès la connexion",
+    cache_saved: 'Cache enregistré : {count} vidéos',
     quota_pool_label: 'Pool',
     quota_search_label: 'Recherches',
     quota_upload_label: 'Mises en ligne',
@@ -3793,6 +3794,7 @@ const I18N = {
     scope_section_title: 'Write access',
     scope_section_hint: 'By default the app signs in read-only and asks for write access the first time you change something. Turn this on to ask for it at sign-in instead — fewer interruptions, broader access from the start.',
     scope_toggle_label: 'Request write access at sign-in',
+    cache_saved: 'Cache saved: {count} videos',
     quota_pool_label: 'Pool',
     quota_search_label: 'Searches',
     quota_upload_label: 'Uploads',
@@ -4107,11 +4109,19 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.21.0'; // bump per release
+const APP_VERSION = '1.22.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.22.0', date: '2026-09-16', items: [
+    "#G11 — le cache automatique quitte localStorage pour IndexedDB. Le blob JSON unique butait sur le plafond pratique d environ 5 Mo, et l echec etait silencieux : l ecriture levait une erreur, le cache restait fige, et le demarrage sur cache servait des donnees de plus en plus anciennes sans rien dire",
+    "Une fiche par playlist au lieu d un blob : enregistrer une playlist ne signifie plus re-serialiser toute la bibliotheque. La forme reassemblee est identique a l ancienne, donc ni le chargement au demarrage ni Reel Studio n ont eu a apprendre un nouveau format",
+    "Migration au premier lancement : l ancien blob est importe puis supprime, et seulement une fois la copie ecrite. Un blob illisible est jete plutot que traine indefiniment",
+    "La ou IndexedDB est indisponible — navigation privee Safari, origine bloquee, ouverture en echec — tout retombe sur l ancien blob localStorage. Ce n est pas un mode degrade a detecter : c est la meme API",
+    "Supprimer mes donnees et la purge automatique a 30 jours vident aussi la base. La projection d espace utilise navigator.storage.estimate quand le navigateur le fournit, au lieu de la constante de 5 Mo",
+    "Reel Studio lit la meme base en lecture seule, sans ecriture ni changement de CSP, et accepte encore un blob legacy",
+  ]},
   { v: '1.21.0', date: '2026-09-16', items: [
     "#G14 — l upgrade du scope d ecriture se fait dans une popup et non plus par une redirection plein ecran. Un renommage en lot de quarante playlists perdait sa selection et devait etre recommence : l action reprend desormais sur place, sans reclic",
     "La page de retour detecte qu elle est dans une popup, transmet le jeton a l ouvreur par postMessage vers sa propre origine uniquement, nettoie le fragment d URL et se ferme. Un message d une autre origine ou d une autre forme est ignore",
@@ -5157,7 +5167,7 @@ let videoDetailsCache = {};
 // checkAuth() will strip the URL query when handling the OAuth hash.
 let _pendingBookmark = null;
 
-function init() {
+async function init() {
   // #G14 — in the scope-upgrade popup this page is not an app: hand the token
   // to the opener and close. Nothing else must run, least of all anything that
   // writes to the shared localStorage.
@@ -5198,8 +5208,21 @@ function init() {
   log('info', 'app', `init() — v${APP_VERSION}, theme=${APP.theme}, lang pending`);
   // Read-only mode (#43) — apply body class so the pill + write-action hiding take effect
   applyReadOnlyMode();
-  // Auto-load last backup from localStorage
-  loadBackupFromStorage();
+  // #G11 — move any pre-IndexedDB blob across before reading, so a cache
+  // written by an older version is not silently ignored.
+  try {
+    const m = await cacheStore.migrateLegacy();
+    if (m.migrated) {
+      log('info', 'backup', 'legacy autoCache migrated to IndexedDB', { playlists: m.playlists, videos: m.videos });
+      console.log(`[Cache] migrated ${m.videos} videos across ${m.playlists} playlists into IndexedDB`);
+    } else if (m.reason && m.reason !== 'nothing to migrate') {
+      log('warn', 'backup', 'legacy cache migration skipped', { reason: m.reason });
+    }
+  } catch (err) {
+    log('warn', 'backup', 'legacy cache migration failed', { msg: err.message });
+  }
+  // Auto-load last backup (IndexedDB auto-cache, or the manual localStorage one)
+  await loadBackupFromStorage();
   // Restore quota counter from previous session (audit #47 — Pacific Time daily reset)
   loadQuotaState();
   updateQuotaIndicator();
@@ -5263,41 +5286,270 @@ function showAppFromCache() {
   refreshPlaylistsList();
 }
 
-function loadBackupFromStorage() {
+
+// ============================================================================
+// CACHE STORE (#G11) — IndexedDB, with a transparent localStorage fallback
+// ============================================================================
+// The auto-cache was one JSON blob in localStorage, which has a practical
+// ceiling around 5 MB. A library of a few thousand videos reached it, and the
+// failure mode was silent: the write threw, the cache stayed stale, and
+// cache-first startup quietly served older and older data.
+//
+// IndexedDB has no such ceiling and stores structured values, so the blob is
+// split per playlist: writing one playlist no longer means re-serialising the
+// whole library. The assembled shape readAll() returns is byte-for-byte the
+// one the old blob had, so loadBackupFromStorage() and Reel Studio did not
+// have to learn a new format.
+//
+// Where IndexedDB is unavailable — Safari private mode, a blocked origin, an
+// open that simply fails — every call falls back to the old localStorage blob.
+// The fallback is not a degraded mode to detect: it is the same API.
+
+const CACHE_DB_NAME = 'ytpm';
+const CACHE_DB_VERSION = 1;
+const CACHE_STORES = ['playlists', 'videos', 'meta'];
+const LEGACY_CACHE_KEY = 'autoCache';
+const LEGACY_CACHE_TS_KEY = 'autoCacheTimestamp';
+
+var cacheStore = (() => {
+  let dbPromise = null;
+  let unavailable = false;   // sticky: one failed open is enough
+
+  function open() {
+    if (unavailable) return Promise.resolve(null);
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise(resolve => {
+      let req;
+      try {
+        if (!self.indexedDB) { unavailable = true; return resolve(null); }
+        req = indexedDB.open(CACHE_DB_NAME, CACHE_DB_VERSION);
+      } catch (_) { unavailable = true; return resolve(null); }
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        for (const name of CACHE_STORES) {
+          if (!db.objectStoreNames.contains(name)) db.createObjectStore(name);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => { unavailable = true; resolve(null); };
+      // Another tab holding an old version open would block us indefinitely.
+      req.onblocked = () => { unavailable = true; resolve(null); };
+    });
+    return dbPromise;
+  }
+
+  function tx(db, store, mode, fn) {
+    return new Promise((resolve, reject) => {
+      let t;
+      try { t = db.transaction(store, mode); } catch (e) { return reject(e); }
+      const req = fn(t.objectStore(store));
+      t.oncomplete = () => resolve(req ? req.result : undefined);
+      t.onerror = () => reject(t.error || new Error('IndexedDB transaction failed'));
+      t.onabort = () => reject(t.error || new Error('IndexedDB transaction aborted'));
+    });
+  }
+
+  // ── The localStorage fallback works on the assembled blob ──
+  function legacyRead() {
+    try {
+      const raw = localStorage.getItem(LEGACY_CACHE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) { return null; }
+  }
+  function legacyWrite(cache) {
+    const json = JSON.stringify(cache);
+    localStorage.setItem(LEGACY_CACHE_KEY, json);
+    localStorage.setItem(LEGACY_CACHE_TS_KEY, cache.timestamp);
+    // The old write path verified the read-back, because a quota failure here
+    // is the whole reason this module exists. Keep that check.
+    const verify = localStorage.getItem(LEGACY_CACHE_KEY);
+    if (!verify || verify.length < 100) {
+      throw new Error('Verification failed: saved ' + json.length + ' chars, read back ' + (verify ? verify.length : 0));
+    }
+    return { backend: 'localStorage', bytes: json.length * 2 };
+  }
+
+  async function available() {
+    return !!(await open());
+  }
+
+  /** Write the whole cache, one record per playlist. */
+  async function writeAll(cache) {
+    const db = await open();
+    if (!db) return legacyWrite(cache);
+
+    const { playlists, playlistObjects, timestamp, ...meta } = cache;
+    const objectsById = {};
+    for (const o of (playlistObjects || [])) objectsById[o.id] = o;
+
+    await new Promise((resolve, reject) => {
+      let t;
+      try { t = db.transaction(CACHE_STORES, 'readwrite'); } catch (e) { return reject(e); }
+      const plStore = t.objectStore('playlists');
+      const vidStore = t.objectStore('videos');
+      const metaStore = t.objectStore('meta');
+      // A full write replaces the cache: a playlist deleted since the last save
+      // must not linger.
+      plStore.clear(); vidStore.clear();
+      for (const pl of (playlists || [])) {
+        const { videos, ...rest } = pl;
+        plStore.put({ ...rest, object: objectsById[pl.id] || null }, pl.id);
+        vidStore.put(videos || [], pl.id);
+      }
+      metaStore.put({ timestamp, ...meta }, 'cache');
+      t.oncomplete = resolve;
+      t.onerror = () => reject(t.error || new Error('IndexedDB write failed'));
+      t.onabort = () => reject(t.error || new Error('IndexedDB write aborted'));
+    });
+
+    // The timestamp stays in localStorage too: several callers read it
+    // synchronously to decide what to show before anything is awaited.
+    try { localStorage.setItem(LEGACY_CACHE_TS_KEY, timestamp); } catch (_) {}
+    return { backend: 'indexeddb', bytes: null };
+  }
+
+  /** Reassemble the shape the rest of the app already knows. */
+  async function readAll() {
+    const db = await open();
+    if (!db) return legacyRead();
+
+    const [plRows, vidRows, metaRow] = await Promise.all([
+      allEntries(db, 'playlists'),
+      allEntries(db, 'videos'),
+      tx(db, 'meta', 'readonly', s => s.get('cache')),
+    ]);
+    if (!plRows.length && !metaRow) return legacyRead();   // nothing here yet
+
+    const videosById = {};
+    for (const [key, value] of vidRows) videosById[key] = value;
+
+    const playlists = [];
+    const playlistObjects = [];
+    for (const [id, row] of plRows) {
+      const { object, ...rest } = row || {};
+      playlists.push({ ...rest, id, videos: videosById[id] || [] });
+      if (object) playlistObjects.push(object);
+    }
+    return { ...(metaRow || {}), playlists, playlistObjects };
+  }
+
+  function allEntries(db, store) {
+    return new Promise((resolve, reject) => {
+      let t;
+      try { t = db.transaction(store, 'readonly'); } catch (e) { return reject(e); }
+      const out = [];
+      const req = t.objectStore(store).openCursor();
+      req.onsuccess = () => {
+        const cur = req.result;
+        if (!cur) return;
+        out.push([cur.key, cur.value]);
+        cur.continue();
+      };
+      t.oncomplete = () => resolve(out);
+      t.onerror = () => reject(t.error || new Error('IndexedDB read failed'));
+    });
+  }
+
+  /** Videos held in the cache, without assembling the whole thing. */
+  async function videoCount() {
+    const db = await open();
+    if (!db) {
+      const b = legacyRead();
+      return (b && b.playlists || []).reduce((s, p) => s + ((p.videos && p.videos.length) || 0), 0);
+    }
+    const rows = await allEntries(db, 'videos');
+    return rows.reduce((s, [, v]) => s + ((v && v.length) || 0), 0);
+  }
+
+  async function clear() {
+    try { localStorage.removeItem(LEGACY_CACHE_KEY); localStorage.removeItem(LEGACY_CACHE_TS_KEY); } catch (_) {}
+    const db = await open();
+    if (!db) return;
+    await new Promise(resolve => {
+      let t;
+      try { t = db.transaction(CACHE_STORES, 'readwrite'); } catch (_) { return resolve(); }
+      for (const name of CACHE_STORES) t.objectStore(name).clear();
+      t.oncomplete = resolve;
+      t.onerror = resolve;   // a cache we failed to clear is not worth an error path
+      t.onabort = resolve;
+    });
+  }
+
+  /**
+   * One-time move of the legacy blob into IndexedDB. Returns what happened, so
+   * the boot log can say it rather than leaving the user wondering where their
+   * cache went.
+   */
+  async function migrateLegacy() {
+    const raw = (() => { try { return localStorage.getItem(LEGACY_CACHE_KEY); } catch (_) { return null; } })();
+    if (!raw) return { migrated: false, reason: 'nothing to migrate' };
+    const db = await open();
+    if (!db) return { migrated: false, reason: 'IndexedDB unavailable — staying on localStorage' };
+
+    let blob;
+    try { blob = JSON.parse(raw); } catch (_) {
+      // Unparseable and now unreachable: dropping it is the only useful move.
+      try { localStorage.removeItem(LEGACY_CACHE_KEY); } catch (_) {}
+      return { migrated: false, reason: 'legacy blob was corrupt — discarded' };
+    }
+    const videos = (blob.playlists || []).reduce((s, p) => s + ((p.videos && p.videos.length) || 0), 0);
+    await writeAll(blob);
+    // Only now is it safe to drop: the new copy is committed.
+    try { localStorage.removeItem(LEGACY_CACHE_KEY); } catch (_) {}
+    return { migrated: true, playlists: (blob.playlists || []).length, videos };
+  }
+
+  return { available, readAll, writeAll, videoCount, clear, migrateLegacy,
+           // exposed for the diagnostic panel and the tests
+           _legacyRead: legacyRead };
+})();
+
+/**
+ * Pick between the manual backup (localStorage, small, required by the export
+ * gate) and the auto-cache (IndexedDB since #G11). Split out because the choice
+ * is a rule worth reading on its own, and because it is the one part of the
+ * cache-first path that is worth testing without a database.
+ */
+function pickBackupSource(manualTs, cacheTs, hasManual, hasCache) {
+  if (hasManual && manualTs) {
+    const manualAge = Date.now() - new Date(manualTs).getTime();
+    const cacheAge = cacheTs ? Date.now() - new Date(cacheTs).getTime() : Infinity;
+    if (!hasCache || manualAge <= cacheAge) return 'lastBackup';
+    return 'autoCache';
+  }
+  if (hasCache) return 'autoCache';
+  if (hasManual) return 'lastBackup';
+  return '';
+}
+
+async function loadBackupFromStorage() {
   try {
-    // Priority: lastBackup (full, manual) > autoCache (lightweight, auto-saved)
+    // #G11 — the auto-cache lives in IndexedDB now, so this is async. The manual
+    // backup stays in localStorage: it is small and the export gate reads it
+    // synchronously.
     const manualRaw = localStorage.getItem('lastBackup');
     const manualTs = localStorage.getItem('lastBackupTimestamp');
-    const cacheRaw = localStorage.getItem('autoCache');
     const cacheTs = localStorage.getItem('autoCacheTimestamp');
 
-    let raw = null;
-    let source = '';
+    let cacheBlob = null;
+    try { cacheBlob = await cacheStore.readAll(); } catch (err) {
+      log('warn', 'backup', 'cache read failed', { msg: err.message });
+    }
+    const hasCache = !!(cacheBlob && Array.isArray(cacheBlob.playlists) && cacheBlob.playlists.length);
 
-    if (manualRaw && manualTs) {
-      const manualAge = Date.now() - new Date(manualTs).getTime();
-      const cacheAge = cacheTs ? Date.now() - new Date(cacheTs).getTime() : Infinity;
-      // Prefer manual backup if it exists and is newer than autoCache, or if autoCache doesn't exist
-      if (!cacheRaw || manualAge <= cacheAge) {
-        raw = manualRaw;
-        source = 'lastBackup';
-      } else {
-        raw = cacheRaw;
-        source = 'autoCache';
-      }
-    } else if (cacheRaw) {
-      raw = cacheRaw;
-      source = 'autoCache';
-    } else if (manualRaw) {
-      raw = manualRaw;
-      source = 'lastBackup';
+    const source = pickBackupSource(manualTs, cacheTs, !!manualRaw, hasCache);
+    if (!source) return;
+
+    let backup;
+    if (source === 'lastBackup') {
+      backup = JSON.parse(manualRaw);
+    } else {
+      backup = cacheBlob;
     }
 
-    if (!raw) return;
     console.log(`[Backup auto-load] Using source: ${source}`);
-    const backup = JSON.parse(raw);
-    if (!backup.playlists || !Array.isArray(backup.playlists)) return;
-    log('info', 'backup', 'auto-loaded from localStorage', { source, playlists: backup.playlists.length, sizeKb: Math.round(raw.length / 1024) });
+    if (!backup || !backup.playlists || !Array.isArray(backup.playlists)) return;
+    log('info', 'backup', 'auto-loaded', { source, playlists: backup.playlists.length });
 
     // Restore full playlist objects if available
     if (backup.playlistObjects && Array.isArray(backup.playlistObjects) && backup.playlistObjects.length > 0) {
@@ -5670,6 +5922,9 @@ async function deleteAllUserData() {
     'oauthScope', 'lastLoginTimestamp', 'recentSearches', 'userInfo'
   ];
   appKeys.forEach(k => localStorage.removeItem(k));
+  // #G11 — "delete my data" (CR5) has to reach the database, not just the keys.
+  // Awaited: reloading mid-clear would leave half a cache behind.
+  try { await cacheStore.clear(); } catch (_) {}
 
   showToast(t('toast_data_deleted'), 'success');
   setTimeout(() => location.reload(), 1500);
@@ -5693,11 +5948,13 @@ function checkAutoPurge() {
     ];
     appKeys.forEach(k => localStorage.removeItem(k));
     localStorage.removeItem('lastLoginTimestamp');
+    // #G11 — the cache is no longer one of those keys.
+    cacheStore.clear().catch(() => {});
     console.info('[Auto-purge] Données supprimées après 30 jours sans connexion');
   }
 }
 
-function runCacheDiagnostic() {
+async function runCacheDiagnostic() {
   const el = document.getElementById('cacheDiagContent');
   if (!el) return;
   const lines = [];
@@ -5743,16 +6000,16 @@ function runCacheDiagnostic() {
     } catch (_) { }
   }
 
-  // Auto-cache data
-  const cacheRaw = localStorage.getItem('autoCache');
+  // Auto-cache data — #G11: in IndexedDB unless the fallback is in play.
   const cacheTs = localStorage.getItem('autoCacheTimestamp');
+  const idbLive = await cacheStore.available().catch(() => false);
+  let cacheBlob = null;
+  try { cacheBlob = await cacheStore.readAll(); } catch (_) {}
+  const cacheRaw = cacheBlob ? 'idb' : null;   // "is there a cache at all"
   let cachePl = 0, cacheVid = 0;
-  if (cacheRaw) {
-    try {
-      const b = JSON.parse(cacheRaw);
-      cachePl = b.playlists?.length || 0;
-      cacheVid = b.playlists?.reduce((s, p) => s + (p.videos?.length || 0), 0) || 0;
-    } catch (_) { }
+  if (cacheBlob) {
+    cachePl = cacheBlob.playlists?.length || 0;
+    cacheVid = cacheBlob.playlists?.reduce((s, p) => s + (p.videos?.length || 0), 0) || 0;
   }
 
   // In-memory state
@@ -5803,9 +6060,22 @@ function runCacheDiagnostic() {
     healthWhy = 'every cached playlist carries its videos';
   }
 
-  // Headroom: localStorage dies around 5 MB per origin, and #G11 is the plan to
-  // outgrow it. A projection warns before QuotaExceededError truncates silently.
-  const LS_CEILING_KB = 5 * 1024;
+  // Headroom. #G11 moved the cache out of localStorage, so the ~5 MB origin
+  // ceiling only still binds on the fallback path. Where the browser will tell
+  // us the real figure, use it; the 5 MB constant is the last resort, not the
+  // rule. A projection still warns before a write starts failing silently.
+  let ceilingKB = 5 * 1024;
+  let ceilingSource = 'localStorage ~5 MB';
+  if (idbLive && navigator.storage && navigator.storage.estimate) {
+    try {
+      const est = await navigator.storage.estimate();
+      if (est && est.quota > 0) {
+        ceilingKB = est.quota / 1024;
+        ceilingSource = 'navigator.storage.estimate()';
+      }
+    } catch (_) { /* not available here — keep the constant */ }
+  }
+  const LS_CEILING_KB = ceilingKB;
   const usedPct = (totalBytes / 1024 / LS_CEILING_KB) * 100;
   const bytesPerVideo = cacheVid > 0 ? cacheBytes / cacheVid : 0;
   const projectedKB = bytesPerVideo > 0 && memVideos > 0
@@ -5839,7 +6109,7 @@ function runCacheDiagnostic() {
       <div style="font-size:11.5px;color:var(--text3);margin-top:2px;">${healthWhy}</div>
     </div>
     <div><b>localStorage:</b> ${totalKB} KB total —
-      <span style="${usedPct > 80 ? red : usedPct > 60 ? yellow : green}">${usedPct.toFixed(1)}% of the ~5 MB practical limit</span>
+      <span style="${usedPct > 80 ? red : usedPct > 60 ? yellow : green}">${usedPct.toFixed(1)}% of ${(LS_CEILING_KB / 1024).toFixed(0)} MB (${ceilingSource})</span>
     </div>
     ${projectedKB ? `<div><b>Projected at full library:</b>
       <span style="${projectedKB > LS_CEILING_KB * 0.8 ? red : projectedKB > LS_CEILING_KB * 0.6 ? yellow : green}">~${projectedKB} KB</span>
@@ -5852,6 +6122,7 @@ function runCacheDiagnostic() {
       <div><b>Manual backup date:</b> ${manualTs ? `${manualAge} <span style="color:var(--text3);font-size:11px;">(${manualTs})</span>` : '<span style="' + red + '">never</span>'}</div>
     </div>
     <div style="margin-top:8px;border-bottom:1px solid var(--border);padding-bottom:8px;">
+      <div><b>Cache backend:</b> <span style="${idbLive ? green : yellow}">${idbLive ? 'IndexedDB' : 'localStorage (fallback — ~5 MB ceiling)'}</span></div>
       <div><b>Auto-cache (autoCache):</b>
         ${cacheRaw ? `<span style="${green}">YES</span> — ${cachePl} pl, ${cacheVid} vid (${cacheKB} KB)` : `<span style="${red}">NONE</span>`}
       </div>
@@ -7023,14 +7294,10 @@ async function fullRefresh() {
  * Auto-save current in-memory data to localStorage for cache-first startup.
  * Same format as createFullBackup() but silent (no file download).
  */
-// Videos held in the current cache, without parsing the whole blob twice.
-function cachedVideoCount() {
-  try {
-    const raw = localStorage.getItem('autoCache');
-    if (!raw) return 0;
-    const b = JSON.parse(raw);
-    return (b.playlists || []).reduce((s, p) => s + (p.videos?.length || 0), 0);
-  } catch (_) { return 0; }
+// Videos held in the current cache. Counted in the store rather than by
+// parsing an assembled blob — the whole point of #G11 is not to build one.
+async function cachedVideoCount() {
+  try { return await cacheStore.videoCount(); } catch (_) { return 0; }
 }
 
 // The whole decision, isolated so it can be reasoned about and tested directly:
@@ -7053,7 +7320,7 @@ function hdIfDifferent(...thumbSets) {
   return undefined;   // JSON.stringify drops it — no empty strings in the blob
 }
 
-function autoSaveToLocalStorage(opts) {
+async function autoSaveCache(opts) {
   try {
     // #76 — the cache used to be able to erase itself. This runs from four
     // places, including straight after a cache-first startup, where the videos
@@ -7061,7 +7328,7 @@ function autoSaveToLocalStorage(opts) {
     // playlists-only cache over a good one and silently disabled cache-first.
     // Refuse that specific overwrite: memory empty, cache not.
     const memVideos = Object.values(APP.allVideos).reduce((s, v) => s + (v?.length || 0), 0);
-    const onDisk = cachedVideoCount();
+    const onDisk = await cachedVideoCount();
     if (shouldSkipAutoSave(memVideos, onDisk, opts?.force)) {
       log('warn', 'cache', 'auto-cache write skipped — would drop cached videos',
           { cachedVideos: onDisk, memoryVideos: memVideos });
@@ -7120,30 +7387,26 @@ function autoSaveToLocalStorage(opts) {
       watchQueue: APP.watchQueue,
       bookmarkedPlaylists: APP.bookmarkedPlaylists,
     };
-    const json = JSON.stringify(cache);
-    const sizeKB = (json.length * 2 / 1024).toFixed(1);
-    console.log(`[Auto-cache] JSON size: ${sizeKB} KB`);
-
-    // Write to autoCache key — never touches lastBackup (manual backup only)
-    localStorage.setItem('autoCache', json);
-    localStorage.setItem('autoCacheTimestamp', cache.timestamp);
-
-    // Verify the save actually worked
-    const verify = localStorage.getItem('autoCache');
-    if (!verify || verify.length < 100) {
-      throw new Error(`Verification failed: saved ${json.length} chars but read back ${verify?.length || 0}`);
-    }
+    // #G11 — one record per playlist, never one blob. On the localStorage
+    // fallback path writeAll() still serialises and verifies, as before.
+    const { backend } = await cacheStore.writeAll(cache);
 
     updateBackupIndicator();
     APP_DIRTY = false;   // #G19: the cache write IS the save — stop prompting on exit
     const totalVids = cache.playlists.reduce((s, p) => s + p.videos.length, 0);
-    console.log(`[Auto-cache] OK — ${cache.playlists.length} playlists, ${totalVids} videos (${sizeKB} KB)`);
-    showToast(`Cache saved: ${totalVids} videos (${sizeKB} KB)`, 'success');
+    console.log(`[Auto-cache] OK — ${cache.playlists.length} playlists, ${totalVids} videos (${backend})`);
+    showToast(t('cache_saved', { count: totalVids }), 'success');
+    log('info', 'backup', 'auto-cache written', { backend, playlists: cache.playlists.length, videos: totalVids });
   } catch (err) {
     console.error('[Auto-cache] FAILED:', err.message);
     showToast(`Cache FAILED: ${err.message}`, 'error');
+    log('warn', 'backup', 'auto-cache write failed', { msg: err.message });
   }
 }
+
+// The name the rest of the app grew up with. Kept so a missed call site is a
+// no-op rename rather than a silent loss of caching.
+function autoSaveToLocalStorage(opts) { return autoSaveCache(opts); }
 
 async function loadAllVideosAtStartup() {
   const total = APP.playlists.length;
@@ -13681,7 +13944,12 @@ window.addEventListener('hashchange', checkAuth);
 
 // Show login screen only if no token AND no cached data
 // If backup exists in localStorage, init() → showAppFromCache() will display the dashboard
-if ((!APP.clientId && !APP.accessToken && !localStorage.getItem('lastBackup') && !localStorage.getItem('autoCache')) || sessionStorage.getItem('loggedOut') === '1') {
+// #G11 — the auto-cache itself is in IndexedDB and cannot be read synchronously,
+// so its timestamp stays in localStorage purely as the "there is a cache" signal
+// this gate needs before anything is awaited. Reading 'autoCache' here would
+// have shown the login screen to everyone whose cache had just migrated.
+const _hasCachedData = !!(localStorage.getItem('lastBackup') || localStorage.getItem('autoCacheTimestamp') || localStorage.getItem('autoCache'));
+if ((!APP.clientId && !APP.accessToken && !_hasCachedData) || sessionStorage.getItem('loggedOut') === '1') {
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('appContainer').style.display = 'none';
 }
