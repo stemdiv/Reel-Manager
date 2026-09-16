@@ -4407,11 +4407,16 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.0'; // bump per release
+const APP_VERSION = '1.27.1'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.1', date: '2026-09-16', items: [
+    "CORRECTIF CRITIQUE — Decouvrir tombait sur Network error: Failed to fetch. videos:batchGetStats est une methode personnalisee Google : le verbe s attache a la ressource par DEUX-POINTS, pas par un segment de chemin. Ecrit avec une barre oblique, il vise un chemin inexistant, le preflight CORS reste sans reponse et le navigateur ne rend qu un Failed to fetch. Le parametre part, obligatoire, manquait aussi",
+    "Le garde-fou de repli ne reconnaissait que des erreurs 404/400 propres. Une methode que le navigateur ne peut pas joindre ne se presente jamais ainsi : elle echoue au niveau reseau. Failed to fetch, Load failed et NetworkError comptent desormais comme methode indisponible, donc Decouvrir bascule sur videos.list au lieu de mourir",
+    "normalizeEndpoint comprend les deux formes — videos/getRating et videos:batchGetStats — sinon la forme a deux-points ratait son entree dans la table de couts et etait facturee au pool au lieu de son propre bucket",
+  ]},
   { v: '1.27.0', date: '2026-09-16', items: [
     "#I1 — couvertures de playlist personnalisees via la ressource playlistImages, derriere le drapeau FEATURES.playlistCovers. La couverture s affiche en tete de la playlist et remplace la miniature sur la carte de bibliotheque quand elle existe",
     "CORRECTIF DE SPECIFICATION — le brief prevoyait un redimensionnement en 1280 x 720. La documentation officielle n accepte qu un ratio 1:1 carre : un envoi en 16:9 aurait ete refuse. Le recadrage est donc carre et centre, plafonne a 1280 px, sans jamais agrandir une petite image",
@@ -5231,7 +5236,11 @@ function emptyQuota() {
 // Sub-paths matter: videos/rate and videos/getRating have costs and buckets of
 // their own, and truncating them to 'videos' billed a like to the upload bucket.
 function normalizeEndpoint(endpoint) {
-  return String(endpoint).split('?')[0].split('/').filter(Boolean).join('.');
+  // Two shapes reach this: classic sub-paths ('videos/getRating') and custom
+  // methods ('videos:batchGetStats'). Both resolve to the same dotted key, or
+  // the colon form would miss its entry in the cost table and be billed to the
+  // pool instead of its own bucket.
+  return String(endpoint).split('?')[0].split(/[/:]/).filter(Boolean).join('.');
 }
 
 // Look up bucket + cost for an API call. endpoint may include query string ('playlists?part=...')
@@ -11524,7 +11533,16 @@ function isBatchStatsUnavailable(err) {
   return /\b(404|400)\b/.test(msg)
       || msg.includes('not found')
       || msg.includes('accessnotconfigured')
-      || msg.includes('not registered');
+      || msg.includes('not registered')
+      // A method the browser cannot reach at all fails the CORS preflight and
+      // surfaces as a bare network error, never as a clean 404 body. Treating
+      // that as "available" is what turned a missing optimisation into a dead
+      // Discover, so it counts as unavailable too — the fallback is the whole
+      // point of the flag.
+      || msg.includes('failed to fetch')
+      || msg.includes('network error')
+      || msg.includes('networkerror')
+      || msg.includes('load failed');   // Safari's wording for the same thing
 }
 
 /**
@@ -11538,7 +11556,15 @@ async function fetchVideoStats(ids) {
 
   if (batchStatsEnabled()) {
     try {
-      const data = await ytApi('videos/batchGetStats', { id: batch.join(',') });
+      // videos:batchGetStats is a Google "custom method": the verb is attached
+      // to the resource with a COLON, not as a path segment. Written with a
+      // slash it addresses a path that does not exist, the CORS preflight gets
+      // no answer, and the browser reports a bare "Failed to fetch" — which is
+      // exactly what took Discover down. part= is required.
+      const data = await ytApi('videos:batchGetStats', {
+        part: 'id,statistics',
+        id: batch.join(','),
+      });
       return { byId: parseStatsItems(data.items), source: 'batchGetStats' };
     } catch (err) {
       if (!isBatchStatsUnavailable(err)) throw err;   // a real failure is not a reason to change paths

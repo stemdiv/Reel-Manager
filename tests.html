@@ -1481,8 +1481,65 @@ const SUITES = [
 {
   id: 'batchGetStats', title: 'Statistics on their own bucket, with a fallback', note: 'the public cost table does not list the method yet, so it may simply not be enabled',
   cases: [
+    ['batchGetStats is addressed with a colon, not a slash', w => {
+      // REGRESSION: it is a Google custom method — videos:batchGetStats. Written
+      // with a slash it addresses a path that does not exist, the CORS preflight
+      // goes unanswered, and the browser reports a bare "Failed to fetch". That
+      // took the whole Discover flow down.
+      eq(w.normalizeEndpoint('videos:batchGetStats'), 'videos.batchGetStats', 'colon form');
+      eq(w.normalizeEndpoint('videos:batchGetStats?id=x'), 'videos.batchGetStats', 'with a query');
+      // The classic sub-path form must keep working alongside it.
+      return eq(w.normalizeEndpoint('videos/getRating'), 'videos.getRating', 'slash form');
+    }],
+
     ['batchGetStats has its own bucket and costs one unit', w =>
-      eq(w.getQuotaCost('videos/batchGetStats', 'GET'), { bucket: 'stats', cost: 1 })],
+      eq(w.getQuotaCost('videos:batchGetStats', 'GET'), { bucket: 'stats', cost: 1 })],
+
+    ['the request goes to the documented URL and carries part=', async w => {
+      const realFetch = w.fetch;
+      const wasEnabled = w.batchStatsEnabled();
+      let seen = null;
+      try {
+        w.setAccessToken('test-token');
+        w.setBatchStatsEnabled(true);
+        w.fetch = async (u) => {
+          seen = String(u);
+          return new w.Response(JSON.stringify({ items: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        };
+        await w.fetchVideoStats(['A']);
+        ok(seen.startsWith('https://www.googleapis.com/youtube/v3/videos:batchGetStats'), 'url: ' + seen);
+        // part is a required parameter; omitting it is a 400.
+        return ok(/[?&]part=/.test(seen), 'part= missing: ' + seen);
+      } finally { w.fetch = realFetch; w.setBatchStatsEnabled(wasEnabled); }
+    }],
+
+    ['a method the browser cannot reach falls back instead of killing the caller', async w => {
+      // REGRESSION: "Failed to fetch" is how an unreachable method surfaces in a
+      // browser — never as a clean 404 body. The guard used to miss it, so the
+      // error escaped fetchVideoStats and Discover died on it.
+      const realFetch = w.fetch;
+      const wasEnabled = w.batchStatsEnabled();
+      try {
+        w.setAccessToken('test-token');
+        w.setBatchStatsEnabled(true);
+        w.fetch = async (u) => {
+          if (String(u).includes('batchGetStats')) throw new TypeError('Failed to fetch');
+          return new w.Response(JSON.stringify({ items: [{ id: 'A', statistics: { viewCount: '42' } }] }),
+                                { status: 200, headers: { 'Content-Type': 'application/json' } });
+        };
+        const r = await w.fetchVideoStats(['A']);
+        eq(r.source, 'videos.list', 'it should have fallen back');
+        eq(r.byId.A.viewCount, 42, 'the stats still came through');
+        return eq(w.batchStatsEnabled(), false, 'the flag should be down for the session');
+      } finally { w.fetch = realFetch; w.setBatchStatsEnabled(wasEnabled); }
+    }],
+
+    ["Safari's wording for the same failure is recognised too", w =>
+      eq([
+        w.isBatchStatsUnavailable(new Error('Network error: Failed to fetch')),
+        w.isBatchStatsUnavailable(new Error('Load failed')),
+        w.isBatchStatsUnavailable(new Error('NetworkError when attempting to fetch resource.')),
+      ], [true, true, true])],
 
     ['the fallback still costs the pool', w =>
       eq(w.getQuotaCost('videos', 'GET'), { bucket: 'pool', cost: 1 })],
@@ -1490,7 +1547,7 @@ const SUITES = [
     ['the stats bucket resets with the others', w => {
       const snap = seedQuota(w, { pool: 10, search: 1, upload: 0 });
       try {
-        w.chargeQuota('videos/batchGetStats', 'GET');
+        w.chargeQuota('videos:batchGetStats', 'GET');
         ok(w.quotaTitleText().includes('1 / 10000'), 'stats not counted: ' + w.quotaTitleText());
         w.localStorage.setItem('quotaResetDate', '1999-01-01');
         w.checkQuotaDailyReset();
@@ -1535,7 +1592,7 @@ const SUITES = [
           return { items: [{ videoId: 'A', statistics: { viewCount: '10' } }] };
         };
         const { byId, source } = await w.fetchVideoStats(['A']);
-        eq(calls, ['videos/batchGetStats'], 'endpoint');
+        eq(calls, ['videos:batchGetStats'], 'endpoint');
         eq(source, 'batchGetStats', 'source');
         return eq(byId.A.viewCount, 10);
       } finally { w.ytApi = real; w.setBatchStatsEnabled(wasEnabled); }
@@ -1549,7 +1606,7 @@ const SUITES = [
         w.setBatchStatsEnabled(true);
         w.ytApi = async (endpoint, params) => {
           calls.push(endpoint);
-          if (endpoint === 'videos/batchGetStats') throw new Error('Erreur API (404)');
+          if (endpoint === 'videos:batchGetStats') throw new Error('Erreur API (404)');
           return { items: [{ id: 'A', statistics: { viewCount: '5' } }] };
         };
         const first = await w.fetchVideoStats(['A']);
@@ -1558,7 +1615,7 @@ const SUITES = [
         const second = await w.fetchVideoStats(['A']);
         eq(second.source, 'videos.list', 'second call');
         // batchGetStats tried exactly once across both calls.
-        return eq(calls.filter(c => c === 'videos/batchGetStats').length, 1, 'retried a method that cannot work');
+        return eq(calls.filter(c => c === 'videos:batchGetStats').length, 1, 'retried a method that cannot work');
       } finally { w.ytApi = real; w.setBatchStatsEnabled(wasEnabled); }
     }],
 
