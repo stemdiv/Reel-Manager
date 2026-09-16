@@ -1670,7 +1670,132 @@ const SUITES = [
 
   ],
 },
+{
+  id: '#G14', title: 'Scope upgrade in a popup', note: 'the message handler is the security boundary of the whole flow',
+  cases: [
+    ['a message from our own origin with a token is accepted', w =>
+      eq(w.isValidOAuthMessage({ origin: w.location.origin, data: { type: 'reel-oauth-token', token: 'tok' } }), true)],
+
+    ['a message from anywhere else is refused, token or not', w => {
+      const data = { type: 'reel-oauth-token', token: 'tok' };
+      eq(w.isValidOAuthMessage({ origin: 'https://evil.example', data }), false, 'another origin');
+      eq(w.isValidOAuthMessage({ origin: 'null', data }), false, 'a sandboxed frame');
+      eq(w.isValidOAuthMessage({ origin: w.location.origin + '.evil.example', data }), false, 'a prefix match is not a match');
+      return eq(w.isValidOAuthMessage({ origin: 'http://localhost:9999', data }), false, 'another port on localhost');
+    }],
+
+    ['a message of the wrong shape is refused even from our own origin', w => {
+      const o = w.location.origin;
+      eq(w.isValidOAuthMessage({ origin: o, data: { type: 'something-else', token: 'tok' } }), false, 'wrong type');
+      eq(w.isValidOAuthMessage({ origin: o, data: { type: 'reel-oauth-token' } }), false, 'no token');
+      eq(w.isValidOAuthMessage({ origin: o, data: { type: 'reel-oauth-token', token: '' } }), false, 'empty token');
+      eq(w.isValidOAuthMessage({ origin: o, data: { type: 'reel-oauth-token', token: 123 } }), false, 'a number is not a token');
+      eq(w.isValidOAuthMessage({ origin: o, data: null }), false, 'no data');
+      return eq(w.isValidOAuthMessage(null), false, 'no event at all');
+    }],
+
+    ['the auth url carries the requested scope and our redirect', w => {
+      const url = w.buildAuthUrl('https://www.googleapis.com/auth/youtube');
+      ok(url.startsWith('https://accounts.google.com/o/oauth2/v2/auth?'), 'endpoint: ' + url);
+      ok(url.includes('response_type=token'), 'response_type');
+      ok(url.includes(encodeURIComponent('https://www.googleapis.com/auth/youtube')), 'scope');
+      return ok(url.includes(encodeURIComponent(w.location.href.split('?')[0].split('#')[0])), 'redirect_uri: ' + url);
+    }],
+
+    ['a blocked popup is reported as blocked, not as a refusal', async w => {
+      const realOpen = w.open;
+      try {
+        w.open = () => null;   // what a popup blocker returns
+        const r = await w.openOAuthPopup('scope');
+        eq(r.blocked, true, 'blocked');
+        return eq(r.token, null, 'token');
+      } finally { w.open = realOpen; }
+    }],
+
+    ['a popup that throws is treated the same way', async w => {
+      const realOpen = w.open;
+      try {
+        w.open = () => { throw new Error('refused'); };
+        const r = await w.openOAuthPopup('scope');
+        return eq(r.blocked, true);
+      } finally { w.open = realOpen; }
+    }],
+
+    ['a valid postMessage resolves the wait with the token', async w => {
+      const realOpen = w.open;
+      try {
+        w.open = () => ({ closed: false, close() {} });
+        const pending = w.openOAuthPopup('scope');
+        // The popup would post this from our own origin.
+        w.postMessage({ type: 'reel-oauth-token', token: 'TOK_OK', expiresIn: 3600 }, w.location.origin);
+        const r = await pending;
+        eq(r.blocked, false, 'blocked');
+        eq(r.token, 'TOK_OK', 'token');
+        return eq(r.expiresIn, 3600, 'expiry');
+      } finally { w.open = realOpen; }
+    }],
+
+    ['a forged message never resolves the wait', async w => {
+      const realOpen = w.open;
+      const fake = { closed: false, close() {} };
+      try {
+        w.open = () => fake;
+        const pending = w.openOAuthPopup('scope');
+        // Wrong type from the right origin — the only shape an attacker on the
+        // page could actually produce. It must be ignored.
+        w.postMessage({ type: 'not-our-message', token: 'EVIL' }, w.location.origin);
+        let settled = false;
+        pending.then(() => { settled = true; });
+        await new Promise(r => setTimeout(r, 120));
+        ok(settled === false, 'a forged message resolved the flow');
+        // Closing the popup is what ends it.
+        fake.closed = true;
+        const r = await pending;
+        return eq(r.token, null, 'closed without granting');
+      } finally { w.open = realOpen; }
+    }],
+
+    ['closing the popup ends the wait rather than hanging', async w => {
+      const realOpen = w.open;
+      const fake = { closed: false, close() {} };
+      try {
+        w.open = () => fake;
+        const pending = w.openOAuthPopup('scope');
+        setTimeout(() => { fake.closed = true; }, 50);
+        const r = await pending;
+        eq(r.blocked, false, 'not blocked — it opened');
+        return eq(r.token, null, 'no token');
+      } finally { w.open = realOpen; }
+    }],
+
+    ['ensureWriteScope is async and resolves without a redirect', w => {
+      // A sync boolean here is the old behaviour: the caller could not wait, so
+      // the action was lost to the redirect.
+      const r = w.ensureWriteScope();
+      ok(r && typeof r.then === 'function', 'ensureWriteScope must return a promise');
+      return r.then(() => 'async');
+    }],
+
+    ['write access at sign-in is off by default', w => {
+      const snap = snapshot(w, ['writeScopeAtLogin']);
+      try {
+        w.localStorage.removeItem('writeScopeAtLogin');
+        eq(w.writeScopeAtLogin(), false, 'progressive scope is the promised default');
+        w.setWriteScopeAtLogin(true);
+        eq(w.writeScopeAtLogin(), true, 'opt-in');
+        w.setWriteScopeAtLogin(false);
+        return eq(w.writeScopeAtLogin(), false, 'opt-out');
+      } finally { restore(w, snap); }
+    }],
+
+    ['outside a popup the return handler does nothing', w => {
+      // window.opener is null in the test iframe, which is the ordinary case.
+      return eq(w.handleOAuthPopupReturn(), false);
+    }],
+  ],
+},
 ];
+
 
 
 

@@ -2470,6 +2470,16 @@
           </label>
         </div>
 
+        <!-- Write scope at sign-in (#G14) -->
+        <div style="margin-top: 32px; padding: 18px 20px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface);">
+          <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;" data-i18n="scope_section_title">Write access</h3>
+          <p style="margin: 0 0 12px 0; color: var(--text2); font-size: 12px; line-height: 1.5;" data-i18n="scope_section_hint">By default the app signs in read-only and asks for write access the first time you change something. Turn this on to ask for it at sign-in instead — fewer interruptions, broader access from the start.</p>
+          <label style="display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none;">
+            <input type="checkbox" id="writeScopeAtLoginToggle" onchange="setWriteScopeAtLogin(this.checked)" style="accent-color: var(--accent); width: 16px; height: 16px;">
+            <span style="font-size: 13px;" data-i18n="scope_toggle_label">Request write access at sign-in</span>
+          </label>
+        </div>
+
         <!-- Diagnostic log (#66) — user-shareable support log -->
         <div style="margin-top: 32px; padding: 18px 20px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface);">
           <h3 style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600;" data-i18n="log_section_title">Diagnostic log</h3>
@@ -3066,6 +3076,11 @@ const I18N = {
     subscribe_label: "S'abonner",
     subscribe_done_label: 'Abonné',
     subscribe_done: 'Abonné à {title}',
+    // Upgrade de scope en popup (#G14)
+    scope_upgrade_cancelled: "Accès en écriture non accordé — l'action a été abandonnée.",
+    scope_section_title: "Accès en écriture",
+    scope_section_hint: "Par défaut, la connexion se fait en lecture seule et l'accès en écriture est demandé à la première modification. Activez cette option pour le demander dès la connexion : moins d'interruptions, mais un accès plus large dès le départ.",
+    scope_toggle_label: "Demander l'accès en écriture dès la connexion",
     quota_pool_label: 'Pool',
     quota_search_label: 'Recherches',
     quota_upload_label: 'Mises en ligne',
@@ -3773,6 +3788,11 @@ const I18N = {
     subscribe_label: 'Subscribe',
     subscribe_done_label: 'Subscribed',
     subscribe_done: 'Subscribed to {title}',
+    // Popup scope upgrade (#G14)
+    scope_upgrade_cancelled: 'Write access was not granted — the action was abandoned.',
+    scope_section_title: 'Write access',
+    scope_section_hint: 'By default the app signs in read-only and asks for write access the first time you change something. Turn this on to ask for it at sign-in instead — fewer interruptions, broader access from the start.',
+    scope_toggle_label: 'Request write access at sign-in',
     quota_pool_label: 'Pool',
     quota_search_label: 'Searches',
     quota_upload_label: 'Uploads',
@@ -4087,11 +4107,17 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.20.0'; // bump per release
+const APP_VERSION = '1.21.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.21.0', date: '2026-09-16', items: [
+    "#G14 — l upgrade du scope d ecriture se fait dans une popup et non plus par une redirection plein ecran. Un renommage en lot de quarante playlists perdait sa selection et devait etre recommence : l action reprend desormais sur place, sans reclic",
+    "La page de retour detecte qu elle est dans une popup, transmet le jeton a l ouvreur par postMessage vers sa propre origine uniquement, nettoie le fragment d URL et se ferme. Un message d une autre origine ou d une autre forme est ignore",
+    "Si la popup est bloquee, la redirection d avant reste le chemin de repli, avec son marqueur de reprise. La popup fermee sans autorisation est dite comme telle plutot que de rester en attente",
+    "Nouvelle option de reglages : demander l acces en ecriture des la connexion, desactivee par defaut — le scope progressif reste la promesse faite dans le dossier de soumission",
+  ]},
   { v: '1.20.0', date: '2026-09-16', items: [
     "#I2 — une pastille S abonner / Abonne sur chaque carte Decouvrir et dans le lecteur. L etat vient de la liste des abonnements quand elle est chargee ; sinon une seule requete par chaine (forChannelId, 1 unite) au lieu de parcourir toute la liste pour une reponse",
     "La distinction jamais verifie / verifie et non abonne est explicite : la premiere declenche une requete, la seconde n en declenche plus jamais. Une reponse negative est memorisee comme une positive",
@@ -5132,6 +5158,11 @@ let videoDetailsCache = {};
 let _pendingBookmark = null;
 
 function init() {
+  // #G14 — in the scope-upgrade popup this page is not an app: hand the token
+  // to the opener and close. Nothing else must run, least of all anything that
+  // writes to the shared localStorage.
+  if (handleOAuthPopupReturn()) return;
+
   // Auto-purge if no login for 30+ days
   checkAutoPurge();
 
@@ -5182,6 +5213,8 @@ function init() {
   // are not cached, so they are fetched on demand rather than at boot.
   const viewsBox = document.getElementById('showPlaylistViews');
   if (viewsBox) viewsBox.checked = localStorage.getItem('showPlaylistViews') === '1';
+  const scopeBox = document.getElementById('writeScopeAtLoginToggle');
+  if (scopeBox) scopeBox.checked = writeScopeAtLogin();
 
   // Cache-first display: if we have backup data, show the dashboard immediately
   // even before OAuth check — user sees data instantly on PWA/mobile revisit
@@ -5567,22 +5600,46 @@ function checkQuotaBudget(actionName, action, count, bucket = 'pool') {
 // OAUTH SCOPE UPGRADE (c. youtube.readonly → youtube on write)
 // ============================================================================
 
-function ensureWriteScope() {
+// #G14 — async, and it genuinely waits: on the popup path the caller's action
+// resumes on the same line, with no re-click and no lost selection.
+async function ensureWriteScope() {
   if (currentScope === SCOPE_FULL) return true;
 
   log('info', 'oauth', 'write scope upgrade requested');
-  const upgrade = confirm(t('confirm_write_scope'));
-  if (upgrade) {
+  if (!confirm(t('confirm_write_scope'))) {
+    log('warn', 'oauth', 'write scope upgrade declined');
+    return false;
+  }
+
+  const result = await openOAuthPopup(SCOPE_FULL);
+
+  if (result.blocked) {
+    // Popup blocker, or a browser that refuses window.open outside a gesture.
+    // Fall back to the redirect, which means the action is interrupted — hence
+    // the #44 marker, which the popup path does not need.
+    log('warn', 'oauth', 'popup blocked — falling back to full-page redirect');
     currentScope = SCOPE_FULL;
     localStorage.setItem('oauthScope', SCOPE_FULL);
-    log('info', 'oauth', 'write scope upgrade accepted — redirecting');
-    // Stash a marker so checkAuth() can notify the user after the redirect (audit #44)
     sessionStorage.setItem('pendingActionAfterOAuth', String(Date.now()));
     startOAuth(SCOPE_FULL);
-  } else {
-    log('warn', 'oauth', 'write scope upgrade declined');
+    return false;   // the page is going away
   }
-  return false; // Will redirect, so always return false here
+
+  if (!result.token) {
+    log('warn', 'oauth', 'scope upgrade popup closed without a token');
+    showToast(t('scope_upgrade_cancelled'), 'warning');
+    return false;
+  }
+
+  currentScope = SCOPE_FULL;
+  localStorage.setItem('oauthScope', SCOPE_FULL);
+  setAccessToken(result.token);
+  if (result.expiresIn > 0) {
+    APP.tokenExpiresAt = Date.now() + result.expiresIn * 1000;
+    try { sessionStorage.setItem('tokenExpiresAt', String(APP.tokenExpiresAt)); } catch (_) {}
+  }
+  log('info', 'oauth', 'write scope granted via popup — resuming action');
+  return true;
 }
 
 // ============================================================================
@@ -5861,6 +5918,17 @@ function updateBackupIndicator() {
   el.title = `Dernier backup : ${date.toLocaleString('fr-FR')}`;
 }
 
+// Off by default, and deliberately so: progressive scope is the promise the
+// app makes in its Google submission.
+function writeScopeAtLogin() {
+  return localStorage.getItem('writeScopeAtLogin') === '1';
+}
+
+function setWriteScopeAtLogin(on) {
+  try { localStorage.setItem('writeScopeAtLogin', on ? '1' : '0'); } catch (_) {}
+  log('info', 'oauth', 'write scope at sign-in ' + (on ? 'enabled' : 'disabled'));
+}
+
 function handleLogin() {
   const clientId = document.getElementById('clientIdInput').value.trim();
   if (!clientId) {
@@ -5871,7 +5939,19 @@ function handleLogin() {
   APP.clientId = clientId;
   localStorage.setItem('youtubeClientId', clientId);
   log('info', 'oauth', 'login flow started');
-  startOAuth();
+  const scope = writeScopeAtLogin() ? SCOPE_FULL : SCOPE_READONLY;
+  currentScope = scope;
+  localStorage.setItem('oauthScope', scope);
+  startOAuth(scope);
+}
+
+function buildAuthUrl(scope) {
+  const s = scope || currentScope;
+  return `https://accounts.google.com/o/oauth2/v2/auth?` +
+    `client_id=${encodeURIComponent(APP.clientId)}&` +
+    `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+    `response_type=token&` +
+    `scope=${encodeURIComponent(s)}`;
 }
 
 function startOAuth(scope) {
@@ -5879,12 +5959,88 @@ function startOAuth(scope) {
   log('info', 'oauth', 'redirecting to Google OAuth', { scope: s });
   // Persist the in-memory log before redirecting away — we'd lose it otherwise
   try { persistLog(); } catch (_) {}
-  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-    `client_id=${encodeURIComponent(APP.clientId)}&` +
-    `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
-    `response_type=token&` +
-    `scope=${encodeURIComponent(s)}`;
-  window.location.href = authUrl;
+  window.location.href = buildAuthUrl(s);
+}
+
+// ── #G14 — scope upgrade in a popup ─────────────────────────────────────────
+// The full-page redirect threw the user out of whatever they were doing: a bulk
+// rename of forty playlists lost its selection and had to be started again.
+// The popup keeps the page alive, so the action that asked for write access can
+// simply continue.
+//
+// The returning page is this same file loaded in the popup, with the token in
+// its hash. It notices window.opener, hands the token over and closes.
+
+const OAUTH_POPUP_MESSAGE = 'reel-oauth-token';
+
+// Called from init() before anything else: in a popup, this page is not an app.
+function handleOAuthPopupReturn() {
+  if (!window.opener || window.opener === window) return false;
+  const hash = window.location.hash || '';
+  if (!hash.includes('access_token=')) return false;
+  const params = new URLSearchParams(hash.substring(1));
+  const token = params.get('access_token');
+  if (!token) return false;
+  try {
+    // Same origin only. The opener is our own page; a token must never be
+    // posted to a wildcard.
+    window.opener.postMessage({
+      type: OAUTH_POPUP_MESSAGE,
+      token,
+      expiresIn: parseInt(params.get('expires_in') || '', 10) || 0,
+      scope: params.get('scope') || '',
+    }, window.location.origin);
+  } catch (_) { /* opener gone — the user will be told the popup was closed */ }
+  // #G13 — never leave a token sitting in a URL, not even for the instant
+  // before this window closes.
+  window.history.replaceState({}, document.title, window.location.pathname);
+  window.close();
+  return true;
+}
+
+// Validate a message before believing a word of it. Exported for the tests
+// because this is the security boundary of the whole flow.
+function isValidOAuthMessage(event, expectedOrigin) {
+  if (!event || event.origin !== (expectedOrigin || window.location.origin)) return false;
+  const d = event.data;
+  return !!(d && d.type === OAUTH_POPUP_MESSAGE && typeof d.token === 'string' && d.token);
+}
+
+/**
+ * Open the consent screen in a popup and resolve with the token.
+ * Resolves null when the popup is blocked (caller falls back to the redirect),
+ * or when the user closes it without granting.
+ */
+function openOAuthPopup(scope) {
+  const url = buildAuthUrl(scope);
+  const w = 500, h = 600;
+  const left = Math.max(0, (window.screen.width - w) / 2);
+  const top = Math.max(0, (window.screen.height - h) / 2);
+  let popup = null;
+  try {
+    popup = window.open(url, 'reel-oauth', `width=${w},height=${h},left=${left},top=${top}`);
+  } catch (_) { popup = null; }
+  if (!popup) return Promise.resolve({ blocked: true, token: null });
+
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = result => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener('message', onMessage);
+      clearInterval(closedTimer);
+      resolve(result);
+    };
+    const onMessage = event => {
+      if (!isValidOAuthMessage(event)) return;
+      finish({ blocked: false, token: event.data.token, expiresIn: event.data.expiresIn });
+    };
+    window.addEventListener('message', onMessage);
+    // The popup can be closed without granting, and no message ever arrives.
+    const closedTimer = setInterval(() => {
+      if (popup.closed) finish({ blocked: false, token: null });
+    }, 500);
+  });
 }
 
 function checkAuth() {
@@ -6525,7 +6681,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
   }
   // Scope upgrade: if write operation with readonly scope, request upgrade
   if (method !== 'GET' && currentScope !== SCOPE_FULL) {
-    if (!ensureWriteScope()) {
+    if (!(await ensureWriteScope())) {
       throw new Error('Accès en écriture requis — veuillez ré-autoriser l\'application');
     }
   }
@@ -12951,7 +13107,7 @@ function updateRestoreQuota() {
 }
 
 async function executeRestore() {
-  if (!ensureWriteScope()) return;
+  if (!(await ensureWriteScope())) return;
 
   const selected = restoreData.playlists.filter(pl => pl.selected);
   if (selected.length === 0) return;
