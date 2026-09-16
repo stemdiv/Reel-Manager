@@ -3065,6 +3065,8 @@ const I18N = {
     tags_auto: 'Catégorisation auto',
     tags_auto_title: 'Catégorisation Automatique',
     tags_auto_subtitle: 'Analyse intelligente de vos playlists',
+    tags_auto_done: 'Analyse terminée',
+    tags_auto_none: 'Aucune catégorie ne se dégage de ces playlists. Rien à appliquer.',
     tags_no_tag: 'Aucun tag',
     tags_icon_label: 'Icône (optionnel)',
     tags_per_tag: 'Icônes par tag',
@@ -3841,6 +3843,8 @@ const I18N = {
     tags_auto: 'Auto categorize',
     tags_auto_title: 'Auto Categorization',
     tags_auto_subtitle: 'Smart analysis of your playlists',
+    tags_auto_done: 'Analysis complete',
+    tags_auto_none: 'No category stands out from these playlists. Nothing to apply.',
     tags_no_tag: 'No tags',
     tags_icon_label: 'Icon (optional)',
     tags_per_tag: 'Icons per tag',
@@ -4407,11 +4411,17 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.2'; // bump per release
+const APP_VERSION = '1.27.3'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.3', date: '2026-09-16', items: [
+    "CORRECTIF — Gestion des tags, Categorisation auto : le scan tournait, consommait du quota, puis Appliquer ne changeait rien. getVideoDetails renvoie un dictionnaire indexe par identifiant de video, pas un tableau ; le forEach echouait des la premiere playlist, le catch avalait l erreur sans un mot dans la console et tout retombait sur la liste de mots-cles. La detection par categorie n avait donc jamais fonctionne",
+    "Les mots-cles sont desormais compares mot a mot : tech est contenu dans Techno, ce qui classait une playlist de psytrance en programmation, et son est contenu dans poisson",
+    "Un identifiant de categorie que l application ne sait pas nommer ne vaut plus Autre : elle se rabat sur le titre plutot que d etiqueter toute la bibliotheque avec un mot vide de sens",
+    "Quand aucune categorie ne se degage, le bouton Appliquer disparait et un message le dit. Un cadre vide surmonte d un bouton actif qui ne fait rien, c est exactement ce qui se lisait comme Appliquer est casse",
+  ]},
   { v: '1.27.2', date: '2026-09-16', items: [
     "CORRECTIF — dans Decouvrir, passer de Videos a Playlists ou Chaines vidait l interface. Les affinages reserves aux videos etaient masques par leur element parent : discoverSortBy est un enfant direct de la barre de recherche, donc le champ de saisie et le bouton Rechercher partaient avec lui, et les quatre selecteurs de filtre emportaient toute leur bande",
     "Chaque controle est desormais masque pour lui-meme. Le filtre de date de publication reste offert sur les trois types, puisque search.list l accepte partout ; seuls duree, qualite, sous-titres, licence, lecture integree et le tri par statistiques disparaissent hors des videos",
@@ -13620,6 +13630,17 @@ async function loadVideoCategories(lang) {
   }
 }
 
+// Last resort when the API cannot say: guess from the title. Matched on whole
+// words — 'tech' sits inside 'Techno set', which is how a psytrance playlist got
+// filed under programming.
+function keywordCategory(title, keywords) {
+  const words = String(title).toLowerCase().split(/[^a-z0-9\u00c0-\u024f]+/i).filter(Boolean);
+  for (const [category, kws] of Object.entries(keywords)) {
+    if (kws.some(kw => words.includes(kw))) return category;
+  }
+  return null;
+}
+
 async function showAutoCategorizerModal() {
   const keywords = {
     'Musique': ['music', 'chanson', 'playlist', 'audio', 'son'],
@@ -13679,59 +13700,45 @@ async function showAutoCategorizerModal() {
 
         if (videoIds.length > 0) {
           try {
+            // getVideoDetails answers a map keyed by video id, never an array.
+            // forEach on it threw on the first playlist of every run, the catch
+            // below swallowed that into the title fallback without a word in the
+            // console, and the category detection this whole feature exists for
+            // never ran once.
             const details = await getVideoDetails(videoIds);
             const categoryCount = {};
-
-            details.forEach(detail => {
+            for (const detail of Object.values(details)) {
               const catId = detail.snippet?.categoryId;
-              if (catId) {
-                categoryCount[catId] = (categoryCount[catId] || 0) + 1;
-              }
-            });
+              if (catId) categoryCount[catId] = (categoryCount[catId] || 0) + 1;
+            }
 
-            // Find most common category
-            if (Object.keys(categoryCount).length > 0) {
-              const mostCommon = Object.entries(categoryCount)
-                .sort((a, b) => b[1] - a[1])[0][0];
-              const categoryName = categoryMap[mostCommon] || 'Autre';
-              suggestions[pl.id] = {
-                title: pl.snippet.title,
-                suggested: categoryName,
-                accepted: false
-              };
-            } else {
-              // Fallback to keyword-based
-              const title = pl.snippet.title.toLowerCase();
-              for (const [category, kws] of Object.entries(keywords)) {
-                if (kws.some(kw => title.includes(kw))) {
-                  suggestions[pl.id] = {
-                    title: pl.snippet.title,
-                    suggested: category,
-                    accepted: false
-                  };
-                  break;
-                }
-              }
-            }
+            // The most common category of the videos, by name. An id we cannot
+            // name is no answer: the categories list may have failed to load,
+            // and tagging the whole library "Autre" is worse than saying nothing.
+            const mostCommon = Object.entries(categoryCount).sort((a, b) => b[1] - a[1])[0]?.[0];
+            const suggested = (mostCommon && categoryMap[mostCommon])
+                           || keywordCategory(pl.snippet.title, keywords);
+            if (suggested) suggestions[pl.id] = { title: pl.snippet.title, suggested, accepted: false };
           } catch (err) {
-            // Fallback to keyword-based
-            const title = pl.snippet.title.toLowerCase();
-            for (const [category, kws] of Object.entries(keywords)) {
-              if (kws.some(kw => title.includes(kw))) {
-                suggestions[pl.id] = {
-                  title: pl.snippet.title,
-                  suggested: category,
-                  accepted: false
-                };
-                break;
-              }
-            }
+            console.warn('Categorization: no details for ' + pl.id, err);
+            const suggested = keywordCategory(pl.snippet.title, keywords);
+            if (suggested) suggestions[pl.id] = { title: pl.snippet.title, suggested, accepted: false };
           }
         }
       }
     }
 
-    updateProgress(100, 'Analyse terminée');
+    updateProgress(100, t('tags_auto_done'));
+
+    // An empty results box under a live Apply button is what reads as "Apply is
+    // broken": the click had nothing to apply and said so only through a toast
+    // counting zero.
+    if (!Object.keys(suggestions).length) {
+      document.getElementById('categorizerResults').innerHTML =
+        '<p class="text-muted" style="margin-top:20px;">' + escapeHtml(t('tags_auto_none')) + '</p>';
+      document.getElementById('categorizerApplyBtn').style.display = 'none';
+      return;
+    }
 
     // Display results
     let html = '<div style="margin-top: 20px;">';

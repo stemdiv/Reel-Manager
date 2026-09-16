@@ -371,10 +371,111 @@ async function runAutoSave(w, opts) {
 }
 
 
+// The auto-categorizer walks the whole of APP.playlists, so a run needs both a
+// known library and an answer for every endpoint it touches. videos answers the
+// shape getVideoDetails really returns — a map keyed by video id — because
+// iterating it as an array is the bug these cases exist for.
+async function runCategorizer(w, videosAnswer) {
+  const real = { ytApi: w.ytApi, showToast: w.showToast };
+  w.showToast = () => {};
+  w.ytApi = async (endpoint, params) => {
+    if (endpoint === 'playlists') return { items: [
+      { id: 'PL_cat_a', snippet: { title: 'Techno set' }, contentDetails: { itemCount: 1 }, status: {} },
+      { id: 'PL_cat_b', snippet: { title: 'Cours de maths' }, contentDetails: { itemCount: 1 }, status: {} },
+    ] };
+    if (endpoint === 'videoCategories') return { items: [
+      { id: '10', snippet: { title: 'Musique' } },
+      { id: '27', snippet: { title: 'Education' } },
+    ] };
+    if (endpoint === 'playlistItems') return { items: [
+      { id: 'i', contentDetails: { videoId: params.playlistId + '_v' },
+        snippet: { title: 'v', resourceId: { videoId: params.playlistId + '_v' } } },
+    ] };
+    if (endpoint === 'videos') return videosAnswer(params);
+    return { items: [] };
+  };
+  await w.loadAllPlaylists();
+  await w.showAutoCategorizerModal();
+  return () => { Object.assign(w, real); };
+}
+
+function categorizerRows(w) {
+  return [...w.document.querySelectorAll('.categorizer-checkbox')].map(cb => ({
+    id: cb.dataset.plId,
+    text: cb.parentElement.innerText.replace(/\s+/g, ' ').trim(),
+  }));
+}
+
 // ════════════════════════════════════════════════════════════════════════
 // Suites
 // ════════════════════════════════════════════════════════════════════════
 const SUITES = [
+{
+  id: '#tags-auto', title: 'Auto-categorize applies what it found', note: 'getVideoDetails answers a map; iterating it as an array sent every playlist down the title fallback, silently',
+  cases: [
+    ['the title fallback matches whole words', w => {
+      const kw = { Tech: ['tech', 'code'], Musique: ['music', 'son'], Fitness: ['workout'] };
+      // 'tech' sits inside 'Techno' and 'son' inside 'poisson'. Substring
+      // matching filed a psytrance playlist under programming.
+      eq(w.keywordCategory('Techno set', kw), null, 'Techno is not tech');
+      eq(w.keywordCategory('Soupe de poisson', kw), null, 'poisson is not son');
+      eq(w.keywordCategory('Workout music', kw), 'Musique', 'first bucket wins');
+      return eq(w.keywordCategory('Le son du silence', kw), 'Musique', 'a real word still matches');
+    }],
+
+    ['the category of the videos is what gets suggested', async w => {
+      const snapLs = snapshot(w, ['playlistTags']);
+      const done = await runCategorizer(w, params =>
+        ({ items: String(params.id).split(',').map(id => ({
+          id, snippet: { title: 'v', categoryId: id.startsWith('PL_cat_a') ? '10' : '27' },
+          contentDetails: { duration: 'PT3M' },
+        })) }));
+      try {
+        const rows = categorizerRows(w);
+        eq(rows.length, 2, 'both playlists should have a suggestion');
+        // Musique, not Tech: the detection ran instead of guessing at the title.
+        ok(rows.find(r => r.id === 'PL_cat_a').text.includes('Musique'), 'Techno set: ' + rows[0].text);
+        return ok(rows.find(r => r.id === 'PL_cat_b').text.includes('Education'), 'Cours de maths: ' + rows[1].text);
+      } finally { w.closeModal(); done(); restore(w, snapLs); }
+    }],
+
+    ['apply writes the tags and the list shows them', async w => {
+      // APP is a top-level const, so w.APP is undefined: what Apply did is read
+      // back from where it persisted it and from what the list renders, which is
+      // what the user actually sees anyway.
+      const snapLs = snapshot(w, ['playlistTags']);
+      const done = await runCategorizer(w, params =>
+        ({ items: String(params.id).split(',').map(id => ({
+          id, snippet: { title: 'v', categoryId: '10' }, contentDetails: { duration: 'PT3M' },
+        })) }));
+      try {
+        w.document.getElementById('categorizerApplyBtn').click();
+        const stored = JSON.parse(w.localStorage.getItem('playlistTags') || '{}');
+        eq(stored['PL_cat_a'], ['Musique'], 'the tag was not persisted');
+        eq(stored['PL_cat_b'], ['Musique'], 'the second playlist was skipped');
+        w.refreshTagsList();
+        return ok(w.document.getElementById('tagsList').innerText.includes('Musique'), 'the list does not show the tag');
+      } finally { done(); restore(w, snapLs); }
+    }],
+
+    ['nothing to apply says so instead of offering a dead button', async w => {
+      const snapLs = snapshot(w, ['playlistTags']);
+      // No categoryId anywhere and no title a keyword can reach.
+      const done = await runCategorizer(w, params =>
+        ({ items: String(params.id).split(',').map(id => ({
+          id, snippet: { title: 'v' }, contentDetails: { duration: 'PT3M' },
+        })) }));
+      try {
+        eq(categorizerRows(w).length, 0, 'there should be no suggestion');
+        const btn = w.document.getElementById('categorizerApplyBtn');
+        // An empty results box under a live Apply button is what read as
+        // "apply is broken" — the click had nothing to do and said nothing.
+        eq(w.getComputedStyle(btn).display, 'none', 'Apply is still offered');
+        return ok(w.document.getElementById('categorizerResults').innerText.trim().length > 0, 'the empty result says nothing');
+      } finally { w.closeModal(); done(); restore(w, snapLs); }
+    }],
+  ],
+},
 {
   id: '#76', title: 'The auto-cache cannot erase itself', note: 'it runs after a cache-first startup, when videos may not be in memory yet',
   cases: [
