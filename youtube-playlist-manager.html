@@ -1441,6 +1441,11 @@
           <button class="btn btn-secondary" onclick="showAddBookmarkModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> <span data-i18n="bookmark_btn">Add by URL</span></button>
           <button class="btn btn-secondary dash-write-action" onclick="showRenamePlaylistModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg> <span data-i18n="dash_rename">Rename</span></button>
           <button class="btn btn-danger dash-write-action" onclick="showDeletePlaylistModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> <span data-i18n="dash_delete">Delete</span></button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;margin-left:4px;"
+                 data-i18n-title="playlist_views_tooltip" title="Total views across the loaded videos of each playlist">
+            <input type="checkbox" id="showPlaylistViews" onchange="togglePlaylistViews()">
+            <span data-i18n="playlist_views_label">Show view counts</span>
+          </label>
         </div>
         <div class="playlists-container" id="playlistsList"></div>
       </div>
@@ -3029,6 +3034,12 @@ const I18N = {
     player_unlike_tooltip: "Retirer mon j'aime",
     player_liked: "Ajouté à vos vidéos aimées",
     player_unliked: "J'aime retiré",
+    // Statistiques par lot (batchGetStats)
+    quota_stats_label: 'Statistiques',
+    playlist_views_label: 'Afficher les vues',
+    playlist_views_tooltip: "Total des vues sur les vidéos déjà chargées de chaque playlist. Une vue est comptée dès la première image, ce n'est pas un temps de visionnage.",
+    playlist_views_value: '{views} vues ({count} vidéos mesurées)',
+    playlist_views_nothing_loaded: "Aucune vidéo chargée : ouvrez une playlist pour pouvoir compter ses vues.",
     quota_pool_label: 'Pool',
     quota_search_label: 'Recherches',
     quota_upload_label: 'Mises en ligne',
@@ -3726,6 +3737,12 @@ const I18N = {
     player_unlike_tooltip: 'Remove your like',
     player_liked: 'Added to your liked videos',
     player_unliked: 'Like removed',
+    // Batched statistics (batchGetStats)
+    quota_stats_label: 'Statistics',
+    playlist_views_label: 'Show view counts',
+    playlist_views_tooltip: 'Total views across the already-loaded videos of each playlist. A view is counted from the first frame — it is not watch time.',
+    playlist_views_value: '{views} views ({count} videos measured)',
+    playlist_views_nothing_loaded: 'No videos loaded: open a playlist before counting its views.',
     quota_pool_label: 'Pool',
     quota_search_label: 'Searches',
     quota_upload_label: 'Uploads',
@@ -4008,7 +4025,7 @@ const APP = {
   apiCalls: 0,
   // #76 — three independent daily allowances, not one pool. pool is in units,
   // search and upload count calls. See QUOTA_LIMITS.
-  quota: { pool: 0, search: 0, upload: 0 },
+  quota: { pool: 0, search: 0, upload: 0, stats: 0 },
   tokenExpiresAt: 0,   // #B14 — from the OAuth hash's expires_in, 0 when unknown
   userInfo: null,
   playlists: [],
@@ -4040,11 +4057,17 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.18.0'; // bump per release
+const APP_VERSION = '1.19.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.19.0', date: '2026-09-16', items: [
+    "videos.batchGetStats (methode ajoutee le 3 juin 2026) fournit les statistiques de Decouvrir : 1 unite par appel sur un quatrieme bucket de 10 000 par jour, au lieu d une unite du pool commun par lot de 50. La table de couts publique ne la documente pas encore, donc un premier refus 404/400 fait basculer la session sur videos.list part=statistics et n y revient plus — une methode absente ne le devient pas moins au deuxieme essai",
+    "Le bucket statistiques n apparait dans l infobulle du quota qu une fois utilise : afficher un quatrieme compteur intact a tout le monde n apprend rien",
+    "Option Afficher les vues sur les cartes de playlist, desactivee par defaut. Le libelle precise sur combien de videos la somme porte, et une vue est comptee des la premiere image — ce n est pas un temps de visionnage",
+    "Correctif du lot precedent : l appel de details de Decouvrir ne demandait pas player, donc le badge Short n y apparaissait jamais",
+  ]},
   { v: '1.18.0', date: '2026-09-16', items: [
     "#I3 — bouton j aime dans le lecteur. Depuis la revision d API du 1er septembre 2026, videos.getRating accepte le scope lecture seule : l etat du j aime s affiche donc sans jamais demander l acces en ecriture. Seul le clic declenche l upgrade de scope",
     "Correctif de fond : getQuotaCost, le cache et l invalidation tronquaient l endpoint a sa base, donc videos/rate aurait ete compte comme videos.POST — c est-a-dire, depuis le lot 1, sur le bucket des mises en ligne. Un seul j aime aurait consomme 1 % du quota quotidien d upload et laisse le pool intact. Le sous-chemin est desormais conserve",
@@ -4356,6 +4379,7 @@ async function _logBuildHeader() {
     `Quota pool:       ${APP.quota.pool} / ${QUOTA_LIMITS.pool} units (${qPct('pool')}%)`,
     `Quota search:     ${APP.quota.search} / ${QUOTA_LIMITS.search} calls (${qPct('search')}%)`,
     `Quota upload:     ${APP.quota.upload} / ${QUOTA_LIMITS.upload} calls (${qPct('upload')}%)`,
+    `Quota stats:      ${APP.quota.stats} / ${QUOTA_LIMITS.stats} units (${qPct('stats')}%)`,
     `Local backup:     ${playlistCount} playlists, ${videoCount} videos`,
     `Service Worker:   ${swActive ? 'active' : 'inactive'}`,
     `Log entries:      ${APP.log.length}  (min level: ${LOG_CONFIG.minLevel}, cap: ${LOG_CONFIG.capacity})`,
@@ -4749,6 +4773,7 @@ const YT_QUOTA_COSTS = {
   'videoCategories.GET': 1,
   'videos.GET': 1,
   'videos.getRating.GET': 1,      // #I3 — readable with youtube.readonly since 1 Sept 2026
+  'videos.batchGetStats.GET': 1,  // June 2026: 1 unit, charged to its own 10 000/day bucket
   // Writes (most 50; videos.insert=100; captions.insert/update=400/450)
   'captions.POST': 400,           // ⚠️ caption upload
   'captions.PUT': 450,            // ⚠️ caption update
@@ -4783,10 +4808,19 @@ const YT_QUOTA_COSTS = {
 const QUOTA_BUCKETS = {
   'search.GET': 'search',
   'videos.POST': 'upload',
+  'videos.batchGetStats.GET': 'stats',   // June 2026: own bucket, 1 unit per call
 };
 
 // Daily allowance per bucket. pool is in units; search and upload are in calls.
-const QUOTA_LIMITS = { pool: 10000, search: 100, upload: 100 };
+const QUOTA_LIMITS = { pool: 10000, search: 100, upload: 100, stats: 10000 };
+
+// A zeroed set of counters, derived from QUOTA_LIMITS so a new bucket does not
+// have to be added in four separate places.
+function emptyQuota() {
+  const q = {};
+  for (const b of Object.keys(QUOTA_LIMITS)) q[b] = 0;
+  return q;
+}
 
 // Normalise an endpoint to its quota/cache key: strip the query string, keep the
 // resource path. 'playlists?part=...' → 'playlists', 'videos/rate' → 'videos.rate'.
@@ -4844,7 +4878,7 @@ function checkQuotaDailyReset() {
   if (savedDate !== today) {
     // Pacific date rolled over → reset all three buckets
     log('info', 'quota', 'Pacific daily reset', { previousDate: savedDate || '(none)', newDate: today, previous: { ...APP.quota } });
-    APP.quota = { pool: 0, search: 0, upload: 0 };
+    APP.quota = emptyQuota();
     APP.apiCalls = 0;
     APP._quotaThresholdsHit = {}; // reset threshold-hit flags for the new day, per bucket
     localStorage.setItem('quotaResetDate', today);
@@ -4888,7 +4922,7 @@ function saveQuotaState() {
 // Read the persisted buckets, migrating the pre-#76 single 'quotaUnits' key.
 // Exported shape is always the full triplet, so callers never see a hole.
 function readQuotaState() {
-  const q = { pool: 0, search: 0, upload: 0 };
+  const q = emptyQuota();
   try {
     const raw = localStorage.getItem('quotaState');
     if (raw) {
@@ -4914,7 +4948,7 @@ function loadQuotaState() {
   } else {
     // Stale state from a previous Pacific day → fresh start
     readQuotaState(); // still drops the legacy key so it cannot resurface tomorrow
-    APP.quota = { pool: 0, search: 0, upload: 0 };
+    APP.quota = emptyQuota();
     APP.apiCalls = 0;
     localStorage.setItem('quotaResetDate', today);
   }
@@ -4989,6 +5023,7 @@ const API_CACHE_CONFIG = {
     'videoCategories.GET':     60 * 60_000,   // 1 hour
     'videos.GET':              5 * 60_000,
     'videos.getRating.GET':    5 * 60_000,   // #I3 — per user + per video, rarely changes mid-session
+    'videos.batchGetStats.GET': 60_000,      // 1 min — view counts move, but not second by second
   },
   defaultTtlMs: 0,           // unknown endpoints → don't cache
   maxEntries: 500,           // LRU cap — drop oldest when exceeded
@@ -5108,6 +5143,10 @@ function init() {
   // Restore the Discover filter choices (#73) — sort and order included, which
   // were being reset on every reload.
   loadDiscoverFilters();
+  // View counts stay off unless the user turned them on; the totals themselves
+  // are not cached, so they are fetched on demand rather than at boot.
+  const viewsBox = document.getElementById('showPlaylistViews');
+  if (viewsBox) viewsBox.checked = localStorage.getItem('showPlaylistViews') === '1';
 
   // Cache-first display: if we have backup data, show the dashboard immediately
   // even before OAuth check — user sees data instantly on PWA/mobile revisit
@@ -5401,9 +5440,15 @@ function quotaWorstPct() {
 }
 
 function quotaTitleText() {
-  return `${t('quota_pool_label')} ${APP.quota.pool} / ${QUOTA_LIMITS.pool} · ` +
-         `${t('quota_search_label')} ${APP.quota.search} / ${QUOTA_LIMITS.search} · ` +
-         `${t('quota_upload_label')} ${APP.quota.upload} / ${QUOTA_LIMITS.upload}`;
+  let s = `${t('quota_pool_label')} ${APP.quota.pool} / ${QUOTA_LIMITS.pool} · ` +
+          `${t('quota_search_label')} ${APP.quota.search} / ${QUOTA_LIMITS.search} · ` +
+          `${t('quota_upload_label')} ${APP.quota.upload} / ${QUOTA_LIMITS.upload}`;
+  // batchGetStats has a 10 000-unit allowance of its own and is only reached by
+  // Discover. Showing an untouched fourth counter to everyone else is noise.
+  if (APP.quota.stats > 0) {
+    s += ` · ${t('quota_stats_label')} ${APP.quota.stats} / ${QUOTA_LIMITS.stats}`;
+  }
+  return s;
 }
 
 function updateQuotaIndicator() {
@@ -8439,6 +8484,57 @@ function switchView(viewName) {
 // PLAYLISTS MANAGEMENT
 // ============================================================================
 
+// #8 — total views per playlist, off by default. It is cheap in quota (1 unit
+// per 50 videos, on the batchGetStats bucket) but not free in calls, so it is
+// never fetched unless asked for, and only for playlists whose videos are
+// already loaded — fetching a whole library to fill a label would not be.
+let playlistViewTotals = {};   // playlistId -> { views, measured } (measured = videos counted)
+
+// The label says what it measured: a playlist half-loaded must not read as if
+// its total were the whole story.
+function playlistViewsLabel(playlistId) {
+  const t0 = playlistViewTotals[playlistId];
+  if (!t0 || !t0.measured) return '';
+  return ' · ' + t('playlist_views_value', { views: formatNumber(t0.views), count: t0.measured });
+}
+
+function togglePlaylistViews() {
+  const on = document.getElementById('showPlaylistViews')?.checked;
+  try { localStorage.setItem('showPlaylistViews', on ? '1' : '0'); } catch (_) {}
+  if (!on) { playlistViewTotals = {}; refreshPlaylistsList(); return; }
+  loadPlaylistViewTotals();
+}
+
+async function loadPlaylistViewTotals() {
+  const ids = [];
+  const owner = {};   // videoId -> playlistId
+  for (const pl of APP.playlists) {
+    for (const v of (APP.allVideos[pl.id] || [])) {
+      const id = gsVideoId(v);
+      if (id && !(id in owner)) { owner[id] = pl.id; ids.push(id); }
+    }
+  }
+  if (!ids.length) { showToast(t('playlist_views_nothing_loaded'), 'info'); return; }
+
+  const totals = {};
+  try {
+    for (let i = 0; i < ids.length; i += 50) {
+      const { byId } = await fetchVideoStats(ids.slice(i, i + 50));
+      for (const [vid, s] of Object.entries(byId)) {
+        const pid = owner[vid];
+        if (!pid) continue;
+        if (!totals[pid]) totals[pid] = { views: 0, measured: 0 };
+        if (s.viewCount !== null) { totals[pid].views += s.viewCount; totals[pid].measured++; }
+      }
+    }
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+    return;
+  }
+  playlistViewTotals = totals;
+  refreshPlaylistsList();
+}
+
 function refreshPlaylistsList() {
   const html = APP.playlists.map(pl => {
     // Prefer the cached video count (accurate, includes filters applied locally),
@@ -8469,7 +8565,7 @@ function refreshPlaylistsList() {
         <img src="${pickThumb(pl.snippet.thumbnails) || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22226%22 height=%22226%22%3E%3Crect fill=%22%23303030%22 width=%22226%22 height=%22226%22/%3E%3C/svg%3E'}" class="playlist-thumbnail" alt="${escapeHtml(pl.snippet.title)}">
         <div class="playlist-info">
           <div class="playlist-title" title="${escapeHtml(pl.snippet.title)}">${escapeHtml(pl.snippet.title)}</div>
-          <div class="playlist-stats">${videoCount} vidéos</div>
+          <div class="playlist-stats">${videoCount} ${t('stats_videos_word')}${playlistViewsLabel(pl.id)}</div>
           <div class="playlist-tags">${tags.map(t => renderTagWithIcon(t)).join('')}</div>
           <div class="playlist-actions gap-8">
             ${actions}
@@ -9622,6 +9718,71 @@ document.addEventListener('click', (e) => {
 
 let discoverResults = []; // cached search results with video details
 
+// ── Statistics (videos.batchGetStats, June 2026) ────────────────────────────
+// 1 unit per call against a 10 000/day bucket of its own, instead of 1 unit of
+// the shared pool per videos.list batch. The public cost table does not list it
+// yet, so the method may simply not be enabled on a given project: the first
+// refusal flips the flag for the session and every later call takes the old
+// path. Never retried within the session — a 404 will not become a 200.
+// Behind accessors rather than a bare binding, so the one place that turns it
+// off is greppable and the flag is readable from outside this script.
+let _batchStatsEnabled = true;
+function batchStatsEnabled() { return _batchStatsEnabled; }
+function setBatchStatsEnabled(on) { _batchStatsEnabled = !!on; return _batchStatsEnabled; }
+
+// A view is counted from the first frame (API revision of 27 August 2026), so
+// viewCount is "people who started it", not "people who watched it".
+function parseStatsItems(items) {
+  const byId = {};
+  for (const it of (Array.isArray(items) ? items : [])) {
+    const id = it && (it.videoId || it.id);
+    if (!id) continue;
+    const s = it.statistics || it;
+    // A hidden like count or disabled comments must read as unknown, not zero —
+    // zero sinks the video to the bottom of every sort.
+    const num = raw => (raw === undefined || raw === null || raw === '') ? null : parseInt(raw, 10);
+    byId[id] = {
+      viewCount: num(s.viewCount),
+      likeCount: num(s.likeCount),
+      commentCount: num(s.commentCount),
+    };
+  }
+  return byId;
+}
+
+function isBatchStatsUnavailable(err) {
+  const msg = String(err && err.message || '').toLowerCase();
+  return /\b(404|400)\b/.test(msg)
+      || msg.includes('not found')
+      || msg.includes('accessnotconfigured')
+      || msg.includes('not registered');
+}
+
+/**
+ * Statistics for up to 50 ids. Tries batchGetStats, falls back to
+ * videos.list?part=statistics and stays on that path for the session.
+ * Returns { byId, source } so the caller can log which path was taken.
+ */
+async function fetchVideoStats(ids) {
+  const batch = (ids || []).filter(Boolean).slice(0, 50);
+  if (!batch.length) return { byId: {}, source: 'none' };
+
+  if (batchStatsEnabled()) {
+    try {
+      const data = await ytApi('videos/batchGetStats', { id: batch.join(',') });
+      return { byId: parseStatsItems(data.items), source: 'batchGetStats' };
+    } catch (err) {
+      if (!isBatchStatsUnavailable(err)) throw err;   // a real failure is not a reason to change paths
+      setBatchStatsEnabled(false);
+      log('warn', 'api', 'batchGetStats unavailable — falling back to videos.list for this session',
+          { msg: err.message });
+    }
+  }
+
+  const data = await ytApi('videos', { part: 'statistics', id: batch.join(','), fields: 'items(id,statistics)' });
+  return { byId: parseStatsItems(data.items), source: 'videos.list' };
+}
+
 // #73 — search.list takes regionCode and relevanceLanguage, and without them
 // YouTube answers from the caller's IP locale: a French UI got US results.
 // Extensible per the i18n brief (P1/P2 languages are listed even though the UI
@@ -9830,11 +9991,18 @@ async function performDiscoverSearch() {
     for (let i = 0; i < allVideoIds.length; i += 50) {
       const batch = allVideoIds.slice(i, i + 50);
       btn.innerHTML = `<span class="mono" style="font-size:11px;">${allVideoIds.length > 50 ? t('discover_loading_details', {current: Math.min(i+50, allVideoIds.length), total: allVideoIds.length}) : t('btn_loading')}</span>`;
+      // statistics is fetched separately (own bucket); player carries the
+      // Shorts aspect ratio (#68) at no extra cost on the same call.
       const detailsData = await ytApi('videos', {
-        part: 'snippet,contentDetails,statistics',
-        id: batch.join(',')
+        part: 'snippet,contentDetails,player',
+        id: batch.join(','),
+        maxHeight: 8192,
       });
-      allDetails = allDetails.concat(detailsData.items || []);
+      const items = detailsData.items || [];
+      const { byId, source } = await fetchVideoStats(batch);
+      for (const it of items) it.statistics = byId[it.id] || {};
+      if (items.length) log('debug', 'api', 'discover stats', { source, count: items.length });
+      allDetails = allDetails.concat(items);
     }
 
     discoverResults = allDetails.map(v => {

@@ -1431,7 +1431,126 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'batchGetStats', title: 'Statistics on their own bucket, with a fallback', note: 'the public cost table does not list the method yet, so it may simply not be enabled',
+  cases: [
+    ['batchGetStats has its own bucket and costs one unit', w =>
+      eq(w.getQuotaCost('videos/batchGetStats', 'GET'), { bucket: 'stats', cost: 1 })],
+
+    ['the fallback still costs the pool', w =>
+      eq(w.getQuotaCost('videos', 'GET'), { bucket: 'pool', cost: 1 })],
+
+    ['the stats bucket resets with the others', w => {
+      const snap = seedQuota(w, { pool: 10, search: 1, upload: 0 });
+      try {
+        w.chargeQuota('videos/batchGetStats', 'GET');
+        ok(w.quotaTitleText().includes('1 / 10000'), 'stats not counted: ' + w.quotaTitleText());
+        w.localStorage.setItem('quotaResetDate', '1999-01-01');
+        w.checkQuotaDailyReset();
+        return ok(!/\/ 10000 · .* \/ 10000/.test(w.quotaTitleText()), 'stats survived the reset: ' + w.quotaTitleText());
+      } finally { unseedQuota(w, snap); }
+    }],
+
+    ['an untouched stats bucket stays out of the tooltip', w => {
+      const snap = seedQuota(w, { pool: 1234, search: 12, upload: 0 });
+      try {
+        const txt = w.quotaTitleText();
+        return eq(txt.split('·').length, 3, 'a fourth counter nobody used: ' + txt);
+      } finally { unseedQuota(w, snap); }
+    }],
+
+    ['stats items are keyed by id, hidden counts stay unknown', w => {
+      const byId = w.parseStatsItems([
+        { videoId: 'A', statistics: { viewCount: '1500', likeCount: '20', commentCount: '3' } },
+        { id: 'B', statistics: { viewCount: '7' } },                       // videos.list shape
+        { videoId: 'C', viewCount: '42' },                                  // flat shape
+        { statistics: { viewCount: '9' } },                                 // no id at all
+      ]);
+      eq(byId.A, { viewCount: 1500, likeCount: 20, commentCount: 3 }, 'A');
+      eq(byId.B.likeCount, null, 'a hidden like count must not read as zero');
+      eq(byId.C.viewCount, 42, 'flat shape');
+      return eq(Object.keys(byId).sort(), ['A', 'B', 'C'], 'an item with no id is dropped');
+    }],
+
+    ['garbage in gives an empty map, not a throw', w => {
+      eq(w.parseStatsItems(undefined), {}, 'undefined');
+      return eq(w.parseStatsItems('nope'), {}, 'a string');
+    }],
+
+    ['the happy path uses batchGetStats', async w => {
+      const real = w.ytApi;
+      const wasEnabled = w.batchStatsEnabled();
+      const calls = [];
+      try {
+        w.setBatchStatsEnabled(true);
+        w.ytApi = async (endpoint, params) => {
+          calls.push(endpoint);
+          return { items: [{ videoId: 'A', statistics: { viewCount: '10' } }] };
+        };
+        const { byId, source } = await w.fetchVideoStats(['A']);
+        eq(calls, ['videos/batchGetStats'], 'endpoint');
+        eq(source, 'batchGetStats', 'source');
+        return eq(byId.A.viewCount, 10);
+      } finally { w.ytApi = real; w.setBatchStatsEnabled(wasEnabled); }
+    }],
+
+    ['a 404 flips the flag once and every later call takes the old path', async w => {
+      const real = w.ytApi;
+      const wasEnabled = w.batchStatsEnabled();
+      const calls = [];
+      try {
+        w.setBatchStatsEnabled(true);
+        w.ytApi = async (endpoint, params) => {
+          calls.push(endpoint);
+          if (endpoint === 'videos/batchGetStats') throw new Error('Erreur API (404)');
+          return { items: [{ id: 'A', statistics: { viewCount: '5' } }] };
+        };
+        const first = await w.fetchVideoStats(['A']);
+        eq(first.source, 'videos.list', 'first call should have fallen back');
+        eq(w.batchStatsEnabled(), false, 'the flag should be down for the session');
+        const second = await w.fetchVideoStats(['A']);
+        eq(second.source, 'videos.list', 'second call');
+        // batchGetStats tried exactly once across both calls.
+        return eq(calls.filter(c => c === 'videos/batchGetStats').length, 1, 'retried a method that cannot work');
+      } finally { w.ytApi = real; w.setBatchStatsEnabled(wasEnabled); }
+    }],
+
+    ['a real failure is not mistaken for an unavailable method', async w => {
+      const real = w.ytApi;
+      const wasEnabled = w.batchStatsEnabled();
+      try {
+        w.setBatchStatsEnabled(true);
+        w.ytApi = async () => { throw new Error('Server error (503) — please try again later'); };
+        let threw = false;
+        try { await w.fetchVideoStats(['A']); } catch (_) { threw = true; }
+        ok(threw, 'a 503 was swallowed');
+        return eq(w.batchStatsEnabled(), true, 'a transient error must not disable the method for the session');
+      } finally { w.ytApi = real; w.setBatchStatsEnabled(wasEnabled); }
+    }],
+
+    ['accessNotConfigured also triggers the fallback', w =>
+      eq([
+        w.isBatchStatsUnavailable(new Error('Erreur API (404)')),
+        w.isBatchStatsUnavailable(new Error('accessNotConfigured')),
+        w.isBatchStatsUnavailable(new Error('Erreur API (400)')),
+        w.isBatchStatsUnavailable(new Error('Server error (503)')),
+        w.isBatchStatsUnavailable(new Error('rate limited')),
+      ], [true, true, true, false, false])],
+
+    ['an empty id list asks nothing', async w => {
+      const real = w.ytApi;
+      let called = false;
+      try {
+        w.ytApi = async () => { called = true; return { items: [] }; };
+        const r = await w.fetchVideoStats([]);
+        ok(called === false, 'a request went out for no ids');
+        return eq(r.source, 'none');
+      } finally { w.ytApi = real; }
+    }],
+  ],
+},
 ];
+
 
 
 
