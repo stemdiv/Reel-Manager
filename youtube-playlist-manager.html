@@ -640,6 +640,27 @@
   body.offline-cache .offline-pill { display: inline-flex; }
   /* #68 — Shorts badge. Inferred from the embed aspect ratio, so it is stated
      as a label, not as something the API told us outright. */
+  /* #I2 — subscribe pill, wherever a channel is named */
+  .subscribe-pill {
+    font: inherit;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--bg);
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 1px 9px;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .subscribe-pill.is-subscribed {
+    color: var(--text2);
+    background: transparent;
+    border-color: var(--border);
+  }
+  .subscribe-pill:disabled { opacity: .45; cursor: not-allowed; }
   /* #I3 — liked state in the player controls */
   #playerLikeBtn.is-liked { color: var(--danger, #ff2d55); }
   #playerLikeBtn:disabled { opacity: .45; cursor: not-allowed; }
@@ -2528,6 +2549,7 @@
       <button onclick="toggleQueuePanel()" title="Queue" id="playerQueueBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
       </button>
+      <span id="playerSubscribe"></span>
       <span class="player-pos" id="playerPosition">—</span>
     </div>
     <div class="player-queue" id="playerQueuePanel" style="display:none;">
@@ -3040,6 +3062,10 @@ const I18N = {
     playlist_views_tooltip: "Total des vues sur les vidéos déjà chargées de chaque playlist. Une vue est comptée dès la première image, ce n'est pas un temps de visionnage.",
     playlist_views_value: '{views} vues ({count} vidéos mesurées)',
     playlist_views_nothing_loaded: "Aucune vidéo chargée : ouvrez une playlist pour pouvoir compter ses vues.",
+    // S'abonner depuis Découvrir et le lecteur (#I2)
+    subscribe_label: "S'abonner",
+    subscribe_done_label: 'Abonné',
+    subscribe_done: 'Abonné à {title}',
     quota_pool_label: 'Pool',
     quota_search_label: 'Recherches',
     quota_upload_label: 'Mises en ligne',
@@ -3743,6 +3769,10 @@ const I18N = {
     playlist_views_tooltip: 'Total views across the already-loaded videos of each playlist. A view is counted from the first frame — it is not watch time.',
     playlist_views_value: '{views} views ({count} videos measured)',
     playlist_views_nothing_loaded: 'No videos loaded: open a playlist before counting its views.',
+    // Subscribe from Discover and the player (#I2)
+    subscribe_label: 'Subscribe',
+    subscribe_done_label: 'Subscribed',
+    subscribe_done: 'Subscribed to {title}',
     quota_pool_label: 'Pool',
     quota_search_label: 'Searches',
     quota_upload_label: 'Uploads',
@@ -4057,11 +4087,16 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.19.0'; // bump per release
+const APP_VERSION = '1.20.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.20.0', date: '2026-09-16', items: [
+    "#I2 — une pastille S abonner / Abonne sur chaque carte Decouvrir et dans le lecteur. L etat vient de la liste des abonnements quand elle est chargee ; sinon une seule requete par chaine (forChannelId, 1 unite) au lieu de parcourir toute la liste pour une reponse",
+    "La distinction jamais verifie / verifie et non abonne est explicite : la premiere declenche une requete, la seconde n en declenche plus jamais. Une reponse negative est memorisee comme une positive",
+    "L abonnement rejoint immediatement la liste en memoire et le cache, pour que la pastille ne revienne pas en arriere au prochain rendu ; le desabonnement passe par la meme pastille",
+  ]},
   { v: '1.19.0', date: '2026-09-16', items: [
     "videos.batchGetStats (methode ajoutee le 3 juin 2026) fournit les statistiques de Decouvrir : 1 unite par appel sur un quatrieme bucket de 10 000 par jour, au lieu d une unite du pool commun par lot de 50. La table de couts publique ne la documente pas encore, donc un premier refus 404/400 fait basculer la session sur videos.list part=statistics et n y revient plus — une methode absente ne le devient pas moins au deuxieme essai",
     "Le bucket statistiques n apparait dans l infobulle du quota qu une fois utilise : afficher un quatrieme compteur intact a tout le monde n apprend rien",
@@ -5491,6 +5526,7 @@ function estimateQuotaCost(action, count) {
     'bulk_rename': count * UPDATE_PLAYLIST,
     'clean_ghosts': count * DELETE,
     'rename_playlists': count * UPDATE_PLAYLIST,
+    'subscribe': count * YT_QUOTA_COSTS['subscriptions.POST'],   // #I2 — 50 per channel
     'discover_create': count * INSERT + INSERT_PLAYLIST,  // N inserts into new playlist + 1 playlist creation
     'discover_search_pages': count * SEARCH_PAGE,         // #76: cost = pages × 1 CALL, charged to the search bucket
     'caption_upload': count * CAPTION_INSERT,             // ⚠️ very expensive: 400/track
@@ -7519,9 +7555,13 @@ function stopProgressTracking() {
 }
 
 // ── Play a single video ──
-function playVideo(videoId, title, channelTitle, thumbnail, playlistId) {
+function playVideo(videoId, title, channelTitle, thumbnail, playlistId, channelId) {
   loadYouTubeAPI();
-  const item = { videoId, title: title || '', channelTitle: channelTitle || '', thumbnail: thumbnail || '', playlistId: playlistId || null };
+  const item = { videoId, title: title || '', channelTitle: channelTitle || '', thumbnail: thumbnail || '',
+                 playlistId: playlistId || null,
+                 // #I2 — only some callers know it; the subscribe pill is hidden rather
+                 // than guessed when they do not.
+                 channelId: channelId || discoverResults.find(d => d.videoId === videoId)?.channelId || '' };
 
   // Check if already in queue
   const existIdx = PLAYER.queue.findIndex(q => q.videoId === videoId);
@@ -7661,10 +7701,25 @@ async function togglePlayerLike() {
   }
 }
 
+// #I2 — the player names a channel, so it can offer to follow it. The channel
+// id is only known for queue items that came from a source carrying one
+// (Discover); for the rest the pill is simply absent rather than broken.
+function renderPlayerSubscribe(item) {
+  const host = document.getElementById('playerSubscribe');
+  if (!host) return;
+  const channelId = item && item.channelId;
+  if (!channelId) { host.innerHTML = ''; return; }
+  host.innerHTML = subscribeButtonHTML(channelId, item.channelTitle);
+  if (subscriptionFor(channelId) === undefined) {
+    probeSubscription(channelId).then(() => refreshSubscribeButtons());
+  }
+}
+
 // ── UI updates ──
 function updatePlayerUI(item) {
   document.getElementById('playerTitle').textContent = item.title;
   document.getElementById('playerChannel').textContent = item.channelTitle;
+  renderPlayerSubscribe(item);
   document.getElementById('playerPosition').textContent =
     `${PLAYER.currentIndex + 1} / ${PLAYER.queue.length}`;
 }
@@ -10031,6 +10086,7 @@ async function performDiscoverSearch() {
         videoId: v.id,
         title: v.snippet?.title || t('untitled'),
         channel: v.snippet?.channelTitle || '',
+        channelId: v.snippet?.channelId || '',
         description: v.snippet?.description || '',
         thumbnail: pickThumb(v.snippet?.thumbnails),
         isShort: detectShort(v.player?.embedWidth, v.player?.embedHeight, totalSec),
@@ -10100,7 +10156,9 @@ function renderDiscoverResults(query) {
         <div style="font-weight:600;font-size:13px;color:var(--text);cursor:pointer;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;"
           onclick="event.stopPropagation();playVideo('${v.videoId}','${(v.title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.channel||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.thumbnail||'').replace(/'/g,"\\'")}')">
           ${escapeHtml(v.title)}</div>
-        <div style="font-size:11px;color:var(--text2);margin-top:4px;">${escapeHtml(v.channel)}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          ${v.isShort ? shortBadgeHTML() : ''}<span>${escapeHtml(v.channel)}</span>${subscribeButtonHTML(v.channelId, v.channel)}
+        </div>
         <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;">
           <span title="Views">${v.views} ${t('views_label')}</span>
           <span title="Likes">${v.likes} ${t('likes_label')}</span>
@@ -10118,6 +10176,19 @@ function renderDiscoverResults(query) {
   }).join('');
 
   updateDiscoverQuota();
+  resolveDiscoverSubscriptions();
+}
+
+// One probe per distinct channel we have never checked, and only when the full
+// subscription list is not already in memory. Costs 1 unit each; a page of 50
+// results is rarely more than a handful of channels.
+async function resolveDiscoverSubscriptions() {
+  if (!APP.accessToken) return;
+  const unknown = [...new Set(discoverResults.map(v => v.channelId).filter(Boolean))]
+    .filter(id => subscriptionFor(id) === undefined);
+  if (!unknown.length) return;
+  for (const id of unknown) await probeSubscription(id);
+  refreshSubscribeButtons();
 }
 
 // Descending, with unknown values (hidden likes, disabled comments) pinned last
@@ -12286,6 +12357,108 @@ function confirmUnsubscribe(subscriptionId, title) {
   if (confirm(t('confirm_unsubscribe', { title }))) {
     unsubscribeChannel(subscriptionId);
   }
+}
+
+// ── Subscribing from anywhere a channel is named (#I2) ──────────────────────
+// APP.subscriptions is already the full list when the Subscriptions view has
+// been visited. When it has not, one subscriptions.list?forChannelId is a
+// single unit and answers for exactly one channel, rather than paging the
+// whole list to find out about one.
+const _subscriptionProbe = {};   // channelId -> subscription id, or '' for "checked, not subscribed"
+
+function subscriptionFor(channelId) {
+  if (!channelId) return null;
+  const hit = (APP.subscriptions || []).find(s => s.snippet?.resourceId?.channelId === channelId);
+  if (hit) return hit.id;
+  return (channelId in _subscriptionProbe) ? (_subscriptionProbe[channelId] || null) : undefined;
+}
+
+function isSubscribedTo(channelId) {
+  return !!subscriptionFor(channelId);
+}
+
+// undefined = never checked. Resolve it with one unit, and remember the answer.
+async function probeSubscription(channelId) {
+  if (!channelId || !APP.accessToken) return null;
+  const known = subscriptionFor(channelId);
+  if (known !== undefined) return known;
+  try {
+    const data = await ytApi('subscriptions', {
+      part: 'snippet', mine: true, forChannelId: channelId, maxResults: 1,
+      fields: 'items(id,snippet(resourceId(channelId)))',
+    });
+    const id = data.items?.[0]?.id || '';
+    _subscriptionProbe[channelId] = id;
+    return id || null;
+  } catch (err) {
+    log('warn', 'api', 'subscription probe failed', { channelId, msg: err.message });
+    return null;
+  }
+}
+
+async function subscribeToChannel(channelId, channelTitle) {
+  const data = await ytApi('subscriptions', { part: 'snippet' }, 'POST', {
+    snippet: { resourceId: { kind: 'youtube#channel', channelId } }
+  });
+  // Keep the in-memory list and the cache in step, so the button does not flip
+  // back the next time the view re-renders.
+  if (data && data.id) {
+    APP.subscriptions.push(data);
+    _subscriptionProbe[channelId] = data.id;
+    try { autoSaveToLocalStorage(); } catch (_) {}
+  }
+  return data;
+}
+
+// One pill, both directions.
+async function toggleSubscription(channelId, channelTitle) {
+  if (!channelId) return;
+  if (APP.readOnlyMode) { showToast(t('error_read_only'), 'warning'); return; }
+  if (!(await ensureWriteScope())) return;
+
+  const existing = await probeSubscription(channelId);
+  try {
+    if (existing) {
+      await ytApi('subscriptions', { id: existing }, 'DELETE');
+      APP.subscriptions = (APP.subscriptions || []).filter(s => s.id !== existing);
+      _subscriptionProbe[channelId] = '';
+      showToast(t('toast_unsubscribed'), 'success');
+    } else {
+      await subscribeToChannel(channelId, channelTitle);
+      showToast(t('subscribe_done', { title: channelTitle || channelId }), 'success');
+    }
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+    return;
+  }
+  refreshSubscribeButtons();
+  if (typeof renderSubscriptions === 'function' && APP.subscriptions.length) {
+    try { renderSubscriptions(); } catch (_) {}
+  }
+}
+
+// Every subscribe pill in the DOM carries its channel id, so one pass keeps
+// Discover cards and the player in agreement without re-rendering either.
+function refreshSubscribeButtons() {
+  document.querySelectorAll('[data-subscribe-channel]').forEach(btn => {
+    const channelId = btn.getAttribute('data-subscribe-channel');
+    const subscribed = isSubscribedTo(channelId);
+    btn.textContent = t(subscribed ? 'subscribe_done_label' : 'subscribe_label');
+    btn.classList.toggle('is-subscribed', subscribed);
+    btn.disabled = !!APP.readOnlyMode || !APP.accessToken;
+  });
+}
+
+function subscribeButtonHTML(channelId, channelTitle) {
+  if (!channelId) return '';
+  const subscribed = isSubscribedTo(channelId);
+  const safeTitle = escapeHtml(channelTitle || '');
+  return '<button class="subscribe-pill' + (subscribed ? ' is-subscribed' : '') + '"' +
+         ' data-subscribe-channel="' + escapeHtml(channelId) + '"' +
+         ' onclick="event.stopPropagation();toggleSubscription(this.getAttribute(\'data-subscribe-channel\'), this.getAttribute(\'data-subscribe-title\'))"' +
+         ' data-subscribe-title="' + safeTitle + '"' +
+         (APP.readOnlyMode || !APP.accessToken ? ' disabled' : '') + '>' +
+         escapeHtml(t(subscribed ? 'subscribe_done_label' : 'subscribe_label')) + '</button>';
 }
 
 async function unsubscribeChannel(subscriptionId) {

@@ -1549,7 +1549,129 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '#I2', title: 'Subscribe where a channel is named', note: 'state comes from APP.subscriptions when it is loaded, from one probe when it is not',
+  cases: [
+    ['subscribing costs 50 from the pool', w => {
+      eq(w.getQuotaCost('subscriptions', 'POST'), { bucket: 'pool', cost: 50 }, 'insert');
+      eq(w.getQuotaCost('subscriptions', 'DELETE'), { bucket: 'pool', cost: 50 }, 'delete');
+      eq(w.getQuotaCost('subscriptions', 'GET'), { bucket: 'pool', cost: 1 }, 'the probe is one unit');
+      return eq(w.estimateQuotaCost('subscribe', 3), 150, 'three channels');
+    }],
+
+    ['a channel never checked is "unknown", not "not subscribed"', w => {
+      // The difference matters: unknown means ask, false means show Subscribe.
+      return eq(w.subscriptionFor('UC_never_seen_at_all'), undefined);
+    }],
+
+    ['the probe asks about one channel, not the whole list', async w => {
+      const real = w.ytApi;
+      const calls = [];
+      try {
+        w.ytApi = async (endpoint, params) => {
+          calls.push({ endpoint, params });
+          return { items: [{ id: 'SUB123', snippet: { resourceId: { channelId: 'UC_probe_a' } } }] };
+        };
+        const id = await w.probeSubscription('UC_probe_a');
+        eq(calls.length, 1, 'one call');
+        eq(calls[0].params.forChannelId, 'UC_probe_a', 'forChannelId');
+        eq(calls[0].params.mine, true, 'mine');
+        eq(id, 'SUB123', 'subscription id');
+        return eq(w.isSubscribedTo('UC_probe_a'), true, 'state not remembered');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['a negative answer is remembered too, so it is asked once', async w => {
+      const real = w.ytApi;
+      let calls = 0;
+      try {
+        w.ytApi = async () => { calls++; return { items: [] }; };
+        await w.probeSubscription('UC_probe_b');
+        eq(w.subscriptionFor('UC_probe_b'), null, 'checked and not subscribed');
+        eq(w.isSubscribedTo('UC_probe_b'), false, 'state');
+        await w.probeSubscription('UC_probe_b');
+        return eq(calls, 1, 'asked twice about the same channel');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['with no token nothing is probed', async w => {
+      const real = w.ytApi;
+      let called = false;
+      try {
+        w.setAccessToken('');
+        w.ytApi = async () => { called = true; return { items: [] }; };
+        const r = await w.probeSubscription('UC_probe_c');
+        ok(called === false, 'a probe went out without a token');
+        return eq(r, null);
+      } finally { w.ytApi = real; w.setAccessToken('test-token'); }
+    }],
+
+    ['subscribing puts the channel in the in-memory list', async w => {
+      const real = { ytApi: w.ytApi, autoSaveToLocalStorage: w.autoSaveToLocalStorage };
+      const snap = snapshot(w, ['autoCache', 'autoCacheTimestamp']);
+      try {
+        w.autoSaveToLocalStorage = () => {};
+        w.ytApi = async () => ({ id: 'SUB_NEW', snippet: { resourceId: { channelId: 'UC_sub_new' } } });
+        eq(w.isSubscribedTo('UC_sub_new'), false, 'precondition');
+        await w.subscribeToChannel('UC_sub_new', 'A Channel');
+        return eq(w.isSubscribedTo('UC_sub_new'), true, 'the pill would have flipped back');
+      } finally { Object.assign(w, real); restore(w, snap); }
+    }],
+
+    ['read-only mode refuses before any request', async w => {
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      const toasts = [];
+      let called = false;
+      const wasReadOnly = w.document.body.classList.contains('read-only');
+      try {
+        w.showToast = (m, tp) => toasts.push({ m, tp });
+        w.ytApi = async () => { called = true; return {}; };
+        w.setReadOnlyMode(true);
+        await w.toggleSubscription('UC_readonly', 'X');
+        ok(called === false, 'a request went out in read-only mode');
+        ok(toasts.some(x => x.m === w.t('error_read_only')), 'no explanation: ' + JSON.stringify(toasts));
+        return 'refused, 0 calls';
+      } finally { w.setReadOnlyMode(!!wasReadOnly); Object.assign(w, real); }
+    }],
+
+    ['the pill renders its state and carries its channel id', w => {
+      const html = w.subscribeButtonHTML('UC_render_a', "L'Atelier & Son");
+      ok(html.includes('data-subscribe-channel="UC_render_a"'), 'channel id missing: ' + html);
+      ok(html.includes('&amp;') || html.includes('&#38;'), 'the title was not escaped: ' + html);
+      ok(!/ disabled/.test(html), 'disabled with a token present');
+      // Read it the way the browser will: the French label carries an
+      // apostrophe, which is escaped in the markup and must decode back.
+      const host = w.document.createElement('div');
+      host.innerHTML = html;
+      const btn = host.firstElementChild;
+      eq(btn.textContent, w.t('subscribe_label'), 'label');
+      return eq(btn.getAttribute('data-subscribe-title'), "L'Atelier & Son", 'title round-trip');
+    }],
+
+    ['no channel id, no pill', w =>
+      eq(w.subscribeButtonHTML('', 'X'), '', 'a pill with nothing to subscribe to would be a dead button')],
+
+    ['refreshSubscribeButtons updates every pill in place', async w => {
+      const host = w.document.createElement('div');
+      host.innerHTML = w.subscribeButtonHTML('UC_refresh_a', 'A');
+      w.document.body.appendChild(host);
+      const real = w.ytApi;
+      try {
+        const btn = host.querySelector('[data-subscribe-channel]');
+        eq(btn.textContent, w.t('subscribe_label'), 'before');
+        // Resolve the state the way the app does, then re-render in place.
+        w.ytApi = async () => ({ items: [{ id: 'SUB_R', snippet: { resourceId: { channelId: 'UC_refresh_a' } } }] });
+        await w.probeSubscription('UC_refresh_a');
+        w.refreshSubscribeButtons();
+        eq(btn.textContent, w.t('subscribe_done_label'), 'after');
+        return eq(btn.classList.contains('is-subscribed'), true, 'class');
+      } finally { host.remove(); w.ytApi = real; }
+    }],
+
+  ],
+},
 ];
+
 
 
 
