@@ -1022,7 +1022,66 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'thumbnails', title: 'fhd/qhd/uhd through one fallback chain', note: 'twenty-odd hand-written medium||high||default chains, several in a different order',
+  cases: [
+    ['a card prefers medium', w =>
+      eq(w.pickThumb({ default: { url: 'd' }, medium: { url: 'm' }, high: { url: 'h' } }), 'm')],
+
+    ['a hero takes the largest available', w =>
+      eq(w.pickThumb({ default: { url: 'd' }, medium: { url: 'm' }, fhd: { url: 'f' }, uhd: { url: 'u' } }, 'hero'), 'u')],
+
+    ['a hero falls back to qhd, then fhd', w => {
+      eq(w.pickThumb({ qhd: { url: 'q' }, fhd: { url: 'f' }, medium: { url: 'm' } }, 'hero'), 'q', 'qhd');
+      return eq(w.pickThumb({ fhd: { url: 'f' }, medium: { url: 'm' } }, 'hero'), 'f', 'fhd');
+    }],
+
+    ['qhd alone is enough for either mode', w => {
+      eq(w.pickThumb({ qhd: { url: 'q' } }, 'hero'), 'q', 'hero');
+      return eq(w.pickThumb({ qhd: { url: 'q' } }), 'q', 'card');
+    }],
+
+    ['a hero with no big key falls back to high, not to nothing', w =>
+      eq(w.pickThumb({ high: { url: 'h' }, default: { url: 'd' } }, 'hero'), 'h')],
+
+    ['an object carrying only the new keys is not read as missing', w => {
+      // This is the regression: every old chain checked medium/high/default only.
+      const onlyNew = { fhd: { url: 'f' } };
+      ok(w.pickThumb(onlyNew) !== '', 'card read it as absent');
+      return eq(w.pickThumb(onlyNew), 'f');
+    }],
+
+    ['empty, missing and malformed all give an empty string', w => {
+      eq(w.pickThumb({}), '', 'empty object');
+      eq(w.pickThumb(undefined), '', 'undefined');
+      eq(w.pickThumb(null, 'hero'), '', 'null');
+      return eq(w.pickThumb({ medium: {} }), '', 'entry with no url');
+    }],
+
+    ['a higher-resolution URL is cached only when it is a different image', w => {
+      eq(w.hdIfDifferent({ medium: { url: 'm' }, fhd: { url: 'f' } }), 'f', 'fhd should be kept');
+      eq(w.hdIfDifferent({ medium: { url: 'm' } }), undefined, 'nothing bigger to keep');
+      eq(w.hdIfDifferent({ fhd: { url: 'x' } }), undefined, 'same image in both modes');
+      return eq(w.hdIfDifferent(undefined, { medium: { url: 'm' }, qhd: { url: 'q' } }), 'q', 'falls through to the detail');
+    }],
+
+    ['the playlistItems selector asks YouTube for the new keys', async w => {
+      const real = w.ytApi;
+      const seen = [];
+      try {
+        w.ytApi = async (endpoint, params) => { seen.push(params); return { items: [] }; };
+        await w.loadPlaylistVideos('PL_THUMBS', { force: true });
+        const f = seen[0].fields || '';
+        ok(/fhd\(url\)/.test(f), 'fhd missing from fields=: ' + f);
+        ok(/qhd\(url\)/.test(f), 'qhd missing from fields=: ' + f);
+        ok(!/uhd\(url\)/.test(f), 'uhd requested — dead weight for cards');
+        return 'fhd+qhd requested';
+      } finally { w.ytApi = real; delete w.APP_allVideos_PL_THUMBS; }
+    }],
+  ],
+},
 ];
+
 
 
 

@@ -3914,11 +3914,17 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.14.1'; // bump per release
+const APP_VERSION = '1.15.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.15.0', date: '2026-09-16', items: [
+    "Miniatures fhd/qhd/uhd (revision d API du 11 septembre 2026). Vingt-quatre sites du code avaient chacun leur propre chaine medium || high || default ecrite a la main, parfois dans un ordre different : une ressource ne portant que les nouvelles cles passait pour n avoir aucune miniature. Une seule fonction pickThumb desormais, deux modes — carte et grand format",
+    "Les selecteurs fields demandent fhd et qhd (pas uhd : poids inutile pour des cartes). Cout de quota inchange",
+    "Le cache automatique transporte une seule URL haute definition en plus, et seulement quand c est une image differente — le blob est deja proche de la limite pratique de 5 Mo",
+    "Reel Studio partage la meme chaine et s en sert pour la tuile bento principale et les vignettes de playlists",
+  ]},
   { v: '1.14.1', date: '2026-09-16', items: [
     "videoCategories.list suivait FR/fr en dur : une interface anglaise recevait les noms de categories en francais, alors que tous les autres libelles de categorie suivaient deja la langue de l interface. regionCode et hl viennent maintenant de la table LANG_REGION",
     "Au changement de langue, les listes deroulantes de categories sont re-libellees sur place — elles gardaient les anciens libelles jusqu a ce qu autre chose reconstruise la vue",
@@ -4972,7 +4978,11 @@ function loadBackupFromStorage() {
         id: pl.id,
         snippet: {
           title: pl.title || '',
-          thumbnails: pl.videos?.[0]?.thumbnail ? { medium: { url: pl.videos[0].thumbnail }, default: { url: pl.videos[0].thumbnail } } : undefined
+          thumbnails: pl.videos?.[0]?.thumbnail
+            ? (pl.videos[0].thumbHd
+                ? { medium: { url: pl.videos[0].thumbnail }, default: { url: pl.videos[0].thumbnail }, fhd: { url: pl.videos[0].thumbHd } }
+                : { medium: { url: pl.videos[0].thumbnail }, default: { url: pl.videos[0].thumbnail } })
+            : undefined
         },
         contentDetails: { itemCount: pl.videos?.length || 0 },
         status: { privacyStatus: 'private' }
@@ -4994,7 +5004,10 @@ function loadBackupFromStorage() {
             title: v.title,
             position: v.position,
             publishedAt: v.addedAt || '',
-            thumbnails: v.thumbnail ? { medium: { url: v.thumbnail }, default: { url: v.thumbnail } } : undefined,
+            thumbnails: v.thumbnail
+              ? (v.thumbHd ? { medium: { url: v.thumbnail }, default: { url: v.thumbnail }, fhd: { url: v.thumbHd } }
+                           : { medium: { url: v.thumbnail }, default: { url: v.thumbnail } })
+              : undefined,
             videoOwnerChannelTitle: v.channel || '',
             channelTitle: v.channel || '',
             resourceId: { videoId: v.videoId }
@@ -5015,7 +5028,10 @@ function loadBackupFromStorage() {
                 snippet: {
                   title: v.title || '',
                   channelTitle: v.channel || '',
-                  thumbnails: v.thumbnail ? { medium: { url: v.thumbnail } } : {}
+                  thumbnails: v.thumbnail
+                    ? (v.thumbHd ? { medium: { url: v.thumbnail }, fhd: { url: v.thumbHd } }
+                                 : { medium: { url: v.thumbnail } })
+                    : {}
                 },
                 statistics: {}
               };
@@ -5383,10 +5399,10 @@ function runCacheDiagnostic() {
 
   // Thumbnail stats
   let plThumbCount = 0;
-  APP.playlists.forEach(pl => { if (pl.snippet?.thumbnails?.medium?.url || pl.snippet?.thumbnails?.default?.url) plThumbCount++; });
+  APP.playlists.forEach(pl => { if (pickThumb(pl.snippet?.thumbnails)) plThumbCount++; });
   let vidThumbCount = 0;
   for (const vids of Object.values(APP.allVideos)) {
-    for (const v of vids) { if (v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url) vidThumbCount++; }
+    for (const v of vids) { if (pickThumb(v.snippet?.thumbnails)) vidThumbCount++; }
   }
 
   // Cache thumbnail stats (from stored JSON)
@@ -6437,7 +6453,7 @@ async function showApp() {
       let hasAnyThumb = false;
       for (const plId in APP.allVideos) {
         for (const v of APP.allVideos[plId]) {
-          if (v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url) {
+          if (pickThumb(v.snippet?.thumbnails)) {
             hasAnyThumb = true;
             break;
           }
@@ -6529,6 +6545,17 @@ function shouldSkipAutoSave(memoryVideos, cachedVideos, force) {
   return memoryVideos === 0 && cachedVideos > 0;
 }
 
+// The hero URL is worth a cache slot only when it is not the card URL again.
+function hdIfDifferent(...thumbSets) {
+  for (const thumbs of thumbSets) {
+    if (!thumbs) continue;
+    const hero = pickThumb(thumbs, 'hero');
+    const card = pickThumb(thumbs, 'card');
+    if (hero && hero !== card) return hero;
+  }
+  return undefined;   // JSON.stringify drops it — no empty strings in the blob
+}
+
 function autoSaveToLocalStorage(opts) {
   try {
     // #76 — the cache used to be able to erase itself. This runs from four
@@ -6558,7 +6585,8 @@ function autoSaveToLocalStorage(opts) {
             videoId,
             title: v.snippet?.title || '',
             position: v.snippet?.position,
-            thumbnail: v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.high?.url || v.snippet?.thumbnails?.default?.url || detail?.snippet?.thumbnails?.medium?.url || detail?.snippet?.thumbnails?.default?.url || '',
+            thumbnail: pickThumb(v.snippet?.thumbnails) || pickThumb(detail?.snippet?.thumbnails),
+            thumbHd: hdIfDifferent(v.snippet?.thumbnails, detail?.snippet?.thumbnails),
             channel: v.snippet?.videoOwnerChannelTitle || v.snippet?.channelTitle || '',
             duration: detail?.contentDetails?.duration || v.contentDetails?.duration || '',
             addedAt: v.snippet?.publishedAt || ''
@@ -6567,16 +6595,20 @@ function autoSaveToLocalStorage(opts) {
       })),
       playlistObjects: APP.playlists.map(pl => {
         // Get playlist thumbnail: from playlist object or from first video
-        const plThumb = pl.snippet?.thumbnails?.medium?.url || pl.snippet?.thumbnails?.high?.url || pl.snippet?.thumbnails?.default?.url || '';
+        const plThumb = pickThumb(pl.snippet?.thumbnails);
         const firstVideo = (APP.allVideos[pl.id] || [])[0];
-        const fallbackThumb = firstVideo?.snippet?.thumbnails?.medium?.url || firstVideo?.snippet?.thumbnails?.default?.url || '';
+        const fallbackThumb = pickThumb(firstVideo?.snippet?.thumbnails);
         const thumbUrl = plThumb || fallbackThumb;
+        const heroUrl = hdIfDifferent(pl.snippet?.thumbnails, firstVideo?.snippet?.thumbnails);
         return {
           id: pl.id,
           snippet: {
             title: pl.snippet?.title,
             description: pl.snippet?.description,
-            thumbnails: thumbUrl ? { medium: { url: thumbUrl }, default: { url: thumbUrl } } : undefined
+            thumbnails: thumbUrl
+              ? (heroUrl ? { medium: { url: thumbUrl }, default: { url: thumbUrl }, fhd: { url: heroUrl } }
+                         : { medium: { url: thumbUrl }, default: { url: thumbUrl } })
+              : undefined
           },
           contentDetails: { itemCount: pl.contentDetails?.itemCount },
           status: { privacyStatus: pl.status?.privacyStatus }
@@ -6733,7 +6765,7 @@ async function loadPlaylistVideos(playlistId, opts) {
   const params = {
     part: 'snippet,contentDetails,status',
     playlistId: playlistId,
-    fields: 'nextPageToken,items(id,contentDetails(videoId,videoPublishedAt),snippet(title,position,publishedAt,thumbnails(medium(url),high(url),default(url)),videoOwnerChannelTitle,channelTitle,resourceId(videoId)),status(privacyStatus))',
+    fields: 'nextPageToken,items(id,contentDetails(videoId,videoPublishedAt),snippet(title,position,publishedAt,thumbnails(medium(url),high(url),default(url),fhd(url),qhd(url)),videoOwnerChannelTitle,channelTitle,resourceId(videoId)),status(privacyStatus))',
   };
   let videos;
   try {
@@ -6767,7 +6799,7 @@ async function getVideoDetails(videoIds) {
       const data = await ytApi('videos', {
         part: 'contentDetails,snippet,topicDetails',
         id: batch.join(','),
-        fields: 'items(id,contentDetails(duration),snippet(title,channelTitle,thumbnails(medium(url),high(url),default(url)),categoryId),topicDetails(topicCategories))',
+        fields: 'items(id,contentDetails(duration),snippet(title,channelTitle,thumbnails(medium(url),high(url),default(url),fhd(url),qhd(url)),categoryId),topicDetails(topicCategories))',
       });
       data.items?.forEach(item => {
         details[item.id] = item;
@@ -7201,7 +7233,7 @@ function playPlaylist(playlistId, startIndex) {
     videoId: v.contentDetails?.videoId || v.snippet?.resourceId?.videoId,
     title: v.snippet?.title || '',
     channelTitle: v.snippet?.videoOwnerChannelTitle || v.snippet?.channelTitle || '',
-    thumbnail: v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url || '',
+    thumbnail: pickThumb(v.snippet?.thumbnails),
     playlistId: playlistId
   })).filter(q => q.videoId);
   PLAYER.currentIndex = startIndex || 0;
@@ -7633,11 +7665,11 @@ function renderStudioThumbGrid(panel) {
     for (const [plId, videos] of Object.entries(APP.allVideos)) {
       const v = videos.find(v => (v.contentDetails?.videoId || v.snippet?.resourceId?.videoId) === videoId);
       if (v) {
-        thumbUrl = v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url || '';
+        thumbUrl = pickThumb(v.snippet?.thumbnails);
         if (thumbUrl) break;
       }
     }
-    if (!thumbUrl) thumbUrl = detail?.snippet?.thumbnails?.medium?.url || detail?.snippet?.thumbnails?.default?.url || '';
+    if (!thumbUrl) thumbUrl = pickThumb(detail?.snippet?.thumbnails);
 
     const selected = videoId === currentVal ? ' selected' : '';
     html += `<div class="studio-thumb-item${selected}" onclick="selectStudioThumbVideo('${panel}','${videoId}')" title="${escapeHtml(title)}">
@@ -7724,7 +7756,7 @@ async function onThumbVideoSelect() {
   if (!videoId) { form.style.display = 'none'; return; }
 
   const detail = videoDetailsCache[videoId];
-  const thumbUrl = detail?.snippet?.thumbnails?.medium?.url || detail?.snippet?.thumbnails?.default?.url || '';
+  const thumbUrl = pickThumb(detail?.snippet?.thumbnails);
   preview.innerHTML = thumbUrl
     ? `<img src="${thumbUrl}" style="max-width:200px;border-radius:var(--r-sm);border:1px solid var(--border);" alt="Current thumbnail">`
     : `<span class="text-muted" style="font-size:12px;">${t('studio_no_thumb')}</span>`;
@@ -8086,7 +8118,7 @@ function refreshPlaylistsList() {
     return `
       <div class="playlist-card${isBookmark ? ' is-bookmark' : ''}" data-playlist-id="${pl.id}" onclick="openPlaylistDetail('${pl.id}')">
         ${bookmarkBadge}
-        <img src="${pl.snippet.thumbnails?.medium?.url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22226%22 height=%22226%22%3E%3Crect fill=%22%23303030%22 width=%22226%22 height=%22226%22/%3E%3C/svg%3E'}" class="playlist-thumbnail" alt="${escapeHtml(pl.snippet.title)}">
+        <img src="${pickThumb(pl.snippet.thumbnails) || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22226%22 height=%22226%22%3E%3Crect fill=%22%23303030%22 width=%22226%22 height=%22226%22/%3E%3C/svg%3E'}" class="playlist-thumbnail" alt="${escapeHtml(pl.snippet.title)}">
         <div class="playlist-info">
           <div class="playlist-title" title="${escapeHtml(pl.snippet.title)}">${escapeHtml(pl.snippet.title)}</div>
           <div class="playlist-stats">${videoCount} vidéos</div>
@@ -8157,7 +8189,7 @@ async function openPlaylistDetail(playlistId) {
       videoId,
       title,
       channelTitle: detail?.snippet?.channelTitle || v.snippet?.channelTitle || '',
-      thumbnail: v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.high?.url || v.snippet?.thumbnails?.default?.url || detail?.snippet?.thumbnails?.medium?.url || detail?.snippet?.thumbnails?.default?.url || '',
+      thumbnail: pickThumb(v.snippet?.thumbnails) || pickThumb(detail?.snippet?.thumbnails),
       durationSeconds,
       durationFormatted: formatDuration(durationSeconds),
       addedAt: v.snippet?.publishedAt || '',
@@ -8218,6 +8250,26 @@ function formatDuration(seconds) {
   const s = seconds % 60;
   if (h > 0) return `${h}h${String(m).padStart(2, '0')}m`;
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// ── Thumbnails (revision history, 11 September 2026) ────────────────────────
+// playlistItems, playlists, search and videos gained snippet.thumbnails.fhd,
+// .qhd and .uhd. Twenty-odd call sites each had their own hand-written
+// medium || high || default chain, several in a different order, so a resource
+// that only carried the new keys read as having no thumbnail at all.
+// One chain, one place. want='card' starts at medium; want='hero' starts at the
+// top and walks down, so a hero falls back to a card rather than to nothing.
+const THUMB_ORDER = ['uhd', 'qhd', 'fhd', 'maxres', 'standard', 'high', 'medium', 'default'];
+const THUMB_ORDER_CARD = ['medium', 'high', 'standard', 'fhd', 'qhd', 'uhd', 'maxres', 'default'];
+
+function pickThumb(thumbs, want) {
+  if (!thumbs) return '';
+  const order = want === 'hero' ? THUMB_ORDER : THUMB_ORDER_CARD;
+  for (const key of order) {
+    const url = thumbs[key]?.url;
+    if (url) return url;
+  }
+  return '';
 }
 
 // YouTube video categories (IDs are global/stable; labels localized). Source: videoCategories.list FR+EN.
@@ -8624,7 +8676,7 @@ async function onVideoDrop(e) {
         videoId,
         title,
         channelTitle: detail?.snippet?.channelTitle || v.snippet?.channelTitle || '',
-        thumbnail: v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.high?.url || v.snippet?.thumbnails?.default?.url || detail?.snippet?.thumbnails?.medium?.url || detail?.snippet?.thumbnails?.default?.url || '',
+        thumbnail: pickThumb(v.snippet?.thumbnails) || pickThumb(detail?.snippet?.thumbnails),
         durationSeconds,
         durationFormatted: formatDuration(durationSeconds),
         addedAt: v.snippet?.publishedAt || '',
@@ -8965,7 +9017,7 @@ async function performGlobalSearch() {
         ${matches.map(v => {
           const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
           if (videoId) lastSearchVideoIds.push(videoId);
-          const thumbUrl = v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url || v.snippet?.thumbnails?.high?.url || '';
+          const thumbUrl = pickThumb(v.snippet?.thumbnails);
           const channel = v.snippet?.videoOwnerChannelTitle || v.snippet?.channelTitle || '';
           const safeTitle = escapeJsAttr(v.snippet?.title);
           const safeChannel = escapeJsAttr(channel);
@@ -9032,7 +9084,7 @@ async function loadSearchThumbnails() {
       const batch = needFetch.slice(i, i + 50);
       const data = await ytApi('videos', { part: 'snippet', id: batch.join(',') });
       for (const item of (data.items || [])) {
-        thumbMap[item.id] = item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.default?.url || '';
+        thumbMap[item.id] = pickThumb(item.snippet?.thumbnails);
       }
     }
 
@@ -9408,7 +9460,7 @@ async function performDiscoverSearch() {
         title: v.snippet?.title || t('untitled'),
         channel: v.snippet?.channelTitle || '',
         description: v.snippet?.description || '',
-        thumbnail: v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.high?.url || v.snippet?.thumbnails?.default?.url || '',
+        thumbnail: pickThumb(v.snippet?.thumbnails),
         duration: durStr,
         viewsRaw: views,
         likesRaw: likes,
@@ -9775,7 +9827,7 @@ function renderMoveVideos() {
     container.innerHTML = `<div class="video-grid" style="grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));">
       ${moveVideosCache.map(v => {
         const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
-        const thumbUrl = v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url || '';
+        const thumbUrl = pickThumb(v.snippet?.thumbnails);
         const checked = document.querySelector(`.move-video-select[value="${videoId}"]`)?.checked ? 'checked' : '';
         const ytLink = videoId ? `https://www.youtube.com/watch?v=${videoId}` : '#';
         return `<div class="video-card" data-video-id="${videoId}" style="position:relative;">
@@ -9833,7 +9885,7 @@ async function loadMoveThumbnails() {
       const batch = videoIds.slice(i, i + 50);
       const data = await ytApi('videos', { part: 'snippet', id: batch.join(',') });
       for (const item of (data.items || [])) {
-        thumbMap[item.id] = item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || '';
+        thumbMap[item.id] = pickThumb(item.snippet?.thumbnails);
       }
     }
 
@@ -10107,7 +10159,7 @@ async function scanDuplicates() {
         const videos = APP.allVideos[inst.playlistId] || [];
         const v = videos.find(vid => (vid.contentDetails?.videoId || vid.snippet?.resourceId?.videoId) === videoId);
         if (v) {
-          return v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url || '';
+          return pickThumb(v.snippet?.thumbnails);
         }
       }
       return '';
@@ -10160,7 +10212,7 @@ async function loadDupeThumbnails() {
       const batch = uniqueIds.slice(i, i + 50);
       const data = await ytApi('videos', { part: 'snippet', id: batch.join(',') });
       for (const item of (data.items || [])) {
-        thumbMap[item.id] = item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || '';
+        thumbMap[item.id] = pickThumb(item.snippet?.thumbnails);
       }
     }
 
@@ -10931,7 +10983,7 @@ function renderDeckSourceSelector(colIdx) {
 
 function renderDeckVideoItem(video) {
   const title = video.snippet?.title || 'Untitled';
-  const thumb = video.snippet?.thumbnails?.medium?.url || video.snippet?.thumbnails?.high?.url || video.snippet?.thumbnails?.default?.url || '';
+  const thumb = pickThumb(video.snippet?.thumbnails);
   const channel = video.snippet?.videoOwnerChannelTitle || '';
   const videoId = video.snippet?.resourceId?.videoId || video.contentDetails?.videoId || '';
   const escapedTitle = title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
@@ -11335,7 +11387,7 @@ function renderWatchVideoSelector(videos) {
       const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
       const title = v.snippet?.title || '';
       const channel = v.snippet?.videoOwnerChannelTitle || '';
-      const thumb = v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.default?.url || '';
+      const thumb = pickThumb(v.snippet?.thumbnails);
       const dur = v.contentDetails?.duration || videoDetailsCache[videoId]?.duration || '';
       const durStr = dur ? formatIsoDuration(dur) : '';
       const escapedTitle = title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
@@ -11361,7 +11413,7 @@ function renderWatchVideoSelector(videos) {
       const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
       const title = v.snippet?.title || '';
       const channel = v.snippet?.videoOwnerChannelTitle || '';
-      const thumb = v.snippet?.thumbnails?.default?.url || '';
+      const thumb = pickThumb(v.snippet?.thumbnails);
       const dur = v.contentDetails?.duration || videoDetailsCache[videoId]?.duration || '';
       const durStr = dur ? formatIsoDuration(dur) : '';
       const escapedTitle = title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
@@ -11582,7 +11634,7 @@ function renderSubscriptions() {
   // Render subscription cards
   const html = sorted.map(sub => {
     const channelId = sub.snippet?.resourceId?.channelId || '';
-    const thumb = sub.snippet?.thumbnails?.medium?.url || sub.snippet?.thumbnails?.high?.url || sub.snippet?.thumbnails?.default?.url || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22%3E%3Crect fill=%22%23303030%22 width=%2248%22 height=%2248%22/%3E%3C/svg%3E';
+    const thumb = pickThumb(sub.snippet?.thumbnails) || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22%3E%3Crect fill=%22%23303030%22 width=%2248%22 height=%2248%22/%3E%3C/svg%3E';
     const pubDate = new Date(sub.snippet?.publishedAt);
     const dateStr = pubDate.toLocaleDateString('fr-FR');
     const desc = (sub.snippet?.description || '').substring(0, 100);
@@ -11807,7 +11859,7 @@ async function createFullBackup() {
           videoId,
           title: v.snippet?.title,
           position: v.snippet?.position,
-          thumbnail: v.snippet?.thumbnails?.medium?.url || v.snippet?.thumbnails?.high?.url || v.snippet?.thumbnails?.default?.url || '',
+          thumbnail: pickThumb(v.snippet?.thumbnails),
           channel: v.snippet?.videoOwnerChannelTitle || v.snippet?.channelTitle || '',
           duration: detail?.contentDetails?.duration || v.contentDetails?.duration || '',
           addedAt: v.snippet?.publishedAt || ''
