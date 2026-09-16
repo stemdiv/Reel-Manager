@@ -1967,7 +1967,178 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '#17', title: 'Music mode — detection and parsing', note: 'design spec §3 and §6; both run on metadata already fetched, so no extra quota',
+  cases: [
+    ['"- Topic" alone is enough', w =>
+      eq(w.isMusicVideo({ title: 'Nightcall', channelTitle: 'Kavinsky - Topic', durationSeconds: 258 }), true)],
+
+    ['category 10 alone is enough', w =>
+      eq(w.isMusicVideo({ title: 'Something', channelTitle: 'A Label', categoryId: '10', durationSeconds: 200 }), true)],
+
+    ['track length and a dash are not enough on their own', w => {
+      // 0.2 + 0.2 = 0.4, below the 0.7 threshold — this is the case that stops
+      // every short video with a hyphen in its title reading as music.
+      const v = { title: 'Ableton 12 - what is new', channelTitle: 'Point Blank', durationSeconds: 300 };
+      eq(Math.round(w.musicScore(v) * 100) / 100, 0.4, 'score');
+      return eq(w.isMusicVideo(v), false);
+    }],
+
+    ['a two-hour set on a Topic channel is still a video', w => {
+      // 0.9 - 0.5 = 0.4. Long-form is the signal that keeps mixes out.
+      const v = { title: 'Boiler Room Set', channelTitle: 'Artist - Topic', durationSeconds: 7200 };
+      return eq(w.isMusicVideo(v), false, 'a 2h mix should stay in Video view');
+    }],
+
+    ['the score is clamped to 0..1', w => {
+      const loaded = { title: 'A - B', channelTitle: 'X - Topic', categoryId: '10', durationSeconds: 200 };
+      eq(w.musicScore(loaded), 1, 'every positive signal at once');
+      const awful = { title: 'lecture', channelTitle: 'Uni', durationSeconds: 9000 };
+      return eq(w.musicScore(awful), 0, 'negative signals do not go below zero');
+    }],
+
+    ['a Topic channel is matched exactly, not by substring', w => {
+      eq(w.isTopicChannel('Kavinsky - Topic'), true, 'the real thing');
+      eq(w.isTopicChannel('Topic'), false, 'a channel simply called Topic');
+      eq(w.isTopicChannel('Off Topic Podcast'), false, 'a channel about being off topic');
+      return eq(w.isTopicChannel(''), false, 'nothing');
+    }],
+
+    ['a playlist verdict is music, mixed or video', w => {
+      const track = n => ({ title: 't' + n, channelTitle: 'A - Topic', durationSeconds: 200 });
+      const vid = n => ({ title: 'v' + n, channelTitle: 'Chan', durationSeconds: 1800 });
+      eq(w.playlistMusicVerdict([track(1), track(2), track(3), track(4), track(5)]).verdict, 'music', 'all music');
+      eq(w.playlistMusicVerdict([track(1), track(2), vid(1), vid(2)]).verdict, 'mixed', '50%');
+      eq(w.playlistMusicVerdict([track(1), vid(1), vid(2), vid(3)]).verdict, 'video', '25%');
+      // 4 of 5 = 80%, exactly at the threshold.
+      return eq(w.playlistMusicVerdict([track(1), track(2), track(3), track(4), vid(1)]).verdict, 'music', 'at 80%');
+    }],
+
+    ['an empty playlist is a video playlist, not a guess', w =>
+      eq(w.playlistMusicVerdict([]), { verdict: 'video', ratio: 0, sampled: 0 })],
+
+    ['only the first 50 are sampled', w => {
+      const track = { title: 't', channelTitle: 'A - Topic', durationSeconds: 200 };
+      const vid = { title: 'v', channelTitle: 'C', durationSeconds: 1800 };
+      const big = Array(50).fill(track).concat(Array(500).fill(vid));
+      const r = w.playlistMusicVerdict(big);
+      eq(r.sampled, 50, 'sample size');
+      return eq(r.verdict, 'music', 'the 500 videos past the sample must not be read');
+    }],
+
+    // ── Parser (§6) ─────────────────────────────────────────────────────────
+    ['decorations are stripped, brackets and parentheses alike', w => {
+      const p = t => w.parseArtistTitle(t, 'Chan').title;
+      eq(p('Daft Punk - Around The World (Official Video)'), 'Around The World', 'official video');
+      eq(p('Jamiroquai - Virtual Insanity [MV]'), 'Virtual Insanity', 'MV');
+      eq(p('Queen - Bohemian Rhapsody (Official Video Remastered)'), 'Bohemian Rhapsody', 'a longer official tag');
+      eq(p('Stromae - Alors on danse (Lyrics) 4K'), 'Alors on danse', 'lyrics + a bare quality tag');
+      return eq(p('C2C - Down The Road (Official Audio) HD'), 'Down The Road', 'stacked tags');
+    }],
+
+    ['"HD" is only stripped when it trails', w => {
+      // A track genuinely called "HD Bass" must survive.
+      return eq(w.parseArtistTitle('Artist - HD Bass', 'Chan').title, 'HD Bass');
+    }],
+
+    ['feat. moves to the artist', w => {
+      const p = w.parseArtistTitle('Kendrick Lamar - HUMBLE. ft. Zacari', 'KendrickLamarVEVO');
+      eq(p.title, 'HUMBLE.', 'title');
+      return eq(p.artist, 'Kendrick Lamar feat. Zacari', 'artist');
+    }],
+
+    ['a Topic channel outranks the dash split', w => {
+      // The channel states the artist outright; splitting a title that happens
+      // to contain a dash would invent a different one.
+      const p = w.parseArtistTitle('Blinding Lights', 'The Weeknd - Topic');
+      eq(p.artist, 'The Weeknd', 'artist from the channel');
+      eq(p.title, 'Blinding Lights', 'title');
+      return eq(p.album, 'The Weeknd', 'album is the channel minus the suffix');
+    }],
+
+    ['a title with no dash keeps its whole self', w => {
+      const p = w.parseArtistTitle('Tiny Desk Concert', 'NPR Music');
+      eq(p.title, 'Tiny Desk Concert', 'title untouched');
+      return eq(p.artist, 'NPR Music', 'the channel stands in as artist');
+    }],
+
+    ['an en dash and an em dash split like a hyphen', w => {
+      eq(w.parseArtistTitle('Air – La Femme d’Argent', 'Chan').artist, 'Air', 'en dash');
+      return eq(w.parseArtistTitle('Air — Sexy Boy', 'Chan').artist, 'Air', 'em dash');
+    }],
+
+    ['only the first dash splits', w => {
+      const p = w.parseArtistTitle('Simon - Garfunkel - The Boxer', 'Chan');
+      eq(p.artist, 'Simon', 'artist');
+      return eq(p.title, 'Garfunkel - The Boxer', 'the rest stays in the title');
+    }],
+
+    ['empty input does not throw', w => {
+      const p = w.parseArtistTitle('', '');
+      return eq([p.artist, p.title, p.album], ['', '', '']);
+    }],
+
+    // ── Per-playlist mode (§2) ──────────────────────────────────────────────
+    ['detection only supplies a default', w => {
+      const snap = snapshot(w, ['playlistViewMode']);
+      try {
+        w.localStorage.removeItem('playlistViewMode');
+        eq(w.effectiveViewMode('PL_1', 'music'), 'music', 'detected music');
+        eq(w.effectiveViewMode('PL_1', 'mixed'), 'video', 'mixed defaults to video');
+        return eq(w.effectiveViewMode('PL_1', 'video'), 'video', 'detected video');
+      } finally { restore(w, snap); }
+    }],
+
+    ['an override outranks detection and is never re-evaluated', w => {
+      const snap = snapshot(w, ['playlistViewMode']);
+      try {
+        w.setPlaylistViewMode('PL_2', 'video');
+        eq(w.effectiveViewMode('PL_2', 'music'), 'video', 'a manual Video choice must survive a music verdict');
+        w.setPlaylistViewMode('PL_2', 'music');
+        return eq(w.effectiveViewMode('PL_2', 'video'), 'music', 'and the same in reverse');
+      } finally { restore(w, snap); }
+    }],
+
+    ['overrides are per playlist', w => {
+      const snap = snapshot(w, ['playlistViewMode']);
+      try {
+        w.setPlaylistViewMode('PL_A', 'music');
+        eq(w.effectiveViewMode('PL_A', 'video'), 'music', 'A');
+        return eq(w.effectiveViewMode('PL_B', 'video'), 'video', 'B must not inherit A');
+      } finally { restore(w, snap); }
+    }],
+
+    ['clearing an override returns to detection', w => {
+      const snap = snapshot(w, ['playlistViewMode']);
+      try {
+        w.setPlaylistViewMode('PL_C', 'video');
+        w.setPlaylistViewMode('PL_C', null);
+        return eq(w.effectiveViewMode('PL_C', 'music'), 'music');
+      } finally { restore(w, snap); }
+    }],
+
+    ['a corrupt override store does not break the view', w => {
+      const snap = snapshot(w, ['playlistViewMode']);
+      try {
+        w.localStorage.setItem('playlistViewMode', 'not json');
+        return eq(w.effectiveViewMode('PL_D', 'music'), 'music');
+      } finally { restore(w, snap); }
+    }],
+
+    ['every secondary action stays reachable in both views', w => {
+      // Spec §4: the diff is tokens, default sort and prominence — not features.
+      // These are the handlers the filter bar and the toolbars call; a Music
+      // view that quietly dropped one would be a fork, which the spec forbids.
+      const shared = ['applyVideoFilters', 'resetVideoFilters', 'renderFilteredVideos',
+                      'exportLibrary', 'performMove', 'performMerge', 'toggleReorderMode',
+                      'playCurrentPlaylist', 'onFilterTypeChange', 'onCategoryFilterChange'];
+      const missing = shared.filter(fn => typeof w[fn] !== 'function');
+      return eq(missing, [], 'handlers missing');
+    }],
+  ],
+},
 ];
+
 
 
 

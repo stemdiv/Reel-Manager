@@ -638,6 +638,66 @@
     border-radius: var(--r-sm);
   }
   body.offline-cache .offline-pill { display: inline-flex; }
+  /* ── Music view tokens (#17, spec §4) ───────────────────────────────────
+     A data-viewmode attribute on the view swaps the token set, exactly as the
+     skin system swaps accents. There is no second component tree: the rows
+     below replace the card grid only inside the playlist detail view. */
+  /* The container is a card grid in Video view; in Music view it is a single
+     column, or the tracklist ends up inside one card-sized cell and every
+     fr column collapses to zero. This is the token swap, not a second layout. */
+  #playlistDetail[data-viewmode="music"] #playlistDetailVideos {
+    display: block;
+    grid-template-columns: none;
+  }
+  .tracklist { display: flex; flex-direction: column; }
+  .track-row {
+    display: grid;
+    grid-template-columns: 30px 44px minmax(0, 2.2fr) minmax(0, 1fr) auto 56px;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    padding: 2px 8px;
+    border-bottom: 1px solid var(--border);
+    border-radius: var(--r-sm, 6px);
+  }
+  .track-row:hover { background: var(--surface2); }
+  .track-row.is-ghost { opacity: .55; }
+  .track-num { font-size: 11px; color: var(--text3); text-align: right; }
+  .track-art {
+    position: relative; width: 44px; height: 44px; border-radius: var(--r-sm, 6px);
+    overflow: hidden; background: var(--surface3); cursor: pointer; flex: none;
+  }
+  .track-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .track-art-empty { display: block; width: 100%; height: 100%; }
+  .track-play {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.45); opacity: 0; transition: opacity .12s;
+  }
+  .track-play svg { width: 16px; height: 16px; }
+  .track-row:hover .track-play { opacity: 1; }
+  .track-main { display: flex; flex-direction: column; min-width: 0; cursor: pointer; }
+  .track-title {
+    font-size: 13px; font-weight: 500; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .track-artist {
+    font-size: 11.5px; color: var(--text2);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .track-album {
+    font-size: 11.5px; color: var(--text3);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .track-actions { display: flex; gap: 2px; opacity: 0; transition: opacity .12s; }
+  .track-row:hover .track-actions, .track-row:focus-within .track-actions { opacity: 1; }
+  .track-btn { width: 26px; height: 26px; }
+  .track-time { font-size: 11.5px; color: var(--text3); text-align: right; }
+  /* Below the album column's usable width, drop it rather than crushing the title. */
+  @media (max-width: 720px) {
+    .track-row { grid-template-columns: 24px 40px minmax(0, 1fr) auto 48px; }
+    .track-album { display: none; }
+  }
   /* #68 — Shorts badge. Inferred from the embed aspect ratio, so it is stated
      as a label, not as something the API told us outright. */
   /* #I2 — subscribe pill, wherever a channel is named */
@@ -1489,11 +1549,25 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/><polyline points="7 3 3 6 7 9"/><polyline points="17 15 21 18 17 21"/></svg>
             <span data-i18n="detail_reorder">Réorganiser</span>
           </button>
-          <button id="musicModeBtn" class="btn btn-secondary btn-sm" onclick="toggleMusicMode()" style="display:flex;align-items:center;gap:4px;" title="Afficher uniquement la musique (topics + catégorie)">
+          <button id="detailShuffleBtn" class="btn btn-secondary btn-sm" onclick="shuffleCurrentPlaylist()" style="display:none;align-items:center;gap:4px;" data-i18n-title="music_shuffle" title="Lecture aléatoire">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+            <span data-i18n="music_shuffle">Aléatoire</span>
+          </button>
+          <button id="viewModeToggleBtn" class="btn btn-secondary btn-sm" onclick="toggleDetailViewMode()" style="display:flex;align-items:center;gap:4px;" data-i18n-title="music_view_music_tooltip" title="Passer en vue Musique">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-            <span>Mode Musique</span>
+            <span data-i18n="music_view_music">Vue Musique</span>
+          </button>
+          <button id="musicModeBtn" class="btn btn-secondary btn-sm" onclick="toggleMusicMode()" style="display:flex;align-items:center;gap:4px;" data-i18n-title="music_filter_tooltip" title="Afficher uniquement la musique">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3z"/></svg>
+            <span data-i18n="music_filter_label">Musique seulement</span>
           </button>
           <a id="playlistDetailYTLink" href="#" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" data-i18n-title="detail_view_youtube" title="Ouvrir sur YouTube">▶ YouTube</a>
+        </div>
+        <div id="musicHintBanner" style="display:none;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;border:1px solid var(--accent-line, rgba(255,45,85,.35));background:var(--accent-soft, rgba(255,45,85,.08));border-radius:var(--r-lg, 10px);font-size:12.5px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <span style="flex:1;" data-i18n="music_hint_mixed">Looks like music — switch to the Music view?</span>
+          <button class="btn btn-primary btn-sm" onclick="toggleDetailViewMode('music')" data-i18n="music_hint_switch">Switch</button>
+          <button class="btn btn-secondary btn-sm" onclick="dismissMusicHint()" data-i18n="music_hint_dismiss">Not now</button>
         </div>
         <div id="playlistDetailStats" style="margin-bottom: 16px; font-size: 13px; color: var(--text2);"></div>
 
@@ -3082,6 +3156,24 @@ const I18N = {
     scope_section_hint: "Par défaut, la connexion se fait en lecture seule et l'accès en écriture est demandé à la première modification. Activez cette option pour le demander dès la connexion : moins d'interruptions, mais un accès plus large dès le départ.",
     scope_toggle_label: "Demander l'accès en écriture dès la connexion",
     cache_saved: 'Cache enregistré : {count} vidéos',
+    // Mode Musique (#17/#18)
+    music_view_music: 'Vue Musique',
+    music_view_video: 'Vue Vidéo',
+    music_view_music_tooltip: 'Afficher cette playlist comme une liste de pistes',
+    music_view_video_tooltip: 'Revenir à la grille de vignettes',
+    music_tracks_word: 'pistes',
+    music_avg_length: 'Durée moyenne',
+    music_no_match: 'Aucune piste ne correspond à ces filtres',
+    music_shuffle: 'Aléatoire',
+    music_filter_label: 'Musique seulement',
+    music_filter_tooltip: 'Ne montrer que les vidéos classées comme musique',
+    music_filter_on: 'Filtre musique activé',
+    music_filter_off: 'Filtre musique désactivé',
+    music_hint_mixed: 'On dirait de la musique — passer en vue Musique ?',
+    music_hint_switch: 'Passer en vue Musique',
+    music_hint_dismiss: 'Pas maintenant',
+    music_queue_next: "Ajouter à la suite dans la file",
+    music_queued: '{title} — ajouté à la suite',
     quota_pool_label: 'Pool',
     quota_search_label: 'Recherches',
     quota_upload_label: 'Mises en ligne',
@@ -3795,6 +3887,24 @@ const I18N = {
     scope_section_hint: 'By default the app signs in read-only and asks for write access the first time you change something. Turn this on to ask for it at sign-in instead — fewer interruptions, broader access from the start.',
     scope_toggle_label: 'Request write access at sign-in',
     cache_saved: 'Cache saved: {count} videos',
+    // Music mode (#17/#18)
+    music_view_music: 'Music view',
+    music_view_video: 'Video view',
+    music_view_music_tooltip: 'Show this playlist as a tracklist',
+    music_view_video_tooltip: 'Back to the thumbnail grid',
+    music_tracks_word: 'tracks',
+    music_avg_length: 'Average length',
+    music_no_match: 'No track matches these filters',
+    music_shuffle: 'Shuffle',
+    music_filter_label: 'Music only',
+    music_filter_tooltip: 'Show only the videos classified as music',
+    music_filter_on: 'Music filter on',
+    music_filter_off: 'Music filter off',
+    music_hint_mixed: 'Looks like music — switch to the Music view?',
+    music_hint_switch: 'Switch to Music view',
+    music_hint_dismiss: 'Not now',
+    music_queue_next: 'Play next in the queue',
+    music_queued: '{title} — queued next',
     quota_pool_label: 'Pool',
     quota_search_label: 'Searches',
     quota_upload_label: 'Uploads',
@@ -4109,11 +4219,18 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.22.0'; // bump per release
+const APP_VERSION = '1.23.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.23.0', date: '2026-09-16', items: [
+    "#17 Mode Musique phase 1 — une playlist de musique s affiche en liste de pistes : numero, pochette 44 px, titre, artiste, chaine, duree. C est une couche de presentation, pas un second composant : un attribut data-viewmode echange le jeu de tokens, exactement comme le systeme de skins, et toutes les actions secondaires restent les memes",
+    "Detection par score et non par signal unique : une chaine - Topic pese 0,9, la categorie 10 pese 0,7, une duree de 2 a 7 minutes et un motif Artiste - Titre 0,2 chacun, et une duree de plus de 20 minutes retire 0,5. Un set de deux heures sur une chaine - Topic reste donc une video. Une playlist est musicale a partir de 80 % de ses 50 premieres",
+    "Entre 50 et 80 %, la playlist est dite mixte : un bandeau propose la bascule au lieu de decider a la place de l utilisateur. Un choix manuel prime toujours et n est jamais reevalue, dans les deux sens — Pas maintenant est aussi un choix",
+    "Un seul parseur artiste / titre, partage avec l export a venir : decorations retirees (Official Video, MV, Lyrics, balises 4K/HD), feat. deplace vers l artiste, decoupage au premier tiret sauf si la chaine - Topic nomme deja l artiste. Un titre qu on ne sait pas decouper reste entier plutot que d etre charcute",
+    "Statistiques d en-tete adaptees : pistes et duree moyenne en vue Musique, videos et disponibilite en vue Video",
+  ]},
   { v: '1.22.0', date: '2026-09-16', items: [
     "#G11 — le cache automatique quitte localStorage pour IndexedDB. Le blob JSON unique butait sur le plafond pratique d environ 5 Mo, et l echec etait silencieux : l ecriture levait une erreur, le cache restait fige, et le demarrage sur cache servait des donnees de plus en plus anciennes sans rien dire",
     "Une fiche par playlist au lieu d un blob : enregistrer une playlist ne signifie plus re-serialiser toute la bibliotheque. La forme reassemblee est identique a l ancienne, donc ni le chargement au demarrage ni Reel Studio n ont eu a apprendre un nouveau format",
@@ -9058,6 +9175,11 @@ function refreshPlaylistsList() {
 
 let currentDetailPlaylistId = null;
 let currentDetailVideos = []; // enriched with duration data
+// #17 — music-mode state for the open playlist. The verdict cache is keyed by
+// playlist id and only written when a playlist's videos are (re)loaded.
+let currentDetailViewMode = 'video';
+let currentDetailVerdict = { verdict: 'video', ratio: 0, sampled: 0 };
+const playlistVerdictCache = {};
 // videoDetailsCache declared earlier (before loadBackupFromStorage) to avoid TDZ
 
 async function openPlaylistDetail(playlistId) {
@@ -9118,18 +9240,99 @@ async function openPlaylistDetail(playlistId) {
     };
   });
 
-  // Stats
-  const totalDuration = currentDetailVideos.reduce((s, v) => s + v.durationSeconds, 0);
-  const available = currentDetailVideos.filter(v => v.status === 'available').length;
-  const ghosts = currentDetailVideos.length - available;
-  const shorts = currentDetailVideos.filter(v => v.isShort).length;
-  document.getElementById('playlistDetailStats').innerHTML =
-    `${currentDetailVideos.length} ${t('stats_videos_word')} · ${available} ${t('stats_available_word')}` +
+  // #17 — detection runs on what was just fetched, so it costs nothing extra.
+  // Cached with the playlist and only recomputed when the videos are reloaded.
+  currentDetailVerdict = playlistMusicVerdict(currentDetailVideos);
+  playlistVerdictCache[playlistId] = currentDetailVerdict;
+  currentDetailViewMode = effectiveViewMode(playlistId, currentDetailVerdict.verdict);
+  applyDetailViewMode();
+
+  renderDetailStats();
+  resetVideoFilters();
+}
+
+// Header stats differ by view (spec §4): a tracklist wants tracks and an
+// average length; a video list wants what it always wanted.
+function renderDetailStats() {
+  const el = document.getElementById('playlistDetailStats');
+  if (!el) return;
+  const vids = currentDetailVideos;
+  const totalDuration = vids.reduce((s, v) => s + v.durationSeconds, 0);
+  const available = vids.filter(v => v.status === 'available').length;
+  const ghosts = vids.length - available;
+  const shorts = vids.filter(v => v.isShort).length;
+
+  if (currentDetailViewMode === 'music') {
+    const avg = vids.length ? Math.round(totalDuration / vids.length) : 0;
+    el.innerHTML =
+      `${vids.length} ${t('music_tracks_word')} · ${t('stats_total_duration')} : ${formatDuration(totalDuration)}` +
+      ` · ${t('music_avg_length')} : ${formatDuration(avg)}` +
+      (ghosts > 0 ? ` · <span style="color: var(--error, #e74c3c);">${ghosts} ${t('stats_unavailable_word')}</span>` : '');
+    return;
+  }
+
+  el.innerHTML =
+    `${vids.length} ${t('stats_videos_word')} · ${available} ${t('stats_available_word')}` +
     (ghosts > 0 ? ` · <span style="color: var(--error, #e74c3c);">${ghosts} ${t('stats_unavailable_word')}</span>` : '') +
     (shorts > 0 ? ` · ${t('stats_shorts_count', { count: shorts })}` : '') +
     ` · ${t('stats_total_duration')} : ${formatDuration(totalDuration)}`;
+}
 
-  resetVideoFilters();
+// Spec §4: one component set, a data-viewmode attribute swaps the token set.
+// No parallel components, no second render path for the secondary actions.
+function applyDetailViewMode() {
+  const view = document.getElementById('playlistDetail');
+  if (view) view.setAttribute('data-viewmode', currentDetailViewMode);
+
+  const shuffleBtn = document.getElementById('detailShuffleBtn');
+  if (shuffleBtn) shuffleBtn.style.display = currentDetailViewMode === 'music' ? 'flex' : 'none';
+
+  const btn = document.getElementById('viewModeToggleBtn');
+  if (btn) {
+    const music = currentDetailViewMode === 'music';
+    btn.setAttribute('aria-pressed', music ? 'true' : 'false');
+    btn.classList.toggle('btn-primary', music);
+    btn.classList.toggle('btn-secondary', !music);
+    const label = btn.querySelector('span');
+    if (label) label.textContent = t(music ? 'music_view_video' : 'music_view_music');
+    btn.title = t(music ? 'music_view_video_tooltip' : 'music_view_music_tooltip');
+  }
+
+  // Spec §3: 50–80% music is "mixed" — offer the switch instead of guessing.
+  const hint = document.getElementById('musicHintBanner');
+  if (hint) {
+    const show = currentDetailVerdict.verdict === 'mixed'
+              && currentDetailViewMode !== 'music'
+              && !readPlaylistViewModes()[currentDetailPlaylistId];
+    hint.style.display = show ? 'flex' : 'none';
+  }
+}
+
+/**
+ * "Not now" on the hint is itself a choice: record Video as the override so the
+ * banner does not reappear on every visit. Spec §2.3 — the override is sacred,
+ * in both directions.
+ */
+function dismissMusicHint() {
+  setPlaylistViewMode(currentDetailPlaylistId, 'video');
+  log('info', 'action', 'music hint dismissed', { verdict: currentDetailVerdict.verdict });
+  applyDetailViewMode();
+}
+
+/** The toggle. A choice here is an override and outranks detection for good. */
+function toggleDetailViewMode(mode) {
+  const next = mode || (currentDetailViewMode === 'music' ? 'video' : 'music');
+  // Metrics (spec §7): reversions matter, and no playlist id is recorded.
+  if (currentDetailViewMode === 'music' && next === 'video') {
+    log('info', 'action', 'music view reverted', { verdict: currentDetailVerdict.verdict });
+  } else if (next === 'music') {
+    log('info', 'action', 'music view kept', { verdict: currentDetailVerdict.verdict, auto: currentDetailVerdict.verdict === 'music' });
+  }
+  currentDetailViewMode = next;
+  setPlaylistViewMode(currentDetailPlaylistId, next);
+  applyDetailViewMode();
+  renderDetailStats();
+  applyVideoFilters();
 }
 
 // #G8 — ghost detection from metadata, not from the title.
@@ -9280,6 +9483,171 @@ function channelSystemPlaylistId(channelId, kind) {
   const id = String(channelId || '');
   if (!/^UC[\w-]{22}$/.test(id)) return '';   // anything else is not a channel id
   return prefix + id.slice(2);
+}
+
+// ── Music mode (#17/#18) ────────────────────────────────────────────────────
+// Spec §2: the mode is per playlist, not global — libraries are mixed (courses
+// AND music). Detection only supplies a default; a manual choice is sacred and
+// is never re-evaluated, which is why overrides live in their own map rather
+// than being recomputed from the verdict.
+function readPlaylistViewModes() {
+  try { return JSON.parse(localStorage.getItem('playlistViewMode') || '{}') || {}; } catch (_) { return {}; }
+}
+
+function setPlaylistViewMode(playlistId, mode) {
+  const all = readPlaylistViewModes();
+  if (mode) all[playlistId] = mode; else delete all[playlistId];
+  try { localStorage.setItem('playlistViewMode', JSON.stringify(all)); } catch (_) {}
+  return mode;
+}
+
+/** The override if there is one, otherwise the detected default. */
+function effectiveViewMode(playlistId, verdict) {
+  const override = readPlaylistViewModes()[playlistId];
+  if (override === 'music' || override === 'video') return override;
+  return verdict === 'music' ? 'music' : 'video';
+}
+
+
+// Design spec §3. Scoring, not a single signal: "- Topic" alone is strong but a
+// two-hour DJ set on a Topic channel is still a video, and categoryId 10 is
+// reliable when it is there and absent more often than you would like.
+// Everything below reads metadata the app already fetched — no extra quota.
+const MUSIC_SIGNALS = {
+  topicChannel: 0.9,     // "Artist - Topic": auto-generated music channel
+  musicCategory: 0.7,    // snippet.categoryId === '10'
+  trackLength: 0.2,      // 2–7 minutes
+  artistTitle: 0.2,      // "Artist - Title"
+  longForm: -0.5,        // over 20 minutes: mix, podcast, lecture
+};
+const MUSIC_SCORE_THRESHOLD = 0.7;
+const MUSIC_PLAYLIST_THRESHOLD = 0.8;   // ≥80% music → music playlist
+const MUSIC_MIXED_THRESHOLD = 0.5;      // 50–80% → mixed, offer the switch
+const MUSIC_SAMPLE_SIZE = 50;
+
+function isTopicChannel(channelTitle) {
+  return /\s-\sTopic$/.test(String(channelTitle || '').trim());
+}
+
+/** Per-video music score, clamped to [0, 1] (spec §3). */
+function musicScore(v) {
+  v = v || {};
+  const channel = v.channelTitle || v.videoOwnerChannelTitle || '';
+  const seconds = Number(v.durationSeconds) || 0;
+  let score = 0;
+  if (isTopicChannel(channel)) score += MUSIC_SIGNALS.topicChannel;
+  if (String(v.categoryId) === '10') score += MUSIC_SIGNALS.musicCategory;
+  if (seconds >= 120 && seconds <= 420) score += MUSIC_SIGNALS.trackLength;
+  if (hasArtistTitlePattern(v.title || '')) score += MUSIC_SIGNALS.artistTitle;
+  if (seconds > 1200) score += MUSIC_SIGNALS.longForm;
+  return Math.max(0, Math.min(1, score));
+}
+
+function isMusicVideo(v) {
+  return musicScore(v) >= MUSIC_SCORE_THRESHOLD;
+}
+
+/**
+ * Verdict for a whole playlist: 'music' | 'mixed' | 'video'.
+ * Sampled over the first 50, per the spec — a 2 000-track playlist does not
+ * need all of them to answer the question.
+ */
+function playlistMusicVerdict(videos) {
+  const list = Array.isArray(videos) ? videos.slice(0, MUSIC_SAMPLE_SIZE) : [];
+  if (!list.length) return { verdict: 'video', ratio: 0, sampled: 0 };
+  const hits = list.filter(isMusicVideo).length;
+  const ratio = hits / list.length;
+  const verdict = ratio >= MUSIC_PLAYLIST_THRESHOLD ? 'music'
+                : ratio >= MUSIC_MIXED_THRESHOLD ? 'mixed'
+                : 'video';
+  return { verdict, ratio, sampled: list.length };
+}
+
+// ── Artist / title parsing (spec §6) ────────────────────────────────────────
+// One implementation, shared by the Music rows and the transfer-ready CSV.
+// Decorations first, then the split, then the fallbacks — a title that cannot
+// be parsed keeps its whole self and borrows the channel as artist rather than
+// being mangled into something that looks parsed and is not.
+const TITLE_DECORATIONS = [
+  // Anything bracketed that opens with "official" — the wording varies wildly
+  // ("Official Video", "Official Audio", "Official Video Remastered"), so match
+  // the opening word and take the rest of the bracket with it.
+  /[\(\[]\s*official[^\)\]]*[\)\]]/ig,
+  /[\(\[]\s*(?:music\s+)?video\s*[\)\]]/ig,
+  /[\(\[]\s*audio\s*[\)\]]/ig,
+  /[\(\[]\s*(?:mv|m\/v)\s*[\)\]]/ig,
+  /[\(\[]\s*(?:with\s+)?lyrics?(?:\s+video)?\s*[\)\]]/ig,
+  /[\(\[]\s*(?:hd|hq|4k|8k|1080p|720p|full\s*hd|remastered)\s*[\)\]]/ig,
+];
+
+// Quality tags also turn up bare and unbracketed, but only ever as a trailing
+// token. Stripping "HD" anywhere would mangle a track genuinely called "HD".
+const TRAILING_QUALITY = /[\s\-–—|]*\b(?:hd|hq|4k|8k|1080p|720p|full\s*hd)\b\s*$/i;
+
+const FEAT_RE = /[\(\[]?\s*\b(?:feat|ft)\.?\s+([^\)\]]+?)\s*[\)\]]?\s*$/i;
+
+function stripDecorations(s) {
+  let out = String(s || '');
+  for (const re of TITLE_DECORATIONS) out = out.replace(re, ' ');
+  out = out.replace(/\s{2,}/g, ' ').trim();
+  // Repeat: "... (Official Audio) HD 4K" leaves two of them stacked.
+  let guard = 0;
+  while (TRAILING_QUALITY.test(out) && guard++ < 4) out = out.replace(TRAILING_QUALITY, '').trim();
+  return out.replace(/\s{2,}/g, ' ').replace(/^[\s\-–—|]+|[\s\-–—|]+$/g, '').trim();
+}
+
+// Used as a music signal too: a bare "X - Y" is track-shaped.
+function hasArtistTitlePattern(title) {
+  const clean = stripDecorations(title);
+  return /\S\s+[-–—]\s+\S/.test(clean);
+}
+
+function channelAsArtist(channelTitle) {
+  const c = String(channelTitle || '').trim();
+  return isTopicChannel(c) ? c.replace(/\s-\sTopic$/, '').trim() : c;
+}
+
+/**
+ * → { artist, title, album, feat }
+ * album is the channel with "- Topic" removed, which is what the auto-generated
+ * music channels actually name; it is not a real album tag and is labelled as
+ * the channel in the UI.
+ */
+function parseArtistTitle(rawTitle, channelTitle) {
+  const channel = String(channelTitle || '').trim();
+  const album = channelAsArtist(channel);
+  let working = stripDecorations(rawTitle);
+
+  // feat./ft. belongs with the artist, not in the track name.
+  let feat = '';
+  const featMatch = working.match(FEAT_RE);
+  if (featMatch) {
+    feat = featMatch[1].trim();
+    working = working.slice(0, featMatch.index).trim();
+    working = working.replace(/[\s\-–—,]+$/, '').trim();
+  }
+
+  // A "X - Topic" channel names the artist outright: trust it over the split.
+  if (isTopicChannel(channel)) {
+    const title = working || String(rawTitle || '').trim();
+    return { artist: withFeat(album, feat), title, album, feat };
+  }
+
+  const split = working.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+  if (split) {
+    const artist = split[1].trim();
+    const title = split[2].trim();
+    if (artist && title) return { artist: withFeat(artist, feat), title, album, feat };
+  }
+
+  // Nothing to split on: keep the title whole and show the channel as artist.
+  return { artist: withFeat(album, feat), title: working || String(rawTitle || '').trim(), album, feat };
+}
+
+function withFeat(artist, feat) {
+  const a = String(artist || '').trim();
+  if (!feat) return a;
+  return a ? `${a} feat. ${feat}` : `feat. ${feat}`;
 }
 
 function classifyVideoType(v) {
@@ -9453,7 +9821,16 @@ function applyVideoFilters() {
 
 function renderFilteredVideos(videos) {
   if (!videos.length) {
-    document.getElementById('playlistDetailVideos').innerHTML = `<p class="text-muted">${t('detail_no_match')}</p>`;
+    // Spec §4: empty states are track-oriented in Music view.
+    const empty = currentDetailViewMode === 'music' ? t('music_no_match') : t('detail_no_match');
+    document.getElementById('playlistDetailVideos').innerHTML = `<p class="text-muted">${empty}</p>`;
+    return;
+  }
+
+  // Reordering is a drag-and-drop on cards; the tracklist keeps the card layout
+  // for it rather than growing a second drag implementation.
+  if (currentDetailViewMode === 'music' && !reorderModeActive) {
+    renderMusicRows(videos);
     return;
   }
 
@@ -9504,6 +9881,68 @@ function renderFilteredVideos(videos) {
   document.getElementById('playlistDetailVideos').innerHTML = html;
 }
 
+/**
+ * Music view rows (spec §4): # · title · artist · album/channel · duration.
+ * Same click targets and the same handlers as the cards — the difference is
+ * layout tokens, default sort and which actions are prominent, nothing else.
+ */
+function renderMusicRows(videos) {
+  const host = document.getElementById('playlistDetailVideos');
+  const rows = videos.map((v, idx) => {
+    const parsed = parseArtistTitle(v.title, v.channelTitle);
+    const ghost = v.status !== 'available';
+    const safeTitle = escapeJsAttr(v.title);
+    const safeChannel = escapeJsAttr(v.channelTitle);
+    const safeThumb = escapeJsAttr(v.thumbnail);
+    const play = `playVideo('${v.videoId}','${safeTitle}','${safeChannel}','${safeThumb}')`;
+    return `
+      <div class="track-row${ghost ? ' is-ghost' : ''}" title="${escapeHtml(v.title)}">
+        <span class="track-num mono">${idx + 1}</span>
+        <span class="track-art" onclick="${play}">${v.thumbnail
+          ? `<img src="${v.thumbnail}" alt="" loading="lazy">`
+          : '<span class="track-art-empty"></span>'}
+          <span class="track-play"><svg viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
+        </span>
+        <span class="track-main" onclick="${play}">
+          <span class="track-title">${escapeHtml(parsed.title)}${v.isShort ? ' ' + shortBadgeHTML() : ''}</span>
+          <span class="track-artist">${escapeHtml(parsed.artist)}</span>
+        </span>
+        <span class="track-album">${escapeHtml(parsed.album)}</span>
+        <span class="track-actions">
+          <button class="btn-icon track-btn" onclick="event.stopPropagation();queueTrackNext('${v.videoId}')" title="${escapeHtml(t('music_queue_next'))}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M18 9v9"/><path d="m15 15 3 3 3-3"/></svg>
+          </button>
+          <a class="btn-icon track-btn" href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="YouTube">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
+          </a>
+        </span>
+        <span class="track-time mono">${ghost ? '—' : v.durationFormatted}</span>
+      </div>`;
+  }).join('');
+
+  host.innerHTML = `<div class="tracklist">${rows}</div>`;
+}
+
+/** Queue next — same PLAYER the video view uses, inserted after the current item. */
+function queueTrackNext(videoId) {
+  const v = currentDetailVideos.find(x => x.videoId === videoId);
+  if (!v) return;
+  const item = { videoId: v.videoId, title: v.title, channelTitle: v.channelTitle,
+                 thumbnail: v.thumbnail, playlistId: currentDetailPlaylistId, channelId: '' };
+  const at = PLAYER.currentIndex >= 0 ? PLAYER.currentIndex + 1 : PLAYER.queue.length;
+  PLAYER.queue.splice(at, 0, item);
+  if (typeof renderQueueList === 'function') { try { renderQueueList(); } catch (_) {} }
+  log('info', 'action', 'queued next from music view');
+  showToast(t('music_queued', { title: v.title }), 'success');
+}
+
+/** Shuffle the whole playlist into the player — a primary action in Music view. */
+function shuffleCurrentPlaylist() {
+  if (!currentDetailPlaylistId) return;
+  PLAYER.shuffle = true;
+  playPlaylist(currentDetailPlaylistId, 0);
+}
+
 let musicMode = false;
 try { musicMode = (typeof localStorage !== 'undefined' && localStorage.getItem('reelMusicMode') === '1'); } catch (e) {}
 function updateMusicModeBtn() {
@@ -9518,8 +9957,8 @@ function toggleMusicMode() {
   updateMusicModeBtn();
   const ft = document.getElementById('filterType');
   if (ft) ft.value = musicMode ? 'music' : 'all';
-  if (musicMode) { try { showToast('Mode Musique activé', 'success'); } catch (e) {} onFilterTypeChange(); }
-  else { try { showToast('Mode Musique désactivé', 'info'); } catch (e) {} applyVideoFilters(); }
+  if (musicMode) { try { showToast(t('music_filter_on'), 'success'); } catch (e) {} onFilterTypeChange(); }
+  else { try { showToast(t('music_filter_off'), 'info'); } catch (e) {} applyVideoFilters(); }
 }
 
 function resetVideoFilters() {
