@@ -3062,7 +3062,7 @@ const I18N = {
     toast_cancelled_quota: 'Action annulée — quota insuffisant',
     toast_error: 'Erreur: {msg}',
     error_not_registered: 'Accès refusé — votre compte Google n\'est pas enregistré comme testeur pour cette application. Dans Google Cloud Console > OAuth consent screen > Test users, ajoutez votre adresse email.',
-    error_quota_exceeded: 'Quota API YouTube dépassé (10 000 unités/jour). Réessayez demain après minuit (heure du Pacifique).',
+    error_quota_exceeded: "Quota API YouTube dépassé — l'un des trois quotas quotidiens du projet est épuisé (pool de 10 000 unités, 100 recherches, 100 mises en ligne). Réessayez après minuit, heure du Pacifique.",
     error_token_expired: 'Session expirée — veuillez vous reconnecter (Sign out puis Sign in).',
     error_rate_limited: 'Trop de requêtes — YouTube a temporairement limité le débit. Réessayez dans quelques secondes.',
     toast_action_pending_resume: '✅ Accès en écriture accordé — relancez votre action pour continuer.',
@@ -3732,7 +3732,7 @@ const I18N = {
     toast_cancelled_quota: 'Action cancelled — insufficient quota',
     toast_error: 'Error: {msg}',
     error_not_registered: 'Access denied — your Google account is not registered as a test user for this app. In Google Cloud Console > OAuth consent screen > Test users, add your email address.',
-    error_quota_exceeded: 'YouTube API quota exceeded (10,000 units/day). Try again after midnight Pacific Time.',
+    error_quota_exceeded: "YouTube API quota exceeded — one of the project's three daily quotas is spent (10,000-unit pool, 100 searches, 100 uploads). Try again after midnight Pacific Time.",
     error_token_expired: 'Session expired — please sign out and sign in again.',
     error_rate_limited: 'Too many requests — YouTube briefly rate-limited the client. Try again in a few seconds.',
     toast_action_pending_resume: '✅ Write access granted — please re-trigger your action to continue.',
@@ -3962,11 +3962,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.16.0'; // bump per release
+const APP_VERSION = '1.16.1'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.16.1', date: '2026-09-16', items: [
+    "Le message de quota depasse annoncait encore 10 000 unites par jour pour les trois quotas : il nomme desormais celui qui peut etre epuise (pool, recherches ou mises en ligne). Oubli de la v1.13.0",
+  ]},
   { v: '1.16.0', date: '2026-09-16', items: [
     "#B13 — un 403 ordinaire ne renvoie plus l utilisateur vers la Google Cloud Console. L application est en production : le message Ajoutez-vous aux Test users etait un faux diagnostic pour presque tous les 403. Il ne reste que pour accessNotConfigured ou un message qui dit vraiment not registered / has not completed ; le reste devient Session expiree, avec un bouton de reconnexion dans le toast",
     "#B14 — le cache peut s afficher sans jeton : le jeton ne vit que dans le fragment d URL et un rechargement le perd, alors que l en-tete affichait Connecte. Une pastille Hors ligne — cache local le dit, avec un bouton Se reconnecter, et toute ecriture est refusee avant l appel reseau au lieu de partir avec un Bearer vide",
