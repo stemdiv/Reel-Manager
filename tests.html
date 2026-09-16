@@ -92,6 +92,98 @@ function restore(win, s) {
   });
 }
 
+// applyLanguage(undefined) is a no-op, so the language has to be restored by
+// value read back out of the snapshot, not by a `let` that window never had.
+function restoreLang(w, snap) {
+  restore(w, snap);
+  w.applyLanguage(w.localStorage.getItem('appLang') || 'fr');
+}
+
+// #G11 — these cases write to the real IndexedDB of the app's origin, which is
+// the user's actual cache. Snapshot it, hand the tests an empty database, and
+// put the real one back afterwards, exactly as the localStorage snapshot does.
+async function idbSnapshot(w) {
+  const before = await w.cacheStore.readAll().catch(() => null);
+  const ls = snapshot(w, ['autoCache', 'autoCacheTimestamp']);
+  await w.cacheStore.clear();
+  return { before, ls };
+}
+async function idbRestore(w, snap) {
+  await w.cacheStore.clear();
+  if (snap.before && Array.isArray(snap.before.playlists) && snap.before.playlists.length) {
+    try { await w.cacheStore.writeAll(snap.before); } catch (_) {}
+  }
+  restore(w, snap.ls);
+}
+
+// A small, complete cache in the shape the app writes.
+function SAMPLE_CACHE() {
+  return {
+    timestamp: '2026-09-16T10:00:00.000Z',
+    playlists: [
+      { id: 'PL_A', title: 'Alpha', description: '', videos: [
+        { videoId: 'V1', title: 'one', thumbnail: 'u1' },
+        { videoId: 'V2', title: 'two', thumbnail: 'u2' },
+      ] },
+      { id: 'PL_B', title: 'Beta', description: '', videos: [
+        { videoId: 'V3', title: 'three', thumbnail: 'u3' },
+      ] },
+    ],
+    playlistObjects: [
+      { id: 'PL_A', snippet: { title: 'Alpha' }, contentDetails: { itemCount: 2 }, status: {} },
+      { id: 'PL_B', snippet: { title: 'Beta' }, contentDetails: { itemCount: 1 }, status: {} },
+    ],
+    tags: { PL_A: ['techno'] },
+    tagIcons: {}, folders: [], folderAssignments: {},
+    deckColumns: [], watchQueue: [], bookmarkedPlaylists: [],
+  };
+}
+
+// #B13 — drive the real ytApi against a stubbed fetch and return the error it
+// throws. GET only, so the write gates are not what is being measured here.
+async function api403(w, apiError, status) {
+  const realFetch = w.fetch;
+  const realToast = w.showToast;
+  const snap = seedQuota(w, { pool: 0, search: 0, upload: 0 });
+  try {
+    if (!apiErrorToastsWanted) w.showToast = () => {};
+    w.fetch = async () => new w.Response(
+      JSON.stringify({ error: { message: apiError.message, errors: [{ reason: apiError.reason }] } }),
+      { status: status || 403, headers: { 'Content-Type': 'application/json' } });
+    try {
+      await w.ytApi('playlists', { part: 'snippet', _bypassCache: true, _t: String(Math.random()) });
+      throw new Error('ytApi resolved on a ' + (status || 403));
+    } catch (e) { return e; }
+  } finally {
+    w.fetch = realFetch;
+    if (!apiErrorToastsWanted) w.showToast = realToast;
+    unseedQuota(w, snap);
+  }
+}
+// Set by the one case that wants to inspect the toast instead of muting it.
+let apiErrorToastsWanted = false;
+
+// #76 — the quota buckets live on the app's const APP, which this page cannot
+// reach. Seed the persisted state and let the app's own loader adopt it; read it
+// back through quotaTitleText(), exactly what the header tooltip shows.
+function seedQuota(w, q) {
+  const snap = snapshot(w, ['quotaState', 'quotaUnits', 'quotaResetDate', 'apiCalls']);
+  w.localStorage.removeItem('quotaUnits');
+  w.localStorage.setItem('quotaState', JSON.stringify(q));
+  w.localStorage.setItem('quotaResetDate', w.getPacificDateString());
+  w.loadQuotaState();
+  return snap;
+}
+function unseedQuota(w, snap) {
+  restore(w, snap);
+  w.loadQuotaState(); // put the real counters back in memory too
+}
+function readQuota(w) {
+  const m = w.quotaTitleText().match(/(\d+) \/ 10000 .* (\d+) \/ 100 .* (\d+) \/ 100/);
+  if (!m) throw new Error('unreadable quota tooltip: ' + w.quotaTitleText());
+  return { pool: +m[1], search: +m[2], upload: +m[3] };
+}
+
 // Does the app currently warn on exit? The only readable signal for APP_DIRTY.
 function exitPrompts(w) {
   const ev = new w.Event('beforeunload', { cancelable: true });
@@ -232,7 +324,9 @@ async function runMerge(w, opts) {
 // stubbed ytApi, exactly as the move and merge harnesses do.
 async function runAutoSave(w, opts) {
   opts = opts || {};
-  const snap = snapshot(w, ['autoCache', 'autoCacheTimestamp']);
+  // #G11 — the cache lives in IndexedDB now, so it is seeded and read back
+  // through cacheStore rather than through the old localStorage key.
+  const snap = await idbSnapshot(w);
   const real = { ytApi: w.ytApi, showToast: w.showToast, updateBackupIndicator: w.updateBackupIndicator };
   w.showToast = () => {};
   w.updateBackupIndicator = () => {};
@@ -250,14 +344,14 @@ async function runAutoSave(w, opts) {
 
   // a cache already holding videos
   if (opts.existingVideos !== 0) {
-    w.localStorage.setItem('autoCache', JSON.stringify({
+    await w.cacheStore.writeAll({
       timestamp: new Date(0).toISOString(),
       playlists: [{ id: 'PL_OLD', title: 'old', videos: [{ videoId: 'OLD1', title: 'kept' }] }],
       playlistObjects: [], tags: {}, tagIcons: {}, folders: [], folderAssignments: {},
       deckColumns: [], watchQueue: [], bookmarkedPlaylists: [],
-    }));
+    });
   } else {
-    w.localStorage.removeItem('autoCache');
+    await w.cacheStore.clear();
   }
 
   try {
@@ -266,21 +360,153 @@ async function runAutoSave(w, opts) {
       await w.loadPlaylistVideos('PL_SEED', { force: true });
     }
     await w.autoSaveToLocalStorage(opts.force ? { force: true } : undefined);
-    const after = JSON.parse(w.localStorage.getItem('autoCache') || 'null');
+    const after = await w.cacheStore.readAll();
     if (!after) return null;
     const n = (after.playlists || []).reduce((s, p) => s + (p.videos?.length || 0), 0);
     return { videos: n, wrote: after.timestamp !== new Date(0).toISOString() };
   } finally {
     Object.assign(w, real);
-    restore(w, snap);
+    await idbRestore(w, snap);
   }
 }
 
+
+// The auto-categorizer walks the whole of APP.playlists, so a run needs both a
+// known library and an answer for every endpoint it touches. videos answers the
+// shape getVideoDetails really returns — a map keyed by video id — because
+// iterating it as an array is the bug these cases exist for.
+async function runCategorizer(w, videosAnswer, playlists) {
+  const real = { ytApi: w.ytApi, showToast: w.showToast };
+  w.showToast = () => {};
+  w.ytApi = async (endpoint, params) => {
+    if (endpoint === 'playlists') return { items: playlists || [
+      { id: 'PL_cat_a', snippet: { title: 'Techno set' }, contentDetails: { itemCount: 1 }, status: {} },
+      { id: 'PL_cat_b', snippet: { title: 'Cours de maths' }, contentDetails: { itemCount: 1 }, status: {} },
+    ] };
+    if (endpoint === 'videoCategories') return { items: [
+      { id: '10', snippet: { title: 'Musique' } },
+      { id: '26', snippet: { title: 'Howto & Style' } },
+      { id: '27', snippet: { title: 'Education' } },
+      { id: '28', snippet: { title: 'Science & Technology' } },
+    ] };
+    if (endpoint === 'playlistItems') {
+      const pl = (playlists || []).find(p => p.id === params.playlistId);
+      const n = pl ? (pl.contentDetails?.itemCount || 1) : 1;
+      return { items: Array.from({ length: n }, (_, i) => ({
+        id: 'i' + i, contentDetails: { videoId: params.playlistId + '_v' + i },
+        snippet: { title: 'v', resourceId: { videoId: params.playlistId + '_v' + i } },
+      })) };
+    }
+    if (endpoint === 'videos') return videosAnswer(params);
+    return { items: [] };
+  };
+  await w.loadAllPlaylists();
+  await w.showAutoCategorizerModal();
+  return () => { Object.assign(w, real); };
+}
+
+function categorizerRows(w) {
+  return [...w.document.querySelectorAll('.categorizer-checkbox')].map(cb => ({
+    id: cb.dataset.plId,
+    text: cb.parentElement.innerText.replace(/\s+/g, ' ').trim(),
+  }));
+}
 
 // ════════════════════════════════════════════════════════════════════════
 // Suites
 // ════════════════════════════════════════════════════════════════════════
 const SUITES = [
+{
+  id: '#tags-auto', title: 'Auto-categorize applies what it found', note: 'getVideoDetails answers a map; iterating it as an array sent every playlist down the title fallback, silently',
+  cases: [
+    ['the title fallback matches whole words', w => {
+      const kw = { Tech: ['tech', 'code'], Musique: ['music', 'son'], Fitness: ['workout'] };
+      // 'tech' sits inside 'Techno' and 'son' inside 'poisson'. Substring
+      // matching filed a psytrance playlist under programming.
+      eq(w.keywordCategory('Techno set', kw), null, 'Techno is not tech');
+      eq(w.keywordCategory('Soupe de poisson', kw), null, 'poisson is not son');
+      eq(w.keywordCategory('Workout music', kw), 'Musique', 'first bucket wins');
+      return eq(w.keywordCategory('Le son du silence', kw), 'Musique', 'a real word still matches');
+    }],
+
+    ['the category of the videos is what gets suggested', async w => {
+      const snapLs = snapshot(w, ['playlistTags']);
+      const done = await runCategorizer(w, params =>
+        ({ items: String(params.id).split(',').map(id => ({
+          id, snippet: { title: 'v', categoryId: id.startsWith('PL_cat_a') ? '10' : '27' },
+          contentDetails: { duration: 'PT3M' },
+        })) }));
+      try {
+        const rows = categorizerRows(w);
+        eq(rows.length, 2, 'both playlists should have a suggestion');
+        // Musique, not Tech: the detection ran instead of guessing at the title.
+        ok(rows.find(r => r.id === 'PL_cat_a').text.includes('Musique'), 'Techno set: ' + rows[0].text);
+        return ok(rows.find(r => r.id === 'PL_cat_b').text.includes('Education'), 'Cours de maths: ' + rows[1].text);
+      } finally { w.closeModal(); done(); restore(w, snapLs); }
+    }],
+
+    ['apply writes the tags and the list shows them', async w => {
+      // APP is a top-level const, so w.APP is undefined: what Apply did is read
+      // back from where it persisted it and from what the list renders, which is
+      // what the user actually sees anyway.
+      const snapLs = snapshot(w, ['playlistTags']);
+      const done = await runCategorizer(w, params =>
+        ({ items: String(params.id).split(',').map(id => ({
+          id, snippet: { title: 'v', categoryId: '10' }, contentDetails: { duration: 'PT3M' },
+        })) }));
+      try {
+        w.document.getElementById('categorizerApplyBtn').click();
+        const stored = JSON.parse(w.localStorage.getItem('playlistTags') || '{}');
+        eq(stored['PL_cat_a'], ['Musique'], 'the tag was not persisted');
+        eq(stored['PL_cat_b'], ['Musique'], 'the second playlist was skipped');
+        w.refreshTagsList();
+        return ok(w.document.getElementById('tagsList').innerText.includes('Musique'), 'the list does not show the tag');
+      } finally { done(); restore(w, snapLs); }
+    }],
+
+    ['nothing to apply says so instead of offering a dead button', async w => {
+      const snapLs = snapshot(w, ['playlistTags']);
+      // No categoryId anywhere and no title a keyword can reach.
+      const done = await runCategorizer(w, params =>
+        ({ items: String(params.id).split(',').map(id => ({
+          id, snippet: { title: 'v' }, contentDetails: { duration: 'PT3M' },
+        })) }));
+      try {
+        eq(categorizerRows(w).length, 0, 'there should be no suggestion');
+        const btn = w.document.getElementById('categorizerApplyBtn');
+        // An empty results box under a live Apply button is what read as
+        // "apply is broken" — the click had nothing to do and said nothing.
+        eq(w.getComputedStyle(btn).display, 'none', 'Apply is still offered');
+        return ok(w.document.getElementById('categorizerResults').innerText.trim().length > 0, 'the empty result says nothing');
+      } finally { w.closeModal(); done(); restore(w, snapLs); }
+    }],
+
+    ['a title no keyword can reach is still categorized from its videos', async w => {
+      // "3P PRINTING" matches none of the five keyword lists, under the old
+      // substring rule or the current whole-word one. Until the map was iterated
+      // properly it produced nothing at all: one of the playlists that silently
+      // never appeared in the results. Its videos say Science & Technology.
+      const snapLs = snapshot(w, ['playlistTags']);
+      const cats = ['28', '28', '26', '28', '24'];
+      const done = await runCategorizer(w,
+        params => ({ items: String(params.id).split(',').map((id, i) => ({
+          id, snippet: { title: 'clip', categoryId: cats[i] }, contentDetails: { duration: 'PT8M' },
+        })) }),
+        [{ id: 'PL_3p', snippet: { title: '3P PRINTING' }, contentDetails: { itemCount: 5 }, status: {} }]);
+      try {
+        eq(w.keywordCategory('3P PRINTING', { Tech: ['tech', 'code', 'programming'], Musique: ['music'] }),
+           null, 'the title fallback should have nothing to say here');
+        const rows = categorizerRows(w);
+        eq(rows.length, 1, 'no suggestion at all — the silent skip is back');
+        // The majority of the videos, not the first one.
+        ok(rows[0].text.includes('Science & Technology'), rows[0].text);
+        w.document.getElementById('categorizerApplyBtn').click();
+        const stored = JSON.parse(w.localStorage.getItem('playlistTags') || '{}');
+        return eq(stored['PL_3p'], ['Science & Technology'], 'apply did not persist it');
+      } finally { done(); restore(w, snapLs); }
+    }],
+  ],
+},
 {
   id: '#76', title: 'The auto-cache cannot erase itself', note: 'it runs after a cache-first startup, when videos may not be in memory yet',
   cases: [
@@ -312,20 +538,22 @@ const SUITES = [
       const r = await runAutoSave(w, { withMemoryVideos: false, existingVideos: 0 });
       return ok(r !== null, 'refused to create the very first cache');
     }],
-    ['cachedVideoCount reads the stored blob', w => {
-      const snap = snapshot(w, ['autoCache']);
+    ['cachedVideoCount counts what is in the store', async w => {
+      const snap = await idbSnapshot(w);
       try {
-        w.localStorage.setItem('autoCache', JSON.stringify({
-          playlists: [{ videos: [1, 2, 3] }, { videos: [4] }] }));
-        return eq(w.cachedVideoCount(), 4);
-      } finally { restore(w, snap); }
+        await w.cacheStore.writeAll({
+          timestamp: new Date(0).toISOString(),
+          playlists: [{ id: 'A', videos: [1, 2, 3] }, { id: 'B', videos: [4] }],
+          playlistObjects: [],
+        });
+        return eq(await w.cachedVideoCount(), 4);
+      } finally { await idbRestore(w, snap); }
     }],
-    ['cachedVideoCount survives a corrupt blob', w => {
-      const snap = snapshot(w, ['autoCache']);
+    ['cachedVideoCount answers zero on an empty store rather than throwing', async w => {
+      const snap = await idbSnapshot(w);
       try {
-        w.localStorage.setItem('autoCache', 'not json at all');
-        return eq(w.cachedVideoCount(), 0);
-      } finally { restore(w, snap); }
+        return eq(await w.cachedVideoCount(), 0);
+      } finally { await idbRestore(w, snap); }
     }],
   ],
 },
@@ -650,7 +878,10 @@ const SUITES = [
       return eq(exitPrompts(w), true, 'no warning after markDirty');
     }],
     ['auto-cache clears it', async w => {
-      const snap = snapshot(w, ['autoCache', 'autoCacheTimestamp']);
+      // #G11 — the cache is in IndexedDB now, so snapshotting the two
+      // localStorage keys is no longer enough to leave the user's cache alone,
+      // and a non-empty cache would make the #76 guard refuse this write.
+      const snap = await idbSnapshot(w);
       const realToast = w.showToast;
       w.showToast = () => {};
       try {
@@ -658,11 +889,2066 @@ const SUITES = [
         ok(exitPrompts(w) === true, 'precondition: should be dirty');
         await w.autoSaveToLocalStorage();
         return eq(exitPrompts(w), false, 'still warning after the cache was written');
-      } finally { w.showToast = realToast; restore(w, snap); }
+      } finally { w.showToast = realToast; await idbRestore(w, snap); }
+    }],
+  ],
+},
+{
+  id: '#76b', title: 'Three quota buckets', note: 'search.list and videos.insert left the shared pool in the June 2026 API revision',
+  cases: [
+    ['search.list is 1 call in the search bucket', w =>
+      eq(w.getQuotaCost('search', 'GET'), { bucket: 'search', cost: 1 })],
+    ['videos.insert is 1 call in the upload bucket', w =>
+      eq(w.getQuotaCost('videos', 'POST'), { bucket: 'upload', cost: 1 })],
+    ['videos.list still costs the pool', w =>
+      eq(w.getQuotaCost('videos', 'GET'), { bucket: 'pool', cost: 1 })],
+    ['playlists.insert still costs the pool 50', w =>
+      eq(w.getQuotaCost('playlists', 'POST'), { bucket: 'pool', cost: 50 })],
+    ['a query string does not confuse the lookup', w =>
+      eq(w.getQuotaCost('playlists?part=snippet,status', 'POST'), { bucket: 'pool', cost: 50 })],
+    ['an unknown write falls back to pool/50', w =>
+      eq(w.getQuotaCost('somethingNew', 'POST'), { bucket: 'pool', cost: 50 })],
+
+    // APP is a const inside the app's own script — not reachable from here. Every
+    // case below drives the real persistence path instead: seed localStorage,
+    // let loadQuotaState() read it, and read the counters back through the
+    // functions the header itself uses.
+    ['chargeQuota hits only its own bucket', w => {
+      const snap = seedQuota(w, { pool: 0, search: 0, upload: 0 });
+      try {
+        eq(w.chargeQuota('search', 'GET'), { bucket: 'search', cost: 1 }, 'search');
+        eq(w.chargeQuota('videos', 'POST'), { bucket: 'upload', cost: 1 }, 'upload');
+        eq(w.chargeQuota('playlists', 'POST'), { bucket: 'pool', cost: 50 }, 'pool');
+        return eq(readQuota(w), { pool: 50, search: 1, upload: 1 });
+      } finally { unseedQuota(w, snap); }
+    }],
+
+    ['the Pacific reset zeroes all three', w => {
+      const snap = seedQuota(w, { pool: 5000, search: 90, upload: 42 });
+      try {
+        eq(readQuota(w), { pool: 5000, search: 90, upload: 42 }, 'precondition');
+        w.localStorage.setItem('quotaResetDate', '1999-01-01');
+        w.checkQuotaDailyReset();
+        return eq(readQuota(w), { pool: 0, search: 0, upload: 0 });
+      } finally { unseedQuota(w, snap); }
+    }],
+
+    ['the gauge follows the worst of the three', w => {
+      // Pool barely touched, search all but gone. One combined figure read 1%.
+      const snap = seedQuota(w, { pool: 100, search: 95, upload: 0 });
+      try { return eq(Math.round(w.quotaWorstPct()), 95); }
+      finally { unseedQuota(w, snap); }
+    }],
+
+    ['an exhausted bucket caps the gauge at 100%', w => {
+      const snap = seedQuota(w, { pool: 0, search: 100, upload: 0 });
+      try { return eq(Math.round(w.quotaWorstPct()), 100); }
+      finally { unseedQuota(w, snap); }
+    }],
+
+    ['the gauge tooltip names all three buckets', w => {
+      const snap = seedQuota(w, { pool: 1234, search: 12, upload: 0 });
+      try {
+        const txt = w.quotaTitleText();
+        ok(txt.includes('1234 / 10000'), 'pool missing: ' + txt);
+        ok(txt.includes('12 / 100'), 'search missing: ' + txt);
+        ok(txt.includes('0 / 100'), 'upload missing: ' + txt);
+        return txt;
+      } finally { unseedQuota(w, snap); }
+    }],
+
+    ['Discover refuses to search once the search bucket is empty', async w => {
+      const snap = seedQuota(w, { pool: 0, search: 100, upload: 0 });
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      const toasts = [];
+      const host = w.document.createElement('div');
+      host.innerHTML = '<input id="__discQ" value="techno">';
+      w.document.body.appendChild(host);
+      const old = w.document.getElementById('discoverSearchInput');
+      if (old) old.id = '__discParked';
+      w.document.getElementById('__discQ').id = 'discoverSearchInput';
+      let called = false;
+      try {
+        w.ytApi = async () => { called = true; return { items: [] }; };
+        w.showToast = (msg, type) => toasts.push({ msg, type });
+        await w.performDiscoverSearch();
+        ok(called === false, 'search.list was called with an empty bucket');
+        ok(toasts.length === 1 && toasts[0].type === 'error', 'no error toast: ' + JSON.stringify(toasts));
+        ok(/100/.test(toasts[0].msg), 'the limit is not named: ' + toasts[0].msg);
+        return 'refused, 0 calls';
+      } finally {
+        Object.assign(w, real);
+        host.remove(); if (old) old.id = 'discoverSearchInput';
+        unseedQuota(w, snap);
+      }
+    }],
+
+    ['Discover still searches while the bucket has room', async w => {
+      const snap = seedQuota(w, { pool: 0, search: 0, upload: 0 });
+      const real = { ytApi: w.ytApi, showToast: w.showToast, renderDiscoverResults: w.renderDiscoverResults };
+      const calls = [];
+      const host = w.document.createElement('div');
+      host.innerHTML = '<input id="__discQ" value="techno">';
+      w.document.body.appendChild(host);
+      const old = w.document.getElementById('discoverSearchInput');
+      if (old) old.id = '__discParked';
+      w.document.getElementById('__discQ').id = 'discoverSearchInput';
+      try {
+        w.ytApi = async (endpoint) => { calls.push(endpoint); return { items: [] }; };
+        w.showToast = () => {};
+        w.renderDiscoverResults = () => {};
+        await w.performDiscoverSearch();
+        return eq(calls, ['search'], 'the one allowed page should have gone out');
+      } finally {
+        Object.assign(w, real);
+        host.remove(); if (old) old.id = 'discoverSearchInput';
+        unseedQuota(w, snap);
+      }
+    }],
+  ],
+},
+{
+  id: '#73', title: 'Discover filters actually reach the wire', note: 'the backlog announced four of these in v1.6.0; none were ever sent',
+  cases: [
+    ['a bare search sends region and language, nothing else', w => {
+      const p = w.buildDiscoverSearchParams({ query: 'techno', maxResults: 50, order: 'relevance', lang: 'fr' });
+      eq(p.regionCode, 'FR', 'regionCode');
+      eq(p.relevanceLanguage, 'fr', 'relevanceLanguage');
+      ok(!('videoDefinition' in p), 'videoDefinition sent at default');
+      ok(!('videoCaption' in p), 'videoCaption sent at default');
+      ok(!('videoLicense' in p), 'videoLicense sent at default');
+      ok(!('publishedAfter' in p), 'publishedAfter sent at default');
+      ok(!('channelId' in p), 'channelId sent when empty');
+      return Object.keys(p).sort().join(',');
+    }],
+
+    ['English UI searches the US in English', w => {
+      const p = w.buildDiscoverSearchParams({ query: 'x', maxResults: 50, order: 'date', lang: 'en' });
+      return eq([p.regionCode, p.relevanceLanguage], ['US', 'en']);
+    }],
+
+    ['an unknown UI language falls back to en/US rather than sending undefined', w => {
+      const p = w.buildDiscoverSearchParams({ query: 'x', maxResults: 50, order: 'date', lang: 'xx' });
+      return eq([p.regionCode, p.relevanceLanguage], ['US', 'en']);
+    }],
+
+    ['every filter set at once', w => {
+      const p = w.buildDiscoverSearchParams({
+        query: 'ableton', maxResults: 50, order: 'viewCount', lang: 'fr',
+        duration: 'long', definition: 'high', caption: 'closedCaption',
+        license: 'creativeCommon', embeddable: true, channelId: 'UC_abc',
+        publishedAfter: '7d', now: Date.UTC(2026, 8, 16, 12, 0, 0),
+      });
+      return eq({
+        videoDuration: p.videoDuration, videoDefinition: p.videoDefinition,
+        videoCaption: p.videoCaption, videoLicense: p.videoLicense,
+        videoEmbeddable: p.videoEmbeddable, channelId: p.channelId,
+        publishedAfter: p.publishedAfter,
+      }, {
+        videoDuration: 'long', videoDefinition: 'high',
+        videoCaption: 'closedCaption', videoLicense: 'creativeCommon',
+        videoEmbeddable: 'true', channelId: 'UC_abc',
+        publishedAfter: '2026-09-09T12:00:00Z',
+      });
+    }],
+
+    ['"any" is an absence, not a value', w => {
+      const p = w.buildDiscoverSearchParams({
+        query: 'x', maxResults: 50, order: 'relevance', lang: 'fr',
+        duration: 'any', definition: 'any', caption: 'any', license: 'any',
+        publishedAfter: 'any', embeddable: false, channelId: '   ',
+      });
+      const leaked = ['videoDuration', 'videoDefinition', 'videoCaption', 'videoLicense',
+                      'videoEmbeddable', 'publishedAfter', 'channelId'].filter(k => k in p);
+      return eq(leaked, [], 'parameters sent at "any"');
+    }],
+
+    ['publishedAfter is RFC 3339 with no milliseconds', w => {
+      const now = Date.UTC(2026, 0, 31, 8, 30, 0);
+      return eq([
+        w.publishedAfterRfc3339('24h', now),
+        w.publishedAfterRfc3339('30d', now),
+        w.publishedAfterRfc3339('1y', now),
+        w.publishedAfterRfc3339('any', now),
+        w.publishedAfterRfc3339(undefined, now),
+      ], [
+        '2026-01-30T08:30:00Z',
+        '2026-01-01T08:30:00Z',
+        '2025-01-31T08:30:00Z',
+        null,
+        null,
+      ]);
+    }],
+
+    ['the page token rides along when paginating', w => {
+      const p = w.buildDiscoverSearchParams({ query: 'x', maxResults: 50, order: 'relevance', lang: 'fr', pageToken: 'TOKEN2' });
+      return eq(p.pageToken, 'TOKEN2');
+    }],
+
+    ['filters survive a reload, sort and order included', w => {
+      const snap = snapshot(w, ['discoverFilters']);
+      const ids = ['discoverMaxResults', 'discoverOrder', 'discoverSortBy', 'discoverDuration',
+                   'discoverDefinition', 'discoverCaption', 'discoverLicense', 'discoverPublishedAfter'];
+      const before = {};
+      ids.forEach(id => { before[id] = w.document.getElementById(id).value; });
+      const emb = w.document.getElementById('discoverEmbeddable');
+      const embBefore = emb.checked;
+      try {
+        w.document.getElementById('discoverOrder').value = 'viewCount';
+        w.document.getElementById('discoverSortBy').value = 'likes';
+        w.document.getElementById('discoverDefinition').value = 'high';
+        w.document.getElementById('discoverPublishedAfter').value = '7d';
+        emb.checked = true;
+        w.saveDiscoverFilters();
+        // wipe the controls, the way a fresh page load would
+        ids.forEach(id => { w.document.getElementById(id).selectedIndex = 0; });
+        emb.checked = false;
+        w.loadDiscoverFilters();
+        return eq([
+          w.document.getElementById('discoverOrder').value,
+          w.document.getElementById('discoverSortBy').value,
+          w.document.getElementById('discoverDefinition').value,
+          w.document.getElementById('discoverPublishedAfter').value,
+          emb.checked,
+        ], ['viewCount', 'likes', 'high', '7d', true]);
+      } finally {
+        ids.forEach(id => { w.document.getElementById(id).value = before[id]; });
+        emb.checked = embBefore;
+        restore(w, snap);
+      }
+    }],
+
+    ['a saved value the dropdown no longer offers falls back instead of blanking it', w => {
+      const snap = snapshot(w, ['discoverFilters']);
+      const el = w.document.getElementById('discoverDuration');
+      const before = el.value;
+      try {
+        w.localStorage.setItem('discoverFilters', JSON.stringify({ discoverDuration: 'epic' }));
+        w.loadDiscoverFilters();
+        return eq(el.value, 'any');
+      } finally { el.value = before; restore(w, snap); }
+    }],
+
+    ['the channel filter is deliberately not persisted', w => {
+      const snap = snapshot(w, ['discoverFilters']);
+      const hidden = w.document.getElementById('discoverChannelId');
+      const before = hidden.value;
+      try {
+        hidden.value = 'UC_sticky';
+        w.saveDiscoverFilters();
+        const saved = JSON.parse(w.localStorage.getItem('discoverFilters'));
+        return eq(saved.discoverChannelId, undefined, 'a forgotten channel filter would silently narrow every later search');
+      } finally { hidden.value = before; restore(w, snap); }
+    }],
+
+    ['picking a channel fills the filter and shows the row', w => {
+      const hidden = w.document.getElementById('discoverChannelId');
+      const row = w.document.getElementById('discoverChannelRow');
+      const before = hidden.value;
+      const awkward = "L'Atelier \\ Son";   // the exact shape that broke an inline onclick
+      try {
+        w.searchChannelInDiscover('UC_xyz', awkward);
+        eq(hidden.value, 'UC_xyz', 'channelId');
+        eq(w.document.getElementById('discoverChannelName').textContent, awkward, 'quotes and backslashes survive');
+        eq(row.style.display, 'flex', 'row hidden');
+        w.clearDiscoverChannel();
+        return eq([hidden.value, row.style.display], ['', 'none'], 'after clear');
+      } finally { hidden.value = before; }
+    }],
+  ],
+},
+{
+  id: 'videoCategories', title: 'Category names follow the UI language', note: 'regionCode/hl were pinned to FR/fr while every other label followed currentLang',
+  cases: [
+    ['an English UI asks YouTube for US/en', async w => {
+      const real = w.ytApi;
+      let seen = null;
+      try {
+        w.ytApi = async (endpoint, params) => { seen = { endpoint, params }; return { items: [] }; };
+        await w.loadVideoCategories('en');
+        eq(seen.endpoint, 'videoCategories', 'endpoint');
+        return eq([seen.params.regionCode, seen.params.hl], ['US', 'en']);
+      } finally { w.ytApi = real; }
+    }],
+
+    ['a French UI asks for FR/fr', async w => {
+      const real = w.ytApi;
+      let seen = null;
+      try {
+        w.ytApi = async (endpoint, params) => { seen = params; return { items: [] }; };
+        await w.loadVideoCategories('fr');
+        return eq([seen.regionCode, seen.hl], ['FR', 'fr']);
+      } finally { w.ytApi = real; }
+    }],
+
+    ['with no argument it follows currentLang, not a hard-coded FR', async w => {
+      const real = w.ytApi;
+      const langSnap = snapshot(w, ['appLang']);
+      let seen = null;
+      try {
+        w.applyLanguage('en');
+        w.ytApi = async (endpoint, params) => { seen = params; return { items: [] }; };
+        await w.loadVideoCategories();
+        return eq([seen.regionCode, seen.hl], ['US', 'en']);
+      } finally { w.ytApi = real; restoreLang(w, langSnap); }
+    }],
+
+    ['the two languages are distinct cache entries', async w => {
+      // The cache key is the full request URL, so hl=fr and hl=en cannot collide.
+      const real = w.ytApi;
+      const urls = [];
+      try {
+        w.ytApi = async (endpoint, params) => {
+          const u = new URL('https://www.googleapis.com/youtube/v3/' + endpoint);
+          Object.keys(params).forEach(k => u.searchParams.append(k, params[k]));
+          urls.push(u.toString());
+          return { items: [] };
+        };
+        await w.loadVideoCategories('fr');
+        await w.loadVideoCategories('en');
+        ok(urls[0] !== urls[1], 'same cache key for both languages: ' + urls[0]);
+        return 'distinct keys';
+      } finally { w.ytApi = real; }
+    }],
+
+    ['category labels in the app already follow the UI language', w => {
+      return eq([w.getCategoryName('10', 'fr'), w.getCategoryName('10', 'en')], ['Musique', 'Music']);
+    }],
+
+    ['switching language re-labels the dropdowns in place', w => {
+      const langSnap = snapshot(w, ['appLang']);
+      const sel = w.document.getElementById('gsCategory');
+      if (!sel) throw new Error('gsCategory not in the DOM');
+      try {
+        w.applyLanguage('fr');
+        w.gsRefreshCategoryOptions();
+        const fr = [...sel.options].map(o => o.textContent).join('|');
+        w.toggleLanguage();               // fr → en
+        const en = [...sel.options].map(o => o.textContent).join('|');
+        ok(fr !== en, 'the dropdown kept its old labels: ' + fr);
+        ok(/Music/.test(en) && !/Musique/.test(en), 'not relabelled to English: ' + en);
+        return 'relabelled';
+      } finally { restoreLang(w, langSnap); w.gsRefreshCategoryOptions(); }
+    }],
+  ],
+},
+{
+  id: 'thumbnails', title: 'fhd/qhd/uhd through one fallback chain', note: 'twenty-odd hand-written medium||high||default chains, several in a different order',
+  cases: [
+    ['a card prefers medium', w =>
+      eq(w.pickThumb({ default: { url: 'd' }, medium: { url: 'm' }, high: { url: 'h' } }), 'm')],
+
+    ['a hero takes the largest available', w =>
+      eq(w.pickThumb({ default: { url: 'd' }, medium: { url: 'm' }, fhd: { url: 'f' }, uhd: { url: 'u' } }, 'hero'), 'u')],
+
+    ['a hero falls back to qhd, then fhd', w => {
+      eq(w.pickThumb({ qhd: { url: 'q' }, fhd: { url: 'f' }, medium: { url: 'm' } }, 'hero'), 'q', 'qhd');
+      return eq(w.pickThumb({ fhd: { url: 'f' }, medium: { url: 'm' } }, 'hero'), 'f', 'fhd');
+    }],
+
+    ['qhd alone is enough for either mode', w => {
+      eq(w.pickThumb({ qhd: { url: 'q' } }, 'hero'), 'q', 'hero');
+      return eq(w.pickThumb({ qhd: { url: 'q' } }), 'q', 'card');
+    }],
+
+    ['a hero with no big key falls back to high, not to nothing', w =>
+      eq(w.pickThumb({ high: { url: 'h' }, default: { url: 'd' } }, 'hero'), 'h')],
+
+    ['an object carrying only the new keys is not read as missing', w => {
+      // This is the regression: every old chain checked medium/high/default only.
+      const onlyNew = { fhd: { url: 'f' } };
+      ok(w.pickThumb(onlyNew) !== '', 'card read it as absent');
+      return eq(w.pickThumb(onlyNew), 'f');
+    }],
+
+    ['empty, missing and malformed all give an empty string', w => {
+      eq(w.pickThumb({}), '', 'empty object');
+      eq(w.pickThumb(undefined), '', 'undefined');
+      eq(w.pickThumb(null, 'hero'), '', 'null');
+      return eq(w.pickThumb({ medium: {} }), '', 'entry with no url');
+    }],
+
+    ['a higher-resolution URL is cached only when it is a different image', w => {
+      eq(w.hdIfDifferent({ medium: { url: 'm' }, fhd: { url: 'f' } }), 'f', 'fhd should be kept');
+      eq(w.hdIfDifferent({ medium: { url: 'm' } }), undefined, 'nothing bigger to keep');
+      eq(w.hdIfDifferent({ fhd: { url: 'x' } }), undefined, 'same image in both modes');
+      return eq(w.hdIfDifferent(undefined, { medium: { url: 'm' }, qhd: { url: 'q' } }), 'q', 'falls through to the detail');
+    }],
+
+    ['the playlistItems selector asks YouTube for the new keys', async w => {
+      const real = w.ytApi;
+      const seen = [];
+      try {
+        w.ytApi = async (endpoint, params) => { seen.push(params); return { items: [] }; };
+        await w.loadPlaylistVideos('PL_THUMBS', { force: true });
+        const f = seen[0].fields || '';
+        ok(/fhd\(url\)/.test(f), 'fhd missing from fields=: ' + f);
+        ok(/qhd\(url\)/.test(f), 'qhd missing from fields=: ' + f);
+        ok(!/uhd\(url\)/.test(f), 'uhd requested — dead weight for cards');
+        return 'fhd+qhd requested';
+      } finally { w.ytApi = real; delete w.APP_allVideos_PL_THUMBS; }
+    }],
+  ],
+},
+{
+  id: '#B13 #B14', title: 'Honest 403s and a cache-only session', note: 'ytApi is driven with a stubbed fetch; nothing leaves the browser',
+  cases: [
+    ['a plain 403 forbidden no longer sends the user to the Cloud Console', async w => {
+      const r = await api403(w, { reason: 'forbidden', message: 'The request is forbidden.' });
+      ok(!/test user|testeur/i.test(r.message), 'still the test-user message: ' + r.message);
+      return eq(r.message, w.t('error_session_expired'));
+    }],
+
+    ['accessNotConfigured still is the test-user message', async w => {
+      const r = await api403(w, { reason: 'accessNotConfigured', message: 'Access Not Configured.' });
+      return eq(r.message, w.t('error_not_registered'));
+    }],
+
+    ['"not registered" in the message is enough', async w => {
+      const r = await api403(w, { reason: 'forbidden', message: 'Project 123 is not registered.' });
+      return eq(r.message, w.t('error_not_registered'));
+    }],
+
+    ['"has not completed" in the message is enough', async w => {
+      const r = await api403(w, { reason: 'forbidden', message: 'The project has not completed verification.' });
+      return eq(r.message, w.t('error_not_registered'));
+    }],
+
+    ['quotaExceeded wins over everything else', async w => {
+      const r = await api403(w, { reason: 'quotaExceeded', message: 'Quota exceeded.' });
+      return eq(r.message, w.t('error_quota_exceeded'));
+    }],
+
+    ['a 401 reads as an expired session, not as a missing registration', async w => {
+      const r = await api403(w, { reason: 'authError', message: 'Invalid Credentials' }, 401);
+      return eq(r.message, w.t('error_session_expired'));
+    }],
+
+    ['a lapsed session offers a way back', async w => {
+      const toasts = [];
+      const real = w.showToast;
+      try {
+        apiErrorToastsWanted = true;
+        w.showToast = (msg, type, action) => toasts.push({ msg, type, action });
+        await api403(w, { reason: 'forbidden', message: 'forbidden' });
+        ok(toasts.length === 1, 'no toast: ' + JSON.stringify(toasts));
+        ok(toasts[0].action && typeof toasts[0].action.onClick === 'function', 'no reconnect action');
+        return eq(toasts[0].action.label, w.t('action_reconnect'));
+      } finally { apiErrorToastsWanted = false; w.showToast = real; }
+    }],
+
+    ['a write with no token is refused before the network', async w => {
+      const realFetch = w.fetch;
+      const realToast = w.showToast;
+      let fetched = false;
+      try {
+        w.showToast = () => {};
+        w.fetch = async () => { fetched = true; return new w.Response('{}', { status: 200 }); };
+        w.setAccessToken('');
+        let msg = '';
+        try { await w.ytApi('playlists', { part: 'snippet' }, 'POST', { snippet: { title: 'x' } }); }
+        catch (e) { msg = e.message; }
+        ok(fetched === false, 'a request went out with an empty Bearer');
+        return eq(msg, w.t('error_session_expired'));
+      } finally { w.fetch = realFetch; w.showToast = realToast; w.setAccessToken('test-token'); }
+    }],
+
+    ['a read with no token is still allowed — that is the whole point of the cache', async w => {
+      const realFetch = w.fetch;
+      let fetched = false;
+      try {
+        w.fetch = async () => { fetched = true; return new w.Response(JSON.stringify({ items: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } }); };
+        w.setAccessToken('');
+        await w.ytApi('playlists', { part: 'snippet', _bypassCache: true });
+        return eq(fetched, true, 'a read was blocked too');
+      } finally { w.fetch = realFetch; w.setAccessToken('test-token'); }
+    }],
+
+    ['no token puts the header in the offline state', w => {
+      try {
+        w.setAccessToken('');
+        eq(w.applyOfflineCacheState(), true, 'not flagged offline');
+        eq(w.document.body.classList.contains('offline-cache'), true, 'no body class');
+        w.setAccessToken('test-token');
+        eq(w.applyOfflineCacheState(), false, 'still offline with a token');
+        return eq(w.document.body.classList.contains('offline-cache'), false, 'body class stuck');
+      } finally { w.setAccessToken('test-token'); w.applyOfflineCacheState(); }
+    }],
+
+    ['the offline pill carries a reconnect button', w => {
+      const pill = w.document.getElementById('offlinePill');
+      ok(pill, 'no offline pill in the header');
+      return eq(!!pill.querySelector('button'), true);
+    }],
+
+    ['the diagnostic log distinguishes "no token" from "expired"', w => {
+      try {
+        w.setAccessToken('');
+        ok(/no token/i.test(w.tokenStateText()), 'no-token case: ' + w.tokenStateText());
+        w.setAccessToken('test-token');
+        const past = Date.now() - 5 * 60000, soon = Date.now() + 42 * 60000;
+        ok(/expired/i.test(w.tokenStateText(past)), 'expired case: ' + w.tokenStateText(past));
+        return ok(/42 min/.test(w.tokenStateText(soon)), 'live case: ' + w.tokenStateText(soon));
+      } finally { w.setAccessToken('test-token'); }
+    }],
+
+    ['a toast with an action still shows the message as text, not markup', w => {
+      const host = w.document.getElementById('toastContainer');
+      const before = host.childElementCount;
+      w.showToast('<img src=x onerror=alert(1)>', 'error', { label: 'Go', onClick: () => {} });
+      const toast = host.lastElementChild;
+      try {
+        ok(!toast.querySelector('img'), 'the message was parsed as HTML');
+        return eq(toast.querySelector('.toast-action').textContent, 'Go');
+      } finally { toast.remove(); }
+    }],
+  ],
+},
+{
+  id: '#68', title: 'Shorts detection', note: 'the Data API has no isShort flag; the embed aspect ratio plus the 180 s ceiling is the whole signal',
+  cases: [
+    ['portrait and short is a Short', w =>
+      eq(w.detectShort(1080, 1920, 45), true)],
+
+    ['landscape and short is not', w =>
+      eq(w.detectShort(1920, 1080, 45), false, 'a 45 s landscape clip is an ordinary video')],
+
+    ['portrait but long is not', w =>
+      eq(w.detectShort(1080, 1920, 200), false, 'past the 180 s Shorts ceiling')],
+
+    ['exactly 180 s still counts, 181 does not', w => {
+      eq(w.detectShort(1080, 1920, 180), true, 'at the ceiling');
+      return eq(w.detectShort(1080, 1920, 181), false, 'one second over');
+    }],
+
+    ['square is not portrait', w =>
+      eq(w.detectShort(1000, 1000, 30), false)],
+
+    ['missing or unusable dimensions never guess', w => {
+      eq(w.detectShort(undefined, undefined, 30), false, 'no player block');
+      eq(w.detectShort(0, 0, 30), false, 'zeroes');
+      eq(w.detectShort('abc', 'def', 30), false, 'garbage');
+      return eq(w.detectShort(1080, 1920, 0), false, 'unknown duration');
+    }],
+
+    ['string dimensions from the API are parsed', w => {
+      // The API returns embedWidth/embedHeight as strings.
+      return eq(w.detectShort('1080', '1920', 45), true);
+    }],
+
+    ['a channel id maps to its system playlists', w => {
+      const ch = 'UCabcdefghijklmnopqrstuv';
+      return eq([
+        w.channelSystemPlaylistId(ch, 'shorts'),
+        w.channelSystemPlaylistId(ch, 'longForm'),
+        w.channelSystemPlaylistId(ch, 'live'),
+        w.channelSystemPlaylistId(ch, 'uploads'),
+      ], [
+        'UUSHabcdefghijklmnopqrstuv',
+        'UULFabcdefghijklmnopqrstuv',
+        'UULVabcdefghijklmnopqrstuv',
+        'UUabcdefghijklmnopqrstuv',
+      ]);
+    }],
+
+    ['anything that is not a channel id gives nothing back', w => {
+      eq(w.channelSystemPlaylistId('PLabcdefghijklmnopqrstuv', 'shorts'), '', 'a playlist id');
+      eq(w.channelSystemPlaylistId('UCtooshort', 'shorts'), '', 'wrong length');
+      eq(w.channelSystemPlaylistId('', 'shorts'), '', 'empty');
+      return eq(w.channelSystemPlaylistId('UCabcdefghijklmnopqrstuv', 'nonsense'), '', 'unknown kind');
+    }],
+
+    ['getVideoDetails asks for the player block, at no extra cost', async w => {
+      const real = w.ytApi;
+      let seen = null;
+      try {
+        w.ytApi = async (endpoint, params) => { seen = params; return { items: [] }; };
+        await w.getVideoDetails(['VID1']);
+        ok(/\bplayer\b/.test(seen.part), 'player missing from part=: ' + seen.part);
+        ok(/player\(embedHeight,embedWidth\)/.test(seen.fields), 'player missing from fields=: ' + seen.fields);
+        eq(seen.maxHeight, 8192, 'maxHeight');
+        // part= does not bill per part: the call is still one pool unit.
+        return eq(w.getQuotaCost('videos', 'GET'), { bucket: 'pool', cost: 1 });
+      } finally { w.ytApi = real; }
+    }],
+
+    ['the flag is computed once, at fetch time', async w => {
+      const real = w.ytApi;
+      try {
+        w.ytApi = async () => ({ items: [
+          { id: 'S1', contentDetails: { duration: 'PT45S' }, player: { embedWidth: '1080', embedHeight: '1920' } },
+          { id: 'V1', contentDetails: { duration: 'PT45S' }, player: { embedWidth: '1920', embedHeight: '1080' } },
+        ] });
+        const d = await w.getVideoDetails(['S1', 'V1']);
+        return eq([d.S1._isShort, d.V1._isShort], [true, false]);
+      } finally { w.ytApi = real; }
+    }],
+
+    ['a record written before #68 is answered by recomputing, not by guessing', w => {
+      // No _isShort field, as any cache entry written before this change.
+      const legacy = { contentDetails: { duration: 'PT30S' }, player: { embedWidth: '1080', embedHeight: '1920' } };
+      const noPlayer = { contentDetails: { duration: 'PT30S' } };
+      eq(w.isShortVideo('LEGACY', legacy), true, 'recomputed from the player block');
+      eq(w.isShortVideo('NOPLAYER', noPlayer), false, 'nothing to go on');
+      return eq(w.isShortVideo('NEVER_SEEN'), false, 'not in the cache at all');
+    }],
+
+    ['a stored flag is trusted over recomputation', w => {
+      // Once #68 has run, the flag is authoritative even if the player block is gone.
+      return eq(w.isShortVideo('X', { _isShort: true, contentDetails: { duration: 'PT9999S' } }), true);
+    }],
+
+    ['the Shorts filter does not consult the music classifier', w => {
+      // A musical Short is both music and short; the two axes must not interfere.
+      const musicalShort = { videoId: 'MS', title: 'official music video', isShort: true };
+      ok(w.classifyVideoType(musicalShort).isMusic === true, 'precondition: reads as music');
+      return eq(musicalShort.isShort, true, 'and is still a Short');
+    }],
+  ],
+},
+{
+  id: '#I3', title: 'Like state without asking for write access', note: 'videos.getRating accepts youtube.readonly since 1 Sept 2026; videos.rate still does not',
+  cases: [
+    ['a sub-path keeps its own cost and bucket', w => {
+      // Truncated to 'videos', a rate POST would have been billed to the UPLOAD
+      // bucket — one like eating 1% of the daily upload allowance.
+      eq(w.getQuotaCost('videos/rate', 'POST'), { bucket: 'pool', cost: 50 }, 'rate');
+      eq(w.getQuotaCost('videos/getRating', 'GET'), { bucket: 'pool', cost: 1 }, 'getRating');
+      return eq(w.getQuotaCost('videos', 'POST'), { bucket: 'upload', cost: 1 }, 'a real upload is untouched');
+    }],
+
+    ['normalisation strips the query but keeps the path', w => {
+      eq(w.normalizeEndpoint('playlists?part=snippet,status'), 'playlists', 'query');
+      eq(w.normalizeEndpoint('videos/getRating?id=abc'), 'videos.getRating', 'path + query');
+      return eq(w.normalizeEndpoint('videos'), 'videos', 'plain');
+    }],
+
+    ['getRating is cached, rate is not', w => {
+      ok(w.cacheTtlFor('videos/getRating', 'GET') > 0, 'getRating should be cacheable');
+      return eq(w.cacheTtlFor('videos/rate', 'POST'), 0, 'a write is never cached');
+    }],
+
+    ['the response maps to a state, and an unknown one is "none"', w => {
+      const r = id => ({ items: [{ videoId: 'V1', rating: id }] });
+      eq(w.ratingFromResponse(r('like'), 'V1'), 'like', 'like');
+      eq(w.ratingFromResponse(r('dislike'), 'V1'), 'dislike', 'dislike');
+      eq(w.ratingFromResponse(r('none'), 'V1'), 'none', 'none');
+      eq(w.ratingFromResponse(r('unspecified'), 'V1'), 'none', 'unspecified is not a state we show');
+      eq(w.ratingFromResponse({ items: [] }, 'V1'), 'none', 'empty');
+      eq(w.ratingFromResponse({}, 'V1'), 'none', 'no items at all');
+      return eq(w.ratingFromResponse(r('like'), 'OTHER'), 'none', 'a rating for another video is not ours');
+    }],
+
+    ['reading the rating spends one pool unit on getRating', async w => {
+      const real = w.ytApi;
+      const calls = [];
+      try {
+        w.ytApi = async (endpoint, params) => {
+          calls.push({ endpoint, params });
+          return { items: [{ videoId: 'V1', rating: 'like' }] };
+        };
+        const r = await w.fetchRating('V1');
+        eq(calls.length, 1, 'one call');
+        eq(calls[0].endpoint, 'videos/getRating', 'endpoint');
+        return eq(r, 'like');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['a failed read never interrupts playback', async w => {
+      const real = w.ytApi;
+      try {
+        w.ytApi = async () => { throw new Error('boom'); };
+        return eq(await w.fetchRating('V1'), 'none');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['with no token the rating is not even requested', async w => {
+      const real = w.ytApi;
+      let called = false;
+      try {
+        w.setAccessToken('');
+        w.ytApi = async () => { called = true; return { items: [] }; };
+        const r = await w.fetchRating('V1');
+        ok(called === false, 'a request went out without a token');
+        return eq(r, 'none');
+      } finally { w.ytApi = real; w.setAccessToken('test-token'); }
+    }],
+
+    ['read-only mode refuses the write and leaves the state alone', async w => {
+      const realToast = w.showToast;
+      const realApi = w.ytApi;
+      const toasts = [];
+      let called = false;
+      const wasReadOnly = w.document.body.classList.contains('read-only');
+      try {
+        w.showToast = (m, tp) => toasts.push({ m, tp });
+        w.ytApi = async () => { called = true; return {}; };
+        w.setReadOnlyMode(true);
+        await w.togglePlayerLike();
+        ok(called === false, 'a rate request went out in read-only mode');
+        ok(toasts.some(x => x.m === w.t('error_read_only')), 'no explanation given: ' + JSON.stringify(toasts));
+        return 'refused, 0 calls';
+      } finally {
+        w.setReadOnlyMode(!!wasReadOnly);
+        w.showToast = realToast; w.ytApi = realApi;
+      }
+    }],
+
+    ['the button reflects the state and is inert without a token', w => {
+      const btn = w.document.getElementById('playerLikeBtn');
+      ok(btn, 'no like button in the player controls');
+      try {
+        w.renderRatingButton('like');
+        eq(btn.classList.contains('is-liked'), true, 'liked class');
+        eq(btn.getAttribute('aria-pressed'), 'true', 'aria-pressed');
+        w.renderRatingButton('none');
+        eq(btn.classList.contains('is-liked'), false, 'liked class stuck');
+        w.setAccessToken('');
+        w.renderRatingButton('none');
+        return eq(btn.disabled, true, 'enabled with no token');
+      } finally { w.setAccessToken('test-token'); w.renderRatingButton('none'); }
+    }],
+  ],
+},
+{
+  id: 'batchGetStats', title: 'Statistics on their own bucket, with a fallback', note: 'the public cost table does not list the method yet, so it may simply not be enabled',
+  cases: [
+    ['batchGetStats is addressed with a colon, not a slash', w => {
+      // REGRESSION: it is a Google custom method — videos:batchGetStats. Written
+      // with a slash it addresses a path that does not exist, the CORS preflight
+      // goes unanswered, and the browser reports a bare "Failed to fetch". That
+      // took the whole Discover flow down.
+      eq(w.normalizeEndpoint('videos:batchGetStats'), 'videos.batchGetStats', 'colon form');
+      eq(w.normalizeEndpoint('videos:batchGetStats?id=x'), 'videos.batchGetStats', 'with a query');
+      // The classic sub-path form must keep working alongside it.
+      return eq(w.normalizeEndpoint('videos/getRating'), 'videos.getRating', 'slash form');
+    }],
+
+    ['batchGetStats has its own bucket and costs one unit', w =>
+      eq(w.getQuotaCost('videos:batchGetStats', 'GET'), { bucket: 'stats', cost: 1 })],
+
+    ['the request goes to the documented URL and carries part=', async w => {
+      const realFetch = w.fetch;
+      const wasEnabled = w.batchStatsEnabled();
+      let seen = null;
+      try {
+        w.setAccessToken('test-token');
+        w.setBatchStatsEnabled(true);
+        w.fetch = async (u) => {
+          seen = String(u);
+          return new w.Response(JSON.stringify({ items: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        };
+        await w.fetchVideoStats(['A']);
+        ok(seen.startsWith('https://www.googleapis.com/youtube/v3/videos:batchGetStats'), 'url: ' + seen);
+        // part is a required parameter; omitting it is a 400.
+        return ok(/[?&]part=/.test(seen), 'part= missing: ' + seen);
+      } finally { w.fetch = realFetch; w.setBatchStatsEnabled(wasEnabled); }
+    }],
+
+    ['a method the browser cannot reach falls back instead of killing the caller', async w => {
+      // REGRESSION: "Failed to fetch" is how an unreachable method surfaces in a
+      // browser — never as a clean 404 body. The guard used to miss it, so the
+      // error escaped fetchVideoStats and Discover died on it.
+      const realFetch = w.fetch;
+      const wasEnabled = w.batchStatsEnabled();
+      try {
+        w.setAccessToken('test-token');
+        w.setBatchStatsEnabled(true);
+        w.fetch = async (u) => {
+          if (String(u).includes('batchGetStats')) throw new TypeError('Failed to fetch');
+          return new w.Response(JSON.stringify({ items: [{ id: 'A', statistics: { viewCount: '42' } }] }),
+                                { status: 200, headers: { 'Content-Type': 'application/json' } });
+        };
+        const r = await w.fetchVideoStats(['A']);
+        eq(r.source, 'videos.list', 'it should have fallen back');
+        eq(r.byId.A.viewCount, 42, 'the stats still came through');
+        return eq(w.batchStatsEnabled(), false, 'the flag should be down for the session');
+      } finally { w.fetch = realFetch; w.setBatchStatsEnabled(wasEnabled); }
+    }],
+
+    ["Safari's wording for the same failure is recognised too", w =>
+      eq([
+        w.isBatchStatsUnavailable(new Error('Network error: Failed to fetch')),
+        w.isBatchStatsUnavailable(new Error('Load failed')),
+        w.isBatchStatsUnavailable(new Error('NetworkError when attempting to fetch resource.')),
+      ], [true, true, true])],
+
+    ['the fallback still costs the pool', w =>
+      eq(w.getQuotaCost('videos', 'GET'), { bucket: 'pool', cost: 1 })],
+
+    ['the stats bucket resets with the others', w => {
+      const snap = seedQuota(w, { pool: 10, search: 1, upload: 0 });
+      try {
+        w.chargeQuota('videos:batchGetStats', 'GET');
+        ok(w.quotaTitleText().includes('1 / 10000'), 'stats not counted: ' + w.quotaTitleText());
+        w.localStorage.setItem('quotaResetDate', '1999-01-01');
+        w.checkQuotaDailyReset();
+        return ok(!/\/ 10000 · .* \/ 10000/.test(w.quotaTitleText()), 'stats survived the reset: ' + w.quotaTitleText());
+      } finally { unseedQuota(w, snap); }
+    }],
+
+    ['an untouched stats bucket stays out of the tooltip', w => {
+      const snap = seedQuota(w, { pool: 1234, search: 12, upload: 0 });
+      try {
+        const txt = w.quotaTitleText();
+        return eq(txt.split('·').length, 3, 'a fourth counter nobody used: ' + txt);
+      } finally { unseedQuota(w, snap); }
+    }],
+
+    ['stats items are keyed by id, hidden counts stay unknown', w => {
+      const byId = w.parseStatsItems([
+        { videoId: 'A', statistics: { viewCount: '1500', likeCount: '20', commentCount: '3' } },
+        { id: 'B', statistics: { viewCount: '7' } },                       // videos.list shape
+        { videoId: 'C', viewCount: '42' },                                  // flat shape
+        { statistics: { viewCount: '9' } },                                 // no id at all
+      ]);
+      eq(byId.A, { viewCount: 1500, likeCount: 20, commentCount: 3 }, 'A');
+      eq(byId.B.likeCount, null, 'a hidden like count must not read as zero');
+      eq(byId.C.viewCount, 42, 'flat shape');
+      return eq(Object.keys(byId).sort(), ['A', 'B', 'C'], 'an item with no id is dropped');
+    }],
+
+    ['garbage in gives an empty map, not a throw', w => {
+      eq(w.parseStatsItems(undefined), {}, 'undefined');
+      return eq(w.parseStatsItems('nope'), {}, 'a string');
+    }],
+
+    ['the happy path uses batchGetStats', async w => {
+      const real = w.ytApi;
+      const wasEnabled = w.batchStatsEnabled();
+      const calls = [];
+      try {
+        w.setBatchStatsEnabled(true);
+        w.ytApi = async (endpoint, params) => {
+          calls.push(endpoint);
+          return { items: [{ videoId: 'A', statistics: { viewCount: '10' } }] };
+        };
+        const { byId, source } = await w.fetchVideoStats(['A']);
+        eq(calls, ['videos:batchGetStats'], 'endpoint');
+        eq(source, 'batchGetStats', 'source');
+        return eq(byId.A.viewCount, 10);
+      } finally { w.ytApi = real; w.setBatchStatsEnabled(wasEnabled); }
+    }],
+
+    ['a 404 flips the flag once and every later call takes the old path', async w => {
+      const real = w.ytApi;
+      const wasEnabled = w.batchStatsEnabled();
+      const calls = [];
+      try {
+        w.setBatchStatsEnabled(true);
+        w.ytApi = async (endpoint, params) => {
+          calls.push(endpoint);
+          if (endpoint === 'videos:batchGetStats') throw new Error('Erreur API (404)');
+          return { items: [{ id: 'A', statistics: { viewCount: '5' } }] };
+        };
+        const first = await w.fetchVideoStats(['A']);
+        eq(first.source, 'videos.list', 'first call should have fallen back');
+        eq(w.batchStatsEnabled(), false, 'the flag should be down for the session');
+        const second = await w.fetchVideoStats(['A']);
+        eq(second.source, 'videos.list', 'second call');
+        // batchGetStats tried exactly once across both calls.
+        return eq(calls.filter(c => c === 'videos:batchGetStats').length, 1, 'retried a method that cannot work');
+      } finally { w.ytApi = real; w.setBatchStatsEnabled(wasEnabled); }
+    }],
+
+    ['a real failure is not mistaken for an unavailable method', async w => {
+      const real = w.ytApi;
+      const wasEnabled = w.batchStatsEnabled();
+      try {
+        w.setBatchStatsEnabled(true);
+        w.ytApi = async () => { throw new Error('Server error (503) — please try again later'); };
+        let threw = false;
+        try { await w.fetchVideoStats(['A']); } catch (_) { threw = true; }
+        ok(threw, 'a 503 was swallowed');
+        return eq(w.batchStatsEnabled(), true, 'a transient error must not disable the method for the session');
+      } finally { w.ytApi = real; w.setBatchStatsEnabled(wasEnabled); }
+    }],
+
+    ['accessNotConfigured also triggers the fallback', w =>
+      eq([
+        w.isBatchStatsUnavailable(new Error('Erreur API (404)')),
+        w.isBatchStatsUnavailable(new Error('accessNotConfigured')),
+        w.isBatchStatsUnavailable(new Error('Erreur API (400)')),
+        w.isBatchStatsUnavailable(new Error('Server error (503)')),
+        w.isBatchStatsUnavailable(new Error('rate limited')),
+      ], [true, true, true, false, false])],
+
+    ['an empty id list asks nothing', async w => {
+      const real = w.ytApi;
+      let called = false;
+      try {
+        w.ytApi = async () => { called = true; return { items: [] }; };
+        const r = await w.fetchVideoStats([]);
+        ok(called === false, 'a request went out for no ids');
+        return eq(r.source, 'none');
+      } finally { w.ytApi = real; }
+    }],
+  ],
+},
+{
+  id: '#I2', title: 'Subscribe where a channel is named', note: 'state comes from APP.subscriptions when it is loaded, from one probe when it is not',
+  cases: [
+    ['subscribing costs 50 from the pool', w => {
+      eq(w.getQuotaCost('subscriptions', 'POST'), { bucket: 'pool', cost: 50 }, 'insert');
+      eq(w.getQuotaCost('subscriptions', 'DELETE'), { bucket: 'pool', cost: 50 }, 'delete');
+      eq(w.getQuotaCost('subscriptions', 'GET'), { bucket: 'pool', cost: 1 }, 'the probe is one unit');
+      return eq(w.estimateQuotaCost('subscribe', 3), 150, 'three channels');
+    }],
+
+    ['a channel never checked is "unknown", not "not subscribed"', w => {
+      // The difference matters: unknown means ask, false means show Subscribe.
+      return eq(w.subscriptionFor('UC_never_seen_at_all'), undefined);
+    }],
+
+    ['the probe asks about one channel, not the whole list', async w => {
+      const real = w.ytApi;
+      const calls = [];
+      try {
+        w.ytApi = async (endpoint, params) => {
+          calls.push({ endpoint, params });
+          return { items: [{ id: 'SUB123', snippet: { resourceId: { channelId: 'UC_probe_a' } } }] };
+        };
+        const id = await w.probeSubscription('UC_probe_a');
+        eq(calls.length, 1, 'one call');
+        eq(calls[0].params.forChannelId, 'UC_probe_a', 'forChannelId');
+        eq(calls[0].params.mine, true, 'mine');
+        eq(id, 'SUB123', 'subscription id');
+        return eq(w.isSubscribedTo('UC_probe_a'), true, 'state not remembered');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['a negative answer is remembered too, so it is asked once', async w => {
+      const real = w.ytApi;
+      let calls = 0;
+      try {
+        w.ytApi = async () => { calls++; return { items: [] }; };
+        await w.probeSubscription('UC_probe_b');
+        eq(w.subscriptionFor('UC_probe_b'), null, 'checked and not subscribed');
+        eq(w.isSubscribedTo('UC_probe_b'), false, 'state');
+        await w.probeSubscription('UC_probe_b');
+        return eq(calls, 1, 'asked twice about the same channel');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['with no token nothing is probed', async w => {
+      const real = w.ytApi;
+      let called = false;
+      try {
+        w.setAccessToken('');
+        w.ytApi = async () => { called = true; return { items: [] }; };
+        const r = await w.probeSubscription('UC_probe_c');
+        ok(called === false, 'a probe went out without a token');
+        return eq(r, null);
+      } finally { w.ytApi = real; w.setAccessToken('test-token'); }
+    }],
+
+    ['subscribing puts the channel in the in-memory list', async w => {
+      const real = { ytApi: w.ytApi, autoSaveToLocalStorage: w.autoSaveToLocalStorage };
+      const snap = snapshot(w, ['autoCache', 'autoCacheTimestamp']);
+      try {
+        w.autoSaveToLocalStorage = () => {};
+        w.ytApi = async () => ({ id: 'SUB_NEW', snippet: { resourceId: { channelId: 'UC_sub_new' } } });
+        eq(w.isSubscribedTo('UC_sub_new'), false, 'precondition');
+        await w.subscribeToChannel('UC_sub_new', 'A Channel');
+        return eq(w.isSubscribedTo('UC_sub_new'), true, 'the pill would have flipped back');
+      } finally { Object.assign(w, real); restore(w, snap); }
+    }],
+
+    ['read-only mode refuses before any request', async w => {
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      const toasts = [];
+      let called = false;
+      const wasReadOnly = w.document.body.classList.contains('read-only');
+      try {
+        w.showToast = (m, tp) => toasts.push({ m, tp });
+        w.ytApi = async () => { called = true; return {}; };
+        w.setReadOnlyMode(true);
+        await w.toggleSubscription('UC_readonly', 'X');
+        ok(called === false, 'a request went out in read-only mode');
+        ok(toasts.some(x => x.m === w.t('error_read_only')), 'no explanation: ' + JSON.stringify(toasts));
+        return 'refused, 0 calls';
+      } finally { w.setReadOnlyMode(!!wasReadOnly); Object.assign(w, real); }
+    }],
+
+    ['the pill renders its state and carries its channel id', w => {
+      const html = w.subscribeButtonHTML('UC_render_a', "L'Atelier & Son");
+      ok(html.includes('data-subscribe-channel="UC_render_a"'), 'channel id missing: ' + html);
+      ok(html.includes('&amp;') || html.includes('&#38;'), 'the title was not escaped: ' + html);
+      ok(!/ disabled/.test(html), 'disabled with a token present');
+      // Read it the way the browser will: the French label carries an
+      // apostrophe, which is escaped in the markup and must decode back.
+      const host = w.document.createElement('div');
+      host.innerHTML = html;
+      const btn = host.firstElementChild;
+      eq(btn.textContent, w.t('subscribe_label'), 'label');
+      return eq(btn.getAttribute('data-subscribe-title'), "L'Atelier & Son", 'title round-trip');
+    }],
+
+    ['no channel id, no pill', w =>
+      eq(w.subscribeButtonHTML('', 'X'), '', 'a pill with nothing to subscribe to would be a dead button')],
+
+    ['refreshSubscribeButtons updates every pill in place', async w => {
+      const host = w.document.createElement('div');
+      host.innerHTML = w.subscribeButtonHTML('UC_refresh_a', 'A');
+      w.document.body.appendChild(host);
+      const real = w.ytApi;
+      try {
+        const btn = host.querySelector('[data-subscribe-channel]');
+        eq(btn.textContent, w.t('subscribe_label'), 'before');
+        // Resolve the state the way the app does, then re-render in place.
+        w.ytApi = async () => ({ items: [{ id: 'SUB_R', snippet: { resourceId: { channelId: 'UC_refresh_a' } } }] });
+        await w.probeSubscription('UC_refresh_a');
+        w.refreshSubscribeButtons();
+        eq(btn.textContent, w.t('subscribe_done_label'), 'after');
+        return eq(btn.classList.contains('is-subscribed'), true, 'class');
+      } finally { host.remove(); w.ytApi = real; }
+    }],
+
+  ],
+},
+{
+  id: '#G14', title: 'Scope upgrade in a popup', note: 'the message handler is the security boundary of the whole flow',
+  cases: [
+    ['a message from our own origin with a token is accepted', w =>
+      eq(w.isValidOAuthMessage({ origin: w.location.origin, data: { type: 'reel-oauth-token', token: 'tok' } }), true)],
+
+    ['a message from anywhere else is refused, token or not', w => {
+      const data = { type: 'reel-oauth-token', token: 'tok' };
+      eq(w.isValidOAuthMessage({ origin: 'https://evil.example', data }), false, 'another origin');
+      eq(w.isValidOAuthMessage({ origin: 'null', data }), false, 'a sandboxed frame');
+      eq(w.isValidOAuthMessage({ origin: w.location.origin + '.evil.example', data }), false, 'a prefix match is not a match');
+      return eq(w.isValidOAuthMessage({ origin: 'http://localhost:9999', data }), false, 'another port on localhost');
+    }],
+
+    ['a message of the wrong shape is refused even from our own origin', w => {
+      const o = w.location.origin;
+      eq(w.isValidOAuthMessage({ origin: o, data: { type: 'something-else', token: 'tok' } }), false, 'wrong type');
+      eq(w.isValidOAuthMessage({ origin: o, data: { type: 'reel-oauth-token' } }), false, 'no token');
+      eq(w.isValidOAuthMessage({ origin: o, data: { type: 'reel-oauth-token', token: '' } }), false, 'empty token');
+      eq(w.isValidOAuthMessage({ origin: o, data: { type: 'reel-oauth-token', token: 123 } }), false, 'a number is not a token');
+      eq(w.isValidOAuthMessage({ origin: o, data: null }), false, 'no data');
+      return eq(w.isValidOAuthMessage(null), false, 'no event at all');
+    }],
+
+    ['the auth url carries the requested scope and our redirect', w => {
+      const url = w.buildAuthUrl('https://www.googleapis.com/auth/youtube');
+      ok(url.startsWith('https://accounts.google.com/o/oauth2/v2/auth?'), 'endpoint: ' + url);
+      ok(url.includes('response_type=token'), 'response_type');
+      ok(url.includes(encodeURIComponent('https://www.googleapis.com/auth/youtube')), 'scope');
+      return ok(url.includes(encodeURIComponent(w.location.href.split('?')[0].split('#')[0])), 'redirect_uri: ' + url);
+    }],
+
+    ['a blocked popup is reported as blocked, not as a refusal', async w => {
+      const realOpen = w.open;
+      try {
+        w.open = () => null;   // what a popup blocker returns
+        const r = await w.openOAuthPopup('scope');
+        eq(r.blocked, true, 'blocked');
+        return eq(r.token, null, 'token');
+      } finally { w.open = realOpen; }
+    }],
+
+    ['a popup that throws is treated the same way', async w => {
+      const realOpen = w.open;
+      try {
+        w.open = () => { throw new Error('refused'); };
+        const r = await w.openOAuthPopup('scope');
+        return eq(r.blocked, true);
+      } finally { w.open = realOpen; }
+    }],
+
+    ['a valid postMessage resolves the wait with the token', async w => {
+      const realOpen = w.open;
+      try {
+        w.open = () => ({ closed: false, close() {} });
+        const pending = w.openOAuthPopup('scope');
+        // The popup would post this from our own origin.
+        w.postMessage({ type: 'reel-oauth-token', token: 'TOK_OK', expiresIn: 3600 }, w.location.origin);
+        const r = await pending;
+        eq(r.blocked, false, 'blocked');
+        eq(r.token, 'TOK_OK', 'token');
+        return eq(r.expiresIn, 3600, 'expiry');
+      } finally { w.open = realOpen; }
+    }],
+
+    ['a forged message never resolves the wait', async w => {
+      const realOpen = w.open;
+      const fake = { closed: false, close() {} };
+      try {
+        w.open = () => fake;
+        const pending = w.openOAuthPopup('scope');
+        // Wrong type from the right origin — the only shape an attacker on the
+        // page could actually produce. It must be ignored.
+        w.postMessage({ type: 'not-our-message', token: 'EVIL' }, w.location.origin);
+        let settled = false;
+        pending.then(() => { settled = true; });
+        await new Promise(r => setTimeout(r, 120));
+        ok(settled === false, 'a forged message resolved the flow');
+        // Closing the popup is what ends it.
+        fake.closed = true;
+        const r = await pending;
+        return eq(r.token, null, 'closed without granting');
+      } finally { w.open = realOpen; }
+    }],
+
+    ['closing the popup ends the wait rather than hanging', async w => {
+      const realOpen = w.open;
+      const fake = { closed: false, close() {} };
+      try {
+        w.open = () => fake;
+        const pending = w.openOAuthPopup('scope');
+        setTimeout(() => { fake.closed = true; }, 50);
+        const r = await pending;
+        eq(r.blocked, false, 'not blocked — it opened');
+        return eq(r.token, null, 'no token');
+      } finally { w.open = realOpen; }
+    }],
+
+    ['ensureWriteScope is async and resolves without a redirect', w => {
+      // A sync boolean here is the old behaviour: the caller could not wait, so
+      // the action was lost to the redirect.
+      const r = w.ensureWriteScope();
+      ok(r && typeof r.then === 'function', 'ensureWriteScope must return a promise');
+      return r.then(() => 'async');
+    }],
+
+    ['write access at sign-in is off by default', w => {
+      const snap = snapshot(w, ['writeScopeAtLogin']);
+      try {
+        w.localStorage.removeItem('writeScopeAtLogin');
+        eq(w.writeScopeAtLogin(), false, 'progressive scope is the promised default');
+        w.setWriteScopeAtLogin(true);
+        eq(w.writeScopeAtLogin(), true, 'opt-in');
+        w.setWriteScopeAtLogin(false);
+        return eq(w.writeScopeAtLogin(), false, 'opt-out');
+      } finally { restore(w, snap); }
+    }],
+
+    ['outside a popup the return handler does nothing', w => {
+      // window.opener is null in the test iframe, which is the ordinary case.
+      return eq(w.handleOAuthPopupReturn(), false);
+    }],
+  ],
+},
+{
+  id: '#G11', title: 'Auto-cache in IndexedDB', note: 'these write to the real database and clear it afterwards; your manual lastBackup is never touched',
+  cases: [
+    ['IndexedDB is the backend here', async w =>
+      eq(await w.cacheStore.available(), true, 'without it the rest of this suite measures the fallback')],
+
+    ['what goes in comes back in the shape the app already knows', async w => {
+      const snap = await idbSnapshot(w);
+      try {
+        await w.cacheStore.writeAll(SAMPLE_CACHE());
+        const back = await w.cacheStore.readAll();
+        eq(back.playlists.length, 2, 'playlists');
+        const a = back.playlists.find(p => p.id === 'PL_A');
+        eq(a.title, 'Alpha', 'title survived');
+        eq(a.videos.length, 2, 'videos reattached to their playlist');
+        eq(a.videos[0].videoId, 'V1', 'video order');
+        eq(back.playlistObjects.length, 2, 'playlist objects');
+        eq(back.tags, { PL_A: ['techno'] }, 'metadata');
+        return eq(back.timestamp, '2026-09-16T10:00:00.000Z', 'timestamp');
+      } finally { await idbRestore(w, snap); }
+    }],
+
+    ['videos are counted without assembling the blob', async w => {
+      const snap = await idbSnapshot(w);
+      try {
+        eq(await w.cacheStore.videoCount(), 0, 'empty');
+        await w.cacheStore.writeAll(SAMPLE_CACHE());
+        return eq(await w.cacheStore.videoCount(), 3, 'two plus one');
+      } finally { await idbRestore(w, snap); }
+    }],
+
+    ['a second write replaces the cache rather than merging into it', async w => {
+      const snap = await idbSnapshot(w);
+      try {
+        await w.cacheStore.writeAll(SAMPLE_CACHE());
+        const smaller = SAMPLE_CACHE();
+        smaller.playlists = [smaller.playlists[0]];
+        smaller.playlistObjects = [smaller.playlistObjects[0]];
+        await w.cacheStore.writeAll(smaller);
+        const back = await w.cacheStore.readAll();
+        // A playlist deleted since the last save must not linger in the cache.
+        return eq(back.playlists.map(p => p.id), ['PL_A'], 'PL_B survived its own deletion');
+      } finally { await idbRestore(w, snap); }
+    }],
+
+    ['clear empties the database', async w => {
+      const snap = await idbSnapshot(w);
+      try {
+        await w.cacheStore.writeAll(SAMPLE_CACHE());
+        await w.cacheStore.clear();
+        const back = await w.cacheStore.readAll();
+        return eq(back, null, 'something survived a clear');
+      } finally { await idbRestore(w, snap); }
+    }],
+
+    ['a legacy localStorage blob migrates once and is then dropped', async w => {
+      const snap = await idbSnapshot(w);
+      try {
+        w.localStorage.setItem('autoCache', JSON.stringify(SAMPLE_CACHE()));
+        const r = await w.cacheStore.migrateLegacy();
+        eq(r.migrated, true, 'migrated');
+        eq(r.videos, 3, 'video count reported');
+        eq(w.localStorage.getItem('autoCache'), null, 'the old key should be gone');
+        const back = await w.cacheStore.readAll();
+        eq(back.playlists.length, 2, 'the data landed in IndexedDB');
+        // Running it again must be a no-op, not a second import.
+        const again = await w.cacheStore.migrateLegacy();
+        return eq(again.migrated, false, 'migrated twice');
+      } finally { await idbRestore(w, snap); }
+    }],
+
+    ['a corrupt legacy blob is discarded, not carried forward', async w => {
+      const snap = await idbSnapshot(w);
+      try {
+        w.localStorage.setItem('autoCache', '{not json at all');
+        const r = await w.cacheStore.migrateLegacy();
+        eq(r.migrated, false, 'nothing to migrate');
+        ok(/corrupt/.test(r.reason), 'reason: ' + r.reason);
+        return eq(w.localStorage.getItem('autoCache'), null, 'an unreadable blob should not be kept');
+      } finally { await idbRestore(w, snap); }
+    }],
+
+    ['the timestamp stays in localStorage as the synchronous "there is a cache" signal', async w => {
+      const snap = await idbSnapshot(w);
+      try {
+        w.localStorage.removeItem('autoCacheTimestamp');
+        await w.cacheStore.writeAll(SAMPLE_CACHE());
+        // The login-screen gate reads this before anything can be awaited.
+        return eq(w.localStorage.getItem('autoCacheTimestamp'), '2026-09-16T10:00:00.000Z');
+      } finally { await idbRestore(w, snap); }
+    }],
+
+    ['the source rule prefers whichever is newer', w => {
+      const older = '2026-09-01T00:00:00.000Z';
+      const newer = '2026-09-16T00:00:00.000Z';
+      eq(w.pickBackupSource(newer, older, true, true), 'lastBackup', 'manual is newer');
+      eq(w.pickBackupSource(older, newer, true, true), 'autoCache', 'cache is newer');
+      eq(w.pickBackupSource(older, null, true, false), 'lastBackup', 'no cache');
+      eq(w.pickBackupSource(null, newer, false, true), 'autoCache', 'no manual backup');
+      eq(w.pickBackupSource(null, null, true, false), 'lastBackup', 'manual with no timestamp');
+      return eq(w.pickBackupSource(null, null, false, false), '', 'nothing at all');
+    }],
+
+    ['the cache write still refuses to erase itself (#76)', w => {
+      // The guard is unchanged by the move, and it is the one that matters most.
+      eq(w.shouldSkipAutoSave(0, 500, false), true, 'empty memory over a full cache');
+      eq(w.shouldSkipAutoSave(0, 0, false), false, 'nothing to lose');
+      eq(w.shouldSkipAutoSave(500, 500, false), false, 'normal save');
+      return eq(w.shouldSkipAutoSave(0, 500, true), false, 'forced');
+    }],
+
+    ['autoSaveToLocalStorage still resolves under its old name', async w => {
+      // Start from an empty cache, or the #76 self-erasure guard correctly
+      // refuses the write (memory is empty in this iframe) and the flag stays.
+      const snap = await idbSnapshot(w);
+      const realToast = w.showToast;
+      try {
+        w.showToast = () => {};
+        w.markDirty();
+        ok(exitPrompts(w) === true, 'precondition: dirty');
+        await w.autoSaveToLocalStorage();
+        return eq(exitPrompts(w), false, 'the cache write must still clear the dirty flag');
+      } finally { w.showToast = realToast; await idbRestore(w, snap); }
+    }],
+  ],
+},
+{
+  id: '#17', title: 'Music mode — detection and parsing', note: 'design spec §3 and §6; both run on metadata already fetched, so no extra quota',
+  cases: [
+    ['"- Topic" alone is enough', w =>
+      eq(w.isMusicVideo({ title: 'Nightcall', channelTitle: 'Kavinsky - Topic', durationSeconds: 258 }), true)],
+
+    ['category 10 alone is enough', w =>
+      eq(w.isMusicVideo({ title: 'Something', channelTitle: 'A Label', categoryId: '10', durationSeconds: 200 }), true)],
+
+    ['track length and a dash are not enough on their own', w => {
+      // 0.2 + 0.2 = 0.4, below the 0.7 threshold — this is the case that stops
+      // every short video with a hyphen in its title reading as music.
+      const v = { title: 'Ableton 12 - what is new', channelTitle: 'Point Blank', durationSeconds: 300 };
+      eq(Math.round(w.musicScore(v) * 100) / 100, 0.4, 'score');
+      return eq(w.isMusicVideo(v), false);
+    }],
+
+    ['a two-hour set on a Topic channel is still a video', w => {
+      // 0.9 - 0.5 = 0.4. Long-form is the signal that keeps mixes out.
+      const v = { title: 'Boiler Room Set', channelTitle: 'Artist - Topic', durationSeconds: 7200 };
+      return eq(w.isMusicVideo(v), false, 'a 2h mix should stay in Video view');
+    }],
+
+    ['the score is clamped to 0..1', w => {
+      const loaded = { title: 'A - B', channelTitle: 'X - Topic', categoryId: '10', durationSeconds: 200 };
+      eq(w.musicScore(loaded), 1, 'every positive signal at once');
+      const awful = { title: 'lecture', channelTitle: 'Uni', durationSeconds: 9000 };
+      return eq(w.musicScore(awful), 0, 'negative signals do not go below zero');
+    }],
+
+    ['a Topic channel is matched exactly, not by substring', w => {
+      eq(w.isTopicChannel('Kavinsky - Topic'), true, 'the real thing');
+      eq(w.isTopicChannel('Topic'), false, 'a channel simply called Topic');
+      eq(w.isTopicChannel('Off Topic Podcast'), false, 'a channel about being off topic');
+      return eq(w.isTopicChannel(''), false, 'nothing');
+    }],
+
+    ['a playlist verdict is music, mixed or video', w => {
+      const track = n => ({ title: 't' + n, channelTitle: 'A - Topic', durationSeconds: 200 });
+      const vid = n => ({ title: 'v' + n, channelTitle: 'Chan', durationSeconds: 1800 });
+      eq(w.playlistMusicVerdict([track(1), track(2), track(3), track(4), track(5)]).verdict, 'music', 'all music');
+      eq(w.playlistMusicVerdict([track(1), track(2), vid(1), vid(2)]).verdict, 'mixed', '50%');
+      eq(w.playlistMusicVerdict([track(1), vid(1), vid(2), vid(3)]).verdict, 'video', '25%');
+      // 4 of 5 = 80%, exactly at the threshold.
+      return eq(w.playlistMusicVerdict([track(1), track(2), track(3), track(4), vid(1)]).verdict, 'music', 'at 80%');
+    }],
+
+    ['an empty playlist is a video playlist, not a guess', w =>
+      eq(w.playlistMusicVerdict([]), { verdict: 'video', ratio: 0, sampled: 0 })],
+
+    ['only the first 50 are sampled', w => {
+      const track = { title: 't', channelTitle: 'A - Topic', durationSeconds: 200 };
+      const vid = { title: 'v', channelTitle: 'C', durationSeconds: 1800 };
+      const big = Array(50).fill(track).concat(Array(500).fill(vid));
+      const r = w.playlistMusicVerdict(big);
+      eq(r.sampled, 50, 'sample size');
+      return eq(r.verdict, 'music', 'the 500 videos past the sample must not be read');
+    }],
+
+    // ── Parser (§6) ─────────────────────────────────────────────────────────
+    ['decorations are stripped, brackets and parentheses alike', w => {
+      const p = t => w.parseArtistTitle(t, 'Chan').title;
+      eq(p('Daft Punk - Around The World (Official Video)'), 'Around The World', 'official video');
+      eq(p('Jamiroquai - Virtual Insanity [MV]'), 'Virtual Insanity', 'MV');
+      eq(p('Queen - Bohemian Rhapsody (Official Video Remastered)'), 'Bohemian Rhapsody', 'a longer official tag');
+      eq(p('Stromae - Alors on danse (Lyrics) 4K'), 'Alors on danse', 'lyrics + a bare quality tag');
+      return eq(p('C2C - Down The Road (Official Audio) HD'), 'Down The Road', 'stacked tags');
+    }],
+
+    ['"HD" is only stripped when it trails', w => {
+      // A track genuinely called "HD Bass" must survive.
+      return eq(w.parseArtistTitle('Artist - HD Bass', 'Chan').title, 'HD Bass');
+    }],
+
+    ['feat. moves to the artist', w => {
+      const p = w.parseArtistTitle('Kendrick Lamar - HUMBLE. ft. Zacari', 'KendrickLamarVEVO');
+      eq(p.title, 'HUMBLE.', 'title');
+      return eq(p.artist, 'Kendrick Lamar feat. Zacari', 'artist');
+    }],
+
+    ['a Topic channel outranks the dash split', w => {
+      // The channel states the artist outright; splitting a title that happens
+      // to contain a dash would invent a different one.
+      const p = w.parseArtistTitle('Blinding Lights', 'The Weeknd - Topic');
+      eq(p.artist, 'The Weeknd', 'artist from the channel');
+      eq(p.title, 'Blinding Lights', 'title');
+      return eq(p.album, 'The Weeknd', 'album is the channel minus the suffix');
+    }],
+
+    ['a title with no dash keeps its whole self', w => {
+      const p = w.parseArtistTitle('Tiny Desk Concert', 'NPR Music');
+      eq(p.title, 'Tiny Desk Concert', 'title untouched');
+      return eq(p.artist, 'NPR Music', 'the channel stands in as artist');
+    }],
+
+    ['an en dash and an em dash split like a hyphen', w => {
+      eq(w.parseArtistTitle('Air – La Femme d’Argent', 'Chan').artist, 'Air', 'en dash');
+      return eq(w.parseArtistTitle('Air — Sexy Boy', 'Chan').artist, 'Air', 'em dash');
+    }],
+
+    ['only the first dash splits', w => {
+      const p = w.parseArtistTitle('Simon - Garfunkel - The Boxer', 'Chan');
+      eq(p.artist, 'Simon', 'artist');
+      return eq(p.title, 'Garfunkel - The Boxer', 'the rest stays in the title');
+    }],
+
+    ['empty input does not throw', w => {
+      const p = w.parseArtistTitle('', '');
+      return eq([p.artist, p.title, p.album], ['', '', '']);
+    }],
+
+    // ── Per-playlist mode (§2) ──────────────────────────────────────────────
+    ['detection only supplies a default', w => {
+      const snap = snapshot(w, ['playlistViewMode']);
+      try {
+        w.localStorage.removeItem('playlistViewMode');
+        eq(w.effectiveViewMode('PL_1', 'music'), 'music', 'detected music');
+        eq(w.effectiveViewMode('PL_1', 'mixed'), 'video', 'mixed defaults to video');
+        return eq(w.effectiveViewMode('PL_1', 'video'), 'video', 'detected video');
+      } finally { restore(w, snap); }
+    }],
+
+    ['an override outranks detection and is never re-evaluated', w => {
+      const snap = snapshot(w, ['playlistViewMode']);
+      try {
+        w.setPlaylistViewMode('PL_2', 'video');
+        eq(w.effectiveViewMode('PL_2', 'music'), 'video', 'a manual Video choice must survive a music verdict');
+        w.setPlaylistViewMode('PL_2', 'music');
+        return eq(w.effectiveViewMode('PL_2', 'video'), 'music', 'and the same in reverse');
+      } finally { restore(w, snap); }
+    }],
+
+    ['overrides are per playlist', w => {
+      const snap = snapshot(w, ['playlistViewMode']);
+      try {
+        w.setPlaylistViewMode('PL_A', 'music');
+        eq(w.effectiveViewMode('PL_A', 'video'), 'music', 'A');
+        return eq(w.effectiveViewMode('PL_B', 'video'), 'video', 'B must not inherit A');
+      } finally { restore(w, snap); }
+    }],
+
+    ['clearing an override returns to detection', w => {
+      const snap = snapshot(w, ['playlistViewMode']);
+      try {
+        w.setPlaylistViewMode('PL_C', 'video');
+        w.setPlaylistViewMode('PL_C', null);
+        return eq(w.effectiveViewMode('PL_C', 'music'), 'music');
+      } finally { restore(w, snap); }
+    }],
+
+    ['a corrupt override store does not break the view', w => {
+      const snap = snapshot(w, ['playlistViewMode']);
+      try {
+        w.localStorage.setItem('playlistViewMode', 'not json');
+        return eq(w.effectiveViewMode('PL_D', 'music'), 'music');
+      } finally { restore(w, snap); }
+    }],
+
+    ['every secondary action stays reachable in both views', w => {
+      // Spec §4: the diff is tokens, default sort and prominence — not features.
+      // These are the handlers the filter bar and the toolbars call; a Music
+      // view that quietly dropped one would be a fork, which the spec forbids.
+      const shared = ['applyVideoFilters', 'resetVideoFilters', 'renderFilteredVideos',
+                      'exportLibrary', 'performMove', 'performMerge', 'toggleReorderMode',
+                      'playCurrentPlaylist', 'onFilterTypeChange', 'onCategoryFilterChange'];
+      const missing = shared.filter(fn => typeof w[fn] !== 'function');
+      return eq(missing, [], 'handlers missing');
+    }],
+  ],
+},
+{
+  id: '#17 #18 p2', title: 'Library lens, docked player, transfer CSV', note: 'spec §2 (lens), §5 (the embed must stay visible), §6 (one parser feeds the CSV)',
+  cases: [
+    // ── Library lens (§2) ───────────────────────────────────────────────────
+    ['the lens is a filter with three positions and a safe default', w => {
+      const snap = snapshot(w, ['libraryLens']);
+      try {
+        w.localStorage.removeItem('libraryLens');
+        eq(w.libraryLens(), 'all', 'default');
+        w.localStorage.setItem('libraryLens', 'nonsense');
+        eq(w.libraryLens(), 'all', 'a value that is not a lens falls back');
+        w.setLibraryLens('music');
+        return eq(w.libraryLens(), 'music');
+      } finally { restore(w, snap); }
+    }],
+
+    ['"All" hides nothing', w => {
+      return eq(w.playlistPassesLens('PL_never_seen', 'all'), true);
+    }],
+
+    ['a playlist nobody has opened stays visible under every lens', w => {
+      // No verdict has been computed for it; hiding it would be acting on an
+      // answer that does not exist.
+      eq(w.playlistPassesLens('PL_unknown_xyz', 'music'), true, 'music lens');
+      return eq(w.playlistPassesLens('PL_unknown_xyz', 'video'), true, 'video lens');
+    }],
+
+    ['an override decides which side a playlist falls on', w => {
+      const snap = snapshot(w, ['playlistViewMode', 'libraryLens']);
+      try {
+        w.setPlaylistViewMode('PL_lens_a', 'music');
+        eq(w.playlistPassesLens('PL_lens_a', 'music'), true, 'music lens keeps it');
+        eq(w.playlistPassesLens('PL_lens_a', 'video'), false, 'video lens drops it');
+        w.setPlaylistViewMode('PL_lens_a', 'video');
+        return eq(w.playlistPassesLens('PL_lens_a', 'music'), false, 'the override must flip the lens too');
+      } finally { restore(w, snap); }
+    }],
+
+    ['the old dedicated music button is gone from the detail header', w => {
+      // It set filterType='music', a shortcut for a value the filter bar right
+      // below already offers; the lens is now the one dedicated music control.
+      ok(!w.document.getElementById('musicModeBtn'), 'two music buttons in two headers');
+      const opt = w.document.querySelector('#filterType option[value="music"]');
+      return ok(!!opt, 'the per-playlist music filter must still exist somewhere');
+    }],
+
+    // ── Docked player (§5) ──────────────────────────────────────────────────
+    ['docking keeps the embed on screen', async w => {
+      const overlay = w.document.getElementById('playerModalOverlay');
+      const wasClass = overlay.className;
+      try {
+        w.minimizePlayer();
+        // §5: "Embedded players must not be hidden." The old minimise dropped
+        // .active, which removed the embed from the page entirely.
+        ok(overlay.classList.contains('active'), 'the player was hidden, not docked');
+        ok(overlay.classList.contains('docked'), 'no docked state');
+        return eq(w.getComputedStyle(overlay).display !== 'none', true, 'display:none');
+      } finally { overlay.className = wasClass; }
+    }],
+
+    ['the docked embed is sized by the stylesheet, not left to chance', w => {
+      // The app iframe is display:none in this page, so geometry measures zero;
+      // assert the CSS contract instead. §5 forbids shrinking an embed below
+      // 200×200 and recommends 320×180.
+      const rules = [];
+      for (const sheet of w.document.styleSheets) {
+        let list; try { list = sheet.cssRules; } catch (_) { continue; }
+        for (const r of list) if (r.selectorText && r.selectorText.includes('.player-modal-overlay.docked')) rules.push(r);
+      }
+      ok(rules.length > 0, 'no docked rules in the stylesheet');
+      const widthRule = rules.find(r => r.selectorText.trim() === '.player-modal-overlay.docked');
+      ok(widthRule && widthRule.style.width === '320px', 'docked width: ' + (widthRule && widthRule.style.width));
+      const wrapRule = rules.find(r => r.selectorText.includes('.player-video-wrap'));
+      ok(wrapRule && wrapRule.style.paddingBottom === '180px', 'docked embed height: ' + (wrapRule && wrapRule.style.paddingBottom));
+      return '320x180';
+    }],
+
+    ['expanding and closing clear the dock', w => {
+      const overlay = w.document.getElementById('playerModalOverlay');
+      const wasClass = overlay.className;
+      const real = { stopProgressTracking: w.stopProgressTracking, renderQueueList: w.renderQueueList };
+      try {
+        w.minimizePlayer();
+        w.expandPlayer();
+        ok(!overlay.classList.contains('docked'), 'still docked after expanding');
+        w.minimizePlayer();
+        w.stopProgressTracking = () => {};
+        w.renderQueueList = () => {};
+        w.closePlayer();
+        ok(!overlay.classList.contains('docked'), 'docked survived close');
+        return ok(!overlay.classList.contains('active'), 'active survived close');
+      } finally { Object.assign(w, real); overlay.className = wasClass; }
+    }],
+
+    // ── Transfer-ready CSV (#18) ────────────────────────────────────────────
+    ['the header matches what the transfer services document', w => {
+      // Soundiiz: title/artist/album/isrc are recognised names, title+artist is
+      // the minimum, unknown columns are ignored. TuneMyMusic reads the same.
+      return eq(w.TRANSFER_CSV_HEADERS, ['title', 'artist', 'album', 'isrc']);
+    }],
+
+    ['the file opens with a UTF-8 BOM', w => {
+      const csv = w.buildTransferCsv([]);
+      ok(csv.charCodeAt(0) === 0xFEFF, 'no BOM — accented artists arrive mangled in Excel');
+      return eq(csv.split('\n')[0].slice(1), 'title,artist,album,isrc');
+    }],
+
+    ['isrc is left empty rather than guessed', w => {
+      // Both services say to leave a value blank rather than invent it, and a
+      // wrong ISRC matches the wrong recording outright.
+      const csv = w.buildTransferCsv([]);
+      return eq(csv.split('\n')[0].slice(1).split(',')[3], 'isrc');
+    }],
+
+    ['the CSV and the Music view agree about the artist', w => {
+      // Same parser, so a "- Topic" channel names the artist in both.
+      const p = w.parseArtistTitle('Blinding Lights', 'The Weeknd - Topic');
+      return eq([p.artist, p.title, p.album], ['The Weeknd', 'Blinding Lights', 'The Weeknd']);
+    }],
+
+    ['a track title that looks like a formula is still guarded', w => {
+      // #G10 — the transfer CSV goes through the same csvRow, so a title
+      // starting with "=" cannot execute when the file is opened in a sheet.
+      const row = w.csvRow(['=cmd|calc', 'Artist', 'Album', '']);
+      return ok(!/^"?=/.test(row), 'a formula reached the file unguarded: ' + row);
+    }],
+
+    ['the export preset follows the view but yields to a choice', w => {
+      const sel = w.document.getElementById('exportFormat');
+      const before = sel.value;
+      const wasPicked = sel.dataset.userPicked;
+      try {
+        delete sel.dataset.userPicked;
+        ok(!!w.document.querySelector('#exportFormat option[value="csv-transfer"]'), 'the preset is not offered');
+        // The function reads currentDetailViewMode, which is a top-level let;
+        // drive it through the real toggle instead of poking at it.
+        w.preselectExportFormat();
+        const auto = sel.value;
+        sel.dataset.userPicked = '1';
+        sel.value = 'json';
+        w.preselectExportFormat();
+        eq(sel.value, 'json', 'a format the user picked was overwritten');
+        return 'auto=' + auto + ', choice respected';
+      } finally {
+        sel.value = before;
+        if (wasPicked === undefined) delete sel.dataset.userPicked; else sel.dataset.userPicked = wasPicked;
+      }
+    }],
+  ],
+},
+{
+  id: '#81', title: 'Trending tile', note: 'chart=mostPopular is an ordinary videos.list — 1 pool unit, not the search bucket',
+  cases: [
+    ['the chart is always asked for one category', w => {
+      // Since 21 July 2025 the unfiltered chart mixes Music, Films and Gaming.
+      const p = w.buildTrendingParams('10', 'fr');
+      eq(p.chart, 'mostPopular', 'chart');
+      eq(p.videoCategoryId, '10', 'category');
+      return ok(p.videoCategoryId !== '' && p.videoCategoryId !== undefined, 'an unfiltered chart is a grab bag');
+    }],
+
+    ['the region follows the UI language', w => {
+      eq(w.buildTrendingParams('10', 'fr').regionCode, 'FR', 'fr');
+      eq(w.buildTrendingParams('10', 'en').regionCode, 'US', 'en');
+      return eq(w.buildTrendingParams('10', 'ja').regionCode, 'JP', 'ja');
+    }],
+
+    ['a numeric category id is sent as a string', w =>
+      eq(w.buildTrendingParams(10, 'fr').videoCategoryId, '10')],
+
+    ['it asks for ten rows and only the fields it draws', w => {
+      const p = w.buildTrendingParams('10', 'fr');
+      eq(p.maxResults, 10, 'maxResults');
+      ok(/contentDetails\(duration\)/.test(p.fields), 'duration missing: ' + p.fields);
+      ok(/channelId/.test(p.fields), 'channelId missing — the subscribe pill needs it');
+      return ok(!/statistics/.test(p.fields), 'statistics requested but never displayed');
+    }],
+
+    ['it costs one pool unit, not a search call', w =>
+      eq(w.getQuotaCost('videos', 'GET'), { bucket: 'pool', cost: 1 })],
+
+    ['the chart is cached for an hour, not the five minutes videos.list gets', w => {
+      const p = w.buildTrendingParams('10', 'fr');
+      eq(p._ttlMs, 3600000, 'override');
+      // The override must not leak into ordinary videos.list caching.
+      eq(w.cacheTtlFor('videos', 'GET'), 5 * 60000, 'videos.GET default');
+      return eq(w.cacheTtlFor('videos', 'GET', 3600000), 3600000, 'override honoured');
+    }],
+
+    ['a TTL override never applies to a write', w =>
+      eq(w.cacheTtlFor('playlists', 'POST', 3600000), 0)],
+
+    ['the category choice persists and falls back to a real category', w => {
+      const snap = snapshot(w, ['trendingCategory']);
+      try {
+        w.localStorage.removeItem('trendingCategory');
+        eq(w.trendingCategory(), '10', 'default is Music');
+        w.localStorage.setItem('trendingCategory', '9999');
+        return eq(w.trendingCategory(), '10', 'a category that does not exist falls back');
+      } finally { restore(w, snap); }
+    }],
+
+    ['rows carry the badges the app already knows how to compute', async w => {
+      const real = w.ytApi;
+      try {
+        w.setAccessToken('test-token');
+        w.ytApi = async () => ({ items: [
+          { id: 'v1', snippet: { title: 'Alors on danse', channelTitle: 'Stromae - Topic', categoryId: '10', thumbnails: { medium: { url: 'u' } } },
+            contentDetails: { duration: 'PT3M27S' } },
+          { id: 'v2', snippet: { title: 'Long documentary', channelTitle: 'Arte', categoryId: '24', thumbnails: {} },
+            contentDetails: { duration: 'PT52M' } },
+        ] });
+        await w.loadTrending();
+        const rows = w.document.querySelectorAll('.trending-row');
+        ok(rows.length === 2, 'rows: ' + rows.length);
+        ok(rows[0].textContent.includes(w.t('music_badge')), 'the Topic track should read as music');
+        return ok(!rows[1].textContent.includes(w.t('music_badge')), 'a 52-minute documentary should not');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['a failed load leaves the tile usable rather than broken', async w => {
+      const real = w.ytApi;
+      try {
+        w.setAccessToken('test-token');
+        w.ytApi = async () => { throw new Error('boom'); };
+        await w.loadTrending();
+        const tile = w.document.getElementById('trendingTile');
+        ok(tile.textContent.includes(w.t('trending_load')), 'no way back: ' + tile.textContent.slice(0, 80));
+        return eq(w.document.querySelectorAll('.trending-row').length, 0);
+      } finally { w.ytApi = real; }
+    }],
+
+    ['with no token nothing is requested', async w => {
+      const real = w.ytApi;
+      let called = false;
+      try {
+        w.setAccessToken('');
+        w.ytApi = async () => { called = true; return { items: [] }; };
+        await w.loadTrending();
+        return ok(called === false, 'a request went out without a token');
+      } finally { w.ytApi = real; w.setAccessToken('test-token'); }
+    }],
+  ],
+},
+{
+  id: '#82', title: 'Discovering playlists and channels', note: 'same 1 search call per page as a video search; results feed the existing bookmark plumbing',
+  cases: [
+    ['the three result types are built correctly', w => {
+      const base = { query: 'techno', maxResults: 50, order: 'relevance', lang: 'fr' };
+      eq(w.buildDiscoverSearchParams({ ...base, type: 'video' }).type, 'video', 'video');
+      eq(w.buildDiscoverSearchParams({ ...base, type: 'playlist' }).type, 'playlist', 'playlist');
+      eq(w.buildDiscoverSearchParams({ ...base, type: 'channel' }).type, 'channel', 'channel');
+      // An unknown type must not reach the API.
+      return eq(w.buildDiscoverSearchParams({ ...base, type: 'nonsense' }).type, 'video', 'fallback');
+    }],
+
+    ['no type at all still means video', w =>
+      eq(w.buildDiscoverSearchParams({ query: 'x', maxResults: 50, order: 'relevance', lang: 'fr' }).type, 'video')],
+
+    ['video-only filters are not sent for playlists or channels', w => {
+      // YouTube rejects or ignores them; sending them makes the request
+      // impossible to reason about later and churns the cache key.
+      const f = { query: 'x', maxResults: 50, order: 'relevance', lang: 'fr',
+                  duration: 'long', definition: 'high', caption: 'closedCaption',
+                  license: 'creativeCommon', embeddable: true };
+      const p = w.buildDiscoverSearchParams({ ...f, type: 'playlist' });
+      const leaked = ['videoDuration', 'videoDefinition', 'videoCaption', 'videoLicense', 'videoEmbeddable']
+        .filter(k => k in p);
+      eq(leaked, [], 'video filters sent with a playlist search');
+      // ...and they are still sent for videos.
+      const v = w.buildDiscoverSearchParams({ ...f, type: 'video' });
+      return eq(v.videoDuration, 'long', 'the video path lost its filters');
+    }],
+
+    ['region, language and publishedAfter still apply to every type', w => {
+      const p = w.buildDiscoverSearchParams({
+        query: 'x', type: 'channel', maxResults: 50, order: 'date', lang: 'en',
+        publishedAfter: '7d', now: Date.UTC(2026, 8, 16, 12, 0, 0),
+      });
+      eq(p.regionCode, 'US', 'region');
+      eq(p.relevanceLanguage, 'en', 'language');
+      return eq(p.publishedAfter, '2026-09-09T12:00:00Z', 'publishedAfter');
+    }],
+
+    ['a playlist search asks for the fields it renders', w => {
+      const p = w.buildDiscoverSearchParams({ query: 'x', type: 'playlist', maxResults: 50, order: 'relevance', lang: 'fr' });
+      ok(/snippet\(title/.test(p.fields), 'title missing: ' + p.fields);
+      ok(/channelTitle/.test(p.fields), 'channelTitle missing');
+      ok(/thumbnails/.test(p.fields), 'thumbnails missing');
+      // The video path strips snippet entirely; that must not regress.
+      const v = w.buildDiscoverSearchParams({ query: 'x', type: 'video', maxResults: 50, order: 'relevance', lang: 'fr' });
+      return eq(v.fields, 'nextPageToken,items(id(videoId))', 'video fields widened for nothing');
+    }],
+
+    ['the channel filter only means something for a playlist search', w => {
+      const withChannel = { query: 'x', maxResults: 50, order: 'relevance', lang: 'fr', channelId: 'UC_abc' };
+      eq(w.buildDiscoverSearchParams({ ...withChannel, type: 'playlist' }).channelId, 'UC_abc', 'playlist');
+      return eq(w.buildDiscoverSearchParams({ ...withChannel, type: 'video' }).channelId, 'UC_abc', 'video');
+    }],
+
+    ['a playlist search costs one search call per page plus one pool unit for the counts', w => {
+      eq(w.getQuotaCost('search', 'GET'), { bucket: 'search', cost: 1 }, 'the page');
+      return eq(w.getQuotaCost('playlists', 'GET'), { bucket: 'pool', cost: 1 }, 'the batched counts');
+    }],
+
+    ['playlist results are rendered with their counts', async w => {
+      const real = w.ytApi;
+      const calls = [];
+      try {
+        w.setAccessToken('test-token');
+        w.ytApi = async (endpoint, params) => {
+          calls.push(endpoint);
+          if (endpoint === 'search') {
+            return { items: [{ id: { playlistId: 'PL_disc_1' },
+              snippet: { title: 'Deep House 2026', channelTitle: 'Selecta', channelId: 'UCz', thumbnails: { medium: { url: 'u' } } } }] };
+          }
+          if (endpoint === 'playlists') return { items: [{ id: 'PL_disc_1', contentDetails: { itemCount: 87 } }] };
+          return { items: [] };
+        };
+        await w.performDiscoverEntitySearch('playlist', {
+          query: 'deep house', maxResults: 50, order: 'relevance', lang: 'fr', pages: 1, btn: null,
+        });
+        eq(calls, ['search', 'playlists'], 'call sequence');
+        const card = w.document.querySelector('.discover-item');
+        ok(card, 'nothing rendered');
+        ok(card.textContent.includes('Deep House 2026'), 'title');
+        return ok(card.textContent.includes('87'), 'item count missing: ' + card.textContent.slice(0, 120));
+      } finally { w.ytApi = real; }
+    }],
+
+    ['a count that could not be fetched reads as unknown, not as zero', async w => {
+      const real = w.ytApi;
+      try {
+        w.setAccessToken('test-token');
+        w.ytApi = async (endpoint) => {
+          if (endpoint === 'search') {
+            return { items: [{ id: { playlistId: 'PL_disc_2' }, snippet: { title: 'Mystery', channelTitle: 'C', thumbnails: {} } }] };
+          }
+          throw new Error('counts unavailable');
+        };
+        await w.performDiscoverEntitySearch('playlist', {
+          query: 'x', maxResults: 50, order: 'relevance', lang: 'fr', pages: 1, btn: null,
+        });
+        const card = w.document.querySelector('.discover-item');
+        ok(card.textContent.includes(w.t('discover_count_unknown')), 'reported as a number: ' + card.textContent.slice(0, 120));
+        return ok(!/\b0 vid|\b0 video/.test(card.textContent), 'an unknown count was shown as zero');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['channel results offer subscribing and browsing', async w => {
+      const real = w.ytApi;
+      try {
+        w.setAccessToken('test-token');
+        w.ytApi = async (endpoint) => {
+          if (endpoint === 'search') {
+            return { items: [{ id: { channelId: 'UC_disc_chan' },
+              snippet: { title: 'Selecta Records', channelTitle: 'Selecta Records', channelId: 'UC_disc_chan', thumbnails: { default: { url: 'u' } } } }] };
+          }
+          return { items: [] };
+        };
+        await w.performDiscoverEntitySearch('channel', {
+          query: 'selecta', maxResults: 50, order: 'relevance', lang: 'fr', pages: 1, btn: null,
+        });
+        const card = w.document.querySelector('.discover-item');
+        ok(card.querySelector('[data-subscribe-channel]'), 'no subscribe pill on a channel result');
+        return ok(card.textContent.includes(w.t('discover_channel_playlists')), 'no way into the channel playlists');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['browsing a channel is capped so one click cannot become twenty calls', async w => {
+      const real = w.ytApi;
+      let pages = 0;
+      try {
+        w.setAccessToken('test-token');
+        // A channel that always claims there is another page.
+        w.ytApi = async () => {
+          pages++;
+          return { nextPageToken: 'more', items: [{ id: 'PL_p' + pages, snippet: { title: 'p' + pages, thumbnails: {} }, contentDetails: { itemCount: 1 } }] };
+        };
+        await w.browseChannelPlaylists('UC_endless', 'Endless');
+        return ok(pages <= 20, 'paged ' + pages + ' times');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['a bookmark added from Discover records where it came from', async w => {
+      const snapLs = snapshot(w, ['bookmarkedPlaylists']);
+      const real = { ytApi: w.ytApi, showToast: w.showToast, refreshPlaylistsList: w.refreshPlaylistsList,
+                     populateSelectDropdowns: w.populateSelectDropdowns };
+      try {
+        w.showToast = () => {};
+        w.refreshPlaylistsList = () => {};
+        w.populateSelectDropdowns = () => {};
+        w.ytApi = async () => ({ items: [{ id: 'PLsrcTestAbcdefghijklmnopqrstuvwx', snippet: { title: 'From Discover' }, contentDetails: { itemCount: 3 }, status: {} }] });
+        await w.bookmarkFromDiscover('PLsrcTestAbcdefghijklmnopqrstuvwx', null, 'discover');
+        const saved = JSON.parse(w.localStorage.getItem('bookmarkedPlaylists') || '[]');
+        const hit = saved.find(b => b.id === 'PLsrcTestAbcdefghijklmnopqrstuvwx');
+        ok(hit, 'the bookmark was not persisted');
+        return eq(hit.source, 'discover', 'origin');
+      } finally {
+        Object.assign(w, real);
+        restore(w, snapLs);
+        try { w.removeBookmark('PLsrcTestAbcdefghijklmnopqrstuvwx'); } catch (_) {}
+        restore(w, snapLs);
+      }
+    }],
+
+    ['switching to playlists leaves the search interface standing', w => {
+      // The first attempt hid each control's parentElement. discoverSortBy sits
+      // directly in the search row, so the query box and the Search button went
+      // with it, and the filter selects took their whole strip down — picking
+      // anything but Videos emptied the view.
+      const snapLs = snapshot(w, ['discoverFilters']);
+      const vis = id => w.getComputedStyle(w.document.getElementById(id)).display !== 'none';
+      try {
+        w.document.getElementById('discoverType').value = 'playlist';
+        w.onDiscoverTypeChange();
+        for (const id of ['discoverSearchInput', 'discoverSearchBtn', 'discoverType',
+                          'discoverMaxResults', 'discoverOrder', 'discoverPublishedAfter']) {
+          ok(vis(id), id + ' disappeared');
+        }
+        // The rows themselves, not just their contents.
+        ok(w.getComputedStyle(w.document.getElementById('discoverSearchInput').parentElement).display !== 'none', 'the search row was hidden');
+        return ok(w.getComputedStyle(w.document.getElementById('discoverPublishedAfter').parentElement).display !== 'none', 'the filter strip was hidden');
+      } finally {
+        w.document.getElementById('discoverType').value = 'video';
+        w.onDiscoverTypeChange();
+        restore(w, snapLs);
+      }
+    }],
+
+    ['the refinements search.list ignores outside videos do go away', w => {
+      const snapLs = snapshot(w, ['discoverFilters']);
+      const hidden = id => w.getComputedStyle(w.document.getElementById(id)).display === 'none';
+      try {
+        w.document.getElementById('discoverType').value = 'channel';
+        w.onDiscoverTypeChange();
+        for (const id of ['discoverDuration', 'discoverDefinition', 'discoverCaption',
+                          'discoverLicense', 'discoverSortBy']) {
+          ok(hidden(id), id + ' still offered on a channel search');
+        }
+        // The checkbox has a label of its own that must go with it.
+        ok(w.getComputedStyle(w.document.getElementById('discoverEmbeddable').closest('label')).display === 'none', 'the embeddable label was stranded');
+        return ok(hidden('discoverCreateBar'), 'nothing to build a playlist from here');
+      } finally {
+        w.document.getElementById('discoverType').value = 'video';
+        w.onDiscoverTypeChange();
+        restore(w, snapLs);
+      }
+    }],
+
+    ['switching back to videos brings the refinements back', w => {
+      const snapLs = snapshot(w, ['discoverFilters']);
+      try {
+        w.document.getElementById('discoverType').value = 'playlist';
+        w.onDiscoverTypeChange();
+        w.document.getElementById('discoverType').value = 'video';
+        w.onDiscoverTypeChange();
+        for (const id of ['discoverDuration', 'discoverSortBy', 'discoverCreateBar']) {
+          ok(w.getComputedStyle(w.document.getElementById(id)).display !== 'none', id + ' stayed hidden');
+        }
+        return ok(w.getComputedStyle(w.document.getElementById('discoverEmbeddable').closest('label')).display !== 'none', 'the embeddable label stayed hidden');
+      } finally { restore(w, snapLs); }
+    }],
+
+    ['a type restored from the last session reaches the controls', w => {
+      const snapLs = snapshot(w, ['discoverFilters']);
+      try {
+        w.localStorage.setItem('discoverFilters', JSON.stringify({ discoverType: 'playlist' }));
+        // What boot does: read the saved choices back, then act on the type.
+        w.loadDiscoverFilters();
+        w.applyDiscoverTypeVisibility();
+        return ok(w.getComputedStyle(w.document.getElementById('discoverDuration')).display === 'none',
+          'a reload came back offering video filters over a playlist search');
+      } finally {
+        restore(w, snapLs);
+        w.loadDiscoverFilters();
+        w.applyDiscoverTypeVisibility();
+      }
+    }],
+  ],
+},
+{
+  id: '#I1', title: 'Custom playlist covers', note: 'the API accepts 1:1 square only — the brief assumed 16:9, so the resize crops rather than squashes',
+  cases: [
+    ['the four methods are costed as documented', w => {
+      eq(w.getQuotaCost('playlistImages', 'GET'), { bucket: 'pool', cost: 1 }, 'list');
+      eq(w.getQuotaCost('playlistImages', 'POST'), { bucket: 'pool', cost: 50 }, 'insert');
+      eq(w.getQuotaCost('playlistImages', 'PUT'), { bucket: 'pool', cost: 50 }, 'update');
+      eq(w.getQuotaCost('playlistImages', 'DELETE'), { bucket: 'pool', cost: 50 }, 'delete');
+      return eq(w.estimateQuotaCost('cover_set', 1), 50, 'pre-flight estimate');
+    }],
+
+    ['covers are cached for an hour, not for a minute', w =>
+      eq(w.cacheTtlFor('playlistImages', 'GET'), 3600000)],
+
+    ['a 16:9 image is cropped square, not squashed', w => {
+      // The documented accepted aspect ratio is 1:1. Squashing would distort
+      // every landscape screenshot someone drops in; a centre crop keeps the
+      // subject where the user put it.
+      const g = w.coverCropGeometry(1920, 1080, 1280);
+      eq(g.side, 1080, 'the square side is the smaller dimension');
+      eq(g.sx, 420, 'horizontal offset should centre the crop');
+      eq(g.sy, 0, 'vertical offset');
+      return eq(g.target, 1080, 'drawn at the side length, under the cap');
+    }],
+
+    ['a portrait image crops from the middle too', w => {
+      const g = w.coverCropGeometry(1080, 1920, 1280);
+      eq(g.side, 1080, 'side');
+      eq(g.sx, 0, 'horizontal');
+      return eq(g.sy, 420, 'vertical');
+    }],
+
+    ['a large square is downscaled to the cap', w =>
+      eq(w.coverCropGeometry(4000, 4000, 1280).target, 1280)],
+
+    ['a small image is not upscaled', w => {
+      // Blowing up a 300 px image to 1280 only makes it blurry and heavier.
+      const g = w.coverCropGeometry(400, 300, 1280);
+      eq(g.side, 300, 'side');
+      return eq(g.target, 300, 'target');
+    }],
+
+    ['an unusable image gives nothing back', w => {
+      eq(w.coverCropGeometry(0, 0, 1280), null, 'zeroes');
+      eq(w.coverCropGeometry(undefined, undefined, 1280), null, 'nothing');
+      return eq(w.coverCropGeometry('x', 'y', 1280), null, 'garbage');
+    }],
+
+    ['only the two documented MIME types are ever sent', w => {
+      eq(w.coverMimeFor('image/png'), 'image/png', 'png');
+      eq(w.coverMimeFor('image/jpeg'), 'image/jpeg', 'jpeg');
+      return eq(w.coverMimeFor('image/gif'), 'image/jpeg', 'anything else is re-encoded');
+    }],
+
+    ['the multipart body carries the metadata part before the image', w => {
+      const part = w.buildCoverMultipart('BOUND', { snippet: { playlistId: 'PL_x', type: 'hero' } }, 'image/jpeg');
+      eq(part.contentType, 'multipart/related; boundary=BOUND', 'content type');
+      ok(part.head.startsWith('--BOUND\r\n'), 'head does not open the boundary: ' + JSON.stringify(part.head.slice(0, 20)));
+      ok(part.head.includes('Content-Type: application/json; charset=UTF-8'), 'no json part header');
+      ok(part.head.includes('"playlistId":"PL_x"'), 'playlistId missing from the metadata');
+      ok(part.head.includes('"type":"hero"'), 'type missing — the API requires it');
+      ok(part.head.trimEnd().endsWith('Content-Type: image/jpeg'), 'image part header: ' + JSON.stringify(part.head.slice(-40)));
+      return eq(part.tail, '\r\n--BOUND--\r\n', 'closing boundary');
+    }],
+
+    ['the image part declares the blob type it is actually sending', w => {
+      const part = w.buildCoverMultipart('B', { snippet: { playlistId: 'P', type: 'hero' } }, 'image/png');
+      return ok(part.head.includes('Content-Type: image/png'), part.head);
+    }],
+
+    ['a playlist with no cover is remembered as having none', async w => {
+      const real = w.ytApi;
+      let calls = 0;
+      try {
+        w.setAccessToken('test-token');
+        w.ytApi = async () => { calls++; return { items: [] }; };
+        eq(await w.loadPlaylistCover('PL_cover_none'), null, 'first lookup');
+        await w.loadPlaylistCover('PL_cover_none');
+        // "No cover" is an answer worth keeping — asking again every visit
+        // would spend a unit to be told the same thing.
+        return eq(calls, 1, 'asked twice for the same absent cover');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['an existing cover reports the type the API itself uses', async w => {
+      const real = w.ytApi;
+      try {
+        w.setAccessToken('test-token');
+        w.ytApi = async () => ({ items: [{ id: 'IMG1', snippet: { type: 'somethingElse', thumbnails: { fhd: { url: 'u' } } } }] });
+        const c = await w.loadPlaylistCover('PL_cover_typed');
+        // snippet.type has no documented enum, so the value an existing image
+        // reports is better evidence than any constant we could pick.
+        eq(c.type, 'somethingElse', 'type not read back');
+        return eq(c.url, 'u', 'url');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['a failed lookup does not poison the cache', async w => {
+      const real = w.ytApi;
+      let calls = 0;
+      try {
+        w.setAccessToken('test-token');
+        w.ytApi = async () => { calls++; throw new Error('boom'); };
+        eq(await w.loadPlaylistCover('PL_cover_err'), null, 'first');
+        await w.loadPlaylistCover('PL_cover_err');
+        return eq(calls, 2, 'a transient failure should be retried on the next visit');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['with no token or with the flag off, nothing is requested', async w => {
+      const real = w.ytApi;
+      let called = false;
+      const wasFlag = w.FEATURES.playlistCovers;
+      try {
+        w.ytApi = async () => { called = true; return { items: [] }; };
+        w.setAccessToken('');
+        await w.loadPlaylistCover('PL_cover_x');
+        ok(called === false, 'requested without a token');
+        w.setAccessToken('test-token');
+        w.FEATURES.playlistCovers = false;
+        await w.loadPlaylistCover('PL_cover_y');
+        return ok(called === false, 'requested with the feature flag off');
+      } finally { w.ytApi = real; w.setAccessToken('test-token'); w.FEATURES.playlistCovers = wasFlag; }
     }],
   ],
 },
 ];
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ════════════════════════════════════════════════════════════════════════
 // Runner
