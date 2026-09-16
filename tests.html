@@ -1327,7 +1327,112 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '#I3', title: 'Like state without asking for write access', note: 'videos.getRating accepts youtube.readonly since 1 Sept 2026; videos.rate still does not',
+  cases: [
+    ['a sub-path keeps its own cost and bucket', w => {
+      // Truncated to 'videos', a rate POST would have been billed to the UPLOAD
+      // bucket — one like eating 1% of the daily upload allowance.
+      eq(w.getQuotaCost('videos/rate', 'POST'), { bucket: 'pool', cost: 50 }, 'rate');
+      eq(w.getQuotaCost('videos/getRating', 'GET'), { bucket: 'pool', cost: 1 }, 'getRating');
+      return eq(w.getQuotaCost('videos', 'POST'), { bucket: 'upload', cost: 1 }, 'a real upload is untouched');
+    }],
+
+    ['normalisation strips the query but keeps the path', w => {
+      eq(w.normalizeEndpoint('playlists?part=snippet,status'), 'playlists', 'query');
+      eq(w.normalizeEndpoint('videos/getRating?id=abc'), 'videos.getRating', 'path + query');
+      return eq(w.normalizeEndpoint('videos'), 'videos', 'plain');
+    }],
+
+    ['getRating is cached, rate is not', w => {
+      ok(w.cacheTtlFor('videos/getRating', 'GET') > 0, 'getRating should be cacheable');
+      return eq(w.cacheTtlFor('videos/rate', 'POST'), 0, 'a write is never cached');
+    }],
+
+    ['the response maps to a state, and an unknown one is "none"', w => {
+      const r = id => ({ items: [{ videoId: 'V1', rating: id }] });
+      eq(w.ratingFromResponse(r('like'), 'V1'), 'like', 'like');
+      eq(w.ratingFromResponse(r('dislike'), 'V1'), 'dislike', 'dislike');
+      eq(w.ratingFromResponse(r('none'), 'V1'), 'none', 'none');
+      eq(w.ratingFromResponse(r('unspecified'), 'V1'), 'none', 'unspecified is not a state we show');
+      eq(w.ratingFromResponse({ items: [] }, 'V1'), 'none', 'empty');
+      eq(w.ratingFromResponse({}, 'V1'), 'none', 'no items at all');
+      return eq(w.ratingFromResponse(r('like'), 'OTHER'), 'none', 'a rating for another video is not ours');
+    }],
+
+    ['reading the rating spends one pool unit on getRating', async w => {
+      const real = w.ytApi;
+      const calls = [];
+      try {
+        w.ytApi = async (endpoint, params) => {
+          calls.push({ endpoint, params });
+          return { items: [{ videoId: 'V1', rating: 'like' }] };
+        };
+        const r = await w.fetchRating('V1');
+        eq(calls.length, 1, 'one call');
+        eq(calls[0].endpoint, 'videos/getRating', 'endpoint');
+        return eq(r, 'like');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['a failed read never interrupts playback', async w => {
+      const real = w.ytApi;
+      try {
+        w.ytApi = async () => { throw new Error('boom'); };
+        return eq(await w.fetchRating('V1'), 'none');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['with no token the rating is not even requested', async w => {
+      const real = w.ytApi;
+      let called = false;
+      try {
+        w.setAccessToken('');
+        w.ytApi = async () => { called = true; return { items: [] }; };
+        const r = await w.fetchRating('V1');
+        ok(called === false, 'a request went out without a token');
+        return eq(r, 'none');
+      } finally { w.ytApi = real; w.setAccessToken('test-token'); }
+    }],
+
+    ['read-only mode refuses the write and leaves the state alone', async w => {
+      const realToast = w.showToast;
+      const realApi = w.ytApi;
+      const toasts = [];
+      let called = false;
+      const wasReadOnly = w.document.body.classList.contains('read-only');
+      try {
+        w.showToast = (m, tp) => toasts.push({ m, tp });
+        w.ytApi = async () => { called = true; return {}; };
+        w.setReadOnlyMode(true);
+        await w.togglePlayerLike();
+        ok(called === false, 'a rate request went out in read-only mode');
+        ok(toasts.some(x => x.m === w.t('error_read_only')), 'no explanation given: ' + JSON.stringify(toasts));
+        return 'refused, 0 calls';
+      } finally {
+        w.setReadOnlyMode(!!wasReadOnly);
+        w.showToast = realToast; w.ytApi = realApi;
+      }
+    }],
+
+    ['the button reflects the state and is inert without a token', w => {
+      const btn = w.document.getElementById('playerLikeBtn');
+      ok(btn, 'no like button in the player controls');
+      try {
+        w.renderRatingButton('like');
+        eq(btn.classList.contains('is-liked'), true, 'liked class');
+        eq(btn.getAttribute('aria-pressed'), 'true', 'aria-pressed');
+        w.renderRatingButton('none');
+        eq(btn.classList.contains('is-liked'), false, 'liked class stuck');
+        w.setAccessToken('');
+        w.renderRatingButton('none');
+        return eq(btn.disabled, true, 'enabled with no token');
+      } finally { w.setAccessToken('test-token'); w.renderRatingButton('none'); }
+    }],
+  ],
+},
 ];
+
 
 
 

@@ -640,6 +640,9 @@
   body.offline-cache .offline-pill { display: inline-flex; }
   /* #68 — Shorts badge. Inferred from the embed aspect ratio, so it is stated
      as a label, not as something the API told us outright. */
+  /* #I3 — liked state in the player controls */
+  #playerLikeBtn.is-liked { color: var(--danger, #ff2d55); }
+  #playerLikeBtn:disabled { opacity: .45; cursor: not-allowed; }
   .short-badge {
     font-size: 10px;
     font-weight: 700;
@@ -2500,6 +2503,9 @@
       <button onclick="playerNext()" title="Next" id="playerNextBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
       </button>
+      <button onclick="togglePlayerLike()" id="playerLikeBtn" data-i18n-title="player_like_tooltip" title="Like">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21.2l7.7-7.7 1.1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg>
+      </button>
       <button onclick="toggleShuffle()" title="Shuffle" id="playerShuffleBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
       </button>
@@ -3018,6 +3024,11 @@ const I18N = {
     shorts_channel_added: '{title} ajoutée en lecture seule',
     shorts_channel_none: "Cette chaîne n'a pas de playlist Shorts accessible.",
     shorts_channel_none_long: "Cette chaîne n'a pas de playlist de vidéos longues accessible.",
+    // Like dans le lecteur (#I3)
+    player_like_tooltip: "J'aime cette vidéo (demande l'accès en écriture)",
+    player_unlike_tooltip: "Retirer mon j'aime",
+    player_liked: "Ajouté à vos vidéos aimées",
+    player_unliked: "J'aime retiré",
     quota_pool_label: 'Pool',
     quota_search_label: 'Recherches',
     quota_upload_label: 'Mises en ligne',
@@ -3710,6 +3721,11 @@ const I18N = {
     shorts_channel_added: '{title} added as read-only',
     shorts_channel_none: 'This channel has no reachable Shorts playlist.',
     shorts_channel_none_long: 'This channel has no reachable long-form playlist.',
+    // Player like (#I3)
+    player_like_tooltip: 'Like this video (requests write access)',
+    player_unlike_tooltip: 'Remove your like',
+    player_liked: 'Added to your liked videos',
+    player_unliked: 'Like removed',
     quota_pool_label: 'Pool',
     quota_search_label: 'Searches',
     quota_upload_label: 'Uploads',
@@ -4024,11 +4040,16 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.17.0'; // bump per release
+const APP_VERSION = '1.18.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.18.0', date: '2026-09-16', items: [
+    "#I3 — bouton j aime dans le lecteur. Depuis la revision d API du 1er septembre 2026, videos.getRating accepte le scope lecture seule : l etat du j aime s affiche donc sans jamais demander l acces en ecriture. Seul le clic declenche l upgrade de scope",
+    "Correctif de fond : getQuotaCost, le cache et l invalidation tronquaient l endpoint a sa base, donc videos/rate aurait ete compte comme videos.POST — c est-a-dire, depuis le lot 1, sur le bucket des mises en ligne. Un seul j aime aurait consomme 1 % du quota quotidien d upload et laisse le pool intact. Le sous-chemin est desormais conserve",
+    "Le bouton reste visible mais inerte en mode lecture seule et sans jeton, avec l infobulle qui dit pourquoi ; l etat est optimiste et revient en arriere si l ecriture echoue",
+  ]},
   { v: '1.17.0', date: '2026-09-16', items: [
     "#68 — filtre Shorts. L API Data v3 n expose aucun indicateur officiel : le seul signal disponible est le format d integration (snippet.player), demande dans le meme appel que les details, donc a cout de quota inchange. Une video est un Short si son integration est verticale ET qu elle dure 180 s ou moins — la duree seule ou le format seul se trompent tous les deux",
     "Deux nouvelles options de type — Shorts seulement et Exclure les Shorts — dans les trois listes concernees (detail de playlist, recherche globale, plan de visionnage). Cet axe est independant de la classification musicale : un Short musical reste les deux",
@@ -4727,6 +4748,7 @@ const YT_QUOTA_COSTS = {
   'videoAbuseReportReasons.GET': 1,
   'videoCategories.GET': 1,
   'videos.GET': 1,
+  'videos.getRating.GET': 1,      // #I3 — readable with youtube.readonly since 1 Sept 2026
   // Writes (most 50; videos.insert=100; captions.insert/update=400/450)
   'captions.POST': 400,           // ⚠️ caption upload
   'captions.PUT': 450,            // ⚠️ caption update
@@ -4751,6 +4773,7 @@ const YT_QUOTA_COSTS = {
   'subscriptions.DELETE': 50,
   'thumbnails.POST': 50,
   'videos.POST': 1,               // own bucket: 1 CALL out of 100/day (was 1600 units, then 100, now its own quota)
+  'videos.rate.POST': 50,         // #I3 — still needs the full youtube scope
   'videos.PUT': 50,
   'videos.DELETE': 50,
   'watermarks.POST': 50,
@@ -4765,9 +4788,17 @@ const QUOTA_BUCKETS = {
 // Daily allowance per bucket. pool is in units; search and upload are in calls.
 const QUOTA_LIMITS = { pool: 10000, search: 100, upload: 100 };
 
+// Normalise an endpoint to its quota/cache key: strip the query string, keep the
+// resource path. 'playlists?part=...' → 'playlists', 'videos/rate' → 'videos.rate'.
+// Sub-paths matter: videos/rate and videos/getRating have costs and buckets of
+// their own, and truncating them to 'videos' billed a like to the upload bucket.
+function normalizeEndpoint(endpoint) {
+  return String(endpoint).split('?')[0].split('/').filter(Boolean).join('.');
+}
+
 // Look up bucket + cost for an API call. endpoint may include query string ('playlists?part=...')
 function getQuotaCost(endpoint, method) {
-  const base = String(endpoint).split('?')[0].split('/')[0]; // 'playlists' from 'playlists?part=...'
+  const base = normalizeEndpoint(endpoint);
   const key = `${base}.${method}`;
   const bucket = QUOTA_BUCKETS[key] || 'pool';
   const cost = YT_QUOTA_COSTS[key] || (method === 'GET' ? 1 : 50);
@@ -4957,6 +4988,7 @@ const API_CACHE_CONFIG = {
     'subscriptions.GET':       5 * 60_000,
     'videoCategories.GET':     60 * 60_000,   // 1 hour
     'videos.GET':              5 * 60_000,
+    'videos.getRating.GET':    5 * 60_000,   // #I3 — per user + per video, rarely changes mid-session
   },
   defaultTtlMs: 0,           // unknown endpoints → don't cache
   maxEntries: 500,           // LRU cap — drop oldest when exceeded
@@ -4966,7 +4998,7 @@ const API_CACHE_CONFIG = {
 // Compute the endpoint+method key from a URL+method pair (e.g. 'playlists.GET')
 function cacheTtlFor(endpoint, method) {
   if (method !== 'GET') return 0;
-  const base = String(endpoint).split('?')[0].split('/')[0];
+  const base = normalizeEndpoint(endpoint);
   return API_CACHE_CONFIG.ttlMs[`${base}.GET`] ?? API_CACHE_CONFIG.defaultTtlMs;
 }
 
@@ -4993,7 +5025,7 @@ function cacheSet(key, entry) {
 // Invalidate cache entries affected by a write op.
 // After a PUT/DELETE/POST on a resource, any cached list/get that could contain it must be flushed.
 function invalidateCacheForWrite(endpoint, params, body) {
-  const base = String(endpoint).split('?')[0].split('/')[0];
+  const base = normalizeEndpoint(endpoint).split('.')[0];   // flushing is per resource, not per sub-path
   const affectedIds = new Set();
   if (params?.id) affectedIds.add(params.id);
   if (body?.id) affectedIds.add(body.id);
@@ -7338,7 +7370,8 @@ const PLAYER = {
   speed: 1,
   isPlaying: false,
   progressInterval: null,
-  apiLoaded: false
+  apiLoaded: false,
+  rating: 'none'      // #I3 — 'like' | 'dislike' | 'none' for the video on screen
 };
 
 // ── YouTube IFrame API loader ──
@@ -7502,6 +7535,85 @@ function loadCurrentVideo() {
   updatePlayerUI(item);
   updateMiniPlayer(item);
   renderQueueList();
+  refreshPlayerRating(item.videoId);   // 1 pool unit, cached 5 min per video
+}
+
+// ── Rating (#I3) ────────────────────────────────────────────────────────────
+// videos.getRating accepts youtube.readonly since the 1 September 2026 API
+// revision, so the current like state is readable without ever asking for write
+// access. videos.rate still needs the full scope, and is only requested when
+// the user actually taps.
+const RATINGS = ['like', 'dislike', 'none', 'unspecified'];
+
+// getRating answers { items: [{ videoId, rating }] }. An absent or unknown
+// rating is 'none', never a guess.
+function ratingFromResponse(data, videoId) {
+  const items = (data && Array.isArray(data.items)) ? data.items : [];
+  const hit = videoId ? items.find(i => i && i.videoId === videoId) : items[0];
+  const rating = hit && hit.rating;
+  return RATINGS.includes(rating) && rating !== 'unspecified' ? rating : 'none';
+}
+
+async function fetchRating(videoId) {
+  if (!videoId || !APP.accessToken) return 'none';
+  try {
+    const data = await ytApi('videos/getRating', { id: videoId });
+    return ratingFromResponse(data, videoId);
+  } catch (err) {
+    // A rating we cannot read is not worth interrupting playback for.
+    log('warn', 'api', 'getRating failed', { videoId, msg: err.message });
+    return 'none';
+  }
+}
+
+function renderRatingButton(rating) {
+  const btn = document.getElementById('playerLikeBtn');
+  if (!btn) return;
+  const liked = rating === 'like';
+  btn.classList.toggle('is-liked', liked);
+  btn.setAttribute('aria-pressed', liked ? 'true' : 'false');
+  // Read-only mode (#43): visible, so the state can still be read, but inert.
+  const blocked = !!APP.readOnlyMode || !APP.accessToken;
+  btn.disabled = blocked;
+  btn.title = blocked
+    ? t(APP.readOnlyMode ? 'readonly_pill_tooltip' : 'status_offline_cache_tooltip')
+    : t(liked ? 'player_unlike_tooltip' : 'player_like_tooltip');
+  const svg = btn.querySelector('svg');
+  if (svg) svg.setAttribute('fill', liked ? 'currentColor' : 'none');
+}
+
+async function refreshPlayerRating(videoId) {
+  PLAYER.rating = 'none';
+  renderRatingButton('none');
+  if (!videoId) return;
+  const rating = await fetchRating(videoId);
+  // The user may have skipped on while the request was in flight.
+  const current = PLAYER.queue[PLAYER.currentIndex];
+  if (!current || current.videoId !== videoId) return;
+  PLAYER.rating = rating;
+  renderRatingButton(rating);
+}
+
+async function togglePlayerLike() {
+  // Read-only first: the refusal does not depend on what is playing.
+  if (APP.readOnlyMode) { showToast(t('error_read_only'), 'warning'); return; }
+  const item = PLAYER.queue[PLAYER.currentIndex];
+  if (!item) return;
+  if (!(await ensureWriteScope())) return;
+
+  const next = PLAYER.rating === 'like' ? 'none' : 'like';
+  const previous = PLAYER.rating;
+  // Optimistic: the button answers the tap, and reverts if the write fails.
+  PLAYER.rating = next;
+  renderRatingButton(next);
+  try {
+    await ytApi('videos/rate', { id: item.videoId, rating: next }, 'POST');
+    showToast(t(next === 'like' ? 'player_liked' : 'player_unliked'), 'success');
+  } catch (err) {
+    PLAYER.rating = previous;
+    renderRatingButton(previous);
+    showToast(t('toast_error', { msg: err.message }), 'error');
+  }
 }
 
 // ── UI updates ──
