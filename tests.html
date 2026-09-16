@@ -375,22 +375,28 @@ async function runAutoSave(w, opts) {
 // known library and an answer for every endpoint it touches. videos answers the
 // shape getVideoDetails really returns — a map keyed by video id — because
 // iterating it as an array is the bug these cases exist for.
-async function runCategorizer(w, videosAnswer) {
+async function runCategorizer(w, videosAnswer, playlists) {
   const real = { ytApi: w.ytApi, showToast: w.showToast };
   w.showToast = () => {};
   w.ytApi = async (endpoint, params) => {
-    if (endpoint === 'playlists') return { items: [
+    if (endpoint === 'playlists') return { items: playlists || [
       { id: 'PL_cat_a', snippet: { title: 'Techno set' }, contentDetails: { itemCount: 1 }, status: {} },
       { id: 'PL_cat_b', snippet: { title: 'Cours de maths' }, contentDetails: { itemCount: 1 }, status: {} },
     ] };
     if (endpoint === 'videoCategories') return { items: [
       { id: '10', snippet: { title: 'Musique' } },
+      { id: '26', snippet: { title: 'Howto & Style' } },
       { id: '27', snippet: { title: 'Education' } },
+      { id: '28', snippet: { title: 'Science & Technology' } },
     ] };
-    if (endpoint === 'playlistItems') return { items: [
-      { id: 'i', contentDetails: { videoId: params.playlistId + '_v' },
-        snippet: { title: 'v', resourceId: { videoId: params.playlistId + '_v' } } },
-    ] };
+    if (endpoint === 'playlistItems') {
+      const pl = (playlists || []).find(p => p.id === params.playlistId);
+      const n = pl ? (pl.contentDetails?.itemCount || 1) : 1;
+      return { items: Array.from({ length: n }, (_, i) => ({
+        id: 'i' + i, contentDetails: { videoId: params.playlistId + '_v' + i },
+        snippet: { title: 'v', resourceId: { videoId: params.playlistId + '_v' + i } },
+      })) };
+    }
     if (endpoint === 'videos') return videosAnswer(params);
     return { items: [] };
   };
@@ -473,6 +479,31 @@ const SUITES = [
         eq(w.getComputedStyle(btn).display, 'none', 'Apply is still offered');
         return ok(w.document.getElementById('categorizerResults').innerText.trim().length > 0, 'the empty result says nothing');
       } finally { w.closeModal(); done(); restore(w, snapLs); }
+    }],
+
+    ['a title no keyword can reach is still categorized from its videos', async w => {
+      // "3P PRINTING" matches none of the five keyword lists, under the old
+      // substring rule or the current whole-word one. Until the map was iterated
+      // properly it produced nothing at all: one of the playlists that silently
+      // never appeared in the results. Its videos say Science & Technology.
+      const snapLs = snapshot(w, ['playlistTags']);
+      const cats = ['28', '28', '26', '28', '24'];
+      const done = await runCategorizer(w,
+        params => ({ items: String(params.id).split(',').map((id, i) => ({
+          id, snippet: { title: 'clip', categoryId: cats[i] }, contentDetails: { duration: 'PT8M' },
+        })) }),
+        [{ id: 'PL_3p', snippet: { title: '3P PRINTING' }, contentDetails: { itemCount: 5 }, status: {} }]);
+      try {
+        eq(w.keywordCategory('3P PRINTING', { Tech: ['tech', 'code', 'programming'], Musique: ['music'] }),
+           null, 'the title fallback should have nothing to say here');
+        const rows = categorizerRows(w);
+        eq(rows.length, 1, 'no suggestion at all — the silent skip is back');
+        // The majority of the videos, not the first one.
+        ok(rows[0].text.includes('Science & Technology'), rows[0].text);
+        w.document.getElementById('categorizerApplyBtn').click();
+        const stored = JSON.parse(w.localStorage.getItem('playlistTags') || '{}');
+        return eq(stored['PL_3p'], ['Science & Technology'], 'apply did not persist it');
+      } finally { done(); restore(w, snapLs); }
     }],
   ],
 },
