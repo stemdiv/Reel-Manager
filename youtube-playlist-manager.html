@@ -621,6 +621,44 @@
     cursor: help;
   }
   body.read-only .readonly-pill { display: inline-flex; align-items: center; gap: 4px; }
+  /* #B14 — cache shown with no token. Distinct from read-only mode: nothing is
+     disabled by choice here, the session simply lapsed. */
+  .offline-pill {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--yellow, #e6a700);
+    background: color-mix(in srgb, var(--yellow, #e6a700) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--yellow, #e6a700) 40%, transparent);
+    padding: 3px 8px;
+    border-radius: var(--r-sm);
+  }
+  body.offline-cache .offline-pill { display: inline-flex; }
+  .offline-pill button {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    padding: 0;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .toast-action {
+    margin-left: 12px;
+    font: inherit;
+    font-weight: 600;
+    color: inherit;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid currentColor;
+    border-radius: var(--r-sm, 6px);
+    padding: 2px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
   /* Hide major write-action buttons on the dashboard when read-only.
      Defense in depth — ytApi also blocks the network call. */
   body.read-only .dash-write-action { display: none !important; }
@@ -1188,6 +1226,7 @@
       <div class="quota-info" id="backupInfo" data-i18n-title="header_last_backup" title="Dernier backup" style="cursor:pointer;" onclick="switchView('backup')">--</div>
       <div class="quota-info" id="quotaInfo">Quota: --</div>
       <div class="readonly-pill" id="readonlyPill" data-i18n-title="readonly_pill_tooltip" title="Read-only mode is active — write actions are disabled"><span data-i18n="readonly_pill_label">READ-ONLY</span></div>
+      <div class="offline-pill" id="offlinePill" data-i18n-title="status_offline_cache_tooltip" title="Showing local cache — not signed in"><span data-i18n="status_offline_cache">OFFLINE — LOCAL CACHE</span><button type="button" onclick="startOAuth(currentScope)" data-i18n="action_reconnect">Reconnect</button></div>
       <a class="btn-icon header-tool studio-switch" href="reel-studio.html"
          data-i18n-title="header_studio_ui" title="Interface Musique">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 14v6M9 4v16M14 9v11M19 6v14"/></svg>
@@ -2935,6 +2974,10 @@ const I18N = {
     discover_channel_label: 'Limité à la chaîne',
     discover_channel_clear: 'Chercher dans tout YouTube',
     discover_channel_search: 'Chercher dans cette chaîne',
+    error_session_expired: "Session expirée — reconnectez-vous pour effectuer cette action.",
+    action_reconnect: 'Se reconnecter',
+    status_offline_cache: 'HORS LIGNE — CACHE LOCAL',
+    status_offline_cache_tooltip: "Les données affichées viennent du cache local. Reconnectez-vous pour les rafraîchir et pour modifier vos playlists.",
     quota_pool_label: 'Pool',
     quota_search_label: 'Recherches',
     quota_upload_label: 'Mises en ligne',
@@ -3601,6 +3644,10 @@ const I18N = {
     discover_channel_label: 'Restricted to the channel',
     discover_channel_clear: 'Search all of YouTube',
     discover_channel_search: 'Search this channel',
+    error_session_expired: 'Session expired — sign in again to perform this action.',
+    action_reconnect: 'Reconnect',
+    status_offline_cache: 'OFFLINE — LOCAL CACHE',
+    status_offline_cache_tooltip: 'What you see comes from the local cache. Sign in again to refresh it and to change your playlists.',
     quota_pool_label: 'Pool',
     quota_search_label: 'Searches',
     quota_upload_label: 'Uploads',
@@ -3884,6 +3931,7 @@ const APP = {
   // #76 — three independent daily allowances, not one pool. pool is in units,
   // search and upload count calls. See QUOTA_LIMITS.
   quota: { pool: 0, search: 0, upload: 0 },
+  tokenExpiresAt: 0,   // #B14 — from the OAuth hash's expires_in, 0 when unknown
   userInfo: null,
   playlists: [],
   allVideos: {},
@@ -3914,11 +3962,17 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.15.0'; // bump per release
+const APP_VERSION = '1.16.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.16.0', date: '2026-09-16', items: [
+    "#B13 — un 403 ordinaire ne renvoie plus l utilisateur vers la Google Cloud Console. L application est en production : le message Ajoutez-vous aux Test users etait un faux diagnostic pour presque tous les 403. Il ne reste que pour accessNotConfigured ou un message qui dit vraiment not registered / has not completed ; le reste devient Session expiree, avec un bouton de reconnexion dans le toast",
+    "#B14 — le cache peut s afficher sans jeton : le jeton ne vit que dans le fragment d URL et un rechargement le perd, alors que l en-tete affichait Connecte. Une pastille Hors ligne — cache local le dit, avec un bouton Se reconnecter, et toute ecriture est refusee avant l appel reseau au lieu de partir avec un Bearer vide",
+    "Le jeton ne change plus qu a un seul endroit (setAccessToken), pour que l en-tete ne puisse pas diverger de son etat",
+    "expires_in est capte depuis le fragment OAuth : le journal de diagnostic distingue desormais un jeton absent d un jeton expire — les deux produisaient le meme 403",
+  ]},
   { v: '1.15.0', date: '2026-09-16', items: [
     "Miniatures fhd/qhd/uhd (revision d API du 11 septembre 2026). Vingt-quatre sites du code avaient chacun leur propre chaine medium || high || default ecrite a la main, parfois dans un ordre different : une ressource ne portant que les nouvelles cles passait pour n avoir aucune miniature. Une seule fonction pickThumb desormais, deux modes — carte et grand format",
     "Les selecteurs fields demandent fhd et qhd (pas uhd : poids inutile pour des cartes). Cout de quota inchange",
@@ -4205,6 +4259,7 @@ async function _logBuildHeader() {
     `Language:         ${lang}`,
     `Theme:            ${APP.theme || 'dark'}    Skin: ${skin}`,
     `User (anon):      ${userHash || '(no clientId / crypto unavailable)'}`,
+    `Session:          ${tokenStateText()}`,
     `Quota pool:       ${APP.quota.pool} / ${QUOTA_LIMITS.pool} units (${qPct('pool')}%)`,
     `Quota search:     ${APP.quota.search} / ${QUOTA_LIMITS.search} calls (${qPct('search')}%)`,
     `Quota upload:     ${APP.quota.upload} / ${QUOTA_LIMITS.upload} calls (${qPct('upload')}%)`,
@@ -4265,6 +4320,22 @@ function applyReadOnlyMode() {
   try {
     document.body.classList.toggle('read-only', !!APP.readOnlyMode);
   } catch (_) {}
+}
+
+// #B14 — showAppFromCache() rendered the header as "connected" whatever the
+// token situation, because the token only ever lives in the URL hash and a
+// reload drops it. Say so instead, and offer the way back.
+function setAccessToken(token) {
+  APP.accessToken = token || '';
+  if (!APP.accessToken) APP.tokenExpiresAt = 0;
+  applyOfflineCacheState();
+  return APP.accessToken;
+}
+
+function applyOfflineCacheState() {
+  const offline = !APP.accessToken;
+  try { document.body.classList.toggle('offline-cache', offline); } catch (_) {}
+  return offline;
 }
 
 function setReadOnlyMode(enabled) {
@@ -4607,6 +4678,16 @@ function chargeQuota(endpoint, method) {
 
 // Daily quota persistence + Pacific Time reset (audit item #47)
 // YouTube quota resets at midnight Pacific (America/Los_Angeles), NOT UTC, NOT local.
+// Human-readable token state for the diagnostic log — an expired token and a
+// never-present one produce the same 403, and only this tells them apart.
+function tokenStateText(expiresAt) {
+  if (!APP.accessToken) return 'no token — showing local cache';
+  const exp = expiresAt || APP.tokenExpiresAt || parseInt(sessionStorage.getItem('tokenExpiresAt') || '', 10);
+  if (!Number.isFinite(exp)) return 'token present (expiry not reported)';
+  const mins = Math.round((exp - Date.now()) / 60000);
+  return mins > 0 ? `token present, expires in ${mins} min` : `token present but expired ${-mins} min ago`;
+}
+
 function getPacificDateString() {
   // Returns YYYY-MM-DD for the current moment in America/Los_Angeles
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -4926,6 +5007,10 @@ function showAppFromCache() {
   }
 
   console.log(`[Cache-first] Displaying dashboard from backup: ${APP.playlists.length} playlists, ${Object.values(APP.allVideos).reduce((s, v) => s + v.length, 0)} videos — 0 API calls`);
+
+  if (applyOfflineCacheState()) {
+    log('info', 'oauth', 'cache shown without a token — offline state');
+  }
 
   refreshDashboard();
   populateSelectDropdowns();
@@ -5585,9 +5670,18 @@ function checkAuth() {
   const hash = window.location.hash;
   if (hash) {
     const params = new URLSearchParams(hash.substring(1));
-    APP.accessToken = params.get('access_token');
+    setAccessToken(params.get('access_token'));
     if (APP.accessToken) {
-      log('info', 'oauth', 'access token received', { scope: currentScope });
+      // #B14 — expires_in is the only thing the implicit flow tells us about
+      // the token's life. Record it so the diagnostic log can say whether a
+      // failure happened before or after the token should have lapsed.
+      const expiresIn = parseInt(params.get('expires_in') || '', 10);
+      if (Number.isFinite(expiresIn) && expiresIn > 0) {
+        APP.tokenExpiresAt = Date.now() + expiresIn * 1000;
+        try { sessionStorage.setItem('tokenExpiresAt', String(APP.tokenExpiresAt)); } catch (_) {}
+      }
+      applyOfflineCacheState();   // the expiry above is only known after setAccessToken
+      log('info', 'oauth', 'access token received', { scope: currentScope, expiresIn: expiresIn || '(not given)' });
       // Clear explicit logout flag on successful re-auth
       sessionStorage.removeItem('loggedOut');
       // Record login timestamp for auto-purge mechanism
@@ -5614,7 +5708,7 @@ function checkAuth() {
 function handleLogout() {
   log('info', 'oauth', 'logout');
   try { persistLog(); } catch (_) {}
-  APP.accessToken = '';
+  setAccessToken('');
   APP.userInfo = null;
   // Mark as explicitly logged out so init() doesn't auto-show from cache
   sessionStorage.setItem('loggedOut', '1');
@@ -6182,12 +6276,31 @@ function updateSidebarLabels() {
 // API HELPER FUNCTIONS
 // ============================================================================
 
+// A session that has really lapsed gets one toast with a way out of it, rather
+// than an error the user can only read. Returns the error so callers can throw
+// it on the same line.
+function promptReconnect(err) {
+  try {
+    showToast(err.message, 'error', { label: t('action_reconnect'), onClick: () => startOAuth(currentScope) });
+  } catch (_) { /* a toast that cannot render must not swallow the error */ }
+  return err;
+}
+
 async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
   // Read-only mode (#43): bulletproof gate — block all writes before any network or
   // quota work. Caller gets a clean, localized error to surface in their handler.
   if (method !== 'GET' && APP.readOnlyMode) {
     log('warn', 'action', 'write blocked by read-only mode', { endpoint, method });
     throw new Error(t('error_read_only'));
+  }
+  // #B14 — the dashboard can be showing from cache with no token at all: the
+  // token lives in the URL hash and a reload drops it, while showAppFromCache()
+  // still said "connected". A write then left as a request with an empty Bearer
+  // and came back as an opaque 403. Same gate as read-only mode: refuse before
+  // the network, and say what actually happened.
+  if (method !== 'GET' && !APP.accessToken) {
+    log('warn', 'action', 'write blocked — no access token (cache-only session)', { endpoint, method });
+    throw promptReconnect(new Error(t('error_session_expired')));
   }
   // Scope upgrade: if write operation with readonly scope, request upgrade
   if (method !== 'GET' && currentScope !== SCOPE_FULL) {
@@ -6325,15 +6438,22 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
 
         if (errCode === 403) {
           const reason = err?.error?.errors?.[0]?.reason || '';
-          if (reason === 'forbidden' || errMsg.toLowerCase().includes('not registered') || errMsg.toLowerCase().includes('has not completed') || errMsg.toLowerCase().includes('access not configured')) {
-            throw new Error(t('error_not_registered'));
-          }
-          if (reason === 'quotaExceeded' || errMsg.toLowerCase().includes('quota')) {
+          const lower = errMsg.toLowerCase();
+          if (reason === 'quotaExceeded' || lower.includes('quota')) {
             throw new Error(t('error_quota_exceeded'));
           }
+          // #B13 — the app is in production, so "add yourself to Test users" is
+          // wrong advice for almost every 403. reason 'forbidden' alone covers
+          // an expired token, a missing scope and a private resource; sending
+          // the user to the Cloud Console for those wasted their time. Keep the
+          // test-user message only for what genuinely means it.
+          if (reason === 'accessNotConfigured' || lower.includes('not registered') || lower.includes('has not completed')) {
+            throw new Error(t('error_not_registered'));
+          }
+          throw promptReconnect(new Error(t('error_session_expired')));
         }
         if (errCode === 401) {
-          throw new Error(t('error_token_expired'));
+          throw promptReconnect(new Error(t('error_session_expired')));
         }
         throw new Error(errMsg || `Erreur API (${errCode})`);
       }
@@ -12600,16 +12720,32 @@ function closeModal(event) {
   document.getElementById('modalContent').innerHTML = '';
 }
 
-function showToast(message, type = 'info') {
+// action is optional: { label, onClick }. The message stays textContent — a
+// toast renders API error text, which is not ours to trust as markup.
+function showToast(message, type = 'info', action = null) {
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.textContent = message;
+  const text = document.createElement('span');
+  text.textContent = message;
+  toast.appendChild(text);
+
+  let life = 3000;
+  if (action && action.label) {
+    const btn = document.createElement('button');
+    btn.className = 'toast-action';
+    btn.textContent = action.label;
+    btn.onclick = () => { toast.remove(); try { action.onClick && action.onClick(); } catch (_) {} };
+    toast.appendChild(btn);
+    life = 10000;   // a toast you are meant to click must outlast a glance
+  }
+
   document.getElementById('toastContainer').appendChild(toast);
 
   setTimeout(() => {
+    if (!toast.isConnected) return;
     toast.style.animation = 'slideInRight 0.3s reverse';
     setTimeout(() => toast.remove(), 300);
-  }, 3000);
+  }, life);
 }
 
 function showProgressBar(containerId, current, total) {

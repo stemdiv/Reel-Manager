@@ -92,6 +92,37 @@ function restore(win, s) {
   });
 }
 
+// applyLanguage(undefined) is a no-op, so the language has to be restored by
+// value read back out of the snapshot, not by a `let` that window never had.
+function restoreLang(w, snap) {
+  restore(w, snap);
+  w.applyLanguage(w.localStorage.getItem('appLang') || 'fr');
+}
+
+// #B13 — drive the real ytApi against a stubbed fetch and return the error it
+// throws. GET only, so the write gates are not what is being measured here.
+async function api403(w, apiError, status) {
+  const realFetch = w.fetch;
+  const realToast = w.showToast;
+  const snap = seedQuota(w, { pool: 0, search: 0, upload: 0 });
+  try {
+    if (!apiErrorToastsWanted) w.showToast = () => {};
+    w.fetch = async () => new w.Response(
+      JSON.stringify({ error: { message: apiError.message, errors: [{ reason: apiError.reason }] } }),
+      { status: status || 403, headers: { 'Content-Type': 'application/json' } });
+    try {
+      await w.ytApi('playlists', { part: 'snippet', _bypassCache: true, _t: String(Math.random()) });
+      throw new Error('ytApi resolved on a ' + (status || 403));
+    } catch (e) { return e; }
+  } finally {
+    w.fetch = realFetch;
+    if (!apiErrorToastsWanted) w.showToast = realToast;
+    unseedQuota(w, snap);
+  }
+}
+// Set by the one case that wants to inspect the toast instead of muting it.
+let apiErrorToastsWanted = false;
+
 // #76 — the quota buckets live on the app's const APP, which this page cannot
 // reach. Seed the persisted state and let the app's own loader adopt it; read it
 // back through quotaTitleText(), exactly what the header tooltip shows.
@@ -973,14 +1004,14 @@ const SUITES = [
 
     ['with no argument it follows currentLang, not a hard-coded FR', async w => {
       const real = w.ytApi;
-      const beforeLang = w.currentLang;
+      const langSnap = snapshot(w, ['appLang']);
       let seen = null;
       try {
         w.applyLanguage('en');
         w.ytApi = async (endpoint, params) => { seen = params; return { items: [] }; };
         await w.loadVideoCategories();
         return eq([seen.regionCode, seen.hl], ['US', 'en']);
-      } finally { w.ytApi = real; w.applyLanguage(beforeLang); }
+      } finally { w.ytApi = real; restoreLang(w, langSnap); }
     }],
 
     ['the two languages are distinct cache entries', async w => {
@@ -1006,7 +1037,7 @@ const SUITES = [
     }],
 
     ['switching language re-labels the dropdowns in place', w => {
-      const beforeLang = w.currentLang;
+      const langSnap = snapshot(w, ['appLang']);
       const sel = w.document.getElementById('gsCategory');
       if (!sel) throw new Error('gsCategory not in the DOM');
       try {
@@ -1018,7 +1049,7 @@ const SUITES = [
         ok(fr !== en, 'the dropdown kept its old labels: ' + fr);
         ok(/Music/.test(en) && !/Musique/.test(en), 'not relabelled to English: ' + en);
         return 'relabelled';
-      } finally { w.applyLanguage(beforeLang); w.gsRefreshCategoryOptions(); }
+      } finally { restoreLang(w, langSnap); w.gsRefreshCategoryOptions(); }
     }],
   ],
 },
@@ -1080,7 +1111,122 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '#B13 #B14', title: 'Honest 403s and a cache-only session', note: 'ytApi is driven with a stubbed fetch; nothing leaves the browser',
+  cases: [
+    ['a plain 403 forbidden no longer sends the user to the Cloud Console', async w => {
+      const r = await api403(w, { reason: 'forbidden', message: 'The request is forbidden.' });
+      ok(!/test user|testeur/i.test(r.message), 'still the test-user message: ' + r.message);
+      return eq(r.message, w.t('error_session_expired'));
+    }],
+
+    ['accessNotConfigured still is the test-user message', async w => {
+      const r = await api403(w, { reason: 'accessNotConfigured', message: 'Access Not Configured.' });
+      return eq(r.message, w.t('error_not_registered'));
+    }],
+
+    ['"not registered" in the message is enough', async w => {
+      const r = await api403(w, { reason: 'forbidden', message: 'Project 123 is not registered.' });
+      return eq(r.message, w.t('error_not_registered'));
+    }],
+
+    ['"has not completed" in the message is enough', async w => {
+      const r = await api403(w, { reason: 'forbidden', message: 'The project has not completed verification.' });
+      return eq(r.message, w.t('error_not_registered'));
+    }],
+
+    ['quotaExceeded wins over everything else', async w => {
+      const r = await api403(w, { reason: 'quotaExceeded', message: 'Quota exceeded.' });
+      return eq(r.message, w.t('error_quota_exceeded'));
+    }],
+
+    ['a 401 reads as an expired session, not as a missing registration', async w => {
+      const r = await api403(w, { reason: 'authError', message: 'Invalid Credentials' }, 401);
+      return eq(r.message, w.t('error_session_expired'));
+    }],
+
+    ['a lapsed session offers a way back', async w => {
+      const toasts = [];
+      const real = w.showToast;
+      try {
+        apiErrorToastsWanted = true;
+        w.showToast = (msg, type, action) => toasts.push({ msg, type, action });
+        await api403(w, { reason: 'forbidden', message: 'forbidden' });
+        ok(toasts.length === 1, 'no toast: ' + JSON.stringify(toasts));
+        ok(toasts[0].action && typeof toasts[0].action.onClick === 'function', 'no reconnect action');
+        return eq(toasts[0].action.label, w.t('action_reconnect'));
+      } finally { apiErrorToastsWanted = false; w.showToast = real; }
+    }],
+
+    ['a write with no token is refused before the network', async w => {
+      const realFetch = w.fetch;
+      const realToast = w.showToast;
+      let fetched = false;
+      try {
+        w.showToast = () => {};
+        w.fetch = async () => { fetched = true; return new w.Response('{}', { status: 200 }); };
+        w.setAccessToken('');
+        let msg = '';
+        try { await w.ytApi('playlists', { part: 'snippet' }, 'POST', { snippet: { title: 'x' } }); }
+        catch (e) { msg = e.message; }
+        ok(fetched === false, 'a request went out with an empty Bearer');
+        return eq(msg, w.t('error_session_expired'));
+      } finally { w.fetch = realFetch; w.showToast = realToast; w.setAccessToken('test-token'); }
+    }],
+
+    ['a read with no token is still allowed — that is the whole point of the cache', async w => {
+      const realFetch = w.fetch;
+      let fetched = false;
+      try {
+        w.fetch = async () => { fetched = true; return new w.Response(JSON.stringify({ items: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } }); };
+        w.setAccessToken('');
+        await w.ytApi('playlists', { part: 'snippet', _bypassCache: true });
+        return eq(fetched, true, 'a read was blocked too');
+      } finally { w.fetch = realFetch; w.setAccessToken('test-token'); }
+    }],
+
+    ['no token puts the header in the offline state', w => {
+      try {
+        w.setAccessToken('');
+        eq(w.applyOfflineCacheState(), true, 'not flagged offline');
+        eq(w.document.body.classList.contains('offline-cache'), true, 'no body class');
+        w.setAccessToken('test-token');
+        eq(w.applyOfflineCacheState(), false, 'still offline with a token');
+        return eq(w.document.body.classList.contains('offline-cache'), false, 'body class stuck');
+      } finally { w.setAccessToken('test-token'); w.applyOfflineCacheState(); }
+    }],
+
+    ['the offline pill carries a reconnect button', w => {
+      const pill = w.document.getElementById('offlinePill');
+      ok(pill, 'no offline pill in the header');
+      return eq(!!pill.querySelector('button'), true);
+    }],
+
+    ['the diagnostic log distinguishes "no token" from "expired"', w => {
+      try {
+        w.setAccessToken('');
+        ok(/no token/i.test(w.tokenStateText()), 'no-token case: ' + w.tokenStateText());
+        w.setAccessToken('test-token');
+        const past = Date.now() - 5 * 60000, soon = Date.now() + 42 * 60000;
+        ok(/expired/i.test(w.tokenStateText(past)), 'expired case: ' + w.tokenStateText(past));
+        return ok(/42 min/.test(w.tokenStateText(soon)), 'live case: ' + w.tokenStateText(soon));
+      } finally { w.setAccessToken('test-token'); }
+    }],
+
+    ['a toast with an action still shows the message as text, not markup', w => {
+      const host = w.document.getElementById('toastContainer');
+      const before = host.childElementCount;
+      w.showToast('<img src=x onerror=alert(1)>', 'error', { label: 'Go', onClick: () => {} });
+      const toast = host.lastElementChild;
+      try {
+        ok(!toast.querySelector('img'), 'the message was parsed as HTML');
+        return eq(toast.querySelector('.toast-action').textContent, 'Go');
+      } finally { toast.remove(); }
+    }],
+  ],
+},
 ];
+
 
 
 
