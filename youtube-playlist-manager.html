@@ -694,6 +694,36 @@
   .lens button + button { border-left: 1px solid var(--border); }
   .lens button:hover { color: var(--text); background: var(--surface2); }
   .lens button.is-active { background: var(--accent); color: var(--bg); font-weight: 600; }
+  /* Trending tile (#15) */
+  .trending-list { display: flex; flex-direction: column; gap: 2px; }
+  .trending-row {
+    display: grid; grid-template-columns: 22px 56px minmax(0, 1fr) 28px;
+    align-items: center; gap: 10px; padding: 3px 4px; border-radius: var(--r-sm, 6px);
+  }
+  .trending-row:hover { background: var(--surface2); }
+  .trending-num { font-size: 11px; color: var(--text3); text-align: right; }
+  .trending-art {
+    width: 56px; aspect-ratio: 16/9; border-radius: var(--r-sm, 6px);
+    overflow: hidden; background: var(--surface3); cursor: pointer;
+  }
+  .trending-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .trending-main { display: flex; flex-direction: column; min-width: 0; cursor: pointer; }
+  .trending-title {
+    font-size: 12.5px; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .trending-meta {
+    font-size: 11px; color: var(--text3);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* Music badge — same treatment as the Shorts badge, and equally a deduction. */
+  .music-badge {
+    font-size: 10px; font-weight: 700; letter-spacing: .04em;
+    color: var(--accent);
+    border: 1px solid var(--accent-line, rgba(255,45,85,.35));
+    background: var(--accent-soft, rgba(255,45,85,.1));
+    padding: 0 6px; border-radius: 999px; white-space: nowrap; cursor: help;
+  }
   .tracklist { display: flex; flex-direction: column; }
   .track-row {
     display: grid;
@@ -1560,6 +1590,7 @@
           </button>
         </div>
         <div class="stats-grid" id="dashboardStatTiles"></div>
+        <div class="chart-container" id="trendingTile" style="margin-bottom:20px;"></div>
         <div id="dashboardCharts"></div>
         <h2 style="margin-top: 32px; margin-bottom: 24px;" data-i18n="dash_my_playlists">Mes Playlists</h2>
         <div style="display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;">
@@ -3238,6 +3269,18 @@ const I18N = {
     player_expand: 'Agrandir le lecteur',
     player_close: 'Fermer le lecteur',
     export_csv_transfer: 'CSV — prêt au transfert (titre, artiste, album)',
+    // Tuile Tendances (#15)
+    trending_title: 'Tendances',
+    trending_load: 'Charger les tendances',
+    trending_refresh: 'Rafraîchir les tendances',
+    trending_category_tooltip: 'Catégorie du classement',
+    trending_signed_out: 'Connectez-vous pour voir les tendances.',
+    trending_add: 'Ajouter à une playlist',
+    trending_added: 'Vidéo ajoutée à la playlist',
+    trending_no_playlist: "Vous n'avez aucune playlist modifiable.",
+    trending_region_note: 'Classement pour la région {region} — depuis juillet 2025, il mélange Musique, Films et Jeux, il est donc toujours filtré par catégorie.',
+    music_badge: 'Musique',
+    music_badge_tooltip: "Déduit de la chaîne, de la catégorie et de la durée — l'API n'expose pas d'indicateur musique.",
     quota_pool_label: 'Pool',
     quota_search_label: 'Recherches',
     quota_upload_label: 'Mises en ligne',
@@ -3979,6 +4022,18 @@ const I18N = {
     player_expand: 'Expand the player',
     player_close: 'Close the player',
     export_csv_transfer: 'CSV — transfer-ready (title, artist, album)',
+    // Trending tile (#15)
+    trending_title: 'Trending',
+    trending_load: 'Load trending',
+    trending_refresh: 'Refresh trending',
+    trending_category_tooltip: 'Chart category',
+    trending_signed_out: 'Sign in to see what is trending.',
+    trending_add: 'Add to a playlist',
+    trending_added: 'Video added to the playlist',
+    trending_no_playlist: 'You have no playlist you can write to.',
+    trending_region_note: 'Chart for region {region} — since July 2025 it mixes Music, Films and Gaming, so it is always filtered by category.',
+    music_badge: 'Music',
+    music_badge_tooltip: 'Inferred from the channel, category and length — the API exposes no music flag.',
     quota_pool_label: 'Pool',
     quota_search_label: 'Searches',
     quota_upload_label: 'Uploads',
@@ -4293,11 +4348,16 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.24.0'; // bump per release
+const APP_VERSION = '1.25.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.25.0', date: '2026-09-16', items: [
+    "Tuile Tendances sur le tableau de bord — videos.list chart=mostPopular, 1 unite du pool et non du bucket recherche. Depuis le 21 juillet 2025 le classement melange Musique, Films et Jeux : il est donc toujours demande pour une categorie, choisie parmi celles que l app connait deja, et la region suit la langue de l interface",
+    "Chaque ligne se lit dans le lecteur, s ajoute a une playlist par la plomberie d insertion existante, et porte les badges Short et Musique deja calcules ailleurs",
+    "Le classement est mis en cache une heure par une surcharge de TTL propre a cet appel : videos.list garde ses cinq minutes pour tout le reste",
+  ]},
   { v: '1.24.0', date: '2026-09-16', items: [
     "#17 phase 2 — lentille de bibliotheque Toutes / Videos / Musique dans l en-tete. Elle absorbe l ancien bouton Mode Musique, qui vivait dans l en-tete du detail et ne faisait que positionner le menu deroulant situe deux lignes plus bas. Un seul controle musique par surface desormais",
     "Une playlist jamais ouverte n a pas de verdict : elle reste visible sous toutes les lentilles plutot que d etre masquee par une reponse que personne n a calculee",
@@ -5293,6 +5353,9 @@ const API_CACHE_CONFIG = {
     'videos.GET':              5 * 60_000,
     'videos.getRating.GET':    5 * 60_000,   // #I3 — per user + per video, rarely changes mid-session
     'videos.batchGetStats.GET': 60_000,      // 1 min — view counts move, but not second by second
+    // The trending chart is refreshed by YouTube far less often than hourly;
+    // re-fetching it on every dashboard visit would spend units for the same
+    // ten rows.
   },
   defaultTtlMs: 0,           // unknown endpoints → don't cache
   maxEntries: 500,           // LRU cap — drop oldest when exceeded
@@ -5300,8 +5363,9 @@ const API_CACHE_CONFIG = {
 };
 
 // Compute the endpoint+method key from a URL+method pair (e.g. 'playlists.GET')
-function cacheTtlFor(endpoint, method) {
+function cacheTtlFor(endpoint, method, overrideMs) {
   if (method !== 'GET') return 0;
+  if (Number.isFinite(overrideMs) && overrideMs >= 0) return overrideMs;
   const base = normalizeEndpoint(endpoint);
   return API_CACHE_CONFIG.ttlMs[`${base}.GET`] ?? API_CACHE_CONFIG.defaultTtlMs;
 }
@@ -7158,8 +7222,10 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
 
   // Support `params._bypassCache = true` for callers that need fresh data (strip before building URL)
   const bypassCache = params?._bypassCache === true;
+  const ttlOverride = Number(params?._ttlMs);
   const cleanParams = { ...params };
   delete cleanParams._bypassCache;
+  delete cleanParams._ttlMs;
 
   const url = new URL(`${API_BASE}/${endpoint}`);
   Object.keys(cleanParams).forEach(k => url.searchParams.append(k, cleanParams[k]));
@@ -7168,7 +7234,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
   // ──────────────────────────────────────────────────────────────────────────
   // Cache lookup (audit #60) — applies only to GETs
   // ──────────────────────────────────────────────────────────────────────────
-  const ttl = cacheTtlFor(endpoint, method);
+  const ttl = cacheTtlFor(endpoint, method, ttlOverride);
   const cached = method === 'GET' ? cacheGet(cacheKey) : null;
 
   // Fresh-cache hit: no network call, no quota cost, no retry loop. Real quota savings.
@@ -7912,7 +7978,170 @@ async function refreshDashboard() {
   `;
 
   document.getElementById('dashboardStatTiles').innerHTML = tilesHtml;
+  renderTrendingTile();
   generateDashboardCharts();
+}
+
+// ── Trending (#15) ──────────────────────────────────────────────────────────
+// videos.list?chart=mostPopular is 1 unit from the pool — not the search bucket,
+// which is what makes this affordable at all. Since 21 July 2025 the chart mixes
+// Music, Films and Gaming together, so it is always requested for one category:
+// an unfiltered chart is a grab bag nobody asked for.
+const TRENDING_MAX = 10;
+const TRENDING_DEFAULT_CATEGORY = '10';   // Music — this app's centre of gravity
+
+let trendingVideos = [];
+let trendingLoading = false;
+
+function trendingCategory() {
+  const saved = localStorage.getItem('trendingCategory');
+  return (saved && VIDEO_CATEGORIES[saved]) ? saved : TRENDING_DEFAULT_CATEGORY;
+}
+
+function setTrendingCategory(id) {
+  try { localStorage.setItem('trendingCategory', id); } catch (_) {}
+  trendingVideos = [];
+  loadTrending();
+}
+
+/** The request, isolated so its exact shape is testable without a network call. */
+function buildTrendingParams(categoryId, lang) {
+  const lr = langRegion(lang || currentLang);
+  return {
+    part: 'snippet,contentDetails',
+    chart: 'mostPopular',
+    videoCategoryId: String(categoryId),
+    regionCode: lr.regionCode,
+    maxResults: TRENDING_MAX,
+    _ttlMs: 60 * 60_000,   // 1 hour — the chart does not move faster than that
+    fields: 'items(id,snippet(title,channelTitle,channelId,categoryId,thumbnails(medium(url),high(url),default(url),fhd(url),qhd(url))),contentDetails(duration))',
+  };
+}
+
+async function loadTrending() {
+  if (trendingLoading || !APP.accessToken) return;
+  trendingLoading = true;
+  renderTrendingTile();
+  try {
+    const data = await ytApi('videos', buildTrendingParams(trendingCategory()));
+    trendingVideos = (data.items || []).map(v => {
+      const seconds = parseDuration(v.contentDetails?.duration || '');
+      return {
+        videoId: v.id,
+        title: v.snippet?.title || '',
+        channelTitle: v.snippet?.channelTitle || '',
+        channelId: v.snippet?.channelId || '',
+        categoryId: v.snippet?.categoryId,
+        thumbnail: pickThumb(v.snippet?.thumbnails),
+        durationSeconds: seconds,
+        durationFormatted: formatDuration(seconds),
+        // The two badges the app already knows how to compute (#68, #17).
+        isShort: detectShort(v.player?.embedWidth, v.player?.embedHeight, seconds),
+        isMusic: isMusicVideo({ title: v.snippet?.title, channelTitle: v.snippet?.channelTitle,
+                               categoryId: v.snippet?.categoryId, durationSeconds: seconds }),
+      };
+    });
+    log('info', 'api', 'trending loaded', { category: trendingCategory(), count: trendingVideos.length });
+  } catch (err) {
+    log('warn', 'api', 'trending failed', { msg: err.message });
+    trendingVideos = [];
+  } finally {
+    trendingLoading = false;
+    renderTrendingTile();
+  }
+}
+
+function renderTrendingTile() {
+  const host = document.getElementById('trendingTile');
+  if (!host) return;
+
+  const options = Object.keys(VIDEO_CATEGORIES)
+    .filter(cid => VIDEO_CATEGORIES[cid].a)
+    .map(cid => `<option value="${cid}"${cid === trendingCategory() ? ' selected' : ''}>${escapeHtml(getCategoryName(cid))}</option>`)
+    .join('');
+
+  let body;
+  if (trendingLoading) {
+    body = `<p class="text-muted" style="margin:0;">${t('btn_loading')}</p>`;
+  } else if (!APP.accessToken) {
+    body = `<p class="text-muted" style="margin:0;">${t('trending_signed_out')}</p>`;
+  } else if (!trendingVideos.length) {
+    body = `<button class="btn btn-secondary btn-sm" onclick="loadTrending()">${t('trending_load')}</button>`;
+  } else {
+    body = trendingVideos.map((v, i) => `
+      <div class="trending-row">
+        <span class="trending-num mono">${i + 1}</span>
+        <span class="trending-art" onclick="playVideo('${v.videoId}','${escapeJsAttr(v.title)}','${escapeJsAttr(v.channelTitle)}','${escapeJsAttr(v.thumbnail)}',null,'${v.channelId}')">
+          ${v.thumbnail ? `<img src="${v.thumbnail}" alt="" loading="lazy">` : ''}
+        </span>
+        <span class="trending-main" onclick="playVideo('${v.videoId}','${escapeJsAttr(v.title)}','${escapeJsAttr(v.channelTitle)}','${escapeJsAttr(v.thumbnail)}',null,'${v.channelId}')">
+          <span class="trending-title">${escapeHtml(v.title)}</span>
+          <span class="trending-meta">${escapeHtml(v.channelTitle)} · ${v.durationFormatted}${v.isShort ? ' ' + shortBadgeHTML() : ''}${v.isMusic ? ' ' + musicBadgeHTML() : ''}</span>
+        </span>
+        <button class="btn-icon track-btn dash-write-action" onclick="addTrendingToPlaylist('${v.videoId}')" title="${escapeHtml(t('trending_add'))}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>`).join('');
+  }
+
+  host.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+      <div class="chart-title" style="margin:0;">${t('trending_title')}</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <select class="form-control" onchange="setTrendingCategory(this.value)" style="width:auto;font-size:12px;padding:4px 8px;" data-i18n-title="trending_category_tooltip" title="Category">${options}</select>
+        <button class="btn-icon" onclick="loadTrending()" data-i18n-title="trending_refresh" title="Refresh" style="width:28px;height:28px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="trending-list">${body}</div>
+    <div class="mono" style="font-size:10px;color:var(--text4);margin-top:10px;">${t('trending_region_note', { region: langRegion(currentLang).regionCode })}</div>`;
+}
+
+function musicBadgeHTML() {
+  return '<span class="music-badge" title="' + escapeHtml(t('music_badge_tooltip')) + '">' + escapeHtml(t('music_badge')) + '</span>';
+}
+
+/** Reuses the existing playlistItems.insert plumbing — 50 units, pool. */
+async function addTrendingToPlaylist(videoId) {
+  const v = trendingVideos.find(x => x.videoId === videoId);
+  if (!v) return;
+  const owned = APP.playlists.filter(p => !p._isBookmark);
+  if (!owned.length) { showToast(t('trending_no_playlist'), 'error'); return; }
+
+  const options = owned.map(p => `<option value="${p.id}">${escapeHtml(p.snippet?.title || p.id)}</option>`).join('');
+  openModal(`
+    <div class="modal-header">
+      <div class="modal-title">${t('trending_add')}</div>
+      <div class="modal-subtitle">${escapeHtml(v.title)}</div>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">${t('move_dest')}</label>
+        <select class="form-control" id="trendingDestPlaylist">${options}</select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">${t('modal_cancel')}</button>
+      <button class="btn btn-primary" onclick="confirmAddTrending('${videoId}')">${t('modal_apply')}</button>
+    </div>`);
+}
+
+async function confirmAddTrending(videoId) {
+  const destId = document.getElementById('trendingDestPlaylist')?.value;
+  if (!destId) return;
+  if (!checkQuotaBudget(t('trending_add'), 'discover_create', 1)) return;
+  closeModal();
+  try {
+    await ytApi('playlistItems', { part: 'snippet' }, 'POST', {
+      snippet: { playlistId: destId, resourceId: { kind: 'youtube#video', videoId } }
+    });
+    delete APP.allVideos[destId];   // force a fresh load rather than show a stale count
+    showToast(t('trending_added'), 'success');
+    log('info', 'action', 'trending video added to playlist');
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+  }
 }
 
 function generateDashboardCharts() {

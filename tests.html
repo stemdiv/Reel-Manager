@@ -2287,7 +2287,102 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '#15', title: 'Trending tile', note: 'chart=mostPopular is an ordinary videos.list — 1 pool unit, not the search bucket',
+  cases: [
+    ['the chart is always asked for one category', w => {
+      // Since 21 July 2025 the unfiltered chart mixes Music, Films and Gaming.
+      const p = w.buildTrendingParams('10', 'fr');
+      eq(p.chart, 'mostPopular', 'chart');
+      eq(p.videoCategoryId, '10', 'category');
+      return ok(p.videoCategoryId !== '' && p.videoCategoryId !== undefined, 'an unfiltered chart is a grab bag');
+    }],
+
+    ['the region follows the UI language', w => {
+      eq(w.buildTrendingParams('10', 'fr').regionCode, 'FR', 'fr');
+      eq(w.buildTrendingParams('10', 'en').regionCode, 'US', 'en');
+      return eq(w.buildTrendingParams('10', 'ja').regionCode, 'JP', 'ja');
+    }],
+
+    ['a numeric category id is sent as a string', w =>
+      eq(w.buildTrendingParams(10, 'fr').videoCategoryId, '10')],
+
+    ['it asks for ten rows and only the fields it draws', w => {
+      const p = w.buildTrendingParams('10', 'fr');
+      eq(p.maxResults, 10, 'maxResults');
+      ok(/contentDetails\(duration\)/.test(p.fields), 'duration missing: ' + p.fields);
+      ok(/channelId/.test(p.fields), 'channelId missing — the subscribe pill needs it');
+      return ok(!/statistics/.test(p.fields), 'statistics requested but never displayed');
+    }],
+
+    ['it costs one pool unit, not a search call', w =>
+      eq(w.getQuotaCost('videos', 'GET'), { bucket: 'pool', cost: 1 })],
+
+    ['the chart is cached for an hour, not the five minutes videos.list gets', w => {
+      const p = w.buildTrendingParams('10', 'fr');
+      eq(p._ttlMs, 3600000, 'override');
+      // The override must not leak into ordinary videos.list caching.
+      eq(w.cacheTtlFor('videos', 'GET'), 5 * 60000, 'videos.GET default');
+      return eq(w.cacheTtlFor('videos', 'GET', 3600000), 3600000, 'override honoured');
+    }],
+
+    ['a TTL override never applies to a write', w =>
+      eq(w.cacheTtlFor('playlists', 'POST', 3600000), 0)],
+
+    ['the category choice persists and falls back to a real category', w => {
+      const snap = snapshot(w, ['trendingCategory']);
+      try {
+        w.localStorage.removeItem('trendingCategory');
+        eq(w.trendingCategory(), '10', 'default is Music');
+        w.localStorage.setItem('trendingCategory', '9999');
+        return eq(w.trendingCategory(), '10', 'a category that does not exist falls back');
+      } finally { restore(w, snap); }
+    }],
+
+    ['rows carry the badges the app already knows how to compute', async w => {
+      const real = w.ytApi;
+      try {
+        w.setAccessToken('test-token');
+        w.ytApi = async () => ({ items: [
+          { id: 'v1', snippet: { title: 'Alors on danse', channelTitle: 'Stromae - Topic', categoryId: '10', thumbnails: { medium: { url: 'u' } } },
+            contentDetails: { duration: 'PT3M27S' } },
+          { id: 'v2', snippet: { title: 'Long documentary', channelTitle: 'Arte', categoryId: '24', thumbnails: {} },
+            contentDetails: { duration: 'PT52M' } },
+        ] });
+        await w.loadTrending();
+        const rows = w.document.querySelectorAll('.trending-row');
+        ok(rows.length === 2, 'rows: ' + rows.length);
+        ok(rows[0].textContent.includes(w.t('music_badge')), 'the Topic track should read as music');
+        return ok(!rows[1].textContent.includes(w.t('music_badge')), 'a 52-minute documentary should not');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['a failed load leaves the tile usable rather than broken', async w => {
+      const real = w.ytApi;
+      try {
+        w.setAccessToken('test-token');
+        w.ytApi = async () => { throw new Error('boom'); };
+        await w.loadTrending();
+        const tile = w.document.getElementById('trendingTile');
+        ok(tile.textContent.includes(w.t('trending_load')), 'no way back: ' + tile.textContent.slice(0, 80));
+        return eq(w.document.querySelectorAll('.trending-row').length, 0);
+      } finally { w.ytApi = real; }
+    }],
+
+    ['with no token nothing is requested', async w => {
+      const real = w.ytApi;
+      let called = false;
+      try {
+        w.setAccessToken('');
+        w.ytApi = async () => { called = true; return { items: [] }; };
+        await w.loadTrending();
+        return ok(called === false, 'a request went out without a token');
+      } finally { w.ytApi = real; w.setAccessToken('test-token'); }
+    }],
+  ],
+},
 ];
+
 
 
 
