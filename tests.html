@@ -2381,7 +2381,171 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '#14', title: 'Discovering playlists and channels', note: 'same 1 search call per page as a video search; results feed the existing bookmark plumbing',
+  cases: [
+    ['the three result types are built correctly', w => {
+      const base = { query: 'techno', maxResults: 50, order: 'relevance', lang: 'fr' };
+      eq(w.buildDiscoverSearchParams({ ...base, type: 'video' }).type, 'video', 'video');
+      eq(w.buildDiscoverSearchParams({ ...base, type: 'playlist' }).type, 'playlist', 'playlist');
+      eq(w.buildDiscoverSearchParams({ ...base, type: 'channel' }).type, 'channel', 'channel');
+      // An unknown type must not reach the API.
+      return eq(w.buildDiscoverSearchParams({ ...base, type: 'nonsense' }).type, 'video', 'fallback');
+    }],
+
+    ['no type at all still means video', w =>
+      eq(w.buildDiscoverSearchParams({ query: 'x', maxResults: 50, order: 'relevance', lang: 'fr' }).type, 'video')],
+
+    ['video-only filters are not sent for playlists or channels', w => {
+      // YouTube rejects or ignores them; sending them makes the request
+      // impossible to reason about later and churns the cache key.
+      const f = { query: 'x', maxResults: 50, order: 'relevance', lang: 'fr',
+                  duration: 'long', definition: 'high', caption: 'closedCaption',
+                  license: 'creativeCommon', embeddable: true };
+      const p = w.buildDiscoverSearchParams({ ...f, type: 'playlist' });
+      const leaked = ['videoDuration', 'videoDefinition', 'videoCaption', 'videoLicense', 'videoEmbeddable']
+        .filter(k => k in p);
+      eq(leaked, [], 'video filters sent with a playlist search');
+      // ...and they are still sent for videos.
+      const v = w.buildDiscoverSearchParams({ ...f, type: 'video' });
+      return eq(v.videoDuration, 'long', 'the video path lost its filters');
+    }],
+
+    ['region, language and publishedAfter still apply to every type', w => {
+      const p = w.buildDiscoverSearchParams({
+        query: 'x', type: 'channel', maxResults: 50, order: 'date', lang: 'en',
+        publishedAfter: '7d', now: Date.UTC(2026, 8, 16, 12, 0, 0),
+      });
+      eq(p.regionCode, 'US', 'region');
+      eq(p.relevanceLanguage, 'en', 'language');
+      return eq(p.publishedAfter, '2026-09-09T12:00:00Z', 'publishedAfter');
+    }],
+
+    ['a playlist search asks for the fields it renders', w => {
+      const p = w.buildDiscoverSearchParams({ query: 'x', type: 'playlist', maxResults: 50, order: 'relevance', lang: 'fr' });
+      ok(/snippet\(title/.test(p.fields), 'title missing: ' + p.fields);
+      ok(/channelTitle/.test(p.fields), 'channelTitle missing');
+      ok(/thumbnails/.test(p.fields), 'thumbnails missing');
+      // The video path strips snippet entirely; that must not regress.
+      const v = w.buildDiscoverSearchParams({ query: 'x', type: 'video', maxResults: 50, order: 'relevance', lang: 'fr' });
+      return eq(v.fields, 'nextPageToken,items(id(videoId))', 'video fields widened for nothing');
+    }],
+
+    ['the channel filter only means something for a playlist search', w => {
+      const withChannel = { query: 'x', maxResults: 50, order: 'relevance', lang: 'fr', channelId: 'UC_abc' };
+      eq(w.buildDiscoverSearchParams({ ...withChannel, type: 'playlist' }).channelId, 'UC_abc', 'playlist');
+      return eq(w.buildDiscoverSearchParams({ ...withChannel, type: 'video' }).channelId, 'UC_abc', 'video');
+    }],
+
+    ['a playlist search costs one search call per page plus one pool unit for the counts', w => {
+      eq(w.getQuotaCost('search', 'GET'), { bucket: 'search', cost: 1 }, 'the page');
+      return eq(w.getQuotaCost('playlists', 'GET'), { bucket: 'pool', cost: 1 }, 'the batched counts');
+    }],
+
+    ['playlist results are rendered with their counts', async w => {
+      const real = w.ytApi;
+      const calls = [];
+      try {
+        w.setAccessToken('test-token');
+        w.ytApi = async (endpoint, params) => {
+          calls.push(endpoint);
+          if (endpoint === 'search') {
+            return { items: [{ id: { playlistId: 'PL_disc_1' },
+              snippet: { title: 'Deep House 2026', channelTitle: 'Selecta', channelId: 'UCz', thumbnails: { medium: { url: 'u' } } } }] };
+          }
+          if (endpoint === 'playlists') return { items: [{ id: 'PL_disc_1', contentDetails: { itemCount: 87 } }] };
+          return { items: [] };
+        };
+        await w.performDiscoverEntitySearch('playlist', {
+          query: 'deep house', maxResults: 50, order: 'relevance', lang: 'fr', pages: 1, btn: null,
+        });
+        eq(calls, ['search', 'playlists'], 'call sequence');
+        const card = w.document.querySelector('.discover-item');
+        ok(card, 'nothing rendered');
+        ok(card.textContent.includes('Deep House 2026'), 'title');
+        return ok(card.textContent.includes('87'), 'item count missing: ' + card.textContent.slice(0, 120));
+      } finally { w.ytApi = real; }
+    }],
+
+    ['a count that could not be fetched reads as unknown, not as zero', async w => {
+      const real = w.ytApi;
+      try {
+        w.setAccessToken('test-token');
+        w.ytApi = async (endpoint) => {
+          if (endpoint === 'search') {
+            return { items: [{ id: { playlistId: 'PL_disc_2' }, snippet: { title: 'Mystery', channelTitle: 'C', thumbnails: {} } }] };
+          }
+          throw new Error('counts unavailable');
+        };
+        await w.performDiscoverEntitySearch('playlist', {
+          query: 'x', maxResults: 50, order: 'relevance', lang: 'fr', pages: 1, btn: null,
+        });
+        const card = w.document.querySelector('.discover-item');
+        ok(card.textContent.includes(w.t('discover_count_unknown')), 'reported as a number: ' + card.textContent.slice(0, 120));
+        return ok(!/\b0 vid|\b0 video/.test(card.textContent), 'an unknown count was shown as zero');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['channel results offer subscribing and browsing', async w => {
+      const real = w.ytApi;
+      try {
+        w.setAccessToken('test-token');
+        w.ytApi = async (endpoint) => {
+          if (endpoint === 'search') {
+            return { items: [{ id: { channelId: 'UC_disc_chan' },
+              snippet: { title: 'Selecta Records', channelTitle: 'Selecta Records', channelId: 'UC_disc_chan', thumbnails: { default: { url: 'u' } } } }] };
+          }
+          return { items: [] };
+        };
+        await w.performDiscoverEntitySearch('channel', {
+          query: 'selecta', maxResults: 50, order: 'relevance', lang: 'fr', pages: 1, btn: null,
+        });
+        const card = w.document.querySelector('.discover-item');
+        ok(card.querySelector('[data-subscribe-channel]'), 'no subscribe pill on a channel result');
+        return ok(card.textContent.includes(w.t('discover_channel_playlists')), 'no way into the channel playlists');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['browsing a channel is capped so one click cannot become twenty calls', async w => {
+      const real = w.ytApi;
+      let pages = 0;
+      try {
+        w.setAccessToken('test-token');
+        // A channel that always claims there is another page.
+        w.ytApi = async () => {
+          pages++;
+          return { nextPageToken: 'more', items: [{ id: 'PL_p' + pages, snippet: { title: 'p' + pages, thumbnails: {} }, contentDetails: { itemCount: 1 } }] };
+        };
+        await w.browseChannelPlaylists('UC_endless', 'Endless');
+        return ok(pages <= 20, 'paged ' + pages + ' times');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['a bookmark added from Discover records where it came from', async w => {
+      const snapLs = snapshot(w, ['bookmarkedPlaylists']);
+      const real = { ytApi: w.ytApi, showToast: w.showToast, refreshPlaylistsList: w.refreshPlaylistsList,
+                     populateSelectDropdowns: w.populateSelectDropdowns };
+      try {
+        w.showToast = () => {};
+        w.refreshPlaylistsList = () => {};
+        w.populateSelectDropdowns = () => {};
+        w.ytApi = async () => ({ items: [{ id: 'PLsrcTestAbcdefghijklmnopqrstuvwx', snippet: { title: 'From Discover' }, contentDetails: { itemCount: 3 }, status: {} }] });
+        await w.bookmarkFromDiscover('PLsrcTestAbcdefghijklmnopqrstuvwx', null, 'discover');
+        const saved = JSON.parse(w.localStorage.getItem('bookmarkedPlaylists') || '[]');
+        const hit = saved.find(b => b.id === 'PLsrcTestAbcdefghijklmnopqrstuvwx');
+        ok(hit, 'the bookmark was not persisted');
+        return eq(hit.source, 'discover', 'origin');
+      } finally {
+        Object.assign(w, real);
+        restore(w, snapLs);
+        try { w.removeBookmark('PLsrcTestAbcdefghijklmnopqrstuvwx'); } catch (_) {}
+        restore(w, snapLs);
+      }
+    }],
+  ],
+},
 ];
+
 
 
 

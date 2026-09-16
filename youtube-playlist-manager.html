@@ -1802,6 +1802,11 @@
         <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:8px;">
           <input type="text" class="form-control" id="discoverSearchInput" data-i18n-placeholder="discover_placeholder" placeholder="e.g. psytrance ableton tutorial, react hooks advanced..."
             style="flex:1;" onkeydown="if(event.key==='Enter')performDiscoverSearch()">
+          <select class="form-control" id="discoverType" style="width:auto;min-width:110px;" data-i18n-title="discover_type_tooltip" title="What to search for" onchange="onDiscoverTypeChange()">
+            <option value="video" data-i18n="discover_type_video">Videos</option>
+            <option value="playlist" data-i18n="discover_type_playlist">Playlists</option>
+            <option value="channel" data-i18n="discover_type_channel">Channels</option>
+          </select>
           <select class="form-control" id="discoverMaxResults" style="width:auto;min-width:80px;" data-i18n-title="discover_max_results_tooltip" title="Number of results" onchange="saveDiscoverFilters()">
             <option value="10" data-i18n="discover_top_10">Top 10</option>
             <option value="50" selected data-i18n="discover_top_50">Top 50</option>
@@ -1874,7 +1879,7 @@
 
         <div id="discoverResults" style="display:none;">
           <!-- Create playlist bar (sticky top) -->
-          <div style="padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;position:sticky;top:0;z-index:10;">
+          <div id="discoverCreateBar" style="padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;position:sticky;top:0;z-index:10;">
             <div style="font-size:13px;font-weight:600;margin-bottom:12px;" data-i18n="discover_create_section">Create playlist from selection</div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
               <input type="text" class="form-control" id="discoverPlaylistName" data-i18n-placeholder="discover_playlist_name" placeholder="Playlist name..."
@@ -3281,6 +3286,19 @@ const I18N = {
     trending_region_note: 'Classement pour la région {region} — depuis juillet 2025, il mélange Musique, Films et Jeux, il est donc toujours filtré par catégorie.',
     music_badge: 'Musique',
     music_badge_tooltip: "Déduit de la chaîne, de la catégorie et de la durée — l'API n'expose pas d'indicateur musique.",
+    // Découvrir des playlists et des chaînes (#14)
+    discover_type_tooltip: 'Que chercher',
+    discover_type_video: 'Vidéos',
+    discover_type_playlist: 'Playlists',
+    discover_type_channel: 'Chaînes',
+    discover_results_playlists: '{count} playlist(s) trouvée(s)',
+    discover_results_channels: '{count} chaîne(s) trouvée(s)',
+    discover_bookmark_add: 'Ajouter aux favoris',
+    discover_bookmark_added: 'Dans vos favoris',
+    discover_channel_playlists: 'Playlists de cette chaîne',
+    discover_channel_playlists_title: 'Playlists de {channel} — {count}',
+    discover_count: '{count} vidéos',
+    discover_count_unknown: 'nombre inconnu',
     quota_pool_label: 'Pool',
     quota_search_label: 'Recherches',
     quota_upload_label: 'Mises en ligne',
@@ -4034,6 +4052,19 @@ const I18N = {
     trending_region_note: 'Chart for region {region} — since July 2025 it mixes Music, Films and Gaming, so it is always filtered by category.',
     music_badge: 'Music',
     music_badge_tooltip: 'Inferred from the channel, category and length — the API exposes no music flag.',
+    // Discovering playlists and channels (#14)
+    discover_type_tooltip: 'What to search for',
+    discover_type_video: 'Videos',
+    discover_type_playlist: 'Playlists',
+    discover_type_channel: 'Channels',
+    discover_results_playlists: '{count} playlist(s) found',
+    discover_results_channels: '{count} channel(s) found',
+    discover_bookmark_add: 'Add to bookmarks',
+    discover_bookmark_added: 'Bookmarked',
+    discover_channel_playlists: "This channel's playlists",
+    discover_channel_playlists_title: 'Playlists from {channel} — {count}',
+    discover_count: '{count} videos',
+    discover_count_unknown: 'count unknown',
     quota_pool_label: 'Pool',
     quota_search_label: 'Searches',
     quota_upload_label: 'Uploads',
@@ -4348,11 +4379,17 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.25.0'; // bump per release
+const APP_VERSION = '1.26.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.26.0', date: '2026-09-16', items: [
+    "Decouvrir cherche desormais des playlists et des chaines, pas seulement des videos. Meme cout qu une recherche de videos — un appel du bucket recherche par page — et les resultats se branchent sur les favoris existants : un bouton Ajouter aux favoris par playlist trouvee",
+    "Les filtres propres aux videos (duree, definition, sous-titres, licence, integrabilite) ne sont plus envoyes quand on cherche des playlists ou des chaines : l API les ignore, et une requete qui transporte des parametres destines a etre jetes est une requete que plus personne ne sait relire",
+    "Depuis une carte Abonnements ou un resultat de type chaine, Playlists de cette chaine ouvre la liste dans la meme surface en lecture seule que les favoris, plafonnee a vingt pages pour qu un clic ne devienne pas silencieusement vingt appels",
+    "Un nombre de videos qu on n a pas pu recuperer s affiche comme inconnu et non comme zero. Les favoris ajoutes depuis Decouvrir gardent leur origine, pour les metriques locales uniquement",
+  ]},
   { v: '1.25.0', date: '2026-09-16', items: [
     "Tuile Tendances sur le tableau de bord — videos.list chart=mostPopular, 1 unite du pool et non du bucket recherche. Depuis le 21 juillet 2025 le classement melange Musique, Films et Jeux : il est donc toujours demande pour une categorie, choisie parmi celles que l app connait deja, et la region suit la langue de l interface",
     "Chaque ligne se lit dans le lecteur, s ajoute a une playlist par la plomberie d insertion existante, et porte les badges Short et Musique deja calcules ailleurs",
@@ -4875,7 +4912,7 @@ async function addBookmark(rawInput) {
   const meta = data.items[0];
 
   // Persist
-  APP.bookmarkedPlaylists.push({ id, addedAt: new Date().toISOString() });
+  APP.bookmarkedPlaylists.push({ id, addedAt: new Date().toISOString() });   // source tagged by the caller (#14.3)
   saveBookmarks();
 
   // Inject into the live playlist array so the UI updates without a full reload
@@ -11009,6 +11046,184 @@ document.addEventListener('click', (e) => {
 // ============================================================================
 
 let discoverResults = []; // cached search results with video details
+let discoverEntities = []; // playlist or channel results (#14)
+
+/**
+ * Search for playlists or channels. Same 1-call-per-page cost as a video
+ * search, and the results are rendered straight from search.list — for
+ * playlists the item count needs one extra playlists.list (1 unit per 50),
+ * which is the same batched call fetchBookmarkedMetadata already makes.
+ */
+async function performDiscoverEntitySearch(type, opts) {
+  const { btn, pages } = opts;
+  let items = [];
+  let pageToken = '';
+
+  for (let p = 0; p < pages; p++) {
+    const params = buildDiscoverSearchParams({
+      query: opts.query,
+      type,
+      maxResults: Math.min(50, opts.maxResults - items.length),
+      order: opts.order,
+      publishedAfter: opts.publishedAfter,
+      channelId: type === 'playlist' ? opts.channelId : '',
+      lang: opts.lang,
+      pageToken,
+    });
+    if (btn) btn.innerHTML = `<span class="mono" style="font-size:11px;">${pages > 1 ? t('discover_searching_page', { current: p + 1, total: pages }) : t('discover_searching')}</span>`;
+    const data = await ytApi('search', params);
+    items = items.concat(data.items || []);
+    pageToken = data.nextPageToken || '';
+    if (!pageToken || items.length >= opts.maxResults) break;
+  }
+
+  discoverEntities = items.map(it => ({
+    kind: type,
+    id: type === 'playlist' ? (it.id?.playlistId || it.id) : (it.id?.channelId || it.id),
+    title: it.snippet?.title || '',
+    channelTitle: it.snippet?.channelTitle || '',
+    channelId: it.snippet?.channelId || '',
+    thumbnail: pickThumb(it.snippet?.thumbnails),
+    itemCount: null,
+  })).filter(e => typeof e.id === 'string' && e.id);
+
+  if (type === 'playlist') await fillDiscoverPlaylistCounts();
+
+  discoverResults = [];
+  renderDiscoverEntities(type);
+}
+
+/** One playlists.list per 50 ids (1 unit) to turn ids into item counts. */
+async function fillDiscoverPlaylistCounts() {
+  const ids = discoverEntities.map(e => e.id);
+  for (let i = 0; i < ids.length; i += 50) {
+    try {
+      const data = await ytApi('playlists', {
+        part: 'contentDetails',
+        id: ids.slice(i, i + 50).join(','),
+        fields: 'items(id,contentDetails(itemCount))',
+      });
+      for (const item of (data.items || [])) {
+        const hit = discoverEntities.find(e => e.id === item.id);
+        if (hit) hit.itemCount = item.contentDetails?.itemCount ?? null;
+      }
+    } catch (err) {
+      // A count we could not fetch is shown as unknown, not as zero.
+      log('warn', 'api', 'playlist counts failed', { msg: err.message });
+    }
+  }
+}
+
+function renderDiscoverEntities(type) {
+  const panel = document.getElementById('discoverResults');
+  const container = document.getElementById('discoverVideosList');
+  panel.style.display = 'block';
+  document.getElementById('discoverResultsTitle').textContent =
+    t(type === 'playlist' ? 'discover_results_playlists' : 'discover_results_channels', { count: discoverEntities.length });
+
+  if (!discoverEntities.length) {
+    container.innerHTML = `<p class="text-muted">${t('discover_no_results')}</p>`;
+    return;
+  }
+
+  container.innerHTML = discoverEntities.map(e => {
+    const isPlaylist = e.kind === 'playlist';
+    const already = isPlaylist && (isBookmarkedPlaylist(e.id) || APP.playlists.some(p => p.id === e.id));
+    const action = isPlaylist
+      ? `<button class="btn btn-secondary btn-sm" onclick="bookmarkFromDiscover('${e.id}', this)"${already ? ' disabled' : ''}>${escapeHtml(t(already ? 'discover_bookmark_added' : 'discover_bookmark_add'))}</button>`
+      : `${subscribeButtonHTML(e.id, e.title)}
+         <button class="btn btn-secondary btn-sm" onclick="browseChannelPlaylists('${e.id}', '${escapeJsAttr(e.title)}')">${escapeHtml(t('discover_channel_playlists'))}</button>`;
+    const link = isPlaylist
+      ? `https://www.youtube.com/playlist?list=${e.id}`
+      : `https://www.youtube.com/channel/${e.id}`;
+    return `
+      <div class="discover-item" style="display:flex;gap:12px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;align-items:center;">
+        <div style="flex-shrink:0;width:${isPlaylist ? '120px' : '56px'};">
+          ${e.thumbnail
+            ? `<img src="${e.thumbnail}" style="width:100%;${isPlaylist ? 'aspect-ratio:16/9' : 'aspect-ratio:1;border-radius:50%'};object-fit:cover;border-radius:${isPlaylist ? 'var(--r-sm)' : '50%'};display:block;" alt="" loading="lazy" referrerpolicy="no-referrer">`
+            : `<div style="width:100%;aspect-ratio:${isPlaylist ? '16/9' : '1'};background:var(--surface3);border-radius:${isPlaylist ? 'var(--r-sm)' : '50%'};"></div>`}
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(e.title)}</div>
+          <div class="mono" style="font-size:11px;color:var(--text3);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+            ${isPlaylist ? `<span>${escapeHtml(e.channelTitle)}</span>` : ''}
+            ${isPlaylist ? `<span>${e.itemCount === null ? t('discover_count_unknown') : t('discover_count', { count: e.itemCount })}</span>` : ''}
+            <a href="${link}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">YouTube &nearr;</a>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:wrap;">${action}</div>
+      </div>`;
+  }).join('');
+
+  if (type === 'channel') refreshSubscribeButtons();
+}
+
+/** Bookmark a playlist found in Discover, recording where it came from (#14.3). */
+async function bookmarkFromDiscover(playlistId, btn, source) {
+  if (btn) btn.disabled = true;
+  try {
+    const meta = await addBookmark(playlistId);
+    tagBookmarkSource(playlistId, source || 'discover');
+    showToast(t('bookmark_added', { title: meta.snippet?.title || playlistId }), 'success');
+    if (btn) btn.textContent = t('discover_bookmark_added');
+    refreshPlaylistsList();
+    populateSelectDropdowns();
+  } catch (err) {
+    if (btn) btn.disabled = false;
+    showToast(t('toast_error', { msg: err.message }), 'error');
+  }
+}
+
+// Origin is local metrics only — it never leaves the browser and is not a
+// playlist id in an event, it is a field on a record the user already has.
+function tagBookmarkSource(playlistId, source) {
+  const hit = (APP.bookmarkedPlaylists || []).find(b => b.id === playlistId);
+  if (hit && !hit.source) { hit.source = source; saveBookmarks(); }
+  log('info', 'action', 'bookmark added from ' + source);
+}
+
+/** Browse a channel's playlists in the same read-only surface as bookmarks. */
+async function browseChannelPlaylists(channelId, channelTitle) {
+  const btnHost = document.getElementById('discoverSearchBtn');
+  if (btnHost) btnHost.disabled = true;
+  try {
+    let items = [];
+    let pageToken = '';
+    // 1 unit per page, capped: a channel with hundreds of playlists must not
+    // quietly turn one click into twenty calls.
+    for (let p = 0; p < 20; p++) {
+      const params = {
+        part: 'snippet,contentDetails',
+        channelId,
+        maxResults: 50,
+        fields: 'nextPageToken,items(id,snippet(title,channelTitle,thumbnails(medium(url),high(url),default(url))),contentDetails(itemCount))',
+      };
+      if (pageToken) params.pageToken = pageToken;
+      const data = await ytApi('playlists', params);
+      items = items.concat(data.items || []);
+      pageToken = data.nextPageToken || '';
+      if (!pageToken) break;
+    }
+    discoverEntities = items.map(p => ({
+      kind: 'playlist',
+      id: p.id,
+      title: p.snippet?.title || '',
+      channelTitle: p.snippet?.channelTitle || channelTitle || '',
+      channelId,
+      thumbnail: pickThumb(p.snippet?.thumbnails),
+      itemCount: p.contentDetails?.itemCount ?? null,
+    }));
+    switchView('discover');
+    renderDiscoverEntities('playlist');
+    document.getElementById('discoverResultsTitle').textContent =
+      t('discover_channel_playlists_title', { channel: channelTitle || channelId, count: discoverEntities.length });
+    log('info', 'action', 'browsed channel playlists', { count: discoverEntities.length });
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+  } finally {
+    if (btnHost) btnHost.disabled = false;
+  }
+}
 
 // ── Statistics (videos.batchGetStats, June 2026) ────────────────────────────
 // 1 unit per call against a 10 000/day bucket of its own, instead of 1 unit of
@@ -11106,11 +11321,14 @@ function publishedAfterRfc3339(window, now = Date.now()) {
 // Build the search.list params from a plain filter object. Pure, so the exact
 // request shape is testable without a network call — #73 shipped four filters
 // in the backlog that were never actually put on the wire.
+const DISCOVER_TYPES = ['video', 'playlist', 'channel'];
+
 function buildDiscoverSearchParams(f) {
+  const type = DISCOVER_TYPES.includes(f.type) ? f.type : 'video';
   const params = {
     part: 'snippet',
     q: f.query,
-    type: 'video',
+    type,
     maxResults: f.maxResults,
     // #73: order is a real API parameter — it changes WHICH videos come back,
     // not just their order. The sort dropdown only reorders what we fetched.
@@ -11119,7 +11337,9 @@ function buildDiscoverSearchParams(f) {
     // item.id.videoId from each search result, then fetches the rest via
     // videos.list. Strip snippet entirely from the payload. Quota cost is
     // still 1 search call per page regardless.
-    fields: 'nextPageToken,items(id(videoId))',
+    fields: type === 'video'
+      ? 'nextPageToken,items(id(videoId))'
+      : 'nextPageToken,items(id,snippet(title,channelTitle,channelId,thumbnails(medium(url),high(url),default(url))))',
   };
 
   const lr = langRegion(f.lang);
@@ -11128,11 +11348,15 @@ function buildDiscoverSearchParams(f) {
 
   // Every optional filter is omitted at 'any' — sending videoDefinition=any is
   // legal but pointlessly narrows nothing, and it makes the cache key churn.
-  if (f.duration && f.duration !== 'any') params.videoDuration = f.duration;
-  if (f.definition && f.definition !== 'any') params.videoDefinition = f.definition;
-  if (f.caption && f.caption !== 'any') params.videoCaption = f.caption;
-  if (f.license && f.license !== 'any') params.videoLicense = f.license;
-  if (f.embeddable) params.videoEmbeddable = 'true';
+  // The video* filters only mean anything for type=video; YouTube rejects or
+  // ignores them otherwise, so they are not sent.
+  if (type === 'video') {
+    if (f.duration && f.duration !== 'any') params.videoDuration = f.duration;
+    if (f.definition && f.definition !== 'any') params.videoDefinition = f.definition;
+    if (f.caption && f.caption !== 'any') params.videoCaption = f.caption;
+    if (f.license && f.license !== 'any') params.videoLicense = f.license;
+    if (f.embeddable) params.videoEmbeddable = 'true';
+  }
 
   const after = publishedAfterRfc3339(f.publishedAfter, f.now);
   if (after) params.publishedAfter = after;
@@ -11149,6 +11373,7 @@ function buildDiscoverSearchParams(f) {
 // Subscriptions card and silently restricting every later search to a channel
 // the user has forgotten about is a trap, not a convenience.
 const DISCOVER_FILTER_FIELDS = {
+  discoverType: 'video',
   discoverMaxResults: '50',
   discoverOrder: 'relevance',
   discoverSortBy: 'views',
@@ -11186,6 +11411,17 @@ function loadDiscoverFilters() {
 }
 
 // Arrive at Discover from a Subscriptions card, pre-filtered to that channel.
+function onDiscoverTypeChange() {
+  saveDiscoverFilters();
+  const videoOnly = (document.getElementById('discoverType')?.value || 'video') === 'video';
+  ['discoverDuration', 'discoverDefinition', 'discoverCaption', 'discoverLicense', 'discoverSortBy']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.parentElement.style.display = videoOnly ? '' : 'none'; });
+  const emb = document.getElementById('discoverEmbeddable');
+  if (emb) emb.parentElement.style.display = videoOnly ? '' : 'none';
+  const create = document.getElementById('discoverCreateBar');
+  if (create) create.style.display = videoOnly ? '' : 'none';
+}
+
 function searchChannelInDiscover(channelId, channelTitle) {
   // The title is resolved here rather than interpolated into the card's onclick:
   // channel names carry quotes and backslashes, and escaping them through an
@@ -11243,7 +11479,19 @@ async function performDiscoverSearch() {
   btn.disabled = true;
   btn.innerHTML = `<span class="mono" style="font-size:11px;">${t('discover_searching')}</span>`;
 
+  const searchType = document.getElementById('discoverType')?.value || 'video';
+
   try {
+    // Playlists and channels come back complete from search.list — there is no
+    // second lookup to do, so they take a much shorter path than videos.
+    if (searchType !== 'video') {
+      await performDiscoverEntitySearch(searchType, {
+        query, maxResults, order: apiOrder, publishedAfter: publishedAfterFilter,
+        channelId: channelIdFilter, lang: currentLang, btn, pages,
+      });
+      return;
+    }
+
     // Step 1: Search YouTube — paginate if >50 (each page = 1 call from the search bucket)
     let allVideoIds = [];
     let pageToken = '';
@@ -13573,6 +13821,7 @@ function renderSubscriptions() {
           </div>
         </div>
         <div class="sub-actions">
+          <button class="btn btn-secondary btn-sm" onclick="browseChannelPlaylists('${channelId}', '')" title="${t('discover_channel_playlists')}">${t('discover_channel_playlists')}</button>
           <button class="btn btn-secondary btn-sm" onclick="openChannelSystemPlaylist('${channelId}', 'shorts')" title="${t('shorts_channel_open_tooltip')}">${t('shorts_channel_open')}</button>
           <button class="btn btn-secondary btn-sm" onclick="openChannelSystemPlaylist('${channelId}', 'longForm')" title="${t('longform_channel_open_tooltip')}">${t('longform_channel_open')}</button>
           <button class="btn btn-secondary btn-sm" onclick="searchChannelInDiscover('${channelId}')" title="${t('discover_channel_search')}">${t('discover_channel_search')}</button>
