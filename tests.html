@@ -2599,6 +2599,80 @@ const SUITES = [
         restore(w, snapLs);
       }
     }],
+
+    ['switching to playlists leaves the search interface standing', w => {
+      // The first attempt hid each control's parentElement. discoverSortBy sits
+      // directly in the search row, so the query box and the Search button went
+      // with it, and the filter selects took their whole strip down — picking
+      // anything but Videos emptied the view.
+      const snapLs = snapshot(w, ['discoverFilters']);
+      const vis = id => w.getComputedStyle(w.document.getElementById(id)).display !== 'none';
+      try {
+        w.document.getElementById('discoverType').value = 'playlist';
+        w.onDiscoverTypeChange();
+        for (const id of ['discoverSearchInput', 'discoverSearchBtn', 'discoverType',
+                          'discoverMaxResults', 'discoverOrder', 'discoverPublishedAfter']) {
+          ok(vis(id), id + ' disappeared');
+        }
+        // The rows themselves, not just their contents.
+        ok(w.getComputedStyle(w.document.getElementById('discoverSearchInput').parentElement).display !== 'none', 'the search row was hidden');
+        return ok(w.getComputedStyle(w.document.getElementById('discoverPublishedAfter').parentElement).display !== 'none', 'the filter strip was hidden');
+      } finally {
+        w.document.getElementById('discoverType').value = 'video';
+        w.onDiscoverTypeChange();
+        restore(w, snapLs);
+      }
+    }],
+
+    ['the refinements search.list ignores outside videos do go away', w => {
+      const snapLs = snapshot(w, ['discoverFilters']);
+      const hidden = id => w.getComputedStyle(w.document.getElementById(id)).display === 'none';
+      try {
+        w.document.getElementById('discoverType').value = 'channel';
+        w.onDiscoverTypeChange();
+        for (const id of ['discoverDuration', 'discoverDefinition', 'discoverCaption',
+                          'discoverLicense', 'discoverSortBy']) {
+          ok(hidden(id), id + ' still offered on a channel search');
+        }
+        // The checkbox has a label of its own that must go with it.
+        ok(w.getComputedStyle(w.document.getElementById('discoverEmbeddable').closest('label')).display === 'none', 'the embeddable label was stranded');
+        return ok(hidden('discoverCreateBar'), 'nothing to build a playlist from here');
+      } finally {
+        w.document.getElementById('discoverType').value = 'video';
+        w.onDiscoverTypeChange();
+        restore(w, snapLs);
+      }
+    }],
+
+    ['switching back to videos brings the refinements back', w => {
+      const snapLs = snapshot(w, ['discoverFilters']);
+      try {
+        w.document.getElementById('discoverType').value = 'playlist';
+        w.onDiscoverTypeChange();
+        w.document.getElementById('discoverType').value = 'video';
+        w.onDiscoverTypeChange();
+        for (const id of ['discoverDuration', 'discoverSortBy', 'discoverCreateBar']) {
+          ok(w.getComputedStyle(w.document.getElementById(id)).display !== 'none', id + ' stayed hidden');
+        }
+        return ok(w.getComputedStyle(w.document.getElementById('discoverEmbeddable').closest('label')).display !== 'none', 'the embeddable label stayed hidden');
+      } finally { restore(w, snapLs); }
+    }],
+
+    ['a type restored from the last session reaches the controls', w => {
+      const snapLs = snapshot(w, ['discoverFilters']);
+      try {
+        w.localStorage.setItem('discoverFilters', JSON.stringify({ discoverType: 'playlist' }));
+        // What boot does: read the saved choices back, then act on the type.
+        w.loadDiscoverFilters();
+        w.applyDiscoverTypeVisibility();
+        return ok(w.getComputedStyle(w.document.getElementById('discoverDuration')).display === 'none',
+          'a reload came back offering video filters over a playlist search');
+      } finally {
+        restore(w, snapLs);
+        w.loadDiscoverFilters();
+        w.applyDiscoverTypeVisibility();
+      }
+    }],
   ],
 },
 {

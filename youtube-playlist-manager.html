@@ -4407,11 +4407,16 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.1'; // bump per release
+const APP_VERSION = '1.27.2'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.2', date: '2026-09-16', items: [
+    "CORRECTIF — dans Decouvrir, passer de Videos a Playlists ou Chaines vidait l interface. Les affinages reserves aux videos etaient masques par leur element parent : discoverSortBy est un enfant direct de la barre de recherche, donc le champ de saisie et le bouton Rechercher partaient avec lui, et les quatre selecteurs de filtre emportaient toute leur bande",
+    "Chaque controle est desormais masque pour lui-meme. Le filtre de date de publication reste offert sur les trois types, puisque search.list l accepte partout ; seuls duree, qualite, sous-titres, licence, lecture integree et le tri par statistiques disparaissent hors des videos",
+    "Le type restaure au demarrage atteint enfin les controles : un rechargement ne revient plus avec les filtres video affiches au-dessus d une recherche de playlists",
+  ]},
   { v: '1.27.1', date: '2026-09-16', items: [
     "CORRECTIF CRITIQUE — Decouvrir tombait sur Network error: Failed to fetch. videos:batchGetStats est une methode personnalisee Google : le verbe s attache a la ressource par DEUX-POINTS, pas par un segment de chemin. Ecrit avec une barre oblique, il vise un chemin inexistant, le preflight CORS reste sans reponse et le navigateur ne rend qu un Failed to fetch. Le parametre part, obligatoire, manquait aussi",
     "Le garde-fou de repli ne reconnaissait que des erreurs 404/400 propres. Une methode que le navigateur ne peut pas joindre ne se presente jamais ainsi : elle echoue au niveau reseau. Failed to fetch, Load failed et NetworkError comptent desormais comme methode indisponible, donc Decouvrir bascule sur videos.list au lieu de mourir",
@@ -5579,6 +5584,7 @@ async function init() {
   // Restore the Discover filter choices (#73) — sort and order included, which
   // were being reset on every reload.
   loadDiscoverFilters();
+  applyDiscoverTypeVisibility();
   // View counts stay off unless the user turned them on; the totals themselves
   // are not cached, so they are fetched on demand rather than at boot.
   const viewsBox = document.getElementById('showPlaylistViews');
@@ -11699,15 +11705,30 @@ function loadDiscoverFilters() {
 }
 
 // Arrive at Discover from a Subscriptions card, pre-filtered to that channel.
+// Videos, playlists and channels do not take the same refinements: search.list
+// ignores videoDuration, videoDefinition, videoCaption, videoLicense and
+// videoEmbeddable unless type=video, and our own client-side sort has no
+// statistics to sort by outside videos.
+//
+// Each control is hidden on its own. Hiding parentElement instead took down
+// whatever sat in the same row: discoverSortBy lives in the search row, so the
+// query box and the Search button went with it, and the four filter selects
+// live in the filter strip, so the strip went too — the view emptied itself on
+// every switch away from Videos.
+function applyDiscoverTypeVisibility() {
+  const videoOnly = (document.getElementById('discoverType')?.value || 'video') === 'video';
+  const show = el => { if (el) el.style.display = videoOnly ? '' : 'none'; };
+  ['discoverDuration', 'discoverDefinition', 'discoverCaption', 'discoverLicense', 'discoverSortBy']
+    .forEach(id => show(document.getElementById(id)));
+  // The checkbox carries its own label; hiding the input alone would strand it.
+  show(document.getElementById('discoverEmbeddable')?.closest('label'));
+  // Nothing to build a playlist from when the results are playlists or channels.
+  show(document.getElementById('discoverCreateBar'));
+}
+
 function onDiscoverTypeChange() {
   saveDiscoverFilters();
-  const videoOnly = (document.getElementById('discoverType')?.value || 'video') === 'video';
-  ['discoverDuration', 'discoverDefinition', 'discoverCaption', 'discoverLicense', 'discoverSortBy']
-    .forEach(id => { const el = document.getElementById(id); if (el) el.parentElement.style.display = videoOnly ? '' : 'none'; });
-  const emb = document.getElementById('discoverEmbeddable');
-  if (emb) emb.parentElement.style.display = videoOnly ? '' : 'none';
-  const create = document.getElementById('discoverCreateBar');
-  if (create) create.style.display = videoOnly ? '' : 'none';
+  applyDiscoverTypeVisibility();
 }
 
 function searchChannelInDiscover(channelId, channelTitle) {
