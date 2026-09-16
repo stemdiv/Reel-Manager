@@ -1225,7 +1225,110 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '#68', title: 'Shorts detection', note: 'the Data API has no isShort flag; the embed aspect ratio plus the 180 s ceiling is the whole signal',
+  cases: [
+    ['portrait and short is a Short', w =>
+      eq(w.detectShort(1080, 1920, 45), true)],
+
+    ['landscape and short is not', w =>
+      eq(w.detectShort(1920, 1080, 45), false, 'a 45 s landscape clip is an ordinary video')],
+
+    ['portrait but long is not', w =>
+      eq(w.detectShort(1080, 1920, 200), false, 'past the 180 s Shorts ceiling')],
+
+    ['exactly 180 s still counts, 181 does not', w => {
+      eq(w.detectShort(1080, 1920, 180), true, 'at the ceiling');
+      return eq(w.detectShort(1080, 1920, 181), false, 'one second over');
+    }],
+
+    ['square is not portrait', w =>
+      eq(w.detectShort(1000, 1000, 30), false)],
+
+    ['missing or unusable dimensions never guess', w => {
+      eq(w.detectShort(undefined, undefined, 30), false, 'no player block');
+      eq(w.detectShort(0, 0, 30), false, 'zeroes');
+      eq(w.detectShort('abc', 'def', 30), false, 'garbage');
+      return eq(w.detectShort(1080, 1920, 0), false, 'unknown duration');
+    }],
+
+    ['string dimensions from the API are parsed', w => {
+      // The API returns embedWidth/embedHeight as strings.
+      return eq(w.detectShort('1080', '1920', 45), true);
+    }],
+
+    ['a channel id maps to its system playlists', w => {
+      const ch = 'UCabcdefghijklmnopqrstuv';
+      return eq([
+        w.channelSystemPlaylistId(ch, 'shorts'),
+        w.channelSystemPlaylistId(ch, 'longForm'),
+        w.channelSystemPlaylistId(ch, 'live'),
+        w.channelSystemPlaylistId(ch, 'uploads'),
+      ], [
+        'UUSHabcdefghijklmnopqrstuv',
+        'UULFabcdefghijklmnopqrstuv',
+        'UULVabcdefghijklmnopqrstuv',
+        'UUabcdefghijklmnopqrstuv',
+      ]);
+    }],
+
+    ['anything that is not a channel id gives nothing back', w => {
+      eq(w.channelSystemPlaylistId('PLabcdefghijklmnopqrstuv', 'shorts'), '', 'a playlist id');
+      eq(w.channelSystemPlaylistId('UCtooshort', 'shorts'), '', 'wrong length');
+      eq(w.channelSystemPlaylistId('', 'shorts'), '', 'empty');
+      return eq(w.channelSystemPlaylistId('UCabcdefghijklmnopqrstuv', 'nonsense'), '', 'unknown kind');
+    }],
+
+    ['getVideoDetails asks for the player block, at no extra cost', async w => {
+      const real = w.ytApi;
+      let seen = null;
+      try {
+        w.ytApi = async (endpoint, params) => { seen = params; return { items: [] }; };
+        await w.getVideoDetails(['VID1']);
+        ok(/\bplayer\b/.test(seen.part), 'player missing from part=: ' + seen.part);
+        ok(/player\(embedHeight,embedWidth\)/.test(seen.fields), 'player missing from fields=: ' + seen.fields);
+        eq(seen.maxHeight, 8192, 'maxHeight');
+        // part= does not bill per part: the call is still one pool unit.
+        return eq(w.getQuotaCost('videos', 'GET'), { bucket: 'pool', cost: 1 });
+      } finally { w.ytApi = real; }
+    }],
+
+    ['the flag is computed once, at fetch time', async w => {
+      const real = w.ytApi;
+      try {
+        w.ytApi = async () => ({ items: [
+          { id: 'S1', contentDetails: { duration: 'PT45S' }, player: { embedWidth: '1080', embedHeight: '1920' } },
+          { id: 'V1', contentDetails: { duration: 'PT45S' }, player: { embedWidth: '1920', embedHeight: '1080' } },
+        ] });
+        const d = await w.getVideoDetails(['S1', 'V1']);
+        return eq([d.S1._isShort, d.V1._isShort], [true, false]);
+      } finally { w.ytApi = real; }
+    }],
+
+    ['a record written before #68 is answered by recomputing, not by guessing', w => {
+      // No _isShort field, as any cache entry written before this change.
+      const legacy = { contentDetails: { duration: 'PT30S' }, player: { embedWidth: '1080', embedHeight: '1920' } };
+      const noPlayer = { contentDetails: { duration: 'PT30S' } };
+      eq(w.isShortVideo('LEGACY', legacy), true, 'recomputed from the player block');
+      eq(w.isShortVideo('NOPLAYER', noPlayer), false, 'nothing to go on');
+      return eq(w.isShortVideo('NEVER_SEEN'), false, 'not in the cache at all');
+    }],
+
+    ['a stored flag is trusted over recomputation', w => {
+      // Once #68 has run, the flag is authoritative even if the player block is gone.
+      return eq(w.isShortVideo('X', { _isShort: true, contentDetails: { duration: 'PT9999S' } }), true);
+    }],
+
+    ['the Shorts filter does not consult the music classifier', w => {
+      // A musical Short is both music and short; the two axes must not interfere.
+      const musicalShort = { videoId: 'MS', title: 'official music video', isShort: true };
+      ok(w.classifyVideoType(musicalShort).isMusic === true, 'precondition: reads as music');
+      return eq(musicalShort.isShort, true, 'and is still a Short');
+    }],
+  ],
+},
 ];
+
 
 
 

@@ -638,6 +638,20 @@
     border-radius: var(--r-sm);
   }
   body.offline-cache .offline-pill { display: inline-flex; }
+  /* #68 — Shorts badge. Inferred from the embed aspect ratio, so it is stated
+     as a label, not as something the API told us outright. */
+  .short-badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--danger, #ff2d55);
+    border: 1px solid color-mix(in srgb, var(--danger, #ff2d55) 45%, transparent);
+    background: color-mix(in srgb, var(--danger, #ff2d55) 12%, transparent);
+    padding: 0 6px;
+    border-radius: 999px;
+    white-space: nowrap;
+    cursor: help;
+  }
   .offline-pill button {
     font: inherit;
     color: inherit;
@@ -1489,6 +1503,8 @@
               <option value="music" data-i18n="detail_type_music">Musique seulement</option>
               <option value="nonmusic" data-i18n="detail_type_nonmusic">Exclure musique</option>
               <option value="notuto" data-i18n="detail_type_notuto">Exclure tutos/démos</option>
+              <option value="short" data-i18n="detail_type_short">Shorts seulement</option>
+              <option value="notshort" data-i18n="detail_type_notshort">Exclure les Shorts</option>
             </select>
           </div>
           <div>
@@ -1558,6 +1574,8 @@
               <option value="music" data-i18n="detail_type_music">Musique seulement</option>
               <option value="nonmusic" data-i18n="detail_type_nonmusic">Exclure musique</option>
               <option value="notuto" data-i18n="detail_type_notuto">Exclure tutos/démos</option>
+              <option value="short" data-i18n="detail_type_short">Shorts seulement</option>
+              <option value="notshort" data-i18n="detail_type_notshort">Exclure les Shorts</option>
             </select></div>
           <div><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="detail_category">Catégorie</label>
             <select class="form-control" id="gsCategory" style="padding:6px 10px;font-size:13px;" onchange="onGlobalClassChange()">
@@ -1870,7 +1888,7 @@
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
                 <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:2px;" data-i18n="detail_duration">Durée</label><select class="form-control" id="watchFilterDuration" onchange="applyWatchFilters()" style="padding:5px 8px;font-size:12px;"><option value="all" data-i18n="detail_duration_all">Toutes</option><option value="short" data-i18n="detail_duration_short">Court (&lt; 4 min)</option><option value="medium" data-i18n="detail_duration_medium">Moyen (4-20 min)</option><option value="long" data-i18n="detail_duration_long">Long (&gt; 20 min)</option><option value="30_60" data-i18n="search_dur_30_60">Entre 30 et 60 min</option><option value="gte_1h" data-i18n="search_dur_1h">1 heure et plus</option><option value="gte_2h" data-i18n="search_dur_2h">2 heures et plus</option><option value="gt_3h" data-i18n="search_dur_3h">Plus de 3 h</option></select></div>
                 <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:2px;" data-i18n="detail_status">Statut</label><select class="form-control" id="watchFilterStatus" onchange="applyWatchFilters()" style="padding:5px 8px;font-size:12px;"><option value="all" data-i18n="detail_status_all">Tous</option><option value="available" data-i18n="detail_status_available">Disponible</option><option value="deleted" data-i18n="detail_status_deleted">Supprimée</option><option value="private" data-i18n="detail_status_private">Privée</option></select></div>
-                <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:2px;" data-i18n="detail_type">Type</label><select class="form-control" id="watchFilterType" onchange="onWatchClassChange()" style="padding:5px 8px;font-size:12px;"><option value="all" data-i18n="detail_type_all">Tous les types</option><option value="music" data-i18n="detail_type_music">Musique seulement</option><option value="nonmusic" data-i18n="detail_type_nonmusic">Exclure musique</option><option value="notuto" data-i18n="detail_type_notuto">Exclure tutos/démos</option></select></div>
+                <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:2px;" data-i18n="detail_type">Type</label><select class="form-control" id="watchFilterType" onchange="onWatchClassChange()" style="padding:5px 8px;font-size:12px;"><option value="all" data-i18n="detail_type_all">Tous les types</option><option value="music" data-i18n="detail_type_music">Musique seulement</option><option value="nonmusic" data-i18n="detail_type_nonmusic">Exclure musique</option><option value="notuto" data-i18n="detail_type_notuto">Exclure tutos/démos</option><option value="short" data-i18n="detail_type_short">Shorts seulement</option><option value="notshort" data-i18n="detail_type_notshort">Exclure les Shorts</option></select></div>
                 <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:2px;" data-i18n="detail_category">Catégorie</label><select class="form-control" id="watchFilterCategory" onchange="onWatchClassChange()" style="padding:5px 8px;font-size:12px;"><option value="all" data-i18n="detail_all_categories">Toutes catégories</option></select></div>
               </div>
               <button class="btn btn-primary mt-16" onclick="addToWatchQueue()" style="width: 100%;" data-i18n="watch_add_queue">Ajouter à la file d'attente</button>
@@ -2978,6 +2996,28 @@ const I18N = {
     action_reconnect: 'Se reconnecter',
     status_offline_cache: 'HORS LIGNE — CACHE LOCAL',
     status_offline_cache_tooltip: "Les données affichées viennent du cache local. Reconnectez-vous pour les rafraîchir et pour modifier vos playlists.",
+    // Shorts (#68)
+    detail_type_short: 'Shorts seulement',
+    detail_type_notshort: 'Exclure les Shorts',
+    short_badge: 'Short',
+    short_badge_tooltip: "Déduit du format d'intégration (vertical) et d'une durée inférieure à 3 minutes — l'API YouTube n'expose aucun indicateur Short officiel.",
+    stats_shorts_title: 'Shorts et vidéos standard',
+    stats_standard_word: 'standard',
+    stats_shorts_count: '{count} Short(s)',
+    stats_shorts_measured: 'Mesuré sur {count} vidéos chargées — les playlists jamais ouvertes ne sont pas comptées.',
+    stats_shorts_none_loaded: "Aucune vidéo chargée pour l'instant : ouvrez une playlist pour alimenter la mesure.",
+    stats_videos_word: 'vidéos',
+    stats_available_word: 'disponibles',
+    stats_unavailable_word: 'indisponible(s)',
+    stats_total_duration: 'Durée totale',
+    shorts_channel_open: 'Shorts',
+    shorts_channel_open_tooltip: 'Ouvrir la playlist Shorts de cette chaîne (lecture seule)',
+    longform_channel_open: 'Vidéos longues',
+    longform_channel_open_tooltip: 'Ouvrir la playlist des vidéos longues de cette chaîne (lecture seule)',
+    shorts_channel_invalid: "Identifiant de chaîne invalide — impossible d'en dériver la playlist système.",
+    shorts_channel_added: '{title} ajoutée en lecture seule',
+    shorts_channel_none: "Cette chaîne n'a pas de playlist Shorts accessible.",
+    shorts_channel_none_long: "Cette chaîne n'a pas de playlist de vidéos longues accessible.",
     quota_pool_label: 'Pool',
     quota_search_label: 'Recherches',
     quota_upload_label: 'Mises en ligne',
@@ -3648,6 +3688,28 @@ const I18N = {
     action_reconnect: 'Reconnect',
     status_offline_cache: 'OFFLINE — LOCAL CACHE',
     status_offline_cache_tooltip: 'What you see comes from the local cache. Sign in again to refresh it and to change your playlists.',
+    // Shorts (#68)
+    detail_type_short: 'Shorts only',
+    detail_type_notshort: 'Exclude Shorts',
+    short_badge: 'Short',
+    short_badge_tooltip: 'Inferred from a portrait embed format and a duration under 3 minutes — the YouTube API exposes no official Short flag.',
+    stats_shorts_title: 'Shorts and standard videos',
+    stats_standard_word: 'standard',
+    stats_shorts_count: '{count} Short(s)',
+    stats_shorts_measured: 'Measured over {count} loaded videos — playlists never opened are not counted.',
+    stats_shorts_none_loaded: 'No videos loaded yet: open a playlist to feed the measurement.',
+    stats_videos_word: 'videos',
+    stats_available_word: 'available',
+    stats_unavailable_word: 'unavailable',
+    stats_total_duration: 'Total duration',
+    shorts_channel_open: 'Shorts',
+    shorts_channel_open_tooltip: "Open this channel's Shorts playlist (read-only)",
+    longform_channel_open: 'Long-form',
+    longform_channel_open_tooltip: "Open this channel's long-form uploads playlist (read-only)",
+    shorts_channel_invalid: 'Invalid channel id — its system playlist cannot be derived.',
+    shorts_channel_added: '{title} added as read-only',
+    shorts_channel_none: 'This channel has no reachable Shorts playlist.',
+    shorts_channel_none_long: 'This channel has no reachable long-form playlist.',
     quota_pool_label: 'Pool',
     quota_search_label: 'Searches',
     quota_upload_label: 'Uploads',
@@ -3962,11 +4024,18 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.16.1'; // bump per release
+const APP_VERSION = '1.17.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.17.0', date: '2026-09-16', items: [
+    "#68 — filtre Shorts. L API Data v3 n expose aucun indicateur officiel : le seul signal disponible est le format d integration (snippet.player), demande dans le meme appel que les details, donc a cout de quota inchange. Une video est un Short si son integration est verticale ET qu elle dure 180 s ou moins — la duree seule ou le format seul se trompent tous les deux",
+    "Deux nouvelles options de type — Shorts seulement et Exclure les Shorts — dans les trois listes concernees (detail de playlist, recherche globale, plan de visionnage). Cet axe est independant de la classification musicale : un Short musical reste les deux",
+    "Badge Short sur les cartes de playlist, les colonnes Deck et les resultats Decouvrir, avec l infobulle qui dit que c est une deduction",
+    "Depuis une carte Abonnements, les playlists systeme de la chaine (UUSH pour les Shorts, UULF pour les videos longues) s ouvrent en lecture seule — c est la liste exacte de YouTube, la ou l heuristique par video ne fait qu approcher",
+    "Statistiques : repartition Shorts / standard, en indiquant sur combien de videos chargees la mesure porte",
+  ]},
   { v: '1.16.1', date: '2026-09-16', items: [
     "Le message de quota depasse annoncait encore 10 000 unites par jour pour les trois quotas : il nomme desormais celui qui peut etre epuise (pool, recherches ou mises en ligne). Oubli de la v1.13.0",
   ]},
@@ -4445,6 +4514,41 @@ async function addBookmark(rawInput) {
 
   log('info', 'action', 'bookmark added', { id, title: meta.snippet?.title });
   return meta;
+}
+
+/**
+ * #68 — open a channel's system playlist (Shorts or long-form uploads) as a
+ * read-only playlist in the library. The aspect-ratio heuristic is per video
+ * and only as good as the player block; this list is YouTube's own answer.
+ * Costs one playlists.list unit, then one playlistItems.list unit per page
+ * when the user opens it — same as any bookmark.
+ */
+async function openChannelSystemPlaylist(channelId, kind) {
+  const id = channelSystemPlaylistId(channelId, kind);
+  if (!id) {
+    showToast(t('shorts_channel_invalid'), 'error');
+    return null;
+  }
+  if (APP.playlists.find(p => p.id === id)) {
+    switchView('playlists');
+    openPlaylistDetail(id);
+    return id;
+  }
+  try {
+    const meta = await addBookmark(id);
+    showToast(t('shorts_channel_added', { title: meta.snippet?.title || id }), 'success');
+    refreshPlaylistsList();
+    populateSelectDropdowns();
+    switchView('playlists');
+    openPlaylistDetail(id);
+    return id;
+  } catch (err) {
+    // A channel with no Shorts simply has no UUSH playlist — that is a normal
+    // answer, not a failure, and it should not read like one.
+    log('info', 'action', 'channel system playlist unavailable', { channelId, kind, msg: err.message });
+    showToast(t(kind === 'shorts' ? 'shorts_channel_none' : 'shorts_channel_none_long'), 'info');
+    return null;
+  }
 }
 
 /** Remove a bookmark — does not affect the underlying YouTube playlist. */
@@ -5112,6 +5216,7 @@ function loadBackupFromStorage() {
           pl.videos.forEach(v => {
             if (v.videoId && !videoDetailsCache[v.videoId]) {
               videoDetailsCache[v.videoId] = {
+                _isShort: v.isShort === true,
                 contentDetails: { duration: v.duration || '' },
                 snippet: {
                   title: v.title || '',
@@ -6710,6 +6815,7 @@ function autoSaveToLocalStorage(opts) {
             position: v.snippet?.position,
             thumbnail: pickThumb(v.snippet?.thumbnails) || pickThumb(detail?.snippet?.thumbnails),
             thumbHd: hdIfDifferent(v.snippet?.thumbnails, detail?.snippet?.thumbnails),
+            isShort: detail?._isShort === true ? true : undefined,   // #68 — one bit; undefined is dropped by JSON
             channel: v.snippet?.videoOwnerChannelTitle || v.snippet?.channelTitle || '',
             duration: detail?.contentDetails?.duration || v.contentDetails?.duration || '',
             addedAt: v.snippet?.publishedAt || ''
@@ -6919,12 +7025,19 @@ async function getVideoDetails(videoIds) {
       // getVideoDetails fills videoDetailsCache, consumed only for duration,
       // thumbnails, channelTitle, and (rarely) categoryId. Statistics is fetched
       // by Discover separately, not from this cache.
+      // #68 — player carries embedWidth/embedHeight, the only Shorts signal the
+      // API exposes. Same request, same quota cost: part= does not bill per part.
+      // maxHeight pins the aspect calculation to a known box rather than
+      // whatever default YouTube picks.
       const data = await ytApi('videos', {
-        part: 'contentDetails,snippet,topicDetails',
+        part: 'contentDetails,snippet,topicDetails,player',
         id: batch.join(','),
-        fields: 'items(id,contentDetails(duration),snippet(title,channelTitle,thumbnails(medium(url),high(url),default(url),fhd(url),qhd(url)),categoryId),topicDetails(topicCategories))',
+        maxHeight: 8192,
+        fields: 'items(id,contentDetails(duration),snippet(title,channelTitle,thumbnails(medium(url),high(url),default(url),fhd(url),qhd(url)),categoryId),topicDetails(topicCategories),player(embedHeight,embedWidth))',
       });
       data.items?.forEach(item => {
+        item._isShort = detectShort(item.player?.embedWidth, item.player?.embedHeight,
+                                    parseDuration(item.contentDetails?.duration || ''));
         details[item.id] = item;
       });
     } catch (err) {
@@ -8319,6 +8432,7 @@ async function openPlaylistDetail(playlistId) {
       position: v.snippet?.position ?? idx,
       status: isDeleted ? 'deleted' : isPrivate ? 'private' : 'available',
       categoryId: (detail && detail.snippet ? detail.snippet.categoryId : undefined) || undefined,
+      isShort: isShortVideo(videoId),
     };
   });
 
@@ -8326,10 +8440,12 @@ async function openPlaylistDetail(playlistId) {
   const totalDuration = currentDetailVideos.reduce((s, v) => s + v.durationSeconds, 0);
   const available = currentDetailVideos.filter(v => v.status === 'available').length;
   const ghosts = currentDetailVideos.length - available;
+  const shorts = currentDetailVideos.filter(v => v.isShort).length;
   document.getElementById('playlistDetailStats').innerHTML =
-    `${currentDetailVideos.length} vidéos · ${available} disponibles` +
-    (ghosts > 0 ? ` · <span style="color: var(--error, #e74c3c);">${ghosts} indisponible(s)</span>` : '') +
-    ` · Durée totale : ${formatDuration(totalDuration)}`;
+    `${currentDetailVideos.length} ${t('stats_videos_word')} · ${available} ${t('stats_available_word')}` +
+    (ghosts > 0 ? ` · <span style="color: var(--error, #e74c3c);">${ghosts} ${t('stats_unavailable_word')}</span>` : '') +
+    (shorts > 0 ? ` · ${t('stats_shorts_count', { count: shorts })}` : '') +
+    ` · ${t('stats_total_duration')} : ${formatDuration(totalDuration)}`;
 
   resetVideoFilters();
 }
@@ -8437,6 +8553,51 @@ async function ensureClassificationData(videos) {
     try { refreshCategoryFilterOptions(); } catch (e) {}
     return need.length;
   } catch (e) { console.warn('ensureClassificationData', e); return 0; }
+}
+
+// ── Shorts (#68) ────────────────────────────────────────────────────────────
+// The Data API has no isShort flag. The one signal it does carry is the embed
+// aspect ratio in snippet.player: a Short embeds portrait. Duration alone is
+// not enough (plenty of ordinary videos are under a minute) and portrait alone
+// is not enough either (vertical films exist), so both have to hold.
+// 180 s is YouTube's own Shorts ceiling since October 2024.
+const SHORT_MAX_SECONDS = 180;
+
+function shortBadgeHTML() {
+  return '<span class="short-badge" title="' + escapeHtml(t('short_badge_tooltip')) + '">' + escapeHtml(t('short_badge')) + '</span>';
+}
+
+function detectShort(embedWidth, embedHeight, durationSeconds) {
+  const w = parseInt(embedWidth, 10);
+  const h = parseInt(embedHeight, 10);
+  const d = Number(durationSeconds);
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return false;
+  if (!Number.isFinite(d) || d <= 0) return false;
+  return h > w && d <= SHORT_MAX_SECONDS;
+}
+
+// Reads the flag computed at fetch time; falls back to recomputing from a
+// detail record, so a cache written before #68 still answers.
+function isShortVideo(videoId, record) {
+  const detail = record || ((typeof videoDetailsCache !== 'undefined') ? videoDetailsCache[videoId] : undefined);
+  if (!detail) return false;
+  if (typeof detail._isShort === 'boolean') return detail._isShort;
+  return detectShort(detail.player?.embedWidth, detail.player?.embedHeight,
+                     parseDuration(detail.contentDetails?.duration || ''));
+}
+
+// A channel's uploads split into system playlists: the UC prefix of a channel
+// id maps to UULF (long-form), UUSH (Shorts) and UULV (live). Undocumented but
+// stable, and it is the only exact Shorts list the API exposes — the aspect
+// heuristic above is per video and only as good as its inputs.
+const CHANNEL_SYSTEM_PLAYLISTS = { uploads: 'UU', longForm: 'UULF', shorts: 'UUSH', live: 'UULV' };
+
+function channelSystemPlaylistId(channelId, kind) {
+  const prefix = CHANNEL_SYSTEM_PLAYLISTS[kind];
+  if (!prefix) return '';
+  const id = String(channelId || '');
+  if (!/^UC[\w-]{22}$/.test(id)) return '';   // anything else is not a channel id
+  return prefix + id.slice(2);
 }
 
 function classifyVideoType(v) {
@@ -8572,6 +8733,12 @@ function applyVideoFilters() {
     filtered = filtered.filter(v => !classifyVideoType(v).isMusic);
   } else if (type === 'notuto') {
     filtered = filtered.filter(v => classifyVideoType(v).type !== 'tutorial');
+  } else if (type === 'short') {
+    // #68 — orthogonal to classifyVideoType: a musical Short is both music and
+    // short, so this filter deliberately does not consult it.
+    filtered = filtered.filter(v => v.isShort === true);
+  } else if (type === 'notshort') {
+    filtered = filtered.filter(v => v.isShort !== true);
   }
 
   // Category filter
@@ -8627,6 +8794,7 @@ function renderFilteredVideos(videos) {
 
     let catBadge = '';
     try { if (v.categoryId) { const _cn = getCategoryName(v.categoryId); if (_cn) catBadge = `<span style="font-size:10px;color:var(--text2);border:1px solid var(--border,#333);padding:0 6px;border-radius:999px;white-space:nowrap;">${escapeHtml(_cn)}</span>`; } } catch (e) {}
+    const shortBadge = v.isShort ? shortBadgeHTML() : '';
     const clickPlay = isReorder ? '' : `onclick="playVideo('${v.videoId}','${safeTitle}','${safeChannel}','${safeThumb}')"`;
     const cardDrag = isReorder ? `draggable="true" ondragstart="onVideoDragStart(event)" ondragover="onVideoDragOver(event)" ondragleave="onVideoDragLeave(event)" ondrop="onVideoDrop(event)" data-item-id="${playlistItemId}" data-video-id="${v.videoId}" data-position="${v.position}"` : '';
 
@@ -8643,7 +8811,7 @@ function renderFilteredVideos(videos) {
           <div class="video-meta">${escapeHtml(v.channelTitle)} <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-size:10px;">YT&nearr;</a></div>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
             <span style="font-size: 11px; color: var(--text2);">${dateStr}</span>
-            <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${catBadge}${genreBadge}${statusBadge}</span>
+            <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${shortBadge}${catBadge}${genreBadge}${statusBadge}</span>
           </div>
         </div>
         <div class="reorder-pos">#${v.position + 1}</div>
@@ -9046,7 +9214,8 @@ function gsPasses(v, dur, stat, type, cat) {
   const status = ghostStatus(v);
   if (stat !== 'all' && status !== stat) return false;
   if (dur !== 'all') { const sec = parseDuration(d && d.contentDetails ? d.contentDetails.duration : ''); if (!sec) return false; if (dur === 'short' && !(sec < 240)) return false; if (dur === 'medium' && !(sec >= 240 && sec <= 1200)) return false; if (dur === 'long' && !(sec > 1200)) return false; if (dur === '30_60' && !(sec >= 1800 && sec < 3600)) return false; if (dur === 'gte_1h' && !(sec >= 3600)) return false; if (dur === 'gte_2h' && !(sec >= 7200)) return false; if (dur === 'gt_3h' && !(sec > 10800)) return false; }
-  if (type !== 'all') { const c = classifyVideoType(gsClassifyObj(v)); if (type === 'music' && !c.isMusic) return false; if (type === 'nonmusic' && c.isMusic) return false; if (type === 'notuto' && c.type === 'tutorial') return false; }
+  if (type === 'short' || type === 'notshort') { const short = isShortVideo(id); if (type === 'short' && !short) return false; if (type === 'notshort' && short) return false; }
+  else if (type !== 'all') { const c = classifyVideoType(gsClassifyObj(v)); if (type === 'music' && !c.isMusic) return false; if (type === 'nonmusic' && c.isMusic) return false; if (type === 'notuto' && c.type === 'tutorial') return false; }
   if (cat !== 'all') { const catId = d && d.snippet ? d.snippet.categoryId : undefined; if (String(catId) !== cat) return false; }
   return true;
 }
@@ -9584,6 +9753,7 @@ async function performDiscoverSearch() {
         channel: v.snippet?.channelTitle || '',
         description: v.snippet?.description || '',
         thumbnail: pickThumb(v.snippet?.thumbnails),
+        isShort: detectShort(v.player?.embedWidth, v.player?.embedHeight, totalSec),
         duration: durStr,
         viewsRaw: views,
         likesRaw: likes,
@@ -10411,7 +10581,46 @@ function generateStatisticsCharts() {
     </div>`
   ).join('');
 
+  // #68 — Shorts split. Only playlists whose videos are actually loaded can be
+  // counted: the flag comes from videoDetailsCache, and a playlist never opened
+  // has no details. Say how many were counted rather than implying the whole
+  // library was measured.
+  const shortsRows = [];
+  let shortsTotal = 0, standardTotal = 0;
+  for (const pl of APP.playlists) {
+    const vids = APP.allVideos[pl.id];
+    if (!Array.isArray(vids) || !vids.length) continue;
+    let s = 0;
+    for (const v of vids) if (isShortVideo(gsVideoId(v))) s++;
+    if (!vids.length) continue;
+    shortsTotal += s;
+    standardTotal += vids.length - s;
+    if (s > 0) shortsRows.push({ name: pl.snippet?.title || '', shorts: s, total: vids.length });
+  }
+  shortsRows.sort((a, b) => (b.shorts / b.total) - (a.shorts / a.total));
+  const measured = shortsTotal + standardTotal;
+  const shortsHtml = measured === 0
+    ? `<p class="text-muted">${t('stats_shorts_none_loaded')}</p>`
+    : `
+      <div style="display:flex;gap:16px;align-items:center;padding:8px 0 14px;">
+        <div style="flex:1;height:10px;background:var(--surface3);border-radius:5px;overflow:hidden;display:flex;">
+          <div style="height:100%;width:${(shortsTotal / measured) * 100}%;background:var(--danger,#ff2d55);"></div>
+          <div style="height:100%;flex:1;background:var(--accent);"></div>
+        </div>
+        <span class="mono" style="font-size:11px;color:var(--text2);white-space:nowrap;">${shortsTotal} ${t('short_badge')} · ${standardTotal} ${t('stats_standard_word')}</span>
+      </div>
+      ${shortsRows.slice(0, 10).map(r => `
+        <div style="display:grid;grid-template-columns:1fr 72px;align-items:center;gap:12px;padding:3px 0;">
+          <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</div>
+          <div class="mono" style="font-size:11px;color:var(--text2);text-align:right;">${r.shorts} / ${r.total}</div>
+        </div>`).join('')}
+      <div class="mono" style="font-size:10px;color:var(--text3);margin-top:8px;">${t('stats_shorts_measured', { count: measured })}</div>`;
+
   const html = `
+    <div class="chart-container" style="margin-bottom:24px;">
+      <div class="chart-title">${t('stats_shorts_title')}</div>
+      <div style="padding:12px 0;">${shortsHtml}</div>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
       <div class="chart-container">
         <div class="chart-title">Répartition par catégorie</div>
@@ -11109,6 +11318,7 @@ function renderDeckVideoItem(video) {
   const thumb = pickThumb(video.snippet?.thumbnails);
   const channel = video.snippet?.videoOwnerChannelTitle || '';
   const videoId = video.snippet?.resourceId?.videoId || video.contentDetails?.videoId || '';
+  const shortBadge = isShortVideo(videoId) ? shortBadgeHTML() : '';
   const escapedTitle = title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
   const escapedChannel = channel.replace(/'/g, "\\'").replace(/"/g, '&quot;');
   const escapedThumb = thumb.replace(/'/g, "\\'");
@@ -11124,7 +11334,7 @@ function renderDeckVideoItem(video) {
       </div>
       <div class="deck-video-info" style="cursor:pointer;" onclick="event.stopPropagation();playVideo('${videoId}','${escapedTitle}','${escapedChannel}','${escapedThumb}')">
         <div class="deck-video-title">${escapeHtml(title)}</div>
-        <div class="deck-video-meta">${escapeHtml(channel)} <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-size:9px;">YT&nearr;</a></div>
+        <div class="deck-video-meta">${shortBadge}${escapeHtml(channel)} <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-size:9px;">YT&nearr;</a></div>
       </div>
     </div>
   `;
@@ -11775,6 +11985,8 @@ function renderSubscriptions() {
           </div>
         </div>
         <div class="sub-actions">
+          <button class="btn btn-secondary btn-sm" onclick="openChannelSystemPlaylist('${channelId}', 'shorts')" title="${t('shorts_channel_open_tooltip')}">${t('shorts_channel_open')}</button>
+          <button class="btn btn-secondary btn-sm" onclick="openChannelSystemPlaylist('${channelId}', 'longForm')" title="${t('longform_channel_open_tooltip')}">${t('longform_channel_open')}</button>
           <button class="btn btn-secondary btn-sm" onclick="searchChannelInDiscover('${channelId}')" title="${t('discover_channel_search')}">${t('discover_channel_search')}</button>
           <button class="btn btn-secondary btn-sm" onclick="window.open('https://www.youtube.com/channel/${channelId}', '_blank')">Channel</button>
           <button class="btn btn-danger btn-sm" onclick="confirmUnsubscribe('${sub.id}', '${escapeHtml((sub.snippet?.title || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')">Unsubscribe</button>
