@@ -422,6 +422,38 @@
     justify-content: center; align-items: center;
   }
   .player-modal-overlay.active { display: flex; }
+  .player-modal-overlay.docked {
+    inset: auto 16px 16px auto;
+    width: 320px;
+    background: none;
+    backdrop-filter: none;
+    display: block;
+    z-index: 450;
+  }
+  .player-modal-overlay.docked .player-modal {
+    width: 320px; max-width: 320px;
+    border: 1px solid var(--border);
+    box-shadow: 0 12px 32px rgba(0,0,0,.45);
+  }
+  /* 320×180 keeps the embed well above the 200 px minimum for its width and is
+     the size the spec recommends. */
+  .player-modal-overlay.docked .player-video-wrap { padding-bottom: 180px; }
+  .player-modal-overlay.docked .player-info { padding: 10px 12px 6px; gap: 2px; }
+  .player-modal-overlay.docked .player-title { font-size: 12.5px; }
+  .player-modal-overlay.docked .player-channel { font-size: 11px; }
+  .player-modal-overlay.docked .player-controls { padding: 0 8px 8px; gap: 4px; }
+  .player-modal-overlay.docked .player-controls button { padding: 5px 7px; }
+  /* Speed, position and like do not earn their space at 320 px wide. */
+  .player-modal-overlay.docked .player-controls select,
+  .player-modal-overlay.docked .player-pos,
+  .player-modal-overlay.docked #playerSubscribe { display: none; }
+  .player-modal-overlay.docked .player-queue { max-height: 180px; }
+  .player-dock-btn { display: none; }
+  .player-modal-overlay.docked .player-dock-btn { display: flex; }
+  @media (max-width: 480px) {
+    .player-modal-overlay.docked { inset: auto 0 0 0; width: 100%; }
+    .player-modal-overlay.docked .player-modal { width: 100%; max-width: 100%; border-radius: 12px 12px 0 0; }
+  }
   .player-modal {
     background: var(--bg); border-radius: 12px; width: 90vw; max-width: 900px;
     box-shadow: 0 24px 48px rgba(0,0,0,0.4); overflow: hidden;
@@ -649,6 +681,19 @@
     display: block;
     grid-template-columns: none;
   }
+  /* Library lens (#17 phase 2) — a segmented filter, not an app mode. */
+  .lens {
+    display: inline-flex; align-items: stretch;
+    border: 1px solid var(--border); border-radius: 999px; overflow: hidden;
+  }
+  .lens button {
+    font: inherit; font-size: 12px; line-height: 1;
+    background: none; border: 0; color: var(--text2);
+    padding: 7px 14px; cursor: pointer; white-space: nowrap;
+  }
+  .lens button + button { border-left: 1px solid var(--border); }
+  .lens button:hover { color: var(--text); background: var(--surface2); }
+  .lens button.is-active { background: var(--accent); color: var(--bg); font-weight: 600; }
   .tracklist { display: flex; flex-direction: column; }
   .track-row {
     display: grid;
@@ -1522,6 +1567,12 @@
           <button class="btn btn-secondary" onclick="showAddBookmarkModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg> <span data-i18n="bookmark_btn">Add by URL</span></button>
           <button class="btn btn-secondary dash-write-action" onclick="showRenamePlaylistModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg> <span data-i18n="dash_rename">Rename</span></button>
           <button class="btn btn-danger dash-write-action" onclick="showDeletePlaylistModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> <span data-i18n="dash_delete">Delete</span></button>
+          <div class="lens" id="libraryLens" role="group" data-i18n-title="lens_tooltip" title="Filter the library by playlist type">
+            <button type="button" data-lens="all" onclick="setLibraryLens('all')" data-i18n="lens_all">All</button>
+            <button type="button" data-lens="video" onclick="setLibraryLens('video')" data-i18n="lens_video">Videos</button>
+            <button type="button" data-lens="music" onclick="setLibraryLens('music')" data-i18n="lens_music">Music</button>
+          </div>
+          <span id="libraryLensNote" class="mono" style="display:none;font-size:11px;color:var(--text3);align-self:center;"></span>
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;margin-left:4px;"
                  data-i18n-title="playlist_views_tooltip" title="Total views across the loaded videos of each playlist">
             <input type="checkbox" id="showPlaylistViews" onchange="togglePlaylistViews()">
@@ -1556,10 +1607,6 @@
           <button id="viewModeToggleBtn" class="btn btn-secondary btn-sm" onclick="toggleDetailViewMode()" style="display:flex;align-items:center;gap:4px;" data-i18n-title="music_view_music_tooltip" title="Passer en vue Musique">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
             <span data-i18n="music_view_music">Vue Musique</span>
-          </button>
-          <button id="musicModeBtn" class="btn btn-secondary btn-sm" onclick="toggleMusicMode()" style="display:flex;align-items:center;gap:4px;" data-i18n-title="music_filter_tooltip" title="Afficher uniquement la musique">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3z"/></svg>
-            <span data-i18n="music_filter_label">Musique seulement</span>
           </button>
           <a id="playlistDetailYTLink" href="#" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" data-i18n-title="detail_view_youtube" title="Ouvrir sur YouTube">▶ YouTube</a>
         </div>
@@ -2137,8 +2184,9 @@
           <div>
             <div class="form-group">
               <label class="form-label" data-i18n="backup_format">Format</label>
-              <select class="form-control" id="exportFormat">
+              <select class="form-control" id="exportFormat" onchange="this.dataset.userPicked='1'">
                 <option value="csv">CSV</option>
+                <option value="csv-transfer" data-i18n="export_csv_transfer">CSV — transfer-ready (title, artist, album)</option>
                 <option value="json">JSON</option>
               </select>
             </div>
@@ -2591,11 +2639,11 @@
 <div class="toast-container" id="toastContainer"></div>
 
 <!-- IN-APP PLAYER MODAL (Beta) -->
-<div class="player-modal-overlay" id="playerModalOverlay" onclick="closePlayerModal()">
+<div class="player-modal-overlay" id="playerModalOverlay" onclick="if (event.target === this && !this.classList.contains('docked')) closePlayerModal()">
   <div class="player-modal" onclick="event.stopPropagation()">
     <div class="player-video-wrap">
       <div id="playerIframeContainer"></div>
-      <button class="player-close-btn" onclick="minimizePlayer()" title="Minimize">
+      <button class="player-close-btn" onclick="minimizePlayer()" data-i18n-title="player_dock" title="Dock the player">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>
     </div>
@@ -2612,6 +2660,12 @@
       </button>
       <button onclick="playerNext()" title="Next" id="playerNextBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+      </button>
+      <button class="player-dock-btn" onclick="expandPlayer()" data-i18n-title="player_expand" title="Expand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+      </button>
+      <button class="player-dock-btn" onclick="closePlayer()" data-i18n-title="player_close" title="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
       <button onclick="togglePlayerLike()" id="playerLikeBtn" data-i18n-title="player_like_tooltip" title="Like">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21.2l7.7-7.7 1.1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg>
@@ -3174,6 +3228,16 @@ const I18N = {
     music_hint_dismiss: 'Pas maintenant',
     music_queue_next: "Ajouter à la suite dans la file",
     music_queued: '{title} — ajouté à la suite',
+    // Lentille de bibliothèque et lecteur ancré (#17 phase 2)
+    lens_all: 'Toutes',
+    lens_video: 'Vidéos',
+    lens_music: 'Musique',
+    lens_tooltip: 'Filtrer la bibliothèque par type de playlist',
+    lens_hidden: '{count} masquée(s) par ce filtre',
+    player_dock: 'Réduire le lecteur dans un coin',
+    player_expand: 'Agrandir le lecteur',
+    player_close: 'Fermer le lecteur',
+    export_csv_transfer: 'CSV — prêt au transfert (titre, artiste, album)',
     quota_pool_label: 'Pool',
     quota_search_label: 'Recherches',
     quota_upload_label: 'Mises en ligne',
@@ -3905,6 +3969,16 @@ const I18N = {
     music_hint_dismiss: 'Not now',
     music_queue_next: 'Play next in the queue',
     music_queued: '{title} — queued next',
+    // Library lens and docked player (#17 phase 2)
+    lens_all: 'All',
+    lens_video: 'Videos',
+    lens_music: 'Music',
+    lens_tooltip: 'Filter the library by playlist type',
+    lens_hidden: '{count} hidden by this filter',
+    player_dock: 'Dock the player in a corner',
+    player_expand: 'Expand the player',
+    player_close: 'Close the player',
+    export_csv_transfer: 'CSV — transfer-ready (title, artist, album)',
     quota_pool_label: 'Pool',
     quota_search_label: 'Searches',
     quota_upload_label: 'Uploads',
@@ -4219,11 +4293,18 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.23.0'; // bump per release
+const APP_VERSION = '1.24.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.24.0', date: '2026-09-16', items: [
+    "#17 phase 2 — lentille de bibliotheque Toutes / Videos / Musique dans l en-tete. Elle absorbe l ancien bouton Mode Musique, qui vivait dans l en-tete du detail et ne faisait que positionner le menu deroulant situe deux lignes plus bas. Un seul controle musique par surface desormais",
+    "Une playlist jamais ouverte n a pas de verdict : elle reste visible sous toutes les lentilles plutot que d etre masquee par une reponse que personne n a calculee",
+    "CORRECTIF — reduire le lecteur le faisait disparaitre : l overlay perdait sa classe active, donc l iframe quittait la page. La specification l interdit explicitement. Le lecteur s ancre desormais en 320 x 180 en bas a droite, l iframe n est jamais deplacee dans le DOM (la deplacer rechargerait la video et perdrait la position) et le dock se ferme d un clic",
+    "#18 — export CSV pret au transfert : title, artist, album, isrc avec BOM UTF-8, presélectionné en vue Musique. Colonnes verifiees contre la documentation Soundiiz (titre et artiste au minimum, en-tetes insensibles a la casse, colonnes inconnues ignorees) et contre ce que lit TuneMyMusic. Le champ isrc reste vide : les deux services demandent de laisser vide plutot que de deviner, et un ISRC faux fait correspondre le mauvais enregistrement",
+    "Metriques locales dans le journal de diagnostic — vue Musique conservee, reversions, lectures de file, exports de transfert — sans aucun identifiant de playlist",
+  ]},
   { v: '1.23.0', date: '2026-09-16', items: [
     "#17 Mode Musique phase 1 — une playlist de musique s affiche en liste de pistes : numero, pochette 44 px, titre, artiste, chaine, duree. C est une couche de presentation, pas un second composant : un attribut data-viewmode echange le jeu de tokens, exactement comme le systeme de skins, et toutes les actions secondaires restent les memes",
     "Detection par score et non par signal unique : une chaine - Topic pese 0,9, la categorie 10 pese 0,7, une duree de 2 a 7 minutes et un motif Artiste - Titre 0,2 chacun, et une duree de plus de 20 minutes retire 0,5. Un set de deux heures sur une chaine - Topic reste donc une video. Une playlist est musicale a partir de 80 % de ses 50 premieres",
@@ -5355,6 +5436,7 @@ async function init() {
   if (viewsBox) viewsBox.checked = localStorage.getItem('showPlaylistViews') === '1';
   const scopeBox = document.getElementById('writeScopeAtLoginToggle');
   if (scopeBox) scopeBox.checked = writeScopeAtLogin();
+  renderLibraryLens();
 
   // Cache-first display: if we have backup data, show the dashboard immediately
   // even before OAuth check — user sees data instantly on PWA/mobile revisit
@@ -8395,12 +8477,18 @@ function openPlayerModal() {
 }
 
 function minimizePlayer() {
-  document.getElementById('playerModalOverlay').classList.remove('active');
-  document.getElementById('miniPlayer').classList.add('active');
-  document.body.classList.add('has-mini-player');
+  // #17 phase 2 / spec §5: dock, do not hide. The overlay keeps .active — the
+  // embed must stay on screen — and gains .docked, which resizes it to 320×180
+  // bottom-right. The iframe is never re-parented, so playback continues.
+  const overlay = document.getElementById('playerModalOverlay');
+  overlay.classList.add('active', 'docked');
+  document.getElementById('miniPlayer').classList.remove('active');
+  document.body.classList.remove('has-mini-player');
+  log('info', 'action', 'player docked');
 }
 
 function expandPlayer() {
+  document.getElementById('playerModalOverlay').classList.remove('docked');
   openPlayerModal();
 }
 
@@ -8411,7 +8499,7 @@ function closePlayerModal() {
 function closePlayer() {
   stopProgressTracking();
   if (PLAYER.ytPlayer) { PLAYER.ytPlayer.destroy(); PLAYER.ytPlayer = null; }
-  document.getElementById('playerModalOverlay').classList.remove('active');
+  document.getElementById('playerModalOverlay').classList.remove('active', 'docked');
   document.getElementById('miniPlayer').classList.remove('active');
   document.body.classList.remove('has-mini-player');
   PLAYER.queue = [];
@@ -9127,7 +9215,15 @@ async function loadPlaylistViewTotals() {
 }
 
 function refreshPlaylistsList() {
-  const html = APP.playlists.map(pl => {
+  const lens = libraryLens();
+  const visible = APP.playlists.filter(pl => playlistPassesLens(pl.id, lens));
+  const hidden = APP.playlists.length - visible.length;
+  const note = document.getElementById('libraryLensNote');
+  if (note) {
+    note.textContent = hidden > 0 ? t('lens_hidden', { count: hidden }) : '';
+    note.style.display = hidden > 0 ? '' : 'none';
+  }
+  const html = visible.map(pl => {
     // Prefer the cached video count (accurate, includes filters applied locally),
     // but fall back to the playlist's reported itemCount when no videos are loaded.
     // We can't use `?? itemCount` because a cached empty array has length 0, which
@@ -9245,6 +9341,7 @@ async function openPlaylistDetail(playlistId) {
   currentDetailVerdict = playlistMusicVerdict(currentDetailVideos);
   playlistVerdictCache[playlistId] = currentDetailVerdict;
   currentDetailViewMode = effectiveViewMode(playlistId, currentDetailVerdict.verdict);
+  preselectExportFormat();
   applyDetailViewMode();
 
   renderDetailStats();
@@ -9280,6 +9377,14 @@ function renderDetailStats() {
 
 // Spec §4: one component set, a data-viewmode attribute swaps the token set.
 // No parallel components, no second render path for the secondary actions.
+// The export preset follows the view (spec §4) — but only as a default: it is
+// a select the user can always change, and a choice they make is not undone.
+function preselectExportFormat() {
+  const sel = document.getElementById('exportFormat');
+  if (!sel || sel.dataset.userPicked === '1') return;
+  sel.value = currentDetailViewMode === 'music' ? 'csv-transfer' : 'csv';
+}
+
 function applyDetailViewMode() {
   const view = document.getElementById('playlistDetail');
   if (view) view.setAttribute('data-viewmode', currentDetailViewMode);
@@ -9330,6 +9435,7 @@ function toggleDetailViewMode(mode) {
   }
   currentDetailViewMode = next;
   setPlaylistViewMode(currentDetailPlaylistId, next);
+  preselectExportFormat();
   applyDetailViewMode();
   renderDetailStats();
   applyVideoFilters();
@@ -9490,6 +9596,50 @@ function channelSystemPlaylistId(channelId, kind) {
 // AND music). Detection only supplies a default; a manual choice is sacred and
 // is never re-evaluated, which is why overrides live in their own map rather
 // than being recomputed from the verdict.
+const LIBRARY_LENSES = ['all', 'video', 'music'];
+
+function libraryLens() {
+  const v = localStorage.getItem('libraryLens');
+  return LIBRARY_LENSES.includes(v) ? v : 'all';
+}
+
+function setLibraryLens(lens) {
+  const next = LIBRARY_LENSES.includes(lens) ? lens : 'all';
+  try { localStorage.setItem('libraryLens', next); } catch (_) {}
+  log('info', 'action', 'library lens', { lens: next });
+  renderLibraryLens();
+  refreshPlaylistsList();
+  return next;
+}
+
+function renderLibraryLens() {
+  const host = document.getElementById('libraryLens');
+  if (!host) return;
+  const current = libraryLens();
+  host.querySelectorAll('button[data-lens]').forEach(b => {
+    const on = b.getAttribute('data-lens') === current;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+
+/**
+ * Does a playlist pass the lens? The verdict is whatever detection last said,
+ * or the user's override if they made one — the lens must agree with what the
+ * playlist actually opens as, not with a second opinion.
+ * A playlist never opened has no verdict; it stays visible under every lens
+ * rather than being hidden by an answer nobody has computed.
+ */
+function playlistPassesLens(playlistId, lens) {
+  const current = lens || libraryLens();
+  if (current === 'all') return true;
+  const override = readPlaylistViewModes()[playlistId];
+  const verdict = playlistVerdictCache[playlistId]?.verdict;
+  if (!override && !verdict) return true;
+  const mode = override || (verdict === 'music' ? 'music' : 'video');
+  return current === 'music' ? mode === 'music' : mode !== 'music';
+}
+
 function readPlaylistViewModes() {
   try { return JSON.parse(localStorage.getItem('playlistViewMode') || '{}') || {}; } catch (_) { return {}; }
 }
@@ -9932,7 +10082,7 @@ function queueTrackNext(videoId) {
   const at = PLAYER.currentIndex >= 0 ? PLAYER.currentIndex + 1 : PLAYER.queue.length;
   PLAYER.queue.splice(at, 0, item);
   if (typeof renderQueueList === 'function') { try { renderQueueList(); } catch (_) {} }
-  log('info', 'action', 'queued next from music view');
+  log('info', 'action', 'queue play from music view', { queueLength: PLAYER.queue.length });
   showToast(t('music_queued', { title: v.title }), 'success');
 }
 
@@ -14067,6 +14217,46 @@ function updateExportSummary() {
   summary.textContent = `${selected.length} / ${APP.playlists.length} playlist(s) — ${totalVids} video(s)`;
 }
 
+/**
+ * #18 — the transfer-ready rows, built from the shared parser (§6) so the CSV
+ * and the Music view can never disagree about who the artist is.
+ *
+ * Columns are title,artist,album,isrc. Checked against Soundiiz's documented
+ * vocabulary (title, artist, album, isrc, platform, trackId, duration,
+ * addedDate, addedBy, url; title+artist is the minimum; headers are
+ * case-insensitive; unrecognised columns are ignored) and against what
+ * TuneMyMusic reads (title, artist, album, ISRC). isrc stays empty rather than
+ * guessed: both services say to leave a value blank rather than invent it, and
+ * a wrong ISRC matches the wrong recording outright.
+ *
+ * album is the channel with "- Topic" removed — that is what auto-generated
+ * music channels actually carry. It is a hint for the matcher, not a claim.
+ */
+// `var`, deliberately: the regression suite asserts this contract, and a
+// top-level const in a classic script is not reachable as a global.
+var TRANSFER_CSV_HEADERS = ['title', 'artist', 'album', 'isrc'];
+
+function transferCsvRows(playlists) {
+  const rows = [];
+  for (const pl of playlists) {
+    for (const v of (APP.allVideos[pl.id] || [])) {
+      const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
+      const detail = videoDetailsCache[videoId];
+      const channel = v.snippet?.videoOwnerChannelTitle || detail?.snippet?.channelTitle || v.snippet?.channelTitle || '';
+      const parsed = parseArtistTitle(v.snippet?.title || '', channel);
+      if (!parsed.title) continue;   // a row with no track name is noise to a matcher
+      rows.push([parsed.title, parsed.artist, parsed.album, '']);
+    }
+  }
+  return rows;
+}
+
+function buildTransferCsv(playlists) {
+  const BOM = '\uFEFF';
+  const body = transferCsvRows(playlists).map(r => csvRow(r)).join('\n');
+  return BOM + TRANSFER_CSV_HEADERS.join(',') + '\n' + body;
+}
+
 async function exportLibrary() {
   const format = document.getElementById('exportFormat').value;
   const selectedPlaylists = APP.playlists.filter(pl => exportSelection[pl.id]);
@@ -14077,6 +14267,22 @@ async function exportLibrary() {
   }
 
   const dateStr = new Date().toISOString().split('T')[0];
+
+  if (format === 'csv-transfer') {
+    // #18 — one track per row, no playlist column: these files are fed to a
+    // transfer service one playlist at a time.
+    const csv = buildTransferCsv(selectedPlaylists);
+    const trackCount = csv.split('\n').length - 2;   // header + trailing
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `tracklist-${dateStr}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    log('info', 'action', 'transfer csv exported', { playlists: selectedPlaylists.length, tracks: Math.max(trackCount, 0) });
+    showToast(t('toast_exported') + ` (${Math.max(trackCount, 0)} ${t('music_tracks_word')})`, 'success');
+    return;
+  }
 
   if (format === 'csv') {
     // Same 10-column format as backup CSV

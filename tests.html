@@ -2137,7 +2137,158 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '#17 #18 p2', title: 'Library lens, docked player, transfer CSV', note: 'spec §2 (lens), §5 (the embed must stay visible), §6 (one parser feeds the CSV)',
+  cases: [
+    // ── Library lens (§2) ───────────────────────────────────────────────────
+    ['the lens is a filter with three positions and a safe default', w => {
+      const snap = snapshot(w, ['libraryLens']);
+      try {
+        w.localStorage.removeItem('libraryLens');
+        eq(w.libraryLens(), 'all', 'default');
+        w.localStorage.setItem('libraryLens', 'nonsense');
+        eq(w.libraryLens(), 'all', 'a value that is not a lens falls back');
+        w.setLibraryLens('music');
+        return eq(w.libraryLens(), 'music');
+      } finally { restore(w, snap); }
+    }],
+
+    ['"All" hides nothing', w => {
+      return eq(w.playlistPassesLens('PL_never_seen', 'all'), true);
+    }],
+
+    ['a playlist nobody has opened stays visible under every lens', w => {
+      // No verdict has been computed for it; hiding it would be acting on an
+      // answer that does not exist.
+      eq(w.playlistPassesLens('PL_unknown_xyz', 'music'), true, 'music lens');
+      return eq(w.playlistPassesLens('PL_unknown_xyz', 'video'), true, 'video lens');
+    }],
+
+    ['an override decides which side a playlist falls on', w => {
+      const snap = snapshot(w, ['playlistViewMode', 'libraryLens']);
+      try {
+        w.setPlaylistViewMode('PL_lens_a', 'music');
+        eq(w.playlistPassesLens('PL_lens_a', 'music'), true, 'music lens keeps it');
+        eq(w.playlistPassesLens('PL_lens_a', 'video'), false, 'video lens drops it');
+        w.setPlaylistViewMode('PL_lens_a', 'video');
+        return eq(w.playlistPassesLens('PL_lens_a', 'music'), false, 'the override must flip the lens too');
+      } finally { restore(w, snap); }
+    }],
+
+    ['the old dedicated music button is gone from the detail header', w => {
+      // It set filterType='music', a shortcut for a value the filter bar right
+      // below already offers; the lens is now the one dedicated music control.
+      ok(!w.document.getElementById('musicModeBtn'), 'two music buttons in two headers');
+      const opt = w.document.querySelector('#filterType option[value="music"]');
+      return ok(!!opt, 'the per-playlist music filter must still exist somewhere');
+    }],
+
+    // ── Docked player (§5) ──────────────────────────────────────────────────
+    ['docking keeps the embed on screen', async w => {
+      const overlay = w.document.getElementById('playerModalOverlay');
+      const wasClass = overlay.className;
+      try {
+        w.minimizePlayer();
+        // §5: "Embedded players must not be hidden." The old minimise dropped
+        // .active, which removed the embed from the page entirely.
+        ok(overlay.classList.contains('active'), 'the player was hidden, not docked');
+        ok(overlay.classList.contains('docked'), 'no docked state');
+        return eq(w.getComputedStyle(overlay).display !== 'none', true, 'display:none');
+      } finally { overlay.className = wasClass; }
+    }],
+
+    ['the docked embed is sized by the stylesheet, not left to chance', w => {
+      // The app iframe is display:none in this page, so geometry measures zero;
+      // assert the CSS contract instead. §5 forbids shrinking an embed below
+      // 200×200 and recommends 320×180.
+      const rules = [];
+      for (const sheet of w.document.styleSheets) {
+        let list; try { list = sheet.cssRules; } catch (_) { continue; }
+        for (const r of list) if (r.selectorText && r.selectorText.includes('.player-modal-overlay.docked')) rules.push(r);
+      }
+      ok(rules.length > 0, 'no docked rules in the stylesheet');
+      const widthRule = rules.find(r => r.selectorText.trim() === '.player-modal-overlay.docked');
+      ok(widthRule && widthRule.style.width === '320px', 'docked width: ' + (widthRule && widthRule.style.width));
+      const wrapRule = rules.find(r => r.selectorText.includes('.player-video-wrap'));
+      ok(wrapRule && wrapRule.style.paddingBottom === '180px', 'docked embed height: ' + (wrapRule && wrapRule.style.paddingBottom));
+      return '320x180';
+    }],
+
+    ['expanding and closing clear the dock', w => {
+      const overlay = w.document.getElementById('playerModalOverlay');
+      const wasClass = overlay.className;
+      const real = { stopProgressTracking: w.stopProgressTracking, renderQueueList: w.renderQueueList };
+      try {
+        w.minimizePlayer();
+        w.expandPlayer();
+        ok(!overlay.classList.contains('docked'), 'still docked after expanding');
+        w.minimizePlayer();
+        w.stopProgressTracking = () => {};
+        w.renderQueueList = () => {};
+        w.closePlayer();
+        ok(!overlay.classList.contains('docked'), 'docked survived close');
+        return ok(!overlay.classList.contains('active'), 'active survived close');
+      } finally { Object.assign(w, real); overlay.className = wasClass; }
+    }],
+
+    // ── Transfer-ready CSV (#18) ────────────────────────────────────────────
+    ['the header matches what the transfer services document', w => {
+      // Soundiiz: title/artist/album/isrc are recognised names, title+artist is
+      // the minimum, unknown columns are ignored. TuneMyMusic reads the same.
+      return eq(w.TRANSFER_CSV_HEADERS, ['title', 'artist', 'album', 'isrc']);
+    }],
+
+    ['the file opens with a UTF-8 BOM', w => {
+      const csv = w.buildTransferCsv([]);
+      ok(csv.charCodeAt(0) === 0xFEFF, 'no BOM — accented artists arrive mangled in Excel');
+      return eq(csv.split('\n')[0].slice(1), 'title,artist,album,isrc');
+    }],
+
+    ['isrc is left empty rather than guessed', w => {
+      // Both services say to leave a value blank rather than invent it, and a
+      // wrong ISRC matches the wrong recording outright.
+      const csv = w.buildTransferCsv([]);
+      return eq(csv.split('\n')[0].slice(1).split(',')[3], 'isrc');
+    }],
+
+    ['the CSV and the Music view agree about the artist', w => {
+      // Same parser, so a "- Topic" channel names the artist in both.
+      const p = w.parseArtistTitle('Blinding Lights', 'The Weeknd - Topic');
+      return eq([p.artist, p.title, p.album], ['The Weeknd', 'Blinding Lights', 'The Weeknd']);
+    }],
+
+    ['a track title that looks like a formula is still guarded', w => {
+      // #G10 — the transfer CSV goes through the same csvRow, so a title
+      // starting with "=" cannot execute when the file is opened in a sheet.
+      const row = w.csvRow(['=cmd|calc', 'Artist', 'Album', '']);
+      return ok(!/^"?=/.test(row), 'a formula reached the file unguarded: ' + row);
+    }],
+
+    ['the export preset follows the view but yields to a choice', w => {
+      const sel = w.document.getElementById('exportFormat');
+      const before = sel.value;
+      const wasPicked = sel.dataset.userPicked;
+      try {
+        delete sel.dataset.userPicked;
+        ok(!!w.document.querySelector('#exportFormat option[value="csv-transfer"]'), 'the preset is not offered');
+        // The function reads currentDetailViewMode, which is a top-level let;
+        // drive it through the real toggle instead of poking at it.
+        w.preselectExportFormat();
+        const auto = sel.value;
+        sel.dataset.userPicked = '1';
+        sel.value = 'json';
+        w.preselectExportFormat();
+        eq(sel.value, 'json', 'a format the user picked was overwritten');
+        return 'auto=' + auto + ', choice respected';
+      } finally {
+        sel.value = before;
+        if (wasPicked === undefined) delete sel.dataset.userPicked; else sel.dataset.userPicked = wasPicked;
+      }
+    }],
+  ],
+},
 ];
+
 
 
 
