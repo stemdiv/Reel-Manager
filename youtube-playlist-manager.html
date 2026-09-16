@@ -1564,18 +1564,18 @@
         <div style="display:flex;gap:8px;align-items:stretch;margin-bottom:8px;">
           <input type="text" class="form-control" id="discoverSearchInput" data-i18n-placeholder="discover_placeholder" placeholder="e.g. psytrance ableton tutorial, react hooks advanced..."
             style="flex:1;" onkeydown="if(event.key==='Enter')performDiscoverSearch()">
-          <select class="form-control" id="discoverMaxResults" style="width:auto;min-width:80px;" data-i18n-title="discover_max_results_tooltip" title="Number of results">
+          <select class="form-control" id="discoverMaxResults" style="width:auto;min-width:80px;" data-i18n-title="discover_max_results_tooltip" title="Number of results" onchange="saveDiscoverFilters()">
             <option value="10" data-i18n="discover_top_10">Top 10</option>
             <option value="50" selected data-i18n="discover_top_50">Top 50</option>
             <option value="100" data-i18n="discover_top_100">Top 100</option>
           </select>
-          <select class="form-control" id="discoverOrder" style="width:auto;min-width:130px;" data-i18n-title="discover_order_tooltip" title="What YouTube returns">
+          <select class="form-control" id="discoverOrder" style="width:auto;min-width:130px;" data-i18n-title="discover_order_tooltip" title="What YouTube returns" onchange="saveDiscoverFilters()">
             <option value="relevance" data-i18n="discover_order_relevance">Relevance</option>
             <option value="viewCount" data-i18n="discover_order_views">Most viewed</option>
             <option value="date" data-i18n="discover_order_date">Newest</option>
             <option value="rating" data-i18n="discover_order_rating">Highest rated</option>
           </select>
-          <select class="form-control" id="discoverSortBy" style="width:auto;min-width:130px;" data-i18n-title="discover_sort_tooltip" title="Sort results by" onchange="if(discoverResults.length)resortDiscoverResults()">
+          <select class="form-control" id="discoverSortBy" style="width:auto;min-width:130px;" data-i18n-title="discover_sort_tooltip" title="Sort results by" onchange="saveDiscoverFilters(); if(discoverResults.length)resortDiscoverResults()">
             <option value="views" data-i18n="discover_sort_views">Most viewed</option>
             <option value="likes" data-i18n="discover_sort_likes">Most liked</option>
             <option value="comments" data-i18n="discover_sort_comments">Most commented</option>
@@ -1590,19 +1590,48 @@
         </div>
         <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:12px;color:var(--text2);">
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-            <input type="checkbox" id="discoverEmbeddable">
+            <input type="checkbox" id="discoverEmbeddable" onchange="saveDiscoverFilters()">
             <span data-i18n="discover_embeddable">Playable in the built-in player only</span>
           </label>
-          <select class="form-control" id="discoverDuration" style="width:auto;min-width:120px;font-size:12px;padding:4px 8px;" data-i18n-title="discover_duration_tooltip" title="Duration">
+          <select class="form-control" id="discoverDuration" style="width:auto;min-width:120px;font-size:12px;padding:4px 8px;" data-i18n-title="discover_duration_tooltip" title="Duration" onchange="saveDiscoverFilters()">
             <option value="any" data-i18n="discover_dur_any">Any length</option>
             <option value="short" data-i18n="discover_dur_short">Short (&lt; 4 min)</option>
             <option value="medium" data-i18n="discover_dur_medium">Medium (4–20 min)</option>
             <option value="long" data-i18n="discover_dur_long">Long (&gt; 20 min)</option>
           </select>
+          <select class="form-control" id="discoverDefinition" style="width:auto;min-width:110px;font-size:12px;padding:4px 8px;" data-i18n-title="discover_definition_tooltip" title="Definition" onchange="saveDiscoverFilters()">
+            <option value="any" data-i18n="discover_def_any">Any quality</option>
+            <option value="high" data-i18n="discover_def_high">HD only</option>
+          </select>
+          <select class="form-control" id="discoverCaption" style="width:auto;min-width:130px;font-size:12px;padding:4px 8px;" data-i18n-title="discover_caption_tooltip" title="Captions" onchange="saveDiscoverFilters()">
+            <option value="any" data-i18n="discover_cap_any">Any captions</option>
+            <option value="closedCaption" data-i18n="discover_cap_yes">Subtitled only</option>
+            <option value="none" data-i18n="discover_cap_no">Without subtitles</option>
+          </select>
+          <select class="form-control" id="discoverLicense" style="width:auto;min-width:140px;font-size:12px;padding:4px 8px;" data-i18n-title="discover_license_tooltip" title="Licence" onchange="saveDiscoverFilters()">
+            <option value="any" data-i18n="discover_lic_any">Any licence</option>
+            <option value="creativeCommon" data-i18n="discover_lic_cc">Creative Commons</option>
+            <option value="youtube" data-i18n="discover_lic_yt">Standard YouTube</option>
+          </select>
+          <select class="form-control" id="discoverPublishedAfter" style="width:auto;min-width:130px;font-size:12px;padding:4px 8px;" data-i18n-title="discover_published_tooltip" title="Published" onchange="saveDiscoverFilters()">
+            <option value="any" data-i18n="discover_pub_any">Any date</option>
+            <option value="24h" data-i18n="discover_pub_24h">Last 24 hours</option>
+            <option value="7d" data-i18n="discover_pub_7d">Last 7 days</option>
+            <option value="30d" data-i18n="discover_pub_30d">Last 30 days</option>
+            <option value="1y" data-i18n="discover_pub_1y">Last year</option>
+          </select>
+        </div>
+        <div id="discoverChannelRow" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-size:12px;color:var(--text2);">
+          <span data-i18n="discover_channel_label">Restricted to the channel</span>
+          <span id="discoverChannelName" style="font-weight:600;color:var(--text);"></span>
+          <input type="hidden" id="discoverChannelId" value="">
+          <button class="btn btn-secondary btn-sm" onclick="clearDiscoverChannel()">
+            <span data-i18n="discover_channel_clear">Search all of YouTube</span>
+          </button>
         </div>
         <div class="mono" style="font-size:10px;color:var(--text4);margin-bottom:20px;">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-          <span data-i18n="discover_quota_note">costs 100 quota units per search page (each page = max 50 results)</span>
+          <span data-i18n="discover_quota_note">costs 1 search call per page (100 per day, each page = max 50 results)</span>
         </div>
 
         <div id="discoverResults" style="display:none;">
@@ -2885,6 +2914,27 @@ const I18N = {
     help_subtitle: 'Guide complet de toutes les fonctionnalités de l\'application',
     help_quota_title: 'Quota API',
     help_quota_text: "L'API YouTube accorde trois quotas quotidiens distincts, partagés par tous les utilisateurs du projet : un pool de 10 000 unités pour les lectures et les écritures ordinaires (consultation : 1, création/modification : 50), 100 recherches (Découvrir) et 100 mises en ligne de vidéos. Épuiser l'un n'entame pas les deux autres. Les trois repartent de zéro à minuit, heure du Pacifique. Le détail des trois compteurs est dans l'infobulle du quota, en haut à droite.",
+    // Discover — filtres API (#73)
+    discover_definition_tooltip: "Qualité de l'image",
+    discover_def_any: 'Toute qualité',
+    discover_def_high: 'HD uniquement',
+    discover_caption_tooltip: 'Sous-titres',
+    discover_cap_any: 'Sous-titres indifférents',
+    discover_cap_yes: 'Sous-titrées uniquement',
+    discover_cap_no: 'Sans sous-titres',
+    discover_license_tooltip: 'Licence de la vidéo',
+    discover_lic_any: 'Toute licence',
+    discover_lic_cc: 'Creative Commons',
+    discover_lic_yt: 'Licence YouTube standard',
+    discover_published_tooltip: 'Date de publication',
+    discover_pub_any: 'Toute date',
+    discover_pub_24h: 'Dernières 24 h',
+    discover_pub_7d: 'Derniers 7 jours',
+    discover_pub_30d: 'Derniers 30 jours',
+    discover_pub_1y: 'Dernière année',
+    discover_channel_label: 'Limité à la chaîne',
+    discover_channel_clear: 'Chercher dans tout YouTube',
+    discover_channel_search: 'Chercher dans cette chaîne',
     quota_pool_label: 'Pool',
     quota_search_label: 'Recherches',
     quota_upload_label: 'Mises en ligne',
@@ -3022,7 +3072,7 @@ const I18N = {
     discover_sort_likes: 'Plus aimées',
     discover_sort_comments: 'Plus commentées',
     discover_search_btn: 'Rechercher',
-    discover_quota_note: 'coûte 100 unités de quota par page de recherche (max 50 résultats par page)',
+    discover_quota_note: 'coûte 1 appel de recherche par page — 100 par jour (max 50 résultats par page)',
     discover_videos_label: 'vidéos',
     discover_max_results_tooltip: 'Nombre de résultats',
     discover_sort_tooltip: 'Trier les résultats par',
@@ -3530,6 +3580,27 @@ const I18N = {
     help_subtitle: 'Complete guide to all application features',
     help_quota_title: 'API Quota',
     help_quota_text: 'The YouTube API grants three separate daily quotas, shared by everyone using the project: a pool of 10,000 units for ordinary reads and writes (read: 1, create/modify: 50), 100 searches (Discover), and 100 video uploads. Exhausting one leaves the other two untouched. All three reset at midnight Pacific Time. The full breakdown is in the quota tooltip, top right.',
+    // Discover — API filters (#73)
+    discover_definition_tooltip: 'Picture quality',
+    discover_def_any: 'Any quality',
+    discover_def_high: 'HD only',
+    discover_caption_tooltip: 'Captions',
+    discover_cap_any: 'Any captions',
+    discover_cap_yes: 'Subtitled only',
+    discover_cap_no: 'Without subtitles',
+    discover_license_tooltip: 'Video licence',
+    discover_lic_any: 'Any licence',
+    discover_lic_cc: 'Creative Commons',
+    discover_lic_yt: 'Standard YouTube licence',
+    discover_published_tooltip: 'Publication date',
+    discover_pub_any: 'Any date',
+    discover_pub_24h: 'Last 24 hours',
+    discover_pub_7d: 'Last 7 days',
+    discover_pub_30d: 'Last 30 days',
+    discover_pub_1y: 'Last year',
+    discover_channel_label: 'Restricted to the channel',
+    discover_channel_clear: 'Search all of YouTube',
+    discover_channel_search: 'Search this channel',
     quota_pool_label: 'Pool',
     quota_search_label: 'Searches',
     quota_upload_label: 'Uploads',
@@ -3667,7 +3738,7 @@ const I18N = {
     discover_sort_likes: 'Most liked',
     discover_sort_comments: 'Most commented',
     discover_search_btn: 'Search',
-    discover_quota_note: 'costs 100 quota units per search page (each page = max 50 results)',
+    discover_quota_note: 'costs 1 search call per page — 100 a day (each page = max 50 results)',
     discover_videos_label: 'videos',
     discover_max_results_tooltip: 'Number of results',
     discover_sort_tooltip: 'Sort results by',
@@ -3843,11 +3914,17 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.13.0'; // bump per release
+const APP_VERSION = '1.14.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.14.0', date: '2026-09-16', items: [
+    "#73 — les quatre filtres Decouvrir annonces livres en v1.6.0 partent enfin sur le reseau : videoDefinition, videoCaption, videoLicense, plus publishedAfter (24 h / 7 j / 30 j / 1 an) et un filtre de chaine. Ils figuraient au backlog mais performDiscoverSearch n envoyait que order, videoDuration et videoEmbeddable",
+    "regionCode et relevanceLanguage suivent la langue de l interface via une table LANG_REGION : une interface francaise recevait des resultats calques sur l IP, pas sur la langue",
+    "Les choix de filtres sont persistes, tri et ordre compris — ils etaient reinitialises a chaque rechargement. Le filtre de chaine, lui, reste volontairement temporaire",
+    "Depuis une carte Abonnements, Chercher dans cette chaine ouvre Decouvrir pre-filtre sur la chaine",
+  ]},
   { v: '1.13.0', date: '2026-09-16', items: [
     "#76 — le quota n est plus un pool unique. Depuis la revision d API de juin 2026, search.list et videos.insert ont chacun leur propre allocation quotidienne comptee en APPELS (100 par jour) et ne touchent plus au pool de 10 000 unites. L app comptait encore 100 unites par recherche et 1 600 par mise en ligne : une journee de Decouvrir paraissait avoir vide un quota qui etait en realite intact",
     "Trois compteurs persistes, remis a zero ensemble a minuit heure du Pacifique ; l ancienne cle quotaUnits est reprise dans le pool puis supprimee",
@@ -4798,6 +4875,9 @@ function init() {
   // Apply saved language
   currentLang = localStorage.getItem('appLang') || 'fr';
   applyLanguage(currentLang);
+  // Restore the Discover filter choices (#73) — sort and order included, which
+  // were being reset on every reload.
+  loadDiscoverFilters();
 
   // Cache-first display: if we have backup data, show the dashboard immediately
   // even before OAuth check — user sees data instantly on PWA/mobile revisit
@@ -9068,6 +9148,141 @@ document.addEventListener('click', (e) => {
 
 let discoverResults = []; // cached search results with video details
 
+// #73 — search.list takes regionCode and relevanceLanguage, and without them
+// YouTube answers from the caller's IP locale: a French UI got US results.
+// Extensible per the i18n brief (P1/P2 languages are listed even though the UI
+// only exposes fr/en today — adding a language must not mean editing this map).
+const LANG_REGION = {
+  fr: { regionCode: 'FR', relevanceLanguage: 'fr' },
+  en: { regionCode: 'US', relevanceLanguage: 'en' },
+  es: { regionCode: 'ES', relevanceLanguage: 'es' },
+  pt: { regionCode: 'BR', relevanceLanguage: 'pt' },
+  de: { regionCode: 'DE', relevanceLanguage: 'de' },
+  ja: { regionCode: 'JP', relevanceLanguage: 'ja' },
+  ko: { regionCode: 'KR', relevanceLanguage: 'ko' },
+};
+
+function langRegion(lang) {
+  return LANG_REGION[lang] || LANG_REGION.en;
+}
+
+// publishedAfter windows offered by the UI, in days.
+const DISCOVER_PUBLISHED_WINDOWS = { '24h': 1, '7d': 7, '30d': 30, '1y': 365 };
+
+// 'any' and anything unknown → null, i.e. the parameter is not sent at all.
+function publishedAfterRfc3339(window, now = Date.now()) {
+  const days = DISCOVER_PUBLISHED_WINDOWS[window];
+  if (!days) return null;
+  return new Date(now - days * 86400000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+// Build the search.list params from a plain filter object. Pure, so the exact
+// request shape is testable without a network call — #73 shipped four filters
+// in the backlog that were never actually put on the wire.
+function buildDiscoverSearchParams(f) {
+  const params = {
+    part: 'snippet',
+    q: f.query,
+    type: 'video',
+    maxResults: f.maxResults,
+    // #73: order is a real API parameter — it changes WHICH videos come back,
+    // not just their order. The sort dropdown only reorders what we fetched.
+    order: f.order,
+    // #57: fields= partial response — the Discover flow only extracts
+    // item.id.videoId from each search result, then fetches the rest via
+    // videos.list. Strip snippet entirely from the payload. Quota cost is
+    // still 1 search call per page regardless.
+    fields: 'nextPageToken,items(id(videoId))',
+  };
+
+  const lr = langRegion(f.lang);
+  params.regionCode = lr.regionCode;
+  params.relevanceLanguage = lr.relevanceLanguage;
+
+  // Every optional filter is omitted at 'any' — sending videoDefinition=any is
+  // legal but pointlessly narrows nothing, and it makes the cache key churn.
+  if (f.duration && f.duration !== 'any') params.videoDuration = f.duration;
+  if (f.definition && f.definition !== 'any') params.videoDefinition = f.definition;
+  if (f.caption && f.caption !== 'any') params.videoCaption = f.caption;
+  if (f.license && f.license !== 'any') params.videoLicense = f.license;
+  if (f.embeddable) params.videoEmbeddable = 'true';
+
+  const after = publishedAfterRfc3339(f.publishedAfter, f.now);
+  if (after) params.publishedAfter = after;
+
+  const channelId = (f.channelId || '').trim();
+  if (channelId) params.channelId = channelId;
+
+  if (f.pageToken) params.pageToken = f.pageToken;
+  return params;
+}
+
+// ── Filter persistence (#73) ────────────────────────────────────────────────
+// The channel filter is deliberately NOT persisted: it comes from a
+// Subscriptions card and silently restricting every later search to a channel
+// the user has forgotten about is a trap, not a convenience.
+const DISCOVER_FILTER_FIELDS = {
+  discoverMaxResults: '50',
+  discoverOrder: 'relevance',
+  discoverSortBy: 'views',
+  discoverDuration: 'any',
+  discoverDefinition: 'any',
+  discoverCaption: 'any',
+  discoverLicense: 'any',
+  discoverPublishedAfter: 'any',
+};
+
+function saveDiscoverFilters() {
+  const state = {};
+  for (const id of Object.keys(DISCOVER_FILTER_FIELDS)) {
+    const el = document.getElementById(id);
+    if (el) state[id] = el.value;
+  }
+  const emb = document.getElementById('discoverEmbeddable');
+  if (emb) state.discoverEmbeddable = emb.checked;
+  try { localStorage.setItem('discoverFilters', JSON.stringify(state)); } catch (_) {}
+}
+
+function loadDiscoverFilters() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('discoverFilters') || '{}') || {}; } catch (_) {}
+  for (const [id, fallback] of Object.entries(DISCOVER_FILTER_FIELDS)) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const want = saved[id];
+    // A value that no longer exists in the dropdown must not blank the control.
+    if (want !== undefined && [...el.options].some(o => o.value === want)) el.value = want;
+    else el.value = fallback;
+  }
+  const emb = document.getElementById('discoverEmbeddable');
+  if (emb) emb.checked = saved.discoverEmbeddable === true;
+}
+
+// Arrive at Discover from a Subscriptions card, pre-filtered to that channel.
+function searchChannelInDiscover(channelId, channelTitle) {
+  // The title is resolved here rather than interpolated into the card's onclick:
+  // channel names carry quotes and backslashes, and escaping them through an
+  // inline handler is how a stray apostrophe breaks the whole card.
+  const known = APP.subscriptions.find(s => s.snippet?.resourceId?.channelId === channelId);
+  const label = channelTitle || known?.snippet?.title || channelId || '';
+  switchView('discover');
+  const hidden = document.getElementById('discoverChannelId');
+  const row = document.getElementById('discoverChannelRow');
+  const name = document.getElementById('discoverChannelName');
+  if (hidden) hidden.value = channelId || '';
+  if (name) name.textContent = label;   // textContent, so no escaping question arises
+  if (row) row.style.display = channelId ? 'flex' : 'none';
+  const input = document.getElementById('discoverSearchInput');
+  if (input) input.focus();
+}
+
+function clearDiscoverChannel() {
+  const hidden = document.getElementById('discoverChannelId');
+  const row = document.getElementById('discoverChannelRow');
+  if (hidden) hidden.value = '';
+  if (row) row.style.display = 'none';
+}
+
 async function performDiscoverSearch() {
   const query = document.getElementById('discoverSearchInput').value.trim();
   if (!query) { showToast(t('discover_enter_topic'), 'error'); return; }
@@ -9077,6 +9292,13 @@ async function performDiscoverSearch() {
   const apiOrder = document.getElementById('discoverOrder').value;
   const durationFilter = document.getElementById('discoverDuration').value;
   const embeddableOnly = document.getElementById('discoverEmbeddable').checked;
+  // #73 — the four filters the backlog announced in v1.6.0 but never sent
+  const definitionFilter = document.getElementById('discoverDefinition')?.value || 'any';
+  const captionFilter = document.getElementById('discoverCaption')?.value || 'any';
+  const licenseFilter = document.getElementById('discoverLicense')?.value || 'any';
+  const publishedAfterFilter = document.getElementById('discoverPublishedAfter')?.value || 'any';
+  const channelIdFilter = document.getElementById('discoverChannelId')?.value || '';
+  saveDiscoverFilters();
 
   // #76 — search.list draws on its own daily allowance of 100 CALLS, not on the
   // unit pool. One page = one call, so the pre-flight counts pages, and an
@@ -9100,23 +9322,20 @@ async function performDiscoverSearch() {
     let pageToken = '';
 
     for (let p = 0; p < pages; p++) {
-      const params = {
-        part: 'snippet',
-        q: query,
-        type: 'video',
+      const params = buildDiscoverSearchParams({
+        query,
         maxResults: Math.min(50, maxResults - allVideoIds.length),
-        // #73: order is a real API parameter — it changes WHICH videos come back,
-        // not just their order. The sort dropdown only reorders what we fetched.
         order: apiOrder,
-        // #57: fields= partial response — the Discover flow only extracts
-        // item.id.videoId from each search result, then fetches the rest via
-        // videos.list. Strip snippet entirely from the payload. Quota cost is
-        // still 100 units per page (search.list is expensive regardless).
-        fields: 'nextPageToken,items(id(videoId))',
-      };
-      if (durationFilter && durationFilter !== 'any') params.videoDuration = durationFilter;
-      if (embeddableOnly) params.videoEmbeddable = 'true';
-      if (pageToken) params.pageToken = pageToken;
+        duration: durationFilter,
+        definition: definitionFilter,
+        caption: captionFilter,
+        license: licenseFilter,
+        publishedAfter: publishedAfterFilter,
+        embeddable: embeddableOnly,
+        channelId: channelIdFilter,
+        lang: currentLang,
+        pageToken,
+      });
 
       btn.innerHTML = `<span class="mono" style="font-size:11px;">${pages > 1 ? t('discover_searching_page', {current: p+1, total: pages}) : t('discover_searching')}</span>`;
       const searchData = await ytApi('search', params);
@@ -11356,6 +11575,7 @@ function renderSubscriptions() {
           </div>
         </div>
         <div class="sub-actions">
+          <button class="btn btn-secondary btn-sm" onclick="searchChannelInDiscover('${channelId}')" title="${t('discover_channel_search')}">${t('discover_channel_search')}</button>
           <button class="btn btn-secondary btn-sm" onclick="window.open('https://www.youtube.com/channel/${channelId}', '_blank')">Channel</button>
           <button class="btn btn-danger btn-sm" onclick="confirmUnsubscribe('${sub.id}', '${escapeHtml((sub.snippet?.title || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')">Unsubscribe</button>
         </div>

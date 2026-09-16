@@ -797,7 +797,158 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '#73', title: 'Discover filters actually reach the wire', note: 'the backlog announced four of these in v1.6.0; none were ever sent',
+  cases: [
+    ['a bare search sends region and language, nothing else', w => {
+      const p = w.buildDiscoverSearchParams({ query: 'techno', maxResults: 50, order: 'relevance', lang: 'fr' });
+      eq(p.regionCode, 'FR', 'regionCode');
+      eq(p.relevanceLanguage, 'fr', 'relevanceLanguage');
+      ok(!('videoDefinition' in p), 'videoDefinition sent at default');
+      ok(!('videoCaption' in p), 'videoCaption sent at default');
+      ok(!('videoLicense' in p), 'videoLicense sent at default');
+      ok(!('publishedAfter' in p), 'publishedAfter sent at default');
+      ok(!('channelId' in p), 'channelId sent when empty');
+      return Object.keys(p).sort().join(',');
+    }],
+
+    ['English UI searches the US in English', w => {
+      const p = w.buildDiscoverSearchParams({ query: 'x', maxResults: 50, order: 'date', lang: 'en' });
+      return eq([p.regionCode, p.relevanceLanguage], ['US', 'en']);
+    }],
+
+    ['an unknown UI language falls back to en/US rather than sending undefined', w => {
+      const p = w.buildDiscoverSearchParams({ query: 'x', maxResults: 50, order: 'date', lang: 'xx' });
+      return eq([p.regionCode, p.relevanceLanguage], ['US', 'en']);
+    }],
+
+    ['every filter set at once', w => {
+      const p = w.buildDiscoverSearchParams({
+        query: 'ableton', maxResults: 50, order: 'viewCount', lang: 'fr',
+        duration: 'long', definition: 'high', caption: 'closedCaption',
+        license: 'creativeCommon', embeddable: true, channelId: 'UC_abc',
+        publishedAfter: '7d', now: Date.UTC(2026, 8, 16, 12, 0, 0),
+      });
+      return eq({
+        videoDuration: p.videoDuration, videoDefinition: p.videoDefinition,
+        videoCaption: p.videoCaption, videoLicense: p.videoLicense,
+        videoEmbeddable: p.videoEmbeddable, channelId: p.channelId,
+        publishedAfter: p.publishedAfter,
+      }, {
+        videoDuration: 'long', videoDefinition: 'high',
+        videoCaption: 'closedCaption', videoLicense: 'creativeCommon',
+        videoEmbeddable: 'true', channelId: 'UC_abc',
+        publishedAfter: '2026-09-09T12:00:00Z',
+      });
+    }],
+
+    ['"any" is an absence, not a value', w => {
+      const p = w.buildDiscoverSearchParams({
+        query: 'x', maxResults: 50, order: 'relevance', lang: 'fr',
+        duration: 'any', definition: 'any', caption: 'any', license: 'any',
+        publishedAfter: 'any', embeddable: false, channelId: '   ',
+      });
+      const leaked = ['videoDuration', 'videoDefinition', 'videoCaption', 'videoLicense',
+                      'videoEmbeddable', 'publishedAfter', 'channelId'].filter(k => k in p);
+      return eq(leaked, [], 'parameters sent at "any"');
+    }],
+
+    ['publishedAfter is RFC 3339 with no milliseconds', w => {
+      const now = Date.UTC(2026, 0, 31, 8, 30, 0);
+      return eq([
+        w.publishedAfterRfc3339('24h', now),
+        w.publishedAfterRfc3339('30d', now),
+        w.publishedAfterRfc3339('1y', now),
+        w.publishedAfterRfc3339('any', now),
+        w.publishedAfterRfc3339(undefined, now),
+      ], [
+        '2026-01-30T08:30:00Z',
+        '2026-01-01T08:30:00Z',
+        '2025-01-31T08:30:00Z',
+        null,
+        null,
+      ]);
+    }],
+
+    ['the page token rides along when paginating', w => {
+      const p = w.buildDiscoverSearchParams({ query: 'x', maxResults: 50, order: 'relevance', lang: 'fr', pageToken: 'TOKEN2' });
+      return eq(p.pageToken, 'TOKEN2');
+    }],
+
+    ['filters survive a reload, sort and order included', w => {
+      const snap = snapshot(w, ['discoverFilters']);
+      const ids = ['discoverMaxResults', 'discoverOrder', 'discoverSortBy', 'discoverDuration',
+                   'discoverDefinition', 'discoverCaption', 'discoverLicense', 'discoverPublishedAfter'];
+      const before = {};
+      ids.forEach(id => { before[id] = w.document.getElementById(id).value; });
+      const emb = w.document.getElementById('discoverEmbeddable');
+      const embBefore = emb.checked;
+      try {
+        w.document.getElementById('discoverOrder').value = 'viewCount';
+        w.document.getElementById('discoverSortBy').value = 'likes';
+        w.document.getElementById('discoverDefinition').value = 'high';
+        w.document.getElementById('discoverPublishedAfter').value = '7d';
+        emb.checked = true;
+        w.saveDiscoverFilters();
+        // wipe the controls, the way a fresh page load would
+        ids.forEach(id => { w.document.getElementById(id).selectedIndex = 0; });
+        emb.checked = false;
+        w.loadDiscoverFilters();
+        return eq([
+          w.document.getElementById('discoverOrder').value,
+          w.document.getElementById('discoverSortBy').value,
+          w.document.getElementById('discoverDefinition').value,
+          w.document.getElementById('discoverPublishedAfter').value,
+          emb.checked,
+        ], ['viewCount', 'likes', 'high', '7d', true]);
+      } finally {
+        ids.forEach(id => { w.document.getElementById(id).value = before[id]; });
+        emb.checked = embBefore;
+        restore(w, snap);
+      }
+    }],
+
+    ['a saved value the dropdown no longer offers falls back instead of blanking it', w => {
+      const snap = snapshot(w, ['discoverFilters']);
+      const el = w.document.getElementById('discoverDuration');
+      const before = el.value;
+      try {
+        w.localStorage.setItem('discoverFilters', JSON.stringify({ discoverDuration: 'epic' }));
+        w.loadDiscoverFilters();
+        return eq(el.value, 'any');
+      } finally { el.value = before; restore(w, snap); }
+    }],
+
+    ['the channel filter is deliberately not persisted', w => {
+      const snap = snapshot(w, ['discoverFilters']);
+      const hidden = w.document.getElementById('discoverChannelId');
+      const before = hidden.value;
+      try {
+        hidden.value = 'UC_sticky';
+        w.saveDiscoverFilters();
+        const saved = JSON.parse(w.localStorage.getItem('discoverFilters'));
+        return eq(saved.discoverChannelId, undefined, 'a forgotten channel filter would silently narrow every later search');
+      } finally { hidden.value = before; restore(w, snap); }
+    }],
+
+    ['picking a channel fills the filter and shows the row', w => {
+      const hidden = w.document.getElementById('discoverChannelId');
+      const row = w.document.getElementById('discoverChannelRow');
+      const before = hidden.value;
+      const awkward = "L'Atelier \\ Son";   // the exact shape that broke an inline onclick
+      try {
+        w.searchChannelInDiscover('UC_xyz', awkward);
+        eq(hidden.value, 'UC_xyz', 'channelId');
+        eq(w.document.getElementById('discoverChannelName').textContent, awkward, 'quotes and backslashes survive');
+        eq(row.style.display, 'flex', 'row hidden');
+        w.clearDiscoverChannel();
+        return eq([hidden.value, row.style.display], ['', 'none'], 'after clear');
+      } finally { hidden.value = before; }
+    }],
+  ],
+},
 ];
+
 
 // ════════════════════════════════════════════════════════════════════════
 // Runner
