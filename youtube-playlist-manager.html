@@ -3914,11 +3914,15 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.14.0'; // bump per release
+const APP_VERSION = '1.14.1'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.14.1', date: '2026-09-16', items: [
+    "videoCategories.list suivait FR/fr en dur : une interface anglaise recevait les noms de categories en francais, alors que tous les autres libelles de categorie suivaient deja la langue de l interface. regionCode et hl viennent maintenant de la table LANG_REGION",
+    "Au changement de langue, les listes deroulantes de categories sont re-libellees sur place — elles gardaient les anciens libelles jusqu a ce qu autre chose reconstruise la vue",
+  ]},
   { v: '1.14.0', date: '2026-09-16', items: [
     "#73 — les quatre filtres Decouvrir annonces livres en v1.6.0 partent enfin sur le reseau : videoDefinition, videoCaption, videoLicense, plus publishedAfter (24 h / 7 j / 30 j / 1 an) et un filtre de chaine. Ils figuraient au backlog mais performDiscoverSearch n envoyait que order, videoDuration et videoEmbeddable",
     "regionCode et relevanceLanguage suivent la langue de l interface via une table LANG_REGION : une interface francaise recevait des resultats calques sur l IP, pas sur la langue",
@@ -6075,6 +6079,19 @@ function renderSkinPicker() {
   `;
 }
 
+// Category dropdowns are built once with names resolved at render time, so a
+// language switch left French labels sitting in an English UI until the view
+// was rebuilt by something else. Rebuild them in place, selection preserved
+// (each builder already restores sel.value).
+function refreshCategoryLabels() {
+  const builders = ['refreshCategoryFilterOptions', 'gsRefreshCategoryOptions',
+                    'populateMoveCategoryOptions', 'populateWatchCategoryOptions'];
+  for (const name of builders) {
+    try { if (typeof window[name] === 'function') window[name](); }
+    catch (_) { /* a dropdown that is not on screen must not break the toggle */ }
+  }
+}
+
 function toggleLanguage() {
   const langs = Object.keys(I18N);
   const idx = langs.indexOf(currentLang);
@@ -6083,6 +6100,7 @@ function toggleLanguage() {
   updateSidebarLabels();
   // Refresh dynamic views
   if (APP.playlists.length) refreshPlaylistsList();
+  refreshCategoryLabels();
 }
 
 function toggleSidebar() {
@@ -11051,12 +11069,19 @@ async function loadAllDeckVideos() {
   }
 }
 
-async function loadVideoCategories() {
+// The single videoCategories.list call in the app. regionCode/hl were pinned to
+// FR/fr, so an English UI got French category names back from YouTube — while
+// every other category label in the app already followed currentLang via
+// getCategoryName(). Reuses the LANG_REGION table from #73.
+// The API cache is keyed on the full URL, so a different hl is a different
+// entry: switching language cannot serve the previous language's labels.
+async function loadVideoCategories(lang) {
+  const lr = langRegion(lang || currentLang);
   try {
     const data = await ytApi('videoCategories', {
       part: 'snippet',
-      regionCode: 'FR',
-      hl: 'fr'
+      regionCode: lr.regionCode,
+      hl: lr.relevanceLanguage,
     });
     return data.items || [];
   } catch (err) {

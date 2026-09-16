@@ -947,7 +947,83 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'videoCategories', title: 'Category names follow the UI language', note: 'regionCode/hl were pinned to FR/fr while every other label followed currentLang',
+  cases: [
+    ['an English UI asks YouTube for US/en', async w => {
+      const real = w.ytApi;
+      let seen = null;
+      try {
+        w.ytApi = async (endpoint, params) => { seen = { endpoint, params }; return { items: [] }; };
+        await w.loadVideoCategories('en');
+        eq(seen.endpoint, 'videoCategories', 'endpoint');
+        return eq([seen.params.regionCode, seen.params.hl], ['US', 'en']);
+      } finally { w.ytApi = real; }
+    }],
+
+    ['a French UI asks for FR/fr', async w => {
+      const real = w.ytApi;
+      let seen = null;
+      try {
+        w.ytApi = async (endpoint, params) => { seen = params; return { items: [] }; };
+        await w.loadVideoCategories('fr');
+        return eq([seen.regionCode, seen.hl], ['FR', 'fr']);
+      } finally { w.ytApi = real; }
+    }],
+
+    ['with no argument it follows currentLang, not a hard-coded FR', async w => {
+      const real = w.ytApi;
+      const beforeLang = w.currentLang;
+      let seen = null;
+      try {
+        w.applyLanguage('en');
+        w.ytApi = async (endpoint, params) => { seen = params; return { items: [] }; };
+        await w.loadVideoCategories();
+        return eq([seen.regionCode, seen.hl], ['US', 'en']);
+      } finally { w.ytApi = real; w.applyLanguage(beforeLang); }
+    }],
+
+    ['the two languages are distinct cache entries', async w => {
+      // The cache key is the full request URL, so hl=fr and hl=en cannot collide.
+      const real = w.ytApi;
+      const urls = [];
+      try {
+        w.ytApi = async (endpoint, params) => {
+          const u = new URL('https://www.googleapis.com/youtube/v3/' + endpoint);
+          Object.keys(params).forEach(k => u.searchParams.append(k, params[k]));
+          urls.push(u.toString());
+          return { items: [] };
+        };
+        await w.loadVideoCategories('fr');
+        await w.loadVideoCategories('en');
+        ok(urls[0] !== urls[1], 'same cache key for both languages: ' + urls[0]);
+        return 'distinct keys';
+      } finally { w.ytApi = real; }
+    }],
+
+    ['category labels in the app already follow the UI language', w => {
+      return eq([w.getCategoryName('10', 'fr'), w.getCategoryName('10', 'en')], ['Musique', 'Music']);
+    }],
+
+    ['switching language re-labels the dropdowns in place', w => {
+      const beforeLang = w.currentLang;
+      const sel = w.document.getElementById('gsCategory');
+      if (!sel) throw new Error('gsCategory not in the DOM');
+      try {
+        w.applyLanguage('fr');
+        w.gsRefreshCategoryOptions();
+        const fr = [...sel.options].map(o => o.textContent).join('|');
+        w.toggleLanguage();               // fr → en
+        const en = [...sel.options].map(o => o.textContent).join('|');
+        ok(fr !== en, 'the dropdown kept its old labels: ' + fr);
+        ok(/Music/.test(en) && !/Musique/.test(en), 'not relabelled to English: ' + en);
+        return 'relabelled';
+      } finally { w.applyLanguage(beforeLang); w.gsRefreshCategoryOptions(); }
+    }],
+  ],
+},
 ];
+
 
 
 // ════════════════════════════════════════════════════════════════════════
