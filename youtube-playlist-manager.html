@@ -1641,6 +1641,14 @@
           </button>
           <a id="playlistDetailYTLink" href="#" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" data-i18n-title="detail_view_youtube" title="Ouvrir sur YouTube">▶ YouTube</a>
         </div>
+        <div id="playlistCoverRow" style="display:none;align-items:center;gap:14px;margin-bottom:14px;">
+          <img id="playlistCoverImg" alt="" style="width:88px;height:88px;border-radius:var(--r-lg,10px);object-fit:cover;background:var(--surface3);" referrerpolicy="no-referrer">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm dash-write-action" onclick="document.getElementById('playlistCoverInput').click()" data-i18n="cover_change">Change cover</button>
+            <button class="btn btn-secondary btn-sm dash-write-action" id="playlistCoverRemove" onclick="onRemovePlaylistCover()" style="display:none;" data-i18n="cover_remove">Remove</button>
+            <input type="file" id="playlistCoverInput" accept="image/jpeg,image/png" style="display:none;" onchange="onPlaylistCoverPicked(this)">
+          </div>
+        </div>
         <div id="musicHintBanner" style="display:none;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;border:1px solid var(--accent-line, rgba(255,45,85,.35));background:var(--accent-soft, rgba(255,45,85,.08));border-radius:var(--r-lg, 10px);font-size:12.5px;">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
           <span style="flex:1;" data-i18n="music_hint_mixed">Looks like music — switch to the Music view?</span>
@@ -3299,6 +3307,16 @@ const I18N = {
     discover_channel_playlists_title: 'Playlists de {channel} — {count}',
     discover_count: '{count} vidéos',
     discover_count_unknown: 'nombre inconnu',
+    // Couvertures de playlist (#I1)
+    cover_change: 'Changer la couverture',
+    cover_remove: 'Retirer',
+    cover_remove_confirm: 'Retirer la couverture personnalisée ? La playlist reprendra la miniature de sa première vidéo.',
+    cover_uploading: 'Envoi de la couverture…',
+    cover_updated: 'Couverture mise à jour',
+    cover_removed: 'Couverture retirée',
+    cover_too_large: "L'image dépasse 2 Mo — choisissez un fichier plus léger.",
+    cover_bad_type: 'Format non accepté — JPEG ou PNG uniquement.',
+    cover_bad_image: "Cette image n'a pas pu être lue.",
     quota_pool_label: 'Pool',
     quota_search_label: 'Recherches',
     quota_upload_label: 'Mises en ligne',
@@ -4065,6 +4083,16 @@ const I18N = {
     discover_channel_playlists_title: 'Playlists from {channel} — {count}',
     discover_count: '{count} videos',
     discover_count_unknown: 'count unknown',
+    // Playlist covers (#I1)
+    cover_change: 'Change cover',
+    cover_remove: 'Remove',
+    cover_remove_confirm: 'Remove the custom cover? The playlist goes back to the thumbnail of its first video.',
+    cover_uploading: 'Uploading the cover…',
+    cover_updated: 'Cover updated',
+    cover_removed: 'Cover removed',
+    cover_too_large: 'The image is over 2 MB — pick a lighter file.',
+    cover_bad_type: 'Unsupported format — JPEG or PNG only.',
+    cover_bad_image: 'That image could not be read.',
     quota_pool_label: 'Pool',
     quota_search_label: 'Searches',
     quota_upload_label: 'Uploads',
@@ -4379,11 +4407,17 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.26.0'; // bump per release
+const APP_VERSION = '1.27.0'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.0', date: '2026-09-16', items: [
+    "#I1 — couvertures de playlist personnalisees via la ressource playlistImages, derriere le drapeau FEATURES.playlistCovers. La couverture s affiche en tete de la playlist et remplace la miniature sur la carte de bibliotheque quand elle existe",
+    "CORRECTIF DE SPECIFICATION — le brief prevoyait un redimensionnement en 1280 x 720. La documentation officielle n accepte qu un ratio 1:1 carre : un envoi en 16:9 aurait ete refuse. Le recadrage est donc carre et centre, plafonne a 1280 px, sans jamais agrandir une petite image",
+    "Le champ snippet.type est obligatoire et Google n en documente pas les valeurs. Plutot que de deviner, l app relit le type que rapporte une couverture existante et ne retombe sur une constante que pour une playlist qui n en a pas — et si l API refuse, son message est affiche tel quel",
+    "Une reponse aucune couverture est memorisee : redemander a chaque visite couterait une unite pour s entendre repeter la meme chose. Un echec passager, lui, est reessaye",
+  ]},
   { v: '1.26.0', date: '2026-09-16', items: [
     "Decouvrir cherche desormais des playlists et des chaines, pas seulement des videos. Meme cout qu une recherche de videos — un appel du bucket recherche par page — et les resultats se branchent sur les favoris existants : un bouton Ajouter aux favoris par playlist trouvee",
     "Les filtres propres aux videos (duree, definition, sous-titres, licence, integrabilite) ne sont plus envoyes quand on cherche des playlists ou des chaines : l API les ignore, et une requete qui transporte des parametres destines a etre jetes est une requete que plus personne ne sait relire",
@@ -5131,6 +5165,7 @@ const YT_QUOTA_COSTS = {
   'i18nRegions.GET': 1,
   'members.GET': 1,
   'membershipsLevels.GET': 1,
+  'playlistImages.GET': 1,        // #I1 — custom playlist covers
   'playlistItems.GET': 1,
   'playlists.GET': 1,
   'search.GET': 1,                // own bucket: 1 CALL per page out of 100/day (pagination multiplies)
@@ -5157,6 +5192,9 @@ const YT_QUOTA_COSTS = {
   'playlistItems.POST': 50,
   'playlistItems.PUT': 50,
   'playlistItems.DELETE': 50,
+  'playlistImages.POST': 50,      // #I1 — documented at 50 units
+  'playlistImages.PUT': 50,
+  'playlistImages.DELETE': 50,
   'playlists.POST': 50,
   'playlists.PUT': 50,
   'playlists.DELETE': 50,
@@ -5383,6 +5421,7 @@ const API_CACHE_CONFIG = {
     'members.GET':             5 * 60_000,
     'membershipsLevels.GET':   60 * 60_000,
     'playlistItems.GET':       30_000,        // 30s — items can change during use
+    'playlistImages.GET':      60 * 60_000,   // 1 hour — a cover changes when the owner changes it
     'playlists.GET':           60_000,        // 1 min
     'search.GET':              5 * 60_000,    // 5 min — only 100 CALLS a day (#76), cache aggressively
     'subscriptions.GET':       5 * 60_000,
@@ -6112,6 +6151,7 @@ function estimateQuotaCost(action, count) {
     'clean_ghosts': count * DELETE,
     'rename_playlists': count * UPDATE_PLAYLIST,
     'subscribe': count * YT_QUOTA_COSTS['subscriptions.POST'],   // #I2 — 50 per channel
+    'cover_set': count * YT_QUOTA_COSTS['playlistImages.POST'],  // #I1 — 50 per cover
     'discover_create': count * INSERT + INSERT_PLAYLIST,  // N inserts into new playlist + 1 playlist creation
     'discover_search_pages': count * SEARCH_PAGE,         // #76: cost = pages × 1 CALL, charged to the search bucket
     'caption_upload': count * CAPTION_INSERT,             // ⚠️ very expensive: 400/track
@@ -9515,7 +9555,7 @@ function refreshPlaylistsList() {
     return `
       <div class="playlist-card${isBookmark ? ' is-bookmark' : ''}" data-playlist-id="${pl.id}" onclick="openPlaylistDetail('${pl.id}')">
         ${bookmarkBadge}
-        <img src="${pickThumb(pl.snippet.thumbnails) || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22226%22 height=%22226%22%3E%3Crect fill=%22%23303030%22 width=%22226%22 height=%22226%22/%3E%3C/svg%3E'}" class="playlist-thumbnail" alt="${escapeHtml(pl.snippet.title)}">
+        <img src="${playlistCovers[pl.id]?.url || pickThumb(pl.snippet.thumbnails) || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22226%22 height=%22226%22%3E%3Crect fill=%22%23303030%22 width=%22226%22 height=%22226%22/%3E%3C/svg%3E'}" class="playlist-thumbnail" alt="${escapeHtml(pl.snippet.title)}">
         <div class="playlist-info">
           <div class="playlist-title" title="${escapeHtml(pl.snippet.title)}">${escapeHtml(pl.snippet.title)}</div>
           <div class="playlist-stats">${videoCount} ${t('stats_videos_word')}${playlistViewsLabel(pl.id)}</div>
@@ -9609,6 +9649,7 @@ async function openPlaylistDetail(playlistId) {
   currentDetailViewMode = effectiveViewMode(playlistId, currentDetailVerdict.verdict);
   preselectExportFormat();
   applyDetailViewMode();
+  renderPlaylistCover(playlistId);
 
   renderDetailStats();
   resetVideoFilters();
@@ -9810,6 +9851,227 @@ async function ensureClassificationData(videos) {
     try { refreshCategoryFilterOptions(); } catch (e) {}
     return need.length;
   } catch (e) { console.warn('ensureClassificationData', e); return 0; }
+}
+
+// ── Custom playlist covers (#I1, playlistImages) ────────────────────────────
+// Behind a flag: this is a differentiator meant to sit behind a plan later, and
+// there is no backend to gate on, so the flag is the whole gate for now.
+var FEATURES = { playlistCovers: true };
+
+// Verified against the official playlistImages documentation before writing
+// any of this, because the brief is wrong about the shape:
+//   • insert is POST https://www.googleapis.com/youtube/v3/playlistImages,
+//     quota cost 50, and takes a media upload
+//   • the accepted aspect ratio is 1:1 SQUARE — not the 16:9 the brief assumed.
+//     A 1280×720 upload would be rejected, so the client-side resize produces a
+//     square with a centre crop
+//   • accepted MIME types are image/jpeg and image/png, under 2 MB
+//   • the body must carry snippet.playlistId and snippet.type; width and
+//     height are optional
+//
+// snippet.type is required and Google does not document its allowed values.
+// Rather than hardcode a guess, the app reuses whatever type an existing cover
+// reports and only falls back to this constant for a playlist that has none —
+// and if the API rejects it, its own message is surfaced verbatim instead of
+// being translated into something reassuring.
+const PLAYLIST_COVER_TYPE_FALLBACK = 'hero';
+const PLAYLIST_COVER_SIZE = 1280;         // square, per the documented 1:1 ratio
+const PLAYLIST_COVER_MAX_BYTES = 2 * 1024 * 1024;
+const PLAYLIST_COVER_MIME = ['image/jpeg', 'image/png'];
+
+const playlistCovers = {};   // playlistId -> { url, type, id } | null when known-absent
+
+/** 1 unit, cached an hour. Returns null when the playlist has no custom cover. */
+async function loadPlaylistCover(playlistId) {
+  if (!FEATURES.playlistCovers || !playlistId || !APP.accessToken) return null;
+  if (playlistId in playlistCovers) return playlistCovers[playlistId];
+  try {
+    const data = await ytApi('playlistImages', { part: 'snippet', playlistId });
+    const item = (data.items || [])[0] || null;
+    playlistCovers[playlistId] = item ? {
+      id: item.id,
+      type: item.snippet?.type || PLAYLIST_COVER_TYPE_FALLBACK,
+      url: pickThumb(item.snippet?.thumbnails, 'hero') || item.snippet?.url || '',
+    } : null;
+  } catch (err) {
+    // A cover we cannot read is not worth failing a playlist over; leave the
+    // entry unset so a later visit can retry.
+    log('warn', 'api', 'playlist cover lookup failed', { msg: err.message });
+    return null;
+  }
+  return playlistCovers[playlistId];
+}
+
+/**
+ * Square-crop and downscale in the browser. The API accepts 1:1 only, so an
+ * ordinary 16:9 screenshot has to be cropped rather than squashed — centre crop
+ * keeps the subject where the user put it.
+ * Returns a Blob, or null when there is nothing to do.
+ */
+// The decision — how much to crop and how big to draw — is arithmetic, and is
+// kept out of the drawing so it can be reasoned about (and tested) without a
+// canvas. Returns null when there is no usable image.
+function coverCropGeometry(width, height, cap) {
+  const w = Number(width) || 0;
+  const h = Number(height) || 0;
+  const side = Math.min(w, h);
+  if (!side || side <= 0) return null;
+  return {
+    side,
+    sx: (w - side) / 2,          // centre crop: keep the subject where the user put it
+    sy: (h - side) / 2,
+    target: Math.min(cap, side), // never upscale — it only makes a small image blurry
+  };
+}
+
+// JPEG and PNG are the only documented accepted types; anything else is
+// re-encoded rather than forwarded as-is.
+function coverMimeFor(mime) {
+  return mime === 'image/png' ? 'image/png' : 'image/jpeg';
+}
+
+function coverCanvasResize(img, size, mime, quality) {
+  const geo = coverCropGeometry(img.naturalWidth || img.width, img.naturalHeight || img.height, size);
+  if (!geo) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = geo.target;
+  canvas.height = geo.target;
+  canvas.getContext('2d').drawImage(img, geo.sx, geo.sy, geo.side, geo.side, 0, 0, geo.target, geo.target);
+  return { canvas, mime: coverMimeFor(mime), quality: quality ?? 0.9, target: geo.target };
+}
+function coverBlobFromFile(file) {
+  return new Promise((resolve, reject) => {
+    if (!PLAYLIST_COVER_MIME.includes(file.type)) {
+      return reject(new Error(t('cover_bad_type')));
+    }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const plan = coverCanvasResize(img, PLAYLIST_COVER_SIZE, file.type);
+      if (!plan) return reject(new Error(t('cover_bad_image')));
+      plan.canvas.toBlob(
+        blob => blob ? resolve(blob) : reject(new Error(t('cover_bad_image'))),
+        plan.mime, plan.quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(t('cover_bad_image'))); };
+    img.src = url;
+  });
+}
+
+/**
+ * The multipart/related body the upload endpoint expects: a JSON metadata part
+ * followed by the image. Built as a function so its exact shape is testable
+ * without uploading anything.
+ */
+function buildCoverMultipart(boundary, metadata, blobType) {
+  return {
+    contentType: `multipart/related; boundary=${boundary}`,
+    head: `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
+          JSON.stringify(metadata) + `\r\n--${boundary}\r\nContent-Type: ${blobType}\r\n\r\n`,
+    tail: `\r\n--${boundary}--\r\n`,
+  };
+}
+
+async function uploadPlaylistCover(playlistId, file) {
+  if (file.size > PLAYLIST_COVER_MAX_BYTES) throw new Error(t('cover_too_large'));
+  const blob = await coverBlobFromFile(file);
+  if (blob.size > PLAYLIST_COVER_MAX_BYTES) throw new Error(t('cover_too_large'));
+
+  const existing = playlistCovers[playlistId];
+  const method = existing ? 'PUT' : 'POST';
+  const metadata = { snippet: { playlistId, type: existing?.type || PLAYLIST_COVER_TYPE_FALLBACK } };
+  if (existing?.id) metadata.id = existing.id;
+
+  const boundary = 'reel' + Math.random().toString(36).slice(2);
+  const part = buildCoverMultipart(boundary, metadata, blob.type);
+  const url = `https://www.googleapis.com/upload/youtube/v3/playlistImages?part=snippet&uploadType=multipart`;
+
+  const res = await fetch(url, {
+    method,
+    headers: { 'Authorization': `Bearer ${APP.accessToken}`, 'Content-Type': part.contentType },
+    body: new Blob([part.head, blob, part.tail]),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    // Surfaced verbatim: snippet.type has no documented enum, so if the value
+    // is wrong the API's own words are the only useful diagnosis.
+    throw new Error(err?.error?.message || `HTTP ${res.status}`);
+  }
+  APP.apiCalls++;
+  chargeQuota('playlistImages', method);
+  saveQuotaState();
+  updateQuotaIndicator();
+
+  const body = await res.json().catch(() => null);
+  playlistCovers[playlistId] = {
+    id: body?.id || existing?.id,
+    type: body?.snippet?.type || metadata.snippet.type,
+    url: pickThumb(body?.snippet?.thumbnails, 'hero') || '',
+  };
+  return playlistCovers[playlistId];
+}
+
+async function removePlaylistCover(playlistId) {
+  const existing = playlistCovers[playlistId];
+  if (!existing?.id) return false;
+  await ytApi('playlistImages', { id: existing.id }, 'DELETE');
+  playlistCovers[playlistId] = null;
+  return true;
+}
+
+async function renderPlaylistCover(playlistId) {
+  const row = document.getElementById('playlistCoverRow');
+  if (!row) return;
+  const playlist = APP.playlists.find(p => p.id === playlistId);
+  // A borrowed playlist is not ours to re-cover.
+  if (!FEATURES.playlistCovers || playlist?._isBookmark) { row.style.display = 'none'; return; }
+
+  row.style.display = 'flex';
+  const cover = await loadPlaylistCover(playlistId);
+  if (playlistId !== currentDetailPlaylistId) return;   // the user moved on
+  const img = document.getElementById('playlistCoverImg');
+  const rm = document.getElementById('playlistCoverRemove');
+  const fallback = pickThumb(playlist?.snippet?.thumbnails, 'hero');
+  if (img) img.src = cover?.url || fallback || '';
+  if (rm) rm.style.display = cover ? '' : 'none';
+}
+
+async function onPlaylistCoverPicked(input) {
+  const file = input.files && input.files[0];
+  input.value = '';   // so picking the same file twice still fires
+  if (!file || !currentDetailPlaylistId) return;
+  if (APP.readOnlyMode) { showToast(t('error_read_only'), 'warning'); return; }
+  if (!(await ensureWriteScope())) return;
+  if (!checkQuotaBudget(t('cover_change'), 'cover_set', 1)) return;
+
+  const playlistId = currentDetailPlaylistId;
+  try {
+    showToast(t('cover_uploading'), 'info');
+    await uploadPlaylistCover(playlistId, file);
+    showToast(t('cover_updated'), 'success');
+    log('info', 'action', 'playlist cover set');
+    renderPlaylistCover(playlistId);
+    refreshPlaylistsList();
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+  }
+}
+
+async function onRemovePlaylistCover() {
+  if (!currentDetailPlaylistId) return;
+  if (APP.readOnlyMode) { showToast(t('error_read_only'), 'warning'); return; }
+  if (!(await ensureWriteScope())) return;
+  if (!confirm(t('cover_remove_confirm'))) return;
+  const playlistId = currentDetailPlaylistId;
+  try {
+    await removePlaylistCover(playlistId);
+    showToast(t('cover_removed'), 'success');
+    renderPlaylistCover(playlistId);
+    refreshPlaylistsList();
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+  }
 }
 
 // ── Shorts (#68) ────────────────────────────────────────────────────────────

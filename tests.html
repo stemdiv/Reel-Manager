@@ -2544,7 +2544,134 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '#I1', title: 'Custom playlist covers', note: 'the API accepts 1:1 square only — the brief assumed 16:9, so the resize crops rather than squashes',
+  cases: [
+    ['the four methods are costed as documented', w => {
+      eq(w.getQuotaCost('playlistImages', 'GET'), { bucket: 'pool', cost: 1 }, 'list');
+      eq(w.getQuotaCost('playlistImages', 'POST'), { bucket: 'pool', cost: 50 }, 'insert');
+      eq(w.getQuotaCost('playlistImages', 'PUT'), { bucket: 'pool', cost: 50 }, 'update');
+      eq(w.getQuotaCost('playlistImages', 'DELETE'), { bucket: 'pool', cost: 50 }, 'delete');
+      return eq(w.estimateQuotaCost('cover_set', 1), 50, 'pre-flight estimate');
+    }],
+
+    ['covers are cached for an hour, not for a minute', w =>
+      eq(w.cacheTtlFor('playlistImages', 'GET'), 3600000)],
+
+    ['a 16:9 image is cropped square, not squashed', w => {
+      // The documented accepted aspect ratio is 1:1. Squashing would distort
+      // every landscape screenshot someone drops in; a centre crop keeps the
+      // subject where the user put it.
+      const g = w.coverCropGeometry(1920, 1080, 1280);
+      eq(g.side, 1080, 'the square side is the smaller dimension');
+      eq(g.sx, 420, 'horizontal offset should centre the crop');
+      eq(g.sy, 0, 'vertical offset');
+      return eq(g.target, 1080, 'drawn at the side length, under the cap');
+    }],
+
+    ['a portrait image crops from the middle too', w => {
+      const g = w.coverCropGeometry(1080, 1920, 1280);
+      eq(g.side, 1080, 'side');
+      eq(g.sx, 0, 'horizontal');
+      return eq(g.sy, 420, 'vertical');
+    }],
+
+    ['a large square is downscaled to the cap', w =>
+      eq(w.coverCropGeometry(4000, 4000, 1280).target, 1280)],
+
+    ['a small image is not upscaled', w => {
+      // Blowing up a 300 px image to 1280 only makes it blurry and heavier.
+      const g = w.coverCropGeometry(400, 300, 1280);
+      eq(g.side, 300, 'side');
+      return eq(g.target, 300, 'target');
+    }],
+
+    ['an unusable image gives nothing back', w => {
+      eq(w.coverCropGeometry(0, 0, 1280), null, 'zeroes');
+      eq(w.coverCropGeometry(undefined, undefined, 1280), null, 'nothing');
+      return eq(w.coverCropGeometry('x', 'y', 1280), null, 'garbage');
+    }],
+
+    ['only the two documented MIME types are ever sent', w => {
+      eq(w.coverMimeFor('image/png'), 'image/png', 'png');
+      eq(w.coverMimeFor('image/jpeg'), 'image/jpeg', 'jpeg');
+      return eq(w.coverMimeFor('image/gif'), 'image/jpeg', 'anything else is re-encoded');
+    }],
+
+    ['the multipart body carries the metadata part before the image', w => {
+      const part = w.buildCoverMultipart('BOUND', { snippet: { playlistId: 'PL_x', type: 'hero' } }, 'image/jpeg');
+      eq(part.contentType, 'multipart/related; boundary=BOUND', 'content type');
+      ok(part.head.startsWith('--BOUND\r\n'), 'head does not open the boundary: ' + JSON.stringify(part.head.slice(0, 20)));
+      ok(part.head.includes('Content-Type: application/json; charset=UTF-8'), 'no json part header');
+      ok(part.head.includes('"playlistId":"PL_x"'), 'playlistId missing from the metadata');
+      ok(part.head.includes('"type":"hero"'), 'type missing — the API requires it');
+      ok(part.head.trimEnd().endsWith('Content-Type: image/jpeg'), 'image part header: ' + JSON.stringify(part.head.slice(-40)));
+      return eq(part.tail, '\r\n--BOUND--\r\n', 'closing boundary');
+    }],
+
+    ['the image part declares the blob type it is actually sending', w => {
+      const part = w.buildCoverMultipart('B', { snippet: { playlistId: 'P', type: 'hero' } }, 'image/png');
+      return ok(part.head.includes('Content-Type: image/png'), part.head);
+    }],
+
+    ['a playlist with no cover is remembered as having none', async w => {
+      const real = w.ytApi;
+      let calls = 0;
+      try {
+        w.setAccessToken('test-token');
+        w.ytApi = async () => { calls++; return { items: [] }; };
+        eq(await w.loadPlaylistCover('PL_cover_none'), null, 'first lookup');
+        await w.loadPlaylistCover('PL_cover_none');
+        // "No cover" is an answer worth keeping — asking again every visit
+        // would spend a unit to be told the same thing.
+        return eq(calls, 1, 'asked twice for the same absent cover');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['an existing cover reports the type the API itself uses', async w => {
+      const real = w.ytApi;
+      try {
+        w.setAccessToken('test-token');
+        w.ytApi = async () => ({ items: [{ id: 'IMG1', snippet: { type: 'somethingElse', thumbnails: { fhd: { url: 'u' } } } }] });
+        const c = await w.loadPlaylistCover('PL_cover_typed');
+        // snippet.type has no documented enum, so the value an existing image
+        // reports is better evidence than any constant we could pick.
+        eq(c.type, 'somethingElse', 'type not read back');
+        return eq(c.url, 'u', 'url');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['a failed lookup does not poison the cache', async w => {
+      const real = w.ytApi;
+      let calls = 0;
+      try {
+        w.setAccessToken('test-token');
+        w.ytApi = async () => { calls++; throw new Error('boom'); };
+        eq(await w.loadPlaylistCover('PL_cover_err'), null, 'first');
+        await w.loadPlaylistCover('PL_cover_err');
+        return eq(calls, 2, 'a transient failure should be retried on the next visit');
+      } finally { w.ytApi = real; }
+    }],
+
+    ['with no token or with the flag off, nothing is requested', async w => {
+      const real = w.ytApi;
+      let called = false;
+      const wasFlag = w.FEATURES.playlistCovers;
+      try {
+        w.ytApi = async () => { called = true; return { items: [] }; };
+        w.setAccessToken('');
+        await w.loadPlaylistCover('PL_cover_x');
+        ok(called === false, 'requested without a token');
+        w.setAccessToken('test-token');
+        w.FEATURES.playlistCovers = false;
+        await w.loadPlaylistCover('PL_cover_y');
+        return ok(called === false, 'requested with the feature flag off');
+      } finally { w.ytApi = real; w.setAccessToken('test-token'); w.FEATURES.playlistCovers = wasFlag; }
+    }],
+  ],
+},
 ];
+
 
 
 
