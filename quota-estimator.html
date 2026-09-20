@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reel — YouTube API Quota Estimator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg-0:#0a0b0d; --bg-1:#0f1115; --bg-2:#15181d; --bg-3:#1c2026;
+    --line:#2a2f37; --line-2:#353b45;
+    --fg-0:#ededec; --fg-1:#b9bbc0; --fg-2:#7a7d85;
+    --accent:#f2664a; --accent-soft:rgba(242,102,74,.14); --accent-line:rgba(242,102,74,.45);
+    --ok:#4ec98a; --warn:#e0b03a; --danger:#e2564a; --info:#5aa9e6;
+    --r:12px; --r-lg:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+    background:var(--bg-0);color:var(--fg-0);line-height:1.5;-webkit-font-smoothing:antialiased;padding:26px 18px 60px}
+  .wrap{max-width:1120px;margin:0 auto}
+  h1{font-size:26px;letter-spacing:-.02em;margin-bottom:4px;display:flex;align-items:center;gap:10px}
+  .dot{width:26px;height:26px;border-radius:8px;background:linear-gradient(140deg,var(--accent),#ff8a63);
+    display:grid;place-items:center;color:#180a06;font-weight:800;font-size:15px}
+  .sub{color:var(--fg-1);font-size:14.5px;margin-bottom:6px;max-width:80ch}
+  .stamp{color:var(--fg-2);font-size:12px;margin-bottom:20px;max-width:80ch}
+  .stamp code{color:var(--fg-1)}
+  .grid{display:grid;grid-template-columns:340px 1fr;gap:20px;align-items:start}
+  .panel{background:var(--bg-1);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px}
+  .panel h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);margin-bottom:14px}
+  .presets{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+  .preset{font:inherit;font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:8px;cursor:pointer;
+    background:var(--bg-2);border:1px solid var(--line-2);color:var(--fg-1);transition:.15s}
+  .preset:hover{border-color:var(--accent-line);color:var(--fg-0)}
+  .field{margin-bottom:15px}
+  .field label{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:var(--fg-1);margin-bottom:5px;gap:8px}
+  .field label .val{color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums}
+  .field input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
+  .field .hint{font-size:11.5px;color:var(--fg-2);margin-top:3px}
+  .grp{border-top:1px solid var(--line);margin:16px 0 14px;padding-top:14px}
+  .grp:first-of-type{border:none;margin-top:0;padding-top:0}
+  .grp .gt{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--fg-2);margin-bottom:10px}
+  .bk{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:middle}
+
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+  .card{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+  .card .k{font-size:12px;color:var(--fg-2);margin-bottom:6px}
+  .card .v{font-size:22px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .card .v small{font-size:13px;color:var(--fg-2);font-weight:500}
+  .card .pct{font-size:12px;font-weight:600;margin-top:5px;font-variant-numeric:tabular-nums}
+  .card.hero{grid-column:1/-1;background:linear-gradient(120deg,var(--accent-soft),transparent);border-color:var(--accent-line)}
+  .card.hero .v{font-size:26px}
+  .card.hero .why{font-size:13px;color:var(--fg-1);margin-top:7px;font-weight:400}
+  .chartbox{background:var(--bg-1);border:1px solid var(--line);border-radius:var(--r-lg);padding:18px;margin-bottom:18px}
+  .chartbox h3{font-size:14px;margin-bottom:4px;color:var(--fg-1)}
+  .chartbox .h3sub{font-size:12px;color:var(--fg-2);margin-bottom:12px;max-width:85ch}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:right;padding:9px 10px;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--fg-2);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em}
+  td{font-variant-numeric:tabular-nums;color:var(--fg-1)}
+  .tier{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700}
+  .exports{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:18px}
+  .btn{font:inherit;font-size:13px;font-weight:600;padding:9px 14px;border-radius:9px;cursor:pointer;
+    background:var(--bg-2);border:1px solid var(--line-2);color:var(--fg-0);transition:.15s}
+  .btn:hover{border-color:var(--accent-line)}
+  .btn.primary{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent)}
+  .exports .note{font-size:12px;color:var(--fg-2)}
+  .toast{font-size:12.5px;color:var(--ok);opacity:0;transition:opacity .2s}
+  .toast.on{opacity:1}
+  .notes{background:var(--bg-1);border:1px solid var(--line);border-radius:var(--r-lg);padding:18px;margin-top:18px;font-size:13px;color:var(--fg-1)}
+  .notes h3{font-size:13px;color:var(--accent);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+  .notes li{margin:0 0 7px 18px}
+  @media(max-width:820px){ .grid{grid-template-columns:1fr} .cards{grid-template-columns:1fr 1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="dot">R</span> YouTube API Quota Estimator</h1>
+  <p class="sub">Model how much YouTube Data API quota you'll need as the app grows. Since 1 June 2026 the quota is <b>not one pool but four independent buckets</b>, so there is no single number to request: each bucket saturates on its own schedule and is extended on its own line of the audit form. Set your assumptions on the left; the per-bucket projection, the binding constraint and the recommended request update live.</p>
+  <p class="stamp">Quota model: YouTube Data API rules of 1 June 2026 (granular buckets) and 3 June 2026 (<code>videos.batchGetStats</code>), checked against the Quota Calculator and the API revision history on 20 September 2026. App-side implementation of record: <code>QUOTA_LIMITS</code> and <code>YT_QUOTA_COSTS</code> in youtube-playlist-manager.html.</p>
+
+  <div class="grid">
+    <!-- CONTROLS -->
+    <div class="panel">
+      <h2>Assumptions</h2>
+      <div class="presets" id="presets">
+        <button class="preset" data-preset="conservative">Conservative</button>
+        <button class="preset" data-preset="base">Base</button>
+        <button class="preset" data-preset="optimistic">Optimistic</button>
+        <button class="preset" data-preset="viral">Viral</button>
+      </div>
+      <p style="font-size:11.5px;color:var(--fg-2);margin:-10px 0 18px;line-height:1.45">
+        <b style="color:var(--fg-1)">Base</b> keeps the Test Strategy §13 usage profile (45 reads, 2 searches,
+        6 writes per active user/day, 60% cache) and re-costs it under the June 2026 rules: the same profile is
+        <b style="color:var(--fg-1)">345 pool units</b>, not 545, and its 2 searches are 2 calls out of 100 —
+        a different wall entirely. Move any slider to model your own scenario.
+      </p>
+
+      <div class="grp"><div class="gt">Growth</div>
+        <div class="field"><label>Starting total users <span class="val" id="v_start"></span></label>
+          <input type="range" id="start" min="50" max="20000" step="50"><div class="hint">Users at month 0.</div></div>
+        <div class="field"><label>Monthly growth <span class="val" id="v_growth"></span></label>
+          <input type="range" id="growth" min="0" max="60" step="1"><div class="hint">Compounded month over month.</div></div>
+        <div class="field"><label>Projection horizon <span class="val" id="v_months"></span></label>
+          <input type="range" id="months" min="6" max="36" step="1"></div>
+      </div>
+
+      <div class="grp"><div class="gt">Engagement</div>
+        <div class="field"><label>Daily active users <span class="val" id="v_dau"></span></label>
+          <input type="range" id="dau" min="5" max="100" step="1"><div class="hint">Share of total users active on a given day.</div></div>
+        <div class="field"><label>Premium conversion <span class="val" id="v_conv"></span></label>
+          <input type="range" id="conv" min="0" max="30" step="1"></div>
+        <div class="field"><label>Premium heaviness <span class="val" id="v_pmult"></span></label>
+          <input type="range" id="pmult" min="1" max="4" step="0.1"><div class="hint">Premium users consume this many times a free user's usage.</div></div>
+      </div>
+
+      <div class="grp"><div class="gt"><span class="bk" style="background:#f2664a"></span>Pool — per active user / day</div>
+        <div class="field"><label>Read calls <span class="val" id="v_reads"></span></label>
+          <input type="range" id="reads" min="0" max="150" step="1"><div class="hint">playlists / playlistItems / videos / subscriptions .list — 1 unit each.</div></div>
+        <div class="field"><label>Write actions <span class="val" id="v_writes"></span></label>
+          <input type="range" id="writes" min="0" max="40" step="1"><div class="hint">insert / update / delete / rate / playlistImages — 50 units each. The pool's real driver.</div></div>
+      </div>
+
+      <div class="grp"><div class="gt"><span class="bk" style="background:#5aa9e6"></span>Search — per active user / day</div>
+        <div class="field"><label>Discover searches <span class="val" id="v_search"></span></label>
+          <input type="range" id="search" min="0" max="15" step="1"><div class="hint">search.list — 1 CALL each, own bucket. Units are irrelevant here.</div></div>
+        <div class="field"><label>Pages per search <span class="val" id="v_pages"></span></label>
+          <input type="range" id="pages" min="1" max="4" step="1"><div class="hint">Each extra page of results is another call. maxResults 100 = 2 pages.</div></div>
+      </div>
+
+      <div class="grp"><div class="gt"><span class="bk" style="background:#4ec98a"></span>Stats and <span class="bk" style="background:#e0b03a;margin-left:4px"></span>Upload — per active user / day</div>
+        <div class="field"><label>batchGetStats calls <span class="val" id="v_stats"></span></label>
+          <input type="range" id="stats" min="0" max="15" step="1"><div class="hint">videos.batchGetStats — 1 call, own 10,000/day bucket. Roughly one per search.</div></div>
+        <div class="field"><label>Video uploads <span class="val" id="v_uploads"></span></label>
+          <input type="range" id="uploads" min="0" max="2" step="0.05"><div class="hint">videos.insert — 1 CALL each, own bucket. Near zero for a playlist manager.</div></div>
+      </div>
+
+      <div class="grp"><div class="gt">Cache</div>
+        <div class="field"><label>Cache effectiveness <span class="val" id="v_cache"></span></label>
+          <input type="range" id="cache" min="0" max="90" step="5"><div class="hint">Applies to reads, searches and stats. Writes and uploads always hit the API.</div></div>
+      </div>
+
+      <div class="grp"><div class="gt">Current quota, per bucket</div>
+        <div class="field"><label>Pool <span class="val" id="v_qpool"></span></label>
+          <input type="range" id="qpool" min="10000" max="1000000" step="10000"><div class="hint">Default 10,000 units/day.</div></div>
+        <div class="field"><label>search.list <span class="val" id="v_qsearch"></span></label>
+          <input type="range" id="qsearch" min="100" max="20000" step="100"><div class="hint">Default 100 calls/day.</div></div>
+        <div class="field"><label>videos.insert <span class="val" id="v_qupload"></span></label>
+          <input type="range" id="qupload" min="100" max="20000" step="100"><div class="hint">Default 100 calls/day.</div></div>
+        <div class="field"><label>batchGetStats <span class="val" id="v_qstats"></span></label>
+          <input type="range" id="qstats" min="10000" max="1000000" step="10000"><div class="hint">Default 10,000 calls/day.</div></div>
+        <div class="field"><label>Safety margin <span class="val" id="v_margin"></span></label>
+          <input type="range" id="margin" min="0" max="100" step="5"><div class="hint">Head-room added on top of gross when requesting.</div></div>
+      </div>
+    </div>
+
+    <!-- RESULTS -->
+    <div>
+      <div class="cards">
+        <div class="card hero"><div class="k" id="hero_k">Binding constraint</div><div class="v" id="hero_v">—</div><div class="why" id="hero_w"></div></div>
+        <div class="card"><div class="k"><span class="bk" style="background:#f2664a"></span>Pool @ horizon</div><div class="v" id="c_pool">—</div><div class="pct" id="p_pool"></div></div>
+        <div class="card"><div class="k"><span class="bk" style="background:#5aa9e6"></span>search.list @ horizon</div><div class="v" id="c_search">—</div><div class="pct" id="p_search"></div></div>
+        <div class="card"><div class="k"><span class="bk" style="background:#e0b03a"></span>videos.insert @ horizon</div><div class="v" id="c_upload">—</div><div class="pct" id="p_upload"></div></div>
+        <div class="card"><div class="k"><span class="bk" style="background:#4ec98a"></span>batchGetStats @ horizon</div><div class="v" id="c_stats">—</div><div class="pct" id="p_stats"></div></div>
+      </div>
+
+      <div class="chartbox">
+        <h3>Bucket saturation over time</h3>
+        <div class="h3sub">Each bucket as a percentage of its own current limit — the only way to compare units and calls on one axis. The first line to cross 100% is the one that stops the product, whatever the others are doing. Log scale.</div>
+        <canvas id="chart" height="150"></canvas>
+      </div>
+
+      <div class="chartbox">
+        <h3>Per-bucket request plan</h3>
+        <div class="h3sub">One line per bucket of the audit form. Request on gross + margin at the lead month, not on today's effective load.</div>
+        <table id="buckettable">
+          <thead><tr><th>Bucket</th><th>Limit now</th><th>Eff. today</th><th>Eff. @ horizon</th><th>Gross @ horizon</th><th>Saturates</th><th>Request</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="exports">
+        <button class="btn primary" id="btn_csv">Download CSV</button>
+        <button class="btn" id="btn_tsv">Copy for Google Sheets</button>
+        <span class="note">CSV opens in Excel and imports into Sheets; the copy button pastes straight into a sheet.</span>
+        <span class="toast" id="toast"></span>
+      </div>
+
+      <div class="notes">
+        <h3>How to read this</h3>
+        <ul>
+          <li><b>Four buckets, four ceilings.</b> Since 1 June 2026: a pool of 10,000 units/day for every method except three, plus <b>100 search.list calls</b>, <b>100 videos.insert calls</b> and <b>10,000 batchGetStats calls</b>, each in its own bucket. A search no longer costs 100 units — it costs one call out of a hundred. Raising the pool does nothing for search.</li>
+          <li><b>Two ceilings, measured in two different things.</b> 100 search calls/day is the whole project's allowance, not each user's: two searches per active user caps you around 50 daily actives. The pool goes at the same time for an unrelated reason — writes cost 50 units each, so 6 edits per user is 300 units before a single read is served. At the Base preset both are already past their limit at month 0; the saturation chart says which is further past, and that is the one to argue first.</li>
+          <li><b>Effective</b> = what you consume after cache; <b>gross</b> = worst case before it. Google evaluates worst case, so you request on gross + margin.</li>
+          <li><b>Request early, and per bucket.</b> Audits take weeks to months. The June 2026 release notes state the granular buckets exist so increases can be verified and approved "based on specific method usage" — so the Audit and Quota Extension Form is argued bucket by bucket, each with its own use case. Request the level you need 6–12 months out.</li>
+          <li><b>Cheapest lever on search:</b> cache result pages, lower the default <code>maxResults</code> (100 results = 2 calls, not 1), never fire on an empty or unchanged query. On the pool it is the reverse: writes at 50 units dominate, so batch and de-duplicate edits.</li>
+          <li><b>Calibrate, don't guess:</b> the app's diagnostic log exports the four live counters. Feed the real ratios back into these sliders rather than trusting the defaults.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Quota model (YouTube Data API, rules of 1 and 3 June 2026) ──────────────
+// Pool costs are in units; the three granular buckets are counted in CALLS.
+const COST_READ = 1, COST_WRITE = 50;
+const BUCKETS = [
+  { key:'pool',   label:'Pool (all other methods)', unit:'units/day', color:'#f2664a' },
+  { key:'search', label:'search.list',              unit:'calls/day', color:'#5aa9e6' },
+  { key:'upload', label:'videos.insert',            unit:'calls/day', color:'#e0b03a' },
+  { key:'stats',  label:'videos.batchGetStats',     unit:'calls/day', color:'#4ec98a' }
+];
+
+// Presets re-costed under the June 2026 rules. The usage profile is unchanged
+// where it was grounded (§13: 45 reads / 2 searches / 6 writes); what changed is
+// how each line is charged, plus two dimensions that did not exist before —
+// pages per search, and batchGetStats calls.
+const PRESETS = {
+  conservative:{start:150,growth:8,months:24,dau:30,conv:3,pmult:1.6,reads:35,writes:4,search:1,pages:1,stats:1,uploads:0,cache:65,qpool:10000,qsearch:100,qupload:100,qstats:10000,margin:40},
+  base:        {start:300,growth:20,months:18,dau:40,conv:5,pmult:2.0,reads:45,writes:6,search:2,pages:1,stats:2,uploads:0,cache:60,qpool:10000,qsearch:100,qupload:100,qstats:10000,margin:40},
+  optimistic:  {start:800,growth:30,months:18,dau:45,conv:8,pmult:2.2,reads:50,writes:8,search:3,pages:2,stats:3,uploads:0.05,cache:55,qpool:250000,qsearch:2000,qupload:100,qstats:10000,margin:40},
+  viral:       {start:2000,growth:45,months:15,dau:50,conv:10,pmult:2.5,reads:60,writes:10,search:4,pages:2,stats:4,uploads:0.1,cache:50,qpool:1000000,qsearch:10000,qupload:500,qstats:50000,margin:50}
+};
+const IDS=["start","growth","months","dau","conv","pmult","reads","writes","search","pages","stats","uploads","cache","qpool","qsearch","qupload","qstats","margin"];
+const el=id=>document.getElementById(id);
+const fmt=n=>Math.round(n).toLocaleString('en-US');
+const fmtK=n=> n>=1000? (n/1000).toLocaleString('en-US',{maximumFractionDigits:n>=100000?0:1})+'K' : Math.round(n).toString();
+
+function readInputs(){
+  const o={};
+  IDS.forEach(id=>o[id]=parseFloat(el(id).value));
+  return o;
+}
+function limitsOf(o){ return { pool:o.qpool, search:o.qsearch, upload:o.qupload, stats:o.qstats }; }
+
+function labels(o){
+  el('v_start').textContent=fmt(o.start);
+  el('v_growth').textContent=o.growth+'%/mo';
+  el('v_months').textContent=o.months+' mo';
+  el('v_dau').textContent=o.dau+'%';
+  el('v_conv').textContent=o.conv+'%';
+  el('v_pmult').textContent=o.pmult.toFixed(1)+'x';
+  el('v_reads').textContent=o.reads;
+  el('v_writes').textContent=o.writes;
+  el('v_search').textContent=o.search;
+  el('v_pages').textContent=o.pages;
+  el('v_stats').textContent=o.stats;
+  el('v_uploads').textContent=o.uploads.toFixed(2);
+  el('v_cache').textContent=o.cache+'%';
+  el('v_qpool').textContent=fmtK(o.qpool);
+  el('v_qsearch').textContent=fmt(o.qsearch);
+  el('v_qupload').textContent=fmt(o.qupload);
+  el('v_qstats').textContent=fmtK(o.qstats);
+  el('v_margin').textContent=o.margin+'%';
+}
+
+// Per active user, per day, split by bucket. Writes and uploads are never served
+// from cache: they are the mutation itself.
+function perUser(o){
+  const searchCalls = o.search * o.pages;
+  const c = o.cache/100;
+  const gross = {
+    pool:   o.reads*COST_READ + o.writes*COST_WRITE,
+    search: searchCalls,
+    upload: o.uploads,
+    stats:  o.stats
+  };
+  const cacheable = {
+    pool:   o.reads*COST_READ*c,
+    search: searchCalls*c,
+    upload: 0,
+    stats:  o.stats*c
+  };
+  const eff = {};
+  BUCKETS.forEach(b => eff[b.key] = gross[b.key] - cacheable[b.key]);
+  return { gross, eff, searchCalls };
+}
+
+function project(o){
+  const pu=perUser(o), rows=[];
+  for(let m=0;m<=o.months;m++){
+    const users=o.start*Math.pow(1+o.growth/100,m);
+    const dau=users*(o.dau/100);
+    const pFrac=o.conv/100;
+    // One weighted active-user count: free actives, plus premium actives counted
+    // pmult times. Every bucket scales with the same population.
+    const weighted = dau*(1-pFrac) + dau*pFrac*o.pmult;
+    const eff={}, gross={};
+    BUCKETS.forEach(b=>{ eff[b.key]=weighted*pu.eff[b.key]; gross[b.key]=weighted*pu.gross[b.key]; });
+    rows.push({m,users,dau,weighted,eff,gross});
+  }
+  return {rows,pu};
+}
+
+// First month where a bucket's effective load reaches its limit, or null.
+function saturationMonth(rows,key,limit){
+  const hit = rows.find(r=>r.eff[key] >= limit);
+  return hit ? hit.m : null;
+}
+
+let chart, lastModel=null;
+function render(){
+  const o=readInputs(); labels(o);
+  const {rows,pu}=project(o);
+  const lim=limitsOf(o);
+  const end=rows[rows.length-1], now=rows[0];
+  const margin=1+o.margin/100;
+  const leadIdx=Math.min(9,o.months);
+
+  const summary = BUCKETS.map(b=>{
+    const sat=saturationMonth(rows,b.key,lim[b.key]);
+    const ratioEnd = lim[b.key]>0 ? end.eff[b.key]/lim[b.key] : 0;
+    return {
+      key:b.key, label:b.label, unit:b.unit, color:b.color,
+      limit:lim[b.key], effNow:now.eff[b.key], effEnd:end.eff[b.key],
+      grossEnd:end.gross[b.key], sat, ratioEnd,
+      request: rows[leadIdx].gross[b.key]*margin
+    };
+  });
+
+  // Binding constraint: the earliest saturation. If nothing saturates, the
+  // bucket sitting closest to its ceiling at the horizon.
+  const saturating = summary.filter(s=>s.sat!==null).sort((a,b)=>a.sat-b.sat || b.ratioEnd-a.ratioEnd);
+  const worst = summary.slice().sort((a,b)=>b.ratioEnd-a.ratioEnd)[0];
+  if(saturating.length){
+    const s=saturating[0], r=rows[s.sat];
+    el('hero_v').innerHTML = s.label+' <small>saturates at month '+s.sat+'</small>';
+    el('hero_w').textContent = fmt(r.eff[s.key])+' '+s.unit+' against a limit of '+fmt(s.limit)
+      +', at '+fmt(r.users)+' total users. Request '+fmt(s.request)+' '+s.unit+' on that line of the audit form.';
+  } else {
+    el('hero_v').innerHTML = 'No bucket saturates <small>before month '+o.months+'</small>';
+    el('hero_w').textContent = 'Closest: '+worst.label+' at '+Math.round(worst.ratioEnd*100)+'% of its limit at the horizon.';
+  }
+
+  summary.forEach(s=>{
+    el('c_'+s.key).innerHTML = fmt(s.effEnd)+' <small>'+s.unit.replace('/day','/d')+'</small>';
+    const pct=Math.round(s.ratioEnd*100);
+    const col = pct>=100?'var(--danger)': pct>=70?'var(--warn)':'var(--ok)';
+    el('p_'+s.key).innerHTML='<span style="color:'+col+'">'+fmt(pct)+'% of '+fmt(s.limit)+'</span>';
+  });
+
+  const tbody=el('buckettable').querySelector('tbody'); tbody.innerHTML='';
+  summary.forEach(s=>{
+    const tr=document.createElement('tr');
+    const satCell = s.sat===null
+      ? '<td style="color:var(--ok)">not before m'+o.months+'</td>'
+      : '<td style="color:'+(s.sat<=6?'var(--danger)':'var(--warn)')+'"><b>month '+s.sat+'</b></td>';
+    tr.innerHTML='<td><span class="tier" style="background:'+s.color+'22;color:'+s.color+'">'+s.label+'</span></td>'
+      +'<td>'+fmt(s.limit)+'</td><td>'+fmt(s.effNow)+'</td><td>'+fmt(s.effEnd)+'</td><td>'+fmt(s.grossEnd)+'</td>'
+      +satCell+'<td><b>'+fmt(s.request)+'</b></td>';
+    tbody.appendChild(tr);
+  });
+
+  // Chart: saturation as a share of each bucket's own limit, so four buckets
+  // measured in two different units can share one axis. Log scale, because the
+  // pool and the search bucket routinely sit two orders of magnitude apart.
+  const labelsX=rows.map(r=>'m'+r.m);
+  const ds=BUCKETS.map(b=>({
+    label:b.label,
+    data:rows.map(r=> lim[b.key]>0 ? Math.max(0.1, Math.round(r.eff[b.key]/lim[b.key]*1000)/10) : 0.1),
+    borderColor:b.color, borderWidth:2, pointRadius:0, fill:false, tension:.25
+  }));
+  ds.push({label:'Limit (100%)', data:rows.map(()=>100), borderColor:'rgba(226,86,74,.6)',
+    borderWidth:1.5, borderDash:[5,4], pointRadius:0, fill:false});
+  const cfg={type:'line',data:{labels:labelsX,datasets:ds},options:{
+    responsive:true,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{labels:{color:'#b9bbc0'}},
+      tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.parsed.y+'%'}}},
+    scales:{
+      x:{ticks:{color:'#7a7d85'},grid:{color:'rgba(42,47,55,.5)'}},
+      y:{type:'logarithmic',ticks:{color:'#7a7d85',callback:v=>v+'%'},grid:{color:'rgba(42,47,55,.5)'},
+        title:{display:true,text:'% of that bucket limit (log)',color:'#7a7d85'}}
+    }
+  }};
+  if(chart){chart.data=cfg.data;chart.options=cfg.options;chart.update();}
+  else{chart=new Chart(el('chart'),cfg);}
+
+  lastModel={o,rows,pu,summary,leadIdx,margin};
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────
+// #G10 guard, same rule as the app: a cell starting with = + - @ (or a leading
+// tab/CR) is executed as a formula by Excel, Sheets and LibreOffice on open.
+const CSV_FORMULA_PREFIXES = ['=', '+', '-', '@', String.fromCharCode(9), String.fromCharCode(13)];
+function guard(value){
+  let s = String(value == null ? '' : value);
+  if (s && CSV_FORMULA_PREFIXES.indexOf(s.charAt(0)) !== -1) s = "'" + s;
+  return s;
+}
+function csvCell(v){ return '"' + guard(v).replace(/"/g,'""') + '"'; }
+function tsvCell(v){ return guard(v).replace(/[\t\n\r]/g,' '); }
+
+const ASSUMPTION_LABELS = {
+  start:'Starting total users', growth:'Monthly growth (%)', months:'Horizon (months)',
+  dau:'Daily active users (%)', conv:'Premium conversion (%)', pmult:'Premium heaviness (x)',
+  reads:'Read calls per active user per day', writes:'Write actions per active user per day',
+  search:'Discover searches per active user per day', pages:'Pages per search',
+  stats:'batchGetStats calls per active user per day', uploads:'Video uploads per active user per day',
+  cache:'Cache effectiveness (%)', qpool:'Current limit, pool (units/day)',
+  qsearch:'Current limit, search.list (calls/day)', qupload:'Current limit, videos.insert (calls/day)',
+  qstats:'Current limit, batchGetStats (calls/day)', margin:'Safety margin (%)'
+};
+
+// One rectangular grid, reused for the CSV file and for the clipboard. Blank
+// rows keep the three blocks readable once pasted into a sheet.
+function buildGrid(){
+  if(!lastModel) render();
+  const {o,rows,summary,leadIdx}=lastModel;
+  const g=[];
+  g.push(['Reel — YouTube API quota estimate']);
+  g.push(['Generated', new Date().toISOString().slice(0,10)]);
+  g.push(['Quota model', 'YouTube Data API, granular buckets (1 June 2026) plus videos.batchGetStats (3 June 2026)']);
+  g.push(['Request lead month', 'm'+leadIdx]);
+  g.push([]);
+  g.push(['Assumptions']);
+  g.push(['Parameter','Value']);
+  IDS.forEach(id=>g.push([ASSUMPTION_LABELS[id]||id, o[id]]));
+  g.push([]);
+  g.push(['Per-bucket request plan']);
+  g.push(['Bucket','Unit','Limit now','Effective today','Effective at horizon','Gross at horizon','Saturation month','Recommended request']);
+  summary.forEach(s=>g.push([s.label,s.unit,Math.round(s.limit),Math.round(s.effNow),Math.round(s.effEnd),
+    Math.round(s.grossEnd), s.sat===null?'not reached':'m'+s.sat, Math.round(s.request)]));
+  g.push([]);
+  g.push(['Monthly projection']);
+  g.push(['Month','Total users','Daily actives','Pool eff (units)','Pool gross (units)',
+    'Search eff (calls)','Search gross (calls)','Upload eff (calls)','Upload gross (calls)',
+    'Stats eff (calls)','Stats gross (calls)']);
+  rows.forEach(r=>g.push([r.m,Math.round(r.users),Math.round(r.dau),
+    Math.round(r.eff.pool),Math.round(r.gross.pool),
+    Math.round(r.eff.search),Math.round(r.gross.search),
+    Math.round(r.eff.upload),Math.round(r.gross.upload),
+    Math.round(r.eff.stats),Math.round(r.gross.stats)]));
+  return g;
+}
+
+function flash(msg){
+  const t=el('toast'); t.textContent=msg; t.classList.add('on');
+  setTimeout(()=>t.classList.remove('on'),2400);
+}
+
+el('btn_csv').addEventListener('click',()=>{
+  const csv=buildGrid().map(r=>r.map(csvCell).join(',')).join('\r\n');
+  // BOM so Excel reads the UTF-8 accents instead of mojibake.
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=url; a.download='reel-quota-estimate-'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  flash('CSV downloaded');
+});
+
+el('btn_tsv').addEventListener('click',async()=>{
+  const tsv=buildGrid().map(r=>r.map(tsvCell).join('\t')).join('\n');
+  try{
+    await navigator.clipboard.writeText(tsv);
+    flash('Copied — paste into Google Sheets');
+  }catch(e){
+    // The async clipboard needs a secure context: opened straight from disk it
+    // refuses, so fall back to the old selection copy.
+    const ta=document.createElement('textarea');
+    ta.value=tsv; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    let ok=false;
+    try{ ok=document.execCommand('copy'); }catch(_){ ok=false; }
+    ta.remove();
+    flash(ok?'Copied — paste into Google Sheets':'Copy blocked — use the CSV button');
+  }
+});
+
+function setPreset(name){
+  const p=PRESETS[name]; if(!p)return;
+  IDS.forEach(id=>{ if(p[id]!==undefined) el(id).value=p[id]; });
+  render();
+}
+IDS.forEach(id=>el(id).addEventListener('input',render));
+document.querySelectorAll('.preset').forEach(b=>b.addEventListener('click',()=>setPreset(b.dataset.preset)));
+setPreset('base');
+</script>
+</body>
+</html>
