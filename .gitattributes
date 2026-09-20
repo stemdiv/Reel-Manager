@@ -1,0 +1,3 @@
+# A .docx is a ZIP. Git detects that on its own, but an explicit rule means no
+# line-ending conversion can ever corrupt one on a Windows checkout.
+*.docx binary

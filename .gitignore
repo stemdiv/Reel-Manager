@@ -6,6 +6,13 @@ google cloud client ID key DO NO SHARE.docx
 old doc/
 UI design V1/
 
+# ...except the two backlogs. They are the record of what shipped, and keeping
+# them out of git is how eleven statuses drifted before the 16 Sept 2026 session
+# had to reconcile them retroactively. Tracked despite being binary: a useless
+# diff beats no history at all. The timestamped BACKUP- copies stay out.
+!Backlog-YT-Playlist-Manager.docx
+!Backlog-YT-Playlist-Manager-EN.docx
+
 # Audit artifacts (temporary)
 i18n-audit-report.md
 i18n-findings-summary.txt
