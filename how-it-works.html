@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reel — How it works | YouTube Playlist Manager</title>
+<meta name="description" content="Organize, tag and manage your YouTube playlists in one clean app. Sign in with Google — no setup, no coding. Free to start.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-0:#0a0b0d; --bg-1:#0f1115; --bg-2:#15181d; --bg-3:#1c2026;
+    --line:#2a2f37; --line-2:#353b45;
+    --fg-0:#ededec; --fg-1:#b9bbc0; --fg-2:#7a7d85;
+    --accent:#f2664a; --accent-soft:rgba(242,102,74,.14); --accent-line:rgba(242,102,74,.4);
+    --ok:#4ec98a; --r:12px; --r-lg:18px; --maxw:1080px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'Geist',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    background:var(--bg-0); color:var(--fg-0); line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+  .muted{color:var(--fg-1)} .dim{color:var(--fg-2)}
+  .accent{color:var(--accent)}
+
+  header.bar{position:sticky;top:0;z-index:20;backdrop-filter:blur(10px);
+    background:rgba(10,11,13,.72);border-bottom:1px solid var(--line)}
+  .bar .wrap{display:flex;align-items:center;justify-content:space-between;height:64px;gap:14px}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:19px;letter-spacing:-.02em}
+  .logo .dot{width:26px;height:26px;border-radius:8px;background:linear-gradient(140deg,var(--accent),#ff8a63);
+    display:grid;place-items:center;color:#180a06;font-weight:800}
+  .bar-right{display:flex;align-items:center;gap:12px}
+  .lang{display:inline-flex;background:var(--bg-2);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .lang button{font:inherit;font-size:13px;font-weight:600;color:var(--fg-2);background:none;border:none;
+    padding:7px 11px;cursor:pointer;transition:.15s}
+  .lang button.active{background:var(--accent-soft);color:var(--accent)}
+  .btn{display:inline-flex;align-items:center;gap:9px;border-radius:10px;font-weight:600;
+    font-size:15px;padding:11px 18px;border:1px solid transparent;transition:.15s;cursor:pointer;font-family:inherit}
+  .btn.primary{background:var(--accent);color:#180a06}
+  .btn.primary:hover{background:#ff7d5e;transform:translateY(-1px)}
+  .btn.ghost{background:var(--bg-2);border-color:var(--line-2);color:var(--fg-0)}
+  .btn.ghost:hover{border-color:var(--accent-line)}
+  .btn.google{background:#fff;color:#1a1a1a}
+  .btn.google:hover{background:#f1f1f1;transform:translateY(-1px)}
+  .btn svg{width:18px;height:18px}
+
+  .hero{padding:76px 0 44px;text-align:center;position:relative;overflow:hidden}
+  .hero::before{content:"";position:absolute;inset:-40% 0 auto 0;height:520px;
+    background:radial-gradient(60% 60% at 50% 0%,var(--accent-soft),transparent 70%);pointer-events:none}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--fg-1);
+    background:var(--bg-2);border:1px solid var(--line);border-radius:999px;padding:6px 14px;margin-bottom:22px}
+  .pill b{color:var(--accent);font-weight:600}
+  h1{font-size:clamp(34px,5vw,54px);line-height:1.05;letter-spacing:-.03em;font-weight:700;max-width:17ch;margin:0 auto}
+  .hero p.sub{font-size:clamp(16px,2vw,20px);color:var(--fg-1);max-width:58ch;margin:20px auto 30px}
+  .cta-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+  .reassure{margin-top:16px;font-size:13px;color:var(--fg-2)}
+
+  section{padding:56px 0}
+  .eyebrow{color:var(--accent);font-weight:600;font-size:14px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px;text-align:center}
+  h2{font-size:clamp(26px,3.5vw,36px);letter-spacing:-.02em;text-align:center;font-weight:700}
+  h2+.lead{color:var(--fg-1);text-align:center;max-width:56ch;margin:12px auto 0}
+
+  .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:40px}
+  .step{background:var(--bg-1);border:1px solid var(--line);border-radius:var(--r-lg);padding:24px;position:relative}
+  .step .n{width:34px;height:34px;border-radius:9px;background:var(--accent-soft);color:var(--accent);
+    font-weight:700;display:grid;place-items:center;margin-bottom:16px;border:1px solid var(--accent-line)}
+  .step h3{font-size:18px;letter-spacing:-.01em;margin-bottom:7px}
+  .step p{color:var(--fg-1);font-size:14.5px}
+
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:38px}
+  .card{background:var(--bg-1);border:1px solid var(--line);border-radius:var(--r);padding:22px}
+  .card .ic{font-size:22px;margin-bottom:10px}
+  .card h3{font-size:16.5px;margin-bottom:5px}
+  .card p{color:var(--fg-1);font-size:14px}
+
+  .plans{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:30px}
+  .plan{background:var(--bg-1);border:1px solid var(--line);border-radius:var(--r-lg);padding:20px;position:relative}
+  .plan.pro{border-color:var(--accent-line);box-shadow:0 0 0 1px var(--accent-line),0 18px 50px -30px var(--accent)}
+  .badge{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent);color:#180a06;font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap}
+  .trial{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:12px;padding:11px 16px;margin:4px auto 8px;max-width:640px;font-size:13.5px;color:var(--fg-0);text-align:center}
+  .trial b{color:var(--accent)}
+  .plan .tag{font-size:13px;font-weight:600;color:var(--fg-2);text-transform:uppercase;letter-spacing:.05em}
+  .plan.pro .tag{color:var(--accent)}
+  .plan .price{font-size:23px;font-weight:700;margin:6px 0 2px;letter-spacing:-.02em}
+  .plan .price small{font-size:13px;color:var(--fg-2);font-weight:500}
+  .plan ul{list-style:none;margin:18px 0 0;display:flex;flex-direction:column;gap:11px}
+  .plan li{display:flex;gap:8px;font-size:12.8px;color:var(--fg-1)}
+  .plan li svg{width:18px;height:18px;flex:0 0 18px;color:var(--ok);margin-top:2px}
+
+  .trust{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:38px}
+  .trust .t{background:var(--bg-1);border:1px solid var(--line);border-radius:var(--r);padding:18px;text-align:center}
+  .trust .t .ic{font-size:20px;margin-bottom:8px}
+  .trust .t b{display:block;font-size:14.5px;margin-bottom:3px}
+  .trust .t span{font-size:12.5px;color:var(--fg-2)}
+
+  .faq{max-width:760px;margin:36px auto 0;display:flex;flex-direction:column;gap:10px}
+  details{background:var(--bg-1);border:1px solid var(--line);border-radius:var(--r);padding:2px 20px}
+  summary{cursor:pointer;font-weight:600;padding:16px 0;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:14px}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"+";color:var(--accent);font-size:22px;font-weight:400;flex:0 0 auto}
+  details[open] summary::after{content:"\2013"}
+  details p{color:var(--fg-1);padding:0 0 16px;font-size:14.5px}
+
+  .final{text-align:center;background:linear-gradient(180deg,var(--bg-1),var(--bg-0));
+    border:1px solid var(--line);border-radius:22px;padding:56px 24px;margin:20px 0}
+  footer{border-top:1px solid var(--line);padding:30px 0;color:var(--fg-2);font-size:13.5px}
+  footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  footer a:hover{color:var(--fg-0)}
+
+  @media(max-width:860px){
+    .steps{grid-template-columns:repeat(2,1fr)}
+    .grid3{grid-template-columns:1fr}
+    .plans{grid-template-columns:repeat(2,1fr)}
+    .trust{grid-template-columns:repeat(2,1fr)}
+  }
+  @media(max-width:520px){ .steps{grid-template-columns:1fr} .plans{grid-template-columns:1fr} .cta-row{flex-direction:column} .cta-row .btn{width:100%;justify-content:center} }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap">
+    <div class="logo"><span class="dot">R</span> Reel</div>
+    <div class="bar-right">
+      <div class="lang">
+        <button data-lang-btn="en" onclick="setLang('en')">EN</button>
+        <button data-lang-btn="fr" onclick="setLang('fr')">FR</button>
+      </div>
+      <a href="#get-started" class="btn google" onclick="return signIn()">
+        <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.3l7.8 6.1C12.3 13.2 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.1 5.3-4.5 7l7 5.4c4.1-3.8 6.9-9.4 6.9-16.9z"/><path fill="#FBBC05" d="M10.4 28.6c-.5-1.4-.8-2.9-.8-4.6s.3-3.2.8-4.6l-7.8-6.1C1 16.5 0 20.1 0 24s1 7.5 2.6 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.2 0 11.5-2 15.3-5.5l-7-5.4c-2 1.3-4.5 2.1-8.3 2.1-6.4 0-11.7-3.7-13.6-8.9l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
+        <span data-fr="Se connecter avec Google">Sign in with Google</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <span class="pill" data-fr="&#127916; Fonctionne avec votre compte <b>YouTube&nbsp;/&nbsp;YouTube&nbsp;Music</b> existant">&#127916; Works with your existing <b>YouTube&nbsp;/&nbsp;YouTube&nbsp;Music</b> account</span>
+    <h1 data-fr="Vos playlists YouTube, enfin organis&#233;es.">Your YouTube playlists, finally organized.</h1>
+    <p class="sub" data-fr="Taguez, regroupez, filtrez, r&#233;ordonnez et sauvegardez toutes vos playlists dans une seule app. Connectez-vous avec Google &#8212; sans installation, sans code, sans carte bancaire pour commencer.">Tag, group, filter, reorder and back up all your playlists in one clean app. Sign in with Google — no setup, no coding, no credit card to start.</p>
+    <div class="cta-row" id="get-started">
+      <a href="#" class="btn google" onclick="return signIn()">
+        <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.3l7.8 6.1C12.3 13.2 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.1 5.3-4.5 7l7 5.4c4.1-3.8 6.9-9.4 6.9-16.9z"/><path fill="#FBBC05" d="M10.4 28.6c-.5-1.4-.8-2.9-.8-4.6s.3-3.2.8-4.6l-7.8-6.1C1 16.5 0 20.1 0 24s1 7.5 2.6 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.2 0 11.5-2 15.3-5.5l-7-5.4c-2 1.3-4.5 2.1-8.3 2.1-6.4 0-11.7-3.7-13.6-8.9l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
+        <span data-fr="Commencer &#8212; gratuit">Get started — free</span>
+      </a>
+      <a href="#steps" class="btn ghost" data-fr="Voir comment &#231;a marche">See how it works</a>
+    </div>
+    <p class="reassure" data-fr="Offre gratuite, sans carte &#183; Vos donn&#233;es restent les v&#244;tres &#183; Supprimez-les &#224; tout moment en un clic">Free plan, no card required · Your data stays yours · Delete it anytime in one click</p>
+  </div>
+</section>
+
+<section id="steps">
+  <div class="wrap">
+    <p class="eyebrow" data-fr="Pr&#234;t en quelques minutes">Get started in minutes</p>
+    <h2 data-fr="Quatre &#233;tapes, z&#233;ro configuration">Four steps, zero setup</h2>
+    <p class="lead" data-fr="Pas de projet Google Cloud, pas de cl&#233;s API, rien &#224; installer. Si vous savez vous connecter &#224; YouTube, vous savez utiliser Reel.">No Google Cloud project, no API keys, nothing to install. If you can log into YouTube, you can use Reel.</p>
+    <div class="steps">
+      <div class="step"><div class="n">1</div><h3 data-fr="Ouvrez Reel">Open Reel</h3><p data-fr="Ouvrez l&#8217;app dans votre navigateur. C&#8217;est une web app &#8212; rien &#224; t&#233;l&#233;charger. Sur mobile, ajoutez-la &#224; votre &#233;cran d&#8217;accueil.">Go to the app in your browser. It's a web app — nothing to download. On mobile you can add it to your home screen.</p></div>
+      <div class="step"><div class="n">2</div><h3 data-fr="Connectez-vous avec Google">Sign in with Google</h3><p data-fr="Un clic. Google vous demande l&#8217;autorisation de laisser Reel voir vos playlists. Vous acceptez &#8212; c&#8217;est toute la &#171;&#160;cr&#233;ation de compte&#160;&#187;.">One click. Google asks your permission to let Reel see your playlists. You approve — that's the whole "account setup".</p></div>
+      <div class="step"><div class="n">3</div><h3 data-fr="Organisez librement">Organize freely</h3><p data-fr="Vos playlists se chargent instantan&#233;ment. Taguez-les, classez-les en dossiers, filtrez, cherchez, r&#233;ordonnez, sauvegardez &#8212; tout est inclus, gratuitement.">Your playlists load instantly. Tag them, group them into folders, filter, search, reorder, back up — all included, free.</p></div>
+      <div class="step"><div class="n">4</div><h3 data-fr="Passez Premium (optionnel)">Go Premium (optional)</h3><p data-fr="Besoin de la synchro multi-appareils et d&#8217;outils avanc&#233;s&#160;? Passez &#224; l&#8217;offre payante dans l&#8217;app. Tout se d&#233;bloque imm&#233;diatement.">Want cross-device sync and power tools? Upgrade in-app with a card. Everything unlocks immediately.</p></div>
+    </div>
+  </div>
+</section>
+
+<section style="background:var(--bg-1);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <p class="eyebrow" data-fr="Ce que vous pouvez faire">What you can do</p>
+    <h2 data-fr="Tout ce qui manquait &#224; vos playlists">Everything your playlists were missing</h2>
+    <div class="grid3">
+      <div class="card"><div class="ic">&#127991;&#65039;</div><h3 data-fr="Tags &amp; dossiers">Tags &amp; folders</h3><p data-fr="Ajoutez des tags et des dossiers imbriqu&#233;s. Retrouvez enfin une playlist en quelques secondes.">Give playlists custom tags and nested folders. Finally find that playlist in seconds.</p></div>
+      <div class="card"><div class="ic">&#128270;</div><h3 data-fr="Filtres avanc&#233;s">Advanced filters</h3><p data-fr="Filtrez par dur&#233;e, statut ou titre&#160;; triez de 7 fa&#231;ons&#160;; rep&#233;rez les vid&#233;os supprim&#233;es ou priv&#233;es.">Filter by duration, status or title; sort seven ways; spot deleted or private videos.</p></div>
+      <div class="card"><div class="ic">&#128451;&#65039;</div><h3 data-fr="Vue Deck">Deck view</h3><p data-fr="Affichez plusieurs playlists c&#244;te &#224; c&#244;te dans un tableau multi-colonnes et travaillez sur toutes &#224; la fois.">See many playlists side by side in a multi-column board and work across them at once.</p></div>
+      <div class="card"><div class="ic">&#128256;</div><h3 data-fr="Fusion, d&#233;placement &amp; tri">Merge, move &amp; reorder</h3><p data-fr="Fusionnez des playlists, d&#233;placez des vid&#233;os et r&#233;ordonnez par glisser-d&#233;poser.">Combine playlists, move videos and reorder items with drag &amp; drop.</p></div>
+      <div class="card"><div class="ic">&#128190;</div><h3 data-fr="Sauvegarde &amp; export">Backup &amp; export</h3><p data-fr="Exportez et sauvegardez votre biblioth&#232;que organis&#233;e sur les offres payantes ; restaurez quand vous voulez.">Export and back up your curated library on paid plans; restore whenever you want.</p></div>
+      <div class="card"><div class="ic">&#128241;</div><h3 data-fr="Partout">Works everywhere</h3><p data-fr="Ordinateur et mobile, installable comme une app. Votre biblioth&#232;que YouTube Music fonctionne aussi.">Desktop and mobile, installable as an app. Your YouTube Music library works too.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow" data-fr="Tarifs simples">Simple pricing</p>
+    <h2 data-fr="Commencez gratuitement. Passez au payant quand vous en avez besoin.">Start free. Upgrade when you need more.</h2>
+    <p class="lead" data-fr="Vous ne payez jamais pour regarder des vid&#233;os &#8212; la lecture est toujours gratuite et sans restriction. Le payant d&#233;bloque uniquement l&#8217;organisation et la productivit&#233;.">You never pay to watch videos — playback is always free and never gated. Paid plans unlock organization and productivity only.</p>
+    <div class="trial"><span>&#10024;</span><span data-fr="Chaque nouveau compte d&#233;marre avec <b>14 jours de Premium offerts</b> &#8212; aucune carte requise.">Every new account starts with <b>14 days of Premium free</b> — no card required.</span></div>
+    <div class="plans">
+      <div class="plan">
+        <div class="tag" data-fr="Gratuit">Free</div>
+        <div class="price">&#8364;0 <small data-fr="pour toujours">forever</small></div>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> <span data-fr="Jusqu&#8217;&#224; 10 playlists, 5 tags">Up to 10 playlists, 5 tags</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> <span data-fr="Tags, dossiers &amp; filtres">Tags, folders &amp; filters</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> <span data-fr="Lecture de tout &#8212; toujours gratuite">Play everything — always free</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> <span data-fr="3 recherches Discover / jour">3 Discover searches / day</span></li>
+        </ul>
+      </div>
+      <div class="plan feat pro">
+        <div class="badge" data-fr="Le plus populaire">Most popular</div>
+        <div class="tag">Standard</div>
+        <div class="price">&#8364;3<small data-fr="/mois">/mo</small></div>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> <span data-fr="50 playlists, 30 tags">50 playlists, 30 tags</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> <span data-fr="Synchro multi-appareils">Cross-device sync</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> <span data-fr="Export CSV mensuel">Monthly CSV export</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> <span data-fr="15 recherches Discover / jour">15 Discover searches / day</span></li>
+        </ul>
+        <a href="#" class="btn primary" style="margin-top:18px;width:100%;justify-content:center" onclick="return signIn()"><span data-fr="Essai Premium 14 jours">Start 14-day trial</span></a>
+      </div>
+      <div class="plan">
+        <div class="tag">Premium</div>
+        <div class="price">&#8364;6<small data-fr="/mois">/mo</small></div>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> <span data-fr="Playlists &amp; tags illimit&#233;s">Unlimited playlists &amp; tags</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> <span data-fr="Sauvegarde auto &amp; export complet">Auto backup &amp; full export</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> <span data-fr="Vue Deck &amp; actions group&#233;es">Deck view &amp; bulk operations</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> <span data-fr="50 recherches Discover / jour">50 Discover searches / day</span></li>
+        </ul>
+        <a href="#" class="btn ghost" style="margin-top:18px;width:100%;justify-content:center" onclick="return signIn()"><span data-fr="Essai Premium 14 jours">Start 14-day trial</span></a>
+      </div>
+      <div class="plan">
+        <div class="tag">Pro</div>
+        <div class="price">&#8364;12<small data-fr="/mois">/mo</small></div>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> <span data-fr="Tout le Premium">Everything in Premium</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> <span data-fr="Outils Studio (miniatures, sous-titres, upload)">Studio tools (thumbnails, captions, upload)</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> <span data-fr="Export planifi&#233; / API">Scheduled export / API</span></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg> <span data-fr="200 recherches / jour &amp; support prioritaire">200 searches / day &amp; priority support</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="background:var(--bg-1);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <p class="eyebrow" data-fr="Confidentiel par conception">Private by design</p>
+    <h2 data-fr="Votre compte, vos donn&#233;es">Your account, your data</h2>
+    <div class="trust">
+      <div class="t"><div class="ic">&#128274;</div><b data-fr="Vous gardez le contr&#244;le">You stay in control</b><span data-fr="Reel ne touche qu&#8217;&#224; vos propres playlists, avec votre autorisation.">Reel only touches your own playlists, with your permission.</span></div>
+      <div class="t"><div class="ic">&#127466;&#127482;</div><b data-fr="RGPD &amp; CNIL">GDPR &amp; CNIL</b><span data-fr="Supprimez toutes vos donn&#233;es en un clic, &#224; tout moment.">Delete all your data in one click, anytime.</span></div>
+      <div class="t"><div class="ic">&#9654;&#65039;</div><b data-fr="Propuls&#233; par YouTube">Powered by YouTube</b><span data-fr="Lecteur officiel. Regarder est toujours gratuit.">Official player. Watching is always free.</span></div>
+      <div class="t"><div class="ic">&#128683;</div><b data-fr="Aucun verrouillage">No lock-in</b><span data-fr="Supprimez tout en un clic. Emportez votre biblioth&#232;que sur les offres payantes.">Delete everything in one click. Take your library with you on paid plans.</span></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow" data-fr="Bon &#224; savoir">Good to know</p>
+    <h2 data-fr="Questions fr&#233;quentes">Frequently asked</h2>
+    <div class="faq">
+      <details open><summary data-fr="Ai-je besoin d&#8217;un compte Google Cloud ou d&#8217;une cl&#233; API&#160;?">Do I need a Google Cloud account or API key?</summary><p data-fr="Non. Vous vous connectez simplement avec votre compte Google habituel et acceptez l&#8217;acc&#232;s. Toute la plomberie technique est g&#233;r&#233;e pour vous.">No. You just sign in with your normal Google account and approve access. All the technical plumbing is handled for you.</p></details>
+      <details><summary data-fr="Reel va-t-il modifier mes playlists sans me demander&#160;?">Will Reel change my playlists without asking?</summary><p data-fr="Non. Reel n&#8217;effectue que les modifications que vous d&#233;clenchez vous-m&#234;me &#8212; et il demande l&#8217;autorisation de modification s&#233;par&#233;ment, la premi&#232;re fois que vous changez r&#233;ellement quelque chose.">No. Reel only makes changes you trigger yourself — and it asks for edit permission separately, the first time you actually modify something.</p></details>
+      <details><summary data-fr="Mes donn&#233;es sont-elles en s&#233;curit&#233;&#160;?">Is my data safe?</summary><p data-fr="Votre connexion reste entre votre navigateur et Google. Reel ne vend ni ne partage vos donn&#233;es, et vous pouvez tout effacer avec le bouton &#171;&#160;Supprimer mes donn&#233;es&#160;&#187;, qui r&#233;voque aussi l&#8217;acc&#232;s.">Your login stays between your browser and Google. Reel doesn't sell or share your data, and you can wipe everything with the "Delete my data" button, which also revokes access.</p></details>
+      <details><summary data-fr="Dois-je payer pour regarder mes vid&#233;os&#160;?">Do I have to pay to watch my videos?</summary><p data-fr="Jamais. La lecture est toujours gratuite et sans restriction. Le Premium n&#8217;ajoute que des fonctions d&#8217;organisation et de productivit&#233;.">Never. Playback is always free and unrestricted. Premium only adds organization and productivity features.</p></details>
+      <details><summary data-fr="Quels comptes fonctionnent&#160;?">Which accounts work?</summary><p data-fr="N&#8217;importe quel compte YouTube. Vos playlists YouTube Music partagent la m&#234;me biblioth&#232;que, elles fonctionnent donc aussi.">Any YouTube account. Your YouTube Music playlists share the same library, so they work too.</p></details>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="final">
+      <h2 data-fr="Pr&#234;t &#224; ranger vos playlists&#160;?">Ready to tidy up your playlists?</h2>
+      <p class="lead" style="margin-bottom:26px" data-fr="Commencez gratuitement en moins d&#8217;une minute. Sans carte, sans configuration.">Start free in under a minute. No card, no setup.</p>
+      <a href="#" class="btn google" style="font-size:16px;padding:13px 22px" onclick="return signIn()">
+        <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.3l7.8 6.1C12.3 13.2 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.1 5.3-4.5 7l7 5.4c4.1-3.8 6.9-9.4 6.9-16.9z"/><path fill="#FBBC05" d="M10.4 28.6c-.5-1.4-.8-2.9-.8-4.6s.3-3.2.8-4.6l-7.8-6.1C1 16.5 0 20.1 0 24s1 7.5 2.6 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.2 0 11.5-2 15.3-5.5l-7-5.4c-2 1.3-4.5 2.1-8.3 2.1-6.4 0-11.7-3.7-13.6-8.9l-7.8 6.1C6.5 42.6 14.6 48 24 48z"/></svg>
+        <span data-fr="Commencer avec Google">Get started with Google</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>&copy; <span id="yr"></span> <span data-fr="Reel &#8212; Playlist Manager. Non affili&#233; &#224; YouTube / Google LLC ni approuv&#233; par ces soci&#233;t&#233;s.">Reel — Playlist Manager. Not affiliated with or endorsed by YouTube / Google LLC.</span></div>
+    <div style="display:flex;gap:20px">
+      <a href="/privacy" data-fr="Confidentialit&#233;">Privacy</a>
+      <a href="/terms" data-fr="Conditions">Terms</a>
+      <a href="#" onclick="return signIn()" data-fr="Se connecter">Sign in</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('yr').textContent = new Date().getFullYear();
+
+  (function(){
+    var nodes = Array.prototype.slice.call(document.querySelectorAll('[data-fr]'));
+    nodes.forEach(function(n){ n.setAttribute('data-en', n.innerHTML); });
+
+    window.setLang = function(l){
+      document.documentElement.lang = l;
+      nodes.forEach(function(n){
+        n.innerHTML = (l === 'fr') ? n.getAttribute('data-fr') : n.getAttribute('data-en');
+      });
+      var btns = document.querySelectorAll('[data-lang-btn]');
+      for (var i=0;i<btns.length;i++){ btns[i].classList.toggle('active', btns[i].getAttribute('data-lang-btn') === l); }
+      try { localStorage.setItem('reel_lang', l); } catch(e){}
+    };
+
+    var start = 'en';
+    try {
+      var s = localStorage.getItem('reel_lang');
+      if (s === 'fr' || s === 'en') { start = s; }
+      else if ((navigator.language || '').toLowerCase().indexOf('fr') === 0) { start = 'fr'; }
+    } catch(e){}
+    setLang(start);
+  })();
+
+  function signIn(){
+    window.location.href = "/app"; // TODO: replace with your app URL or OAuth start
+    return false;
+  }
+</script>
+</body>
+</html>
