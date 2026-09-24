@@ -4172,6 +4172,62 @@ const SUITES = [
     })],
   ],
 },
+{
+  id: 'AUD-45', title: 'Modals behave as dialogs', note: 'no dialog role, focus never moved in or came back, the page behind stayed reachable, and the player ignored Escape',
+  cases: [
+    ['an open modal is a named, modal dialog over an inert page', w => {
+      w.openModal('<div class="modal-header"><div class="modal-title">Aud45 title</div></div><button>ok</button>');
+      try {
+        const box = w.document.getElementById('modalContent');
+        eq([box.getAttribute('role'), box.getAttribute('aria-modal')], ['dialog', 'true'], 'role');
+        eq(w.document.getElementById(box.getAttribute('aria-labelledby')).textContent, 'Aud45 title', 'accessible name');
+        const main = [...w.document.body.children].filter(el => el.id !== 'modalOverlay' && el.id !== 'toastContainer' && el.tagName !== 'SCRIPT');
+        ok(main.length && main.every(el => el.inert), 'part of the page stays reachable behind the modal');
+        eq(w.document.getElementById('toastContainer').inert, false, 'toasts must stay reachable');
+      } finally { w.closeModal(); }
+      const left = [...w.document.body.children].filter(el => el.inert);
+      return eq(left.length, 0, 'elements left inert after closing');
+    }],
+    ['focus moves into the dialog and returns to the opener', async w => {
+      const f = await openFreshApp();
+      try {
+        const fw = f.contentWindow, doc = fw.document;
+        const opener = doc.createElement('button');
+        opener.textContent = 'open';
+        doc.body.appendChild(opener);
+        opener.focus();
+        fw.openModal('<h2>Aud45</h2><input id="aud45field" type="text"><button>ok</button>');
+        eq(doc.activeElement && doc.activeElement.id, 'aud45field', 'focus after opening');
+        fw.closeModal();
+        return eq(doc.activeElement, opener, 'focus after closing');
+      } finally { f.remove(); }
+    }],
+    ['a modal without a field takes focus itself', async w => {
+      const f = await openFreshApp();
+      try {
+        const fw = f.contentWindow;
+        fw.openModal('<p>no fields</p><button>ok</button>');
+        const active = fw.document.activeElement;
+        fw.closeModal();
+        return eq(active && active.id, 'modalContent', 'focus after opening');
+      } finally { f.remove(); }
+    }],
+    ['Escape closes a modal, and docks the full-size player', w => {
+      const esc = () => w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      w.openModal('<h2>x</h2>');
+      esc();
+      eq(w.document.getElementById('modalOverlay').classList.contains('active'), false, 'modal still open');
+      const player = w.document.getElementById('playerModalOverlay');
+      const before = player.className;
+      try {
+        player.classList.add('active');
+        player.classList.remove('docked');
+        esc();
+        return eq(player.classList.contains('docked'), true, 'player docked on Escape');
+      } finally { player.className = before; }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {

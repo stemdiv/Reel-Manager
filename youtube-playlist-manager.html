@@ -2690,8 +2690,10 @@
 </div>
 
 <!-- MODALS -->
+<!-- AUD-45 — a real modal dialog for assistive tech: role, aria-modal, a label taken
+     from the content's heading, focus moved in and given back, the page behind inert -->
 <div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
-  <div class="modal" id="modalContent" onclick="event.stopPropagation()"></div>
+  <div class="modal" id="modalContent" role="dialog" aria-modal="true" tabindex="-1" onclick="event.stopPropagation()"></div>
 </div>
 
 <!-- TOAST CONTAINER -->
@@ -2699,7 +2701,7 @@
 <div class="toast-container" id="toastContainer" role="status" aria-live="polite"></div>
 
 <!-- IN-APP PLAYER MODAL (Beta) -->
-<div class="player-modal-overlay" id="playerModalOverlay" onclick="if (event.target === this && !this.classList.contains('docked')) closePlayerModal()">
+<div class="player-modal-overlay" id="playerModalOverlay" role="dialog" aria-labelledby="playerTitle" onclick="if (event.target === this && !this.classList.contains('docked')) closePlayerModal()">
   <div class="player-modal" onclick="event.stopPropagation()">
     <div class="player-video-wrap">
       <div id="playerIframeContainer"></div>
@@ -4501,11 +4503,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.34'; // bump per release
+const APP_VERSION = '1.27.35'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.35', date: '2026-09-24', items: [
+    "ACCESSIBILITE (AUD-45) — les fenetres de dialogue n etaient pas annoncees comme telles, le focus restait derriere elles et la page du dessous restait accessible au clavier ; le lecteur plein ecran ignorait Echap. Une fenetre ouverte prend desormais le focus, porte le nom de son titre, rend la page du dessous inactive et rend le focus a l element qui l a ouverte ; Echap ancre le lecteur, comme son bouton",
+  ]},
   { v: '1.27.34', date: '2026-09-24', items: [
     "ACCESSIBILITE (AUD-48) — les notifications (succes, erreurs, alertes de quota) n etaient pas annoncees par les lecteurs d ecran, et une notification avec bouton, comme Se reconnecter, disparaissait apres 10 s quoi qu on fasse. Elles sont desormais annoncees (les erreurs immediatement) et restent affichees tant que le pointeur ou le focus est dessus",
   ]},
@@ -15778,7 +15783,40 @@ function populateSelectDropdowns() {
 
 function openModal(content) {
   document.getElementById('modalContent').innerHTML = content;
-  document.getElementById('modalOverlay').classList.add('active');
+  showModalOverlay();
+}
+
+// ── AUD-45 — modal behaviour ─────────────────────────────────────────────
+// The modal stays a styled <div> rather than a native <dialog>: showModal()
+// puts the dialog in the top layer, above the toast area, so an error toast
+// raised by a modal would sit dimmed and unreachable behind it. The same
+// guarantees are built here instead: the rest of the page is made inert (the
+// toast area excepted), focus moves into the dialog and returns to the
+// element that opened it, and the dialog is named after its heading.
+let _modalReturnFocus = null;
+let _modalInerted = [];
+
+function showModalOverlay() {
+  const overlay = document.getElementById('modalOverlay');
+  const box = document.getElementById('modalContent');
+  if (!overlay.classList.contains('active')) {
+    _modalReturnFocus = document.activeElement;
+    _modalInerted = [...document.body.children].filter(el =>
+      el !== overlay && el.id !== 'toastContainer' && el.tagName !== 'SCRIPT' && !el.inert);
+    _modalInerted.forEach(el => { el.inert = true; });
+  }
+  overlay.classList.add('active');
+  const heading = box.querySelector('h1, h2, h3, .modal-title');
+  if (heading) {
+    if (!heading.id) heading.id = 'modalTitle';
+    box.setAttribute('aria-labelledby', heading.id);
+  } else {
+    box.removeAttribute('aria-labelledby');
+  }
+  // A field if there is one (the opener may refine this), else the dialog
+  // itself, so the next Tab starts inside it.
+  const field = box.querySelector('input:not([type="hidden"]), select, textarea');
+  (field || box).focus({ preventScroll: true });
 }
 
 function showPrivacyPolicy() {
@@ -15796,13 +15834,22 @@ function showPrivacyPolicy() {
       </div>
     </div>
   `;
-  overlay.classList.add('active');
+  showModalOverlay();
 }
 
 function closeModal(event) {
   if (event && event.target !== document.getElementById('modalOverlay')) return;
-  document.getElementById('modalOverlay').classList.remove('active');
+  const overlay = document.getElementById('modalOverlay');
+  const wasOpen = overlay.classList.contains('active');
+  overlay.classList.remove('active');
   document.getElementById('modalContent').innerHTML = '';
+  document.getElementById('modalContent').removeAttribute('aria-labelledby');
+  _modalInerted.forEach(el => { el.inert = false; });
+  _modalInerted = [];
+  // AUD-45 — back to where the user was
+  const back = _modalReturnFocus;
+  _modalReturnFocus = null;
+  if (wasOpen && back && back.isConnected && typeof back.focus === 'function') back.focus({ preventScroll: true });
 }
 
 // action is optional: { label, onClick }. The message stays textContent — a
@@ -15951,7 +15998,11 @@ document.addEventListener('keydown', (e) => {
       switchView('backup');
     }
   } else if (e.key === 'Escape') {
-    closeModal();
+    // AUD-45 — a dialog first; otherwise the full-size player docks, like its
+    // own dock button (it used to ignore Escape).
+    const player = document.getElementById('playerModalOverlay');
+    if (document.getElementById('modalOverlay').classList.contains('active')) closeModal();
+    else if (player && player.classList.contains('active') && !player.classList.contains('docked')) closePlayerModal();
   }
 });
 
