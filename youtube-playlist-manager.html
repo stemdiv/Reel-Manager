@@ -3378,6 +3378,7 @@ const I18N = {
     toast_moved_partial: '{moved} vidéo(s) déplacée(s), {stuck} copiée(s) sans être retirée(s) de la playlist source — réessayez sur celles-ci',
     toast_moved_aborted: 'Déplacement interrompu : {msg}. {moved} déplacée(s), {stuck} copiée(s) sans retrait de la source, {left} non traitée(s)',
     toast_merge_skipped: '{dupes} vidéo(s) déjà présente(s) non recopiée(s)',
+    discover_channel_playlists_capped: 'Les {count} premières playlists de la chaîne sont affichées ; la liste s\'arrête là',
     toast_scanning_ghosts: 'Scan des vidéos fantômes... (peut prendre un moment)',
     toast_video_deleted: 'Vidéo supprimée',
     toast_all_ghosts_cleaned: 'Toutes les vidéos fantômes supprimées',
@@ -4160,6 +4161,7 @@ const I18N = {
     toast_moved_partial: '{moved} video(s) moved, {stuck} copied but not removed from the source playlist — retry those',
     toast_moved_aborted: 'Move stopped: {msg}. {moved} moved, {stuck} copied without leaving the source, {left} not processed',
     toast_merge_skipped: '{dupes} video(s) already there, not copied again',
+    discover_channel_playlists_capped: 'Showing the channel\'s first {count} playlists; the list stops there',
     toast_scanning_ghosts: 'Scanning ghost videos... (may take a moment)',
     toast_video_deleted: 'Video deleted',
     toast_all_ghosts_cleaned: 'All ghost videos removed',
@@ -4428,11 +4430,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.18'; // bump per release
+const APP_VERSION = '1.27.19'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.19', date: '2026-09-24', items: [
+    "QUOTA (AUD-01) — parcourir les playlists d une chaine depuis Decouvrir pouvait couter jusqu a 20 appels en un clic, sans verification de quota ; #82 promettait justement l inverse. La liste s arrete desormais a 3 pages (150 playlists), passe par la verification de quota, et un message dit quand elle est tronquee",
+  ]},
   { v: '1.27.18', date: '2026-09-24', items: [
     "QUOTA (AUD-21) — deux regles de comptage cohabitaient : les appels ordinaires etaient comptes avant l envoi, echecs compris, mais les envois de miniature, de sous-titre, de video et de couverture seulement apres un succes, et sans verifier le passage a minuit heure du Pacifique. Un envoi rate ne comptait pas, alors que Google le facture ; le premier envoi d une nouvelle journee s ajoutait aux compteurs de la veille puis disparaissait. Une seule regle desormais, chargeCall : compte avant l envoi, remise a zero verifiee d abord",
   ]},
@@ -6291,6 +6296,7 @@ function estimateQuotaCost(action, count) {
     'channel_update': count * YT_QUOTA_COSTS['channels.PUT'],
     'reorder_video': count * YT_QUOTA_COSTS['playlistItems.PUT'],
     'video_insert': count * YT_QUOTA_COSTS['videos.POST'],   // 1 call from the upload bucket (#76)
+    'channel_playlists_pages': count * YT_QUOTA_COSTS['playlists.GET'],   // AUD-01 — worst case, 1 unit a page
   };
   if (!(action in costs)) {
     // Never again a silent 1: assume a write and say so in the log.
@@ -11642,15 +11648,21 @@ function tagBookmarkSource(playlistId, source) {
 }
 
 /** Browse a channel's playlists in the same read-only surface as bookmarks. */
+// AUD-01 — #82 promised "a page cap so one click cannot become twenty calls",
+// and the cap was 20. Three pages = 150 playlists, which covers nearly every
+// channel; beyond that the user is told the list stops there.
+const CHANNEL_PLAYLISTS_MAX_PAGES = 3;
+
 async function browseChannelPlaylists(channelId, channelTitle) {
+  if (!checkQuotaBudget(t('discover_channel_playlists'), 'channel_playlists_pages', CHANNEL_PLAYLISTS_MAX_PAGES)) return;
   const btnHost = document.getElementById('discoverSearchBtn');
   if (btnHost) btnHost.disabled = true;
   try {
     let items = [];
     let pageToken = '';
     // 1 unit per page, capped: a channel with hundreds of playlists must not
-    // quietly turn one click into twenty calls.
-    for (let p = 0; p < 20; p++) {
+    // quietly turn one click into many calls.
+    for (let p = 0; p < CHANNEL_PLAYLISTS_MAX_PAGES; p++) {
       const params = {
         part: 'snippet,contentDetails',
         channelId,
@@ -11663,6 +11675,7 @@ async function browseChannelPlaylists(channelId, channelTitle) {
       pageToken = data.nextPageToken || '';
       if (!pageToken) break;
     }
+    if (pageToken) showToast(t('discover_channel_playlists_capped', { count: items.length }), 'info');
     discoverEntities = items.map(p => ({
       kind: 'playlist',
       id: p.id,

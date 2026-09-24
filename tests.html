@@ -2727,7 +2727,9 @@ const SUITES = [
           return { nextPageToken: 'more', items: [{ id: 'PL_p' + pages, snippet: { title: 'p' + pages, thumbnails: {} }, contentDetails: { itemCount: 1 } }] };
         };
         await w.browseChannelPlaylists('UC_endless', 'Endless');
-        return ok(pages <= 20, 'paged ' + pages + ' times');
+        // AUD-01 — this asserted pages <= 20, so twenty calls passed a case
+        // titled "cannot become twenty calls".
+        return eq(pages, 3, 'pages fetched for one click');
       } finally { w.ytApi = real; }
     }],
 
@@ -3368,6 +3370,7 @@ const SUITES = [
         add_to_playlist: 50, video_update: 50, thumbnail_set: 50, caption_insert: 400, channel_update: 50,
         video_insert: 1, cover_set: 50, reorder_video: 50, rename_playlists: 50, delete_playlists: 50,
         discover_search_pages: 1, move: 100, clean_ghosts: 50, bulk_rename: 50, merge: 50, merge_new: 100,
+        channel_playlists_pages: 1,
       };
       const unknown = keys.filter(k => !(k in expected));
       eq(unknown, [], 'pre-flight keys this case does not know — add them to `expected`');
@@ -3499,6 +3502,34 @@ const SUITES = [
         ok(charge > 0 && charge < send, fn + ' charges after sending, or not at all');
       }
       return '4 uploads charge first';
+    }],
+  ],
+},
+{
+  id: 'AUD-01', title: 'Browsing a channel\'s playlists is bounded and pre-flighted', note: 'one click could spend twenty calls, with no quota check',
+  cases: [
+    ['the pre-flight runs and a truncated list says so', async w => {
+      const real = { ytApi: w.ytApi, showToast: w.showToast, checkQuotaBudget: w.checkQuotaBudget };
+      const budget = [], toasts = [];
+      try {
+        w.ytApi = async () => ({ nextPageToken: 'more', items: [{ id: 'PL_x', snippet: { title: 'x', thumbnails: {} }, contentDetails: { itemCount: 1 } }] });
+        w.checkQuotaBudget = (name, action, count) => { budget.push([action, count]); return true; };
+        w.showToast = (m, type) => toasts.push({ m, type });
+        await w.browseChannelPlaylists('UC_endless', 'Endless');
+        eq(budget, [['channel_playlists_pages', 3]], 'pre-flight');
+        return ok(toasts.some(x => x.type === 'info' && /3/.test(x.m)), 'no note that the list stops: ' + JSON.stringify(toasts));
+      } finally { Object.assign(w, real); }
+    }],
+
+    ['a refused pre-flight sends nothing', async w => {
+      const real = { ytApi: w.ytApi, checkQuotaBudget: w.checkQuotaBudget };
+      let calls = 0;
+      try {
+        w.ytApi = async () => { calls++; return { items: [] }; };
+        w.checkQuotaBudget = () => false;
+        await w.browseChannelPlaylists('UC_x', 'X');
+        return eq(calls, 0, 'requests sent after the user declined');
+      } finally { Object.assign(w, real); }
     }],
   ],
 },
