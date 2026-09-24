@@ -4412,11 +4412,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.7'; // bump per release
+const APP_VERSION = '1.27.8'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.8', date: '2026-09-24', items: [
+    "SECURITE (#G13, rouvert par l audit) — au retour de Google, le jeton restait dans l adresse pendant tout le chargement du cache IndexedDB, avant que checkAuth ne l efface : le journal d erreurs lit l adresse de la page. Le fragment est desormais lu et efface en toute premiere instruction de init(), avant tout appel asynchrone ; le parametre ?bookmark= est conserve pour la suite du demarrage",
+  ]},
   { v: '1.27.7', date: '2026-09-24', items: [
     "CGU YOUTUBE (AUD-28) — Reel Studio 0.7.2 : replier le lecteur le faisait glisser hors de l ecran pendant que le son continuait, soit une lecture audio seule. Replier l ancre desormais en bas a droite, video visible en 356 x 200 au-dessus de la barre de lecture ; la musique continue, l image aussi",
     "Reel Studio met en pause quand l onglet est masque, qu un onglet YouTube soit ouvert ou non : la lecture en arriere-plan d un lecteur integre n est pas autorisee",
@@ -5553,6 +5556,10 @@ async function init() {
   // to the opener and close. Nothing else must run, least of all anything that
   // writes to the shared localStorage.
   if (handleOAuthPopupReturn()) return;
+  // #G13 — take the token out of the URL before the first await. Everything
+  // below until checkAuth() is asynchronous IndexedDB work, and for all of it
+  // the token used to sit in location.href, where the error logger reads it.
+  _oauthHash = takeOAuthHash();
 
   // Auto-purge if no login for 30+ days. APP already holds the purged values,
   // read at parse time, so start again from an empty storage.
@@ -6728,8 +6735,22 @@ function openOAuthPopup(scope) {
   });
 }
 
+// #G13 — the fragment of an OAuth return, captured and wiped by init() before
+// anything asynchronous runs, then handed to checkAuth().
+let _oauthHash = '';
+
+// Reads the implicit-flow fragment and removes it from the address bar at once.
+// The query string stays: init() still has to read ?bookmark= after this.
+function takeOAuthHash() {
+  const hash = window.location.hash || '';
+  if (!hash.includes('access_token=')) return '';
+  try { window.history.replaceState({}, document.title, window.location.pathname + window.location.search); } catch (_) {}
+  return hash;
+}
+
 function checkAuth() {
-  const hash = window.location.hash;
+  const hash = _oauthHash || window.location.hash;
+  _oauthHash = '';
   if (hash) {
     const params = new URLSearchParams(hash.substring(1));
     setAccessToken(params.get('access_token'));

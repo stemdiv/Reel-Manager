@@ -3076,6 +3076,39 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '#G13b', title: 'The token leaves the URL before anything async', note: 'reopened by the audit: init() awaited IndexedDB work first, with the token still in location.href',
+  cases: [
+    ['the OAuth fragment is taken and wiped, the query kept', w => {
+      try {
+        w.history.replaceState({}, '', w.location.pathname + '?bookmark=PLabcdefghijk#access_token=TEST_TOKEN_2&expires_in=3600');
+        const h = w.takeOAuthHash();
+        ok(h.includes('access_token=TEST_TOKEN_2'), 'fragment not returned: ' + h);
+        ok(!w.location.href.includes('access_token'), 'token still in the URL');
+        return eq(w.location.search, '?bookmark=PLabcdefghijk', 'the deep link was lost');
+      } finally { w.history.replaceState({}, '', w.location.pathname); }
+    }],
+
+    ['a fragment without a token is left alone', w => {
+      try {
+        w.history.replaceState({}, '', w.location.pathname + '#/somewhere');
+        eq(w.takeOAuthHash(), '', 'took a fragment with no token');
+        return eq(w.location.hash, '#/somewhere');
+      } finally { w.history.replaceState({}, '', w.location.pathname); }
+    }],
+
+    ['init() takes the fragment before its first await', async w => {
+      const src = await (await fetch('youtube-playlist-manager.html?g13b=' + Date.now())).text();
+      const start = src.indexOf('async function init() {');
+      ok(start > 0, 'init() not found');
+      const body = src.slice(start, src.indexOf('\n}\n', start)).replace(/\/\/.*$/gm, '');   // comments may say "await"
+      const take = body.indexOf('takeOAuthHash()');
+      const firstAwait = body.search(/\bawait\b/);
+      ok(take > 0, 'init() never takes the fragment');
+      return ok(take < firstAwait, 'the fragment is taken after an await');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
