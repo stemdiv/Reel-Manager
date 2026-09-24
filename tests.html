@@ -4025,6 +4025,33 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-12', title: 'CSV restore reads every file the CSV export writes', note: 'titles keyed a plain object ("__proto__" threw) and the text was split on newlines before the quotes were read',
+  cases: [
+    ['a playlist named "__proto__" is an ordinary playlist (B3)', w => {
+      const r = w.parseCSVForRestore(aud12Csv(w, [['__proto__', 'Song', 'dQw4w9WgXcQ', 'Disponible']]));
+      eq(r.playlists.map(p => [p.title, p.videos.length]), [['__proto__', 1]], 'playlists');
+      return ok(Object.getPrototypeOf({}).videos === undefined, 'Object.prototype was touched');
+    }],
+    ['a quoted line break stays inside its cell (B4)', w => {
+      const r = w.parseCSVForRestore(aud12Csv(w, [['Mix', 'line1\nline2', 'dQw4w9WgXcQ', 'Disponible'],
+                                                  ['Mix', 'windows\r\nbreak', 'aaaaaaaaaaa', 'Disponible']]));
+      return eq(r.playlists[0].videos, [{ videoId: 'dQw4w9WgXcQ', title: 'line1\nline2' }, { videoId: 'aaaaaaaaaaa', title: 'windows\r\nbreak' }]);
+    }],
+    ['the formula guard is undone on the way back in, and only it (B5)', w => {
+      const csv = aud12Csv(w, [['=SUM(A1)', '=A1', 'dQw4w9WgXcQ', 'Disponible'], ['=SUM(A1)', "'Round Midnight", 'aaaaaaaaaaa', 'Disponible']]);
+      ok(csv.includes('"\'=A1"'), 'the export did not guard the formula');
+      const r = w.parseCSVForRestore(csv);
+      eq(r.playlists[0].title, '=SUM(A1)', 'playlist title');
+      return eq(r.playlists[0].videos.map(v => v.title), ['=A1', "'Round Midnight"], 'titles');
+    }],
+    ['deleted rows are skipped in either language (B6)', w => {
+      const r = w.parseCSVForRestore(aud12Csv(w, [['P', 'gone', 'dQw4w9WgXcQ', 'Supprimée'], ['P', 'gone too', 'aaaaaaaaaaa', 'Deleted'],
+                                                  ['P', 'here', 'bbbbbbbbbbb', 'Available']]));
+      return eq(r.playlists[0].videos.map(v => v.videoId), ['bbbbbbbbbbb']);
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -4263,6 +4290,14 @@ async function runRetry(w, method, script) {
     catch (e) { threw = true; message = e.message; }
     return { fetches, threw, message, toasts };
   } finally { Object.assign(w, real); }
+}
+
+// AUD-12 — a CSV in the export's exact shape (BOM, bare header, csvRow cells)
+// from [playlist, video title, videoId, status] rows.
+function aud12Csv(w, rows) {
+  const header = ['Playlist', 'Playlist ID', 'Titre vidéo', 'URL YouTube', 'Chaîne', 'Durée', 'Statut', 'Date ajout', 'Position', 'Tags'];
+  return '\uFEFF' + header.join(',') + '\n' + rows.map(([pl, title, id, status]) =>
+    w.csvRow([pl, 'PLx', title, 'https://www.youtube.com/watch?v=' + id, 'c', 'PT1M', status, '', 0, ''])).join('\n');
 }
 
 // AUD-08 — the CSP a page declares in its <meta>, or '' if it has none.

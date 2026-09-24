@@ -4436,11 +4436,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.30'; // bump per release
+const APP_VERSION = '1.27.31'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.31', date: '2026-09-24', items: [
+    "RESTAURATION CSV (AUD-12) — une playlist nommee __proto__ faisait echouer toute la restauration, et un titre sur plusieurs lignes, exporte correctement, etait coupe en deux a la relecture. Le fichier est desormais lu comme un vrai CSV (retours a la ligne entre guillemets compris) et les playlists sont regroupees sans risque sur leur nom",
+  ]},
   { v: '1.27.30', date: '2026-09-24', items: [
     "LIENS (AUD-11) — un lien ?bookmark= transmettait sa valeur telle quelle a la fenetre d ajout de favori, seuls les guillemets etant echappes. Seul un identifiant de playlist valide (ou une adresse YouTube qui en contient un) est desormais retenu ; toute autre valeur est ignoree",
   ]},
@@ -15138,56 +15141,62 @@ function parseJSONForRestore(text) {
 
 function parseCSVForRestore(text) {
   // CSV format: Playlist, Playlist ID, Titre vidéo, URL YouTube, Chaîne, Durée, Statut, Date ajout, Position, Tags
-  const lines = text.replace(/^﻿/, '').split('\n'); // strip BOM
-  if (lines.length < 2) return null;
+  const rows = parseCSV(text.replace(/^\uFEFF/, '')); // strip BOM
+  if (rows.length < 2) return null;
 
-  const playlistMap = {};
-  for (let i = 1; i < lines.length; i++) {
-    const row = parseCSVLine(lines[i]);
-    if (!row || row.length < 4) continue;
+  // AUD-12 — a Map, not an object keyed by title: a playlist named
+  // "__proto__" resolved to Object.prototype and the whole import threw.
+  const playlistMap = new Map();
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (row.length < 4) continue;
 
-    const plTitle = csvUnescapeCell(row[0]?.trim());
+    const plTitle = csvUnescapeCell(row[0].trim());
     if (!plTitle) continue;
 
-    if (!playlistMap[plTitle]) {
-      playlistMap[plTitle] = { title: plTitle, description: '', videos: [], selected: true };
+    if (!playlistMap.has(plTitle)) {
+      playlistMap.set(plTitle, { title: plTitle, description: '', videos: [], selected: true });
     }
 
     // Extract videoId from URL (column 3) or from column 1 (Playlist ID is not videoId)
-    const url = row[3]?.trim() || '';
+    const url = row[3].trim();
     const videoIdMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
     const videoId = videoIdMatch ? videoIdMatch[1] : null;
-    const videoTitle = csvUnescapeCell(row[2]?.trim() || '');
-    const status = row[6]?.trim() || '';
+    const videoTitle = csvUnescapeCell((row[2] || '').trim());
+    const status = (row[6] || '').trim();
 
     if (videoId && videoTitle && !status.includes('Supprim') && !status.includes('Deleted')) {
-      playlistMap[plTitle].videos.push({ videoId, title: videoTitle });
+      playlistMap.get(plTitle).videos.push({ videoId, title: videoTitle });
     }
   }
 
-  const playlists = Object.values(playlistMap);
+  const playlists = [...playlistMap.values()];
   return playlists.length > 0 ? { playlists } : null;
 }
 
-function parseCSVLine(line) {
-  if (!line || !line.trim()) return null;
-  const result = [];
-  let current = '';
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
+// AUD-12 — RFC 4180 reader over the whole text. A quoted cell may hold commas,
+// doubled quotes and line breaks; csvCell() quotes every cell, so a title or
+// channel name with a newline is exported intact, and splitting the text on
+// '\n' before parsing cut such a row in two. Rows end on LF or CRLF.
+function parseCSV(text) {
+  const rows = [];
+  let row = [], cell = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
     if (inQuotes) {
-      if (ch === '"' && line[i + 1] === '"') { current += '"'; i++; }
+      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
       else if (ch === '"') inQuotes = false;
-      else current += ch;
-    } else {
-      if (ch === '"') inQuotes = true;
-      else if (ch === ',') { result.push(current); current = ''; }
-      else current += ch;
-    }
+      else cell += ch;
+    } else if (ch === '"') inQuotes = true;
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(cell); rows.push(row);
+      row = []; cell = '';
+    } else cell += ch;
   }
-  result.push(current);
-  return result;
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows;
 }
 
 function renderRestorePanel() {
