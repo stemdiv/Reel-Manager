@@ -3572,6 +3572,27 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-18', title: 'No dead If-Match path', note: 'the header could never be sent: `cached` is only looked up for GETs',
+  cases: [
+    ['a write sends no conditional header', async w => {
+      const real = { fetch: w.fetch, ensureWriteScope: w.ensureWriteScope };
+      let headers = null;
+      try {
+        w.ensureWriteScope = async () => true;          // no consent popup in a test
+        w.fetch = async (url, opts) => { headers = opts.headers; return new w.Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }); };
+        await w.ytApi('playlists', { part: 'snippet' }, 'PUT', { id: 'PL_x', snippet: { title: 't' } });
+        return ok(!('If-Match' in headers) && !('If-None-Match' in headers), 'conditional header on a write: ' + JSON.stringify(headers));
+      } finally { Object.assign(w, real); }
+    }],
+
+    ['the unreachable If-Match / 412 code is gone', async w => {
+      const src = await (await fetch('youtube-playlist-manager.html?aud18=' + Date.now())).text();
+      ok(!/headers\['If-Match'\]/.test(src), 'If-Match is still set somewhere');
+      return ok(!/res\.status === 412/.test(src), 'the 412 branch is still there');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {

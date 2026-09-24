@@ -4430,11 +4430,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.20'; // bump per release
+const APP_VERSION = '1.27.21'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.21', date: '2026-09-24', items: [
+    "NETTOYAGE (AUD-18) — l en-tete If-Match sur les ecritures (#55) n etait jamais envoye : le cache n est consulte que pour les lectures, et l adresse d une ecriture n est jamais celle d une lecture en cache. Le code et son traitement de l erreur 412, inatteignables, sont retires ; aucun comportement ne change",
+  ]},
   { v: '1.27.20', date: '2026-09-24', items: [
     "QUOTA (AUD-17) — le cache des reponses n enregistrait une reponse que si l en-tete HTTP ETag etait lisible ; or une requete vers un autre domaine ne l expose que si le serveur l autorise. Sans lui, le cache ne gardait rien et chaque relecture pourtant dans son delai de fraicheur etait refacturee, recherches comprises. Une reponse est desormais mise en cache pour sa duree de vie, ETag ou non ; l ETag, quand il est lisible, ne sert plus qu a la revalidation",
   ]},
@@ -7527,16 +7530,15 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
   if (body) opts.body = JSON.stringify(body);
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Conditional headers (audit #54 If-None-Match, #55 If-Match)
+  // Conditional header (audit #54 If-None-Match)
   // ──────────────────────────────────────────────────────────────────────────
-  // Stale GET with a cached etag: ask server if anything changed
+  // Stale GET with a cached etag: ask server if anything changed.
+  // AUD-18 — #55's If-Match on PUT/DELETE is gone: `cached` is only ever looked
+  // up for GETs, and a write's URL is never a cached GET's key, so the header
+  // was never sent and its 412 handler never reached. Optimistic concurrency
+  // would need the resource's own etag, looked up by id — not worth faking.
   if (method === 'GET' && cached?.etag && !bypassCache) {
     opts.headers['If-None-Match'] = cached.etag;
-  }
-  // Write on a specific resource id: send If-Match for optimistic concurrency
-  // (only if we previously fetched this resource and cached its etag)
-  if ((method === 'PUT' || method === 'DELETE') && cached?.etag) {
-    opts.headers['If-Match'] = cached.etag;
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -7578,11 +7580,6 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
         return cached.body;
       }
 
-      // 412 Precondition Failed — our If-Match etag is stale; another client modified the resource
-      if (res.status === 412) {
-        API_CACHE.delete(cacheKey);
-        throw new Error('Cette ressource a été modifiée ailleurs — rafraîchissez et réessayez.');
-      }
 
       // Retryable status codes (429 rate-limit, 5xx server errors)
       if (isRetryableStatus(res.status)) {
