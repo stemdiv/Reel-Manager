@@ -4644,11 +4644,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.46'; // bump per release
+const APP_VERSION = '1.27.47'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.47', date: '2026-09-24', items: [
+    "MUSIQUE (AUD-25) — le filtre Musique et la vue Musique jugeaient chacun de leur côté et pouvaient se contredire : un titre d une chaîne « - Topic » sans catégorie était une piste pour l une et pas de la musique pour l autre. Un seul classement répond désormais aux deux questions : une piste compte toujours comme musique ; un mix de deux heures reste de la musique sans être une piste ; un cours rangé en Musique n en est pas",
+  ]},
   { v: '1.27.46', date: '2026-09-24', items: [
     "SECURITE — dans la vue Abonnements, la description d une chaine etait inseree dans la page sans echappement : une chaine pouvait y placer du code HTML. Elle s affiche desormais comme du texte",
   ]},
@@ -10932,8 +10935,15 @@ function musicScore(v) {
   return Math.max(0, Math.min(1, score));
 }
 
+// AUD-25 — one classifier. classifyVideoType() (#J1 filter, genre badge)
+// and the #17 Music view used to decide separately and could disagree: a
+// "- Topic" upload with no category was a track for one and not music for
+// the other. Both now read classifyVideoType(), which answers two nested
+// questions: isTrack (the #17 per-video decision, from musicScore()) and
+// isMusic (music content for the #J1 filter, which also counts mixes and
+// live sets). A track is always music, so they can no longer contradict.
 function isMusicVideo(v) {
-  return musicScore(v) >= MUSIC_SCORE_THRESHOLD;
+  return classifyVideoType(v).isTrack;
 }
 
 /**
@@ -11063,8 +11073,15 @@ function classifyVideoType(v) {
     const liveRe = /\blive\s*(at|@|in|from|au|aux|à)\b|\(live\)|\[live\]|\blive (session|set|concert|show|performance)\b|\bboiler room\b|\bunplugged\b|\btiny desk\b/;
     const excludeMatched = excludeRe.test(title);
     const includeMatched = includeRe.test(title) || liveRe.test(title);
-    let isMusic = topicIsMusic || (String(categoryId) === '10') || includeMatched;
-    if (excludeMatched) isMusic = false;
+    // AUD-25 — the #17 score is one of the signals (Topic channel, category 10,
+    // track length, "Artist - Title", long-form penalty), with the category
+    // found above so both paths see the same input.
+    // Tutorials, reviews, podcasts… are not music, whatever else matched —
+    // except on an auto-generated "- Topic" channel, which only holds tracks
+    // (a song titled "Demo" or "Interlude (Live Review)" is still a song).
+    const excluded = excludeMatched && !isTopicChannel(v.channelTitle || v.videoOwnerChannelTitle || '');
+    const isTrack = !excluded && musicScore({ ...v, categoryId }) >= MUSIC_SCORE_THRESHOLD;
+    const isMusic = isTrack || (!excluded && (topicIsMusic || String(categoryId) === '10' || includeMatched));
     let type;
     if (isMusic && (liveRe.test(title) || /\bconcert\b/.test(title))) type = 'live';
     else if (isMusic) type = 'music';
@@ -11075,9 +11092,9 @@ function classifyVideoType(v) {
       const gseg = topicSegs.find(s => /music/i.test(s) && !/^Music$/i.test(s)) || topicSegs.find(s => /^(Jazz|Reggae|Blues)$/i.test(s));
       if (gseg) genre = GENRE_LABELS[gseg] ? GENRE_LABELS[gseg][currentLang === 'en' ? 1 : 0] : gseg.replace(/_/g, ' ');
     }
-    return { isMusic: isMusic, type: type, genre: genre };
+    return { isMusic: isMusic, isTrack: isTrack, type: type, genre: genre };
   } catch (e) {
-    return { isMusic: false, type: 'other' };
+    return { isMusic: false, isTrack: false, type: 'other' };
   }
 }
 

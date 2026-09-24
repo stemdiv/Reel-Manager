@@ -4666,6 +4666,61 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-25', title: 'One music classifier, and the spec boundaries (S1–S6)', note: 'classifyVideoType() and musicScore() decided separately; a "- Topic" upload with no category was music for one only',
+  cases: [
+    ['S1 — category 10 alone reaches the 0.7 threshold', w => {
+      const v = { title: 'x', categoryId: '10', durationSeconds: 30 };
+      eq(Math.round(w.musicScore(v) * 100) / 100, 0.7, 'score');
+      return eq(w.isMusicVideo(v), true, 'track');
+    }],
+    ['S2 — the long-form penalty keeps a 25-minute Topic upload out', w => {
+      const v = { title: 'x', channelTitle: 'X - Topic', durationSeconds: 1500 };
+      eq(Math.round(w.musicScore(v) * 100) / 100, 0.4, 'score');
+      return eq(w.isMusicVideo(v), false, 'track');
+    }],
+    ['S3 — track-length bounds with only the artist-title pattern', w => eq(
+      [119, 120, 420, 421].map(d => Math.round(w.musicScore({ title: 'Artist - Title', durationSeconds: d }) * 100) / 100),
+      [0.2, 0.4, 0.4, 0.2])],
+    ['S4 — playlist verdict boundaries', w => {
+      const list = n => Array.from({ length: 50 }, (_, i) => i < n ? { title: 'x', categoryId: '10', durationSeconds: 200 } : { title: 'x', durationSeconds: 200 });
+      return eq([40, 25, 24].map(n => w.playlistMusicVerdict(list(n)).verdict), ['music', 'mixed', 'video']);
+    }],
+    ['S5 — a user override beats detection', w => {
+      const snap = snapshot(w, ['playlistViewMode']);
+      try {
+        w.setPlaylistViewMode('PL_aud25', 'video');
+        eq(w.effectiveViewMode('PL_aud25', 'music'), 'video', 'override video');
+        w.setPlaylistViewMode('PL_aud25', 'music');
+        eq(w.effectiveViewMode('PL_aud25', 'video'), 'music', 'override music');
+        w.setPlaylistViewMode('PL_aud25', null);
+        return eq(w.effectiveViewMode('PL_aud25', 'mixed'), 'video', 'no override');
+      } finally { restore(w, snap); }
+    }],
+    ['S6 — both paths agree on a Topic upload with no category or topics', w => {
+      const v = { videoId: 'aud25topic0', title: 'Song', channelTitle: 'Artist - Topic', durationSeconds: 200 };
+      const c = w.classifyVideoType(v);
+      return eq([c.isMusic, c.isTrack, w.isMusicVideo(v)], [true, true, true]);
+    }],
+    ['a track is always music content, never the other way round', w => {
+      const samples = [
+        { title: 'Song', channelTitle: 'A - Topic', durationSeconds: 200 },
+        { title: 'Boiler Room Set', channelTitle: 'A - Topic', durationSeconds: 7200 },
+        { title: 'Guitar lesson for beginners', categoryId: '10', durationSeconds: 600 },
+        { title: 'Artist - Title (Official Video)', durationSeconds: 240 },
+        { title: 'Demo', channelTitle: 'Band - Topic', durationSeconds: 180 },
+        { title: 'Podcast #12', durationSeconds: 3600 },
+        { title: 'DJ set live at X', durationSeconds: 5400 },
+      ];
+      const bad = samples.filter(v => { const c = w.classifyVideoType(v); return c.isTrack && !c.isMusic || w.isMusicVideo(v) !== c.isTrack; });
+      eq(bad.map(v => v.title), [], 'contradictions');
+      const c = s => w.classifyVideoType(s);
+      eq([c(samples[1]).isMusic, c(samples[1]).isTrack], [true, false], 'a 2 h set: music content, not a track');
+      eq(c(samples[2]).isMusic, false, 'a lesson filed under Music is not music');
+      return eq(c(samples[4]).isTrack, true, 'a Topic track titled "Demo" stays a track');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
