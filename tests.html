@@ -1670,6 +1670,8 @@ const SUITES = [
       // REGRESSION: "Failed to fetch" is how an unreachable method surfaces in a
       // browser — never as a clean 404 body. The guard used to miss it, so the
       // error escaped fetchVideoStats and Discover died on it.
+      // Its own video id: since AUD-17 the response cache works, and an earlier
+      // case's successful read of 'A' would be served from it for a minute.
       const realFetch = w.fetch;
       const wasEnabled = w.batchStatsEnabled();
       try {
@@ -1677,12 +1679,12 @@ const SUITES = [
         w.setBatchStatsEnabled(true);
         w.fetch = async (u) => {
           if (String(u).includes('batchGetStats')) throw new TypeError('Failed to fetch');
-          return new w.Response(JSON.stringify({ items: [{ id: 'A', statistics: { viewCount: '42' } }] }),
+          return new w.Response(JSON.stringify({ items: [{ id: 'A_unreach', statistics: { viewCount: '42' } }] }),
                                 { status: 200, headers: { 'Content-Type': 'application/json' } });
         };
-        const r = await w.fetchVideoStats(['A']);
+        const r = await w.fetchVideoStats(['A_unreach']);
         eq(r.source, 'videos.list', 'it should have fallen back');
-        eq(r.byId.A.viewCount, 42, 'the stats still came through');
+        eq(r.byId.A_unreach.viewCount, 42, 'the stats still came through');
         return eq(w.batchStatsEnabled(), false, 'the flag should be down for the session');
       } finally { w.fetch = realFetch; w.setBatchStatsEnabled(wasEnabled); }
     }],
@@ -3530,6 +3532,43 @@ const SUITES = [
         await w.browseChannelPlaylists('UC_x', 'X');
         return eq(calls, 0, 'requests sent after the user declined');
       } finally { Object.assign(w, real); }
+    }],
+  ],
+},
+{
+  id: 'AUD-17', title: 'The response cache works without an ETag header', note: 'a cross-origin fetch exposes ETag only if the server allows it; without it nothing was ever cached',
+  cases: [
+    ['a second read within the TTL is served from memory, not billed again', async w => {
+      const snap = seedQuota(w, { pool: 0, search: 0, upload: 0, stats: 0 });
+      const realFetch = w.fetch;
+      let fetches = 0;
+      try {
+        w.fetch = async () => { fetches++; return new w.Response(JSON.stringify({ items: [{ id: '10' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } }); };
+        const params = { part: 'snippet', regionCode: 'FR', hl: 'aud17-' + Date.now() };   // a URL no earlier case cached
+        const a = await w.ytApi('videoCategories', params);
+        const b = await w.ytApi('videoCategories', params);
+        eq(fetches, 1, 'network requests');
+        eq(b, a, 'cached body');
+        return eq(readQuota(w).pool, 1, 'units billed');
+      } finally { w.fetch = realFetch; unseedQuota(w, snap); }
+    }],
+
+    ['an ETag, when readable, is still sent on the next stale read', async w => {
+      const realFetch = w.fetch;
+      const seen = [];
+      try {
+        w.fetch = async (url, opts) => {
+          seen.push(opts.headers['If-None-Match'] || null);
+          return new w.Response(JSON.stringify({ items: [] }), { status: 200, headers: { 'Content-Type': 'application/json', 'ETag': '"v1"' } });
+        };
+        const params = { part: 'snippet', regionCode: 'FR', hl: 'aud17e-' + Date.now(), _ttlMs: 0 };
+        // _ttlMs: 0 makes the entry stale at once, so the second call goes out.
+        await w.ytApi('videoCategories', { ...params, _ttlMs: 60000 });
+        await w.ytApi('videoCategories', { ...params, _ttlMs: 1 });
+        await new Promise(r => setTimeout(r, 5));
+        await w.ytApi('videoCategories', { ...params, _ttlMs: 1 });
+        return eq(seen[seen.length - 1], '"v1"', 'If-None-Match on the stale read');
+      } finally { w.fetch = realFetch; }
     }],
   ],
 },

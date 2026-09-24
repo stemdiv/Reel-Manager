@@ -4430,11 +4430,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.19'; // bump per release
+const APP_VERSION = '1.27.20'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.20', date: '2026-09-24', items: [
+    "QUOTA (AUD-17) — le cache des reponses n enregistrait une reponse que si l en-tete HTTP ETag etait lisible ; or une requete vers un autre domaine ne l expose que si le serveur l autorise. Sans lui, le cache ne gardait rien et chaque relecture pourtant dans son delai de fraicheur etait refacturee, recherches comprises. Une reponse est desormais mise en cache pour sa duree de vie, ETag ou non ; l ETag, quand il est lisible, ne sert plus qu a la revalidation",
+  ]},
   { v: '1.27.19', date: '2026-09-24', items: [
     "QUOTA (AUD-01) — parcourir les playlists d une chaine depuis Decouvrir pouvait couter jusqu a 20 appels en un clic, sans verification de quota ; #82 promettait justement l inverse. La liste s arrete desormais a 3 pages (150 playlists), passe par la verification de quota, et un message dit quand elle est tronquee",
   ]},
@@ -7647,18 +7650,20 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
 
       const responseBody = await res.json();
 
-      // Cache GET responses with their ETag for future If-None-Match
+      // Cache GET responses for their TTL. AUD-17 — this used to require a
+      // readable ETag response header, and a cross-origin fetch only exposes it
+      // if the server lists it in Access-Control-Expose-Headers. Without it the
+      // whole TTL cache stored nothing and every "free" re-read was billed. The
+      // fresh-hit path needs no ETag at all; the header is kept, when there is
+      // one, only for If-None-Match on the next stale read.
       if (method === 'GET' && ttl > 0) {
-        const etag = res.headers.get('ETag');
-        if (etag) {
-          const serialized = JSON.stringify(responseBody);
-          cacheSet(cacheKey, {
-            etag,
-            body: responseBody,
-            savedAt: Date.now(),
-            sizeBytes: serialized.length,
-          });
-        }
+        const serialized = JSON.stringify(responseBody);
+        cacheSet(cacheKey, {
+          etag: res.headers.get('ETag') || null,
+          body: responseBody,
+          savedAt: Date.now(),
+          sizeBytes: serialized.length,
+        });
       }
 
       log('info', 'api', 'API call ok', { endpoint, method, status: res.status, bucket, cost, durationMs: Date.now() - _logCallStart, retries: _logRetries });
