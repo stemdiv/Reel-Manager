@@ -10,7 +10,7 @@ Branche d'audit `audit/2026-09`, base `origin/main` @ `9c824eb`. Code examiné :
 |---|---|---|
 | `claude_handoff-lot1/2/3-claude-code.md` | **Absent** | Description de la PR [stemdiv/Reel-Manager#1](https://github.com/stemdiv/Reel-Manager/pull/1) (la PR fusionnée « Lots 1–3 », 23 commits, v1.12.0 → v1.27.3) + backlog v6.5 §« Shipped — session of 16 September 2026 » |
 | `YouTube-API-Usage-Map-v2`, `Unused-API-Opportunity-Analysis-v2` | **Absent** | Table des coûts dans le code (`YT_QUOTA_COSTS`, l.5175) — utilisée en passe 1 |
-| `Music Mode — Design Spec v1` (`Reel-Music-Mode-Design-Spec.docx`) | **Absent** | Ligne #17 du backlog + les chiffres du handoff lui-même (+0.9 / +0.7 / 2–7 min / 80 % / 50–80 %) |
+| `Music Mode — Design Spec v1` (`Reel-Music-Mode-Design-Spec.docx`) | **Absent** | Ligne #17 du backlog + les chiffres du handoff lui-même (+0,9 / +0,7 / 2–7 min / 80 % / 50–80 %) |
 | Audit code/API de mai 2026 | **Absent** | Annexe du backlog « Session of 14 May 2026 » (items #47–#60) |
 | `CLAUDE.md` | **Absent** | — |
 | Backlogs | Présents | `Backlog-YT-Playlist-Manager{,-EN}.docx` v6.5 (16 sept. 2026), texte extrait |
@@ -81,13 +81,13 @@ Légende : ✅ livré · 🟡 partiel · ❌ non livré · ⚪ non vérifié.
 
 | Valeur de la spécification | Code | Concordance |
 |---|---|---|
-| « - Topic » +0.9 | `:10220` `topicChannel: 0.9` | ✅ |
-| categoryId 10 +0.7 | `:10221` `musicCategory: 0.7` | ✅ |
-| Durée 2–7 min | `:10243` `if (seconds >= 120 && seconds <= 420) score += MUSIC_SIGNALS.trackLength;` (+0.2) | ✅ (poids ⚪ absent du handoff) |
-| Motif « Artiste - Titre » | `:10244` `if (hasArtistTitlePattern(v.title \|\| '')) score += MUSIC_SIGNALS.artistTitle;` (+0.2) | ✅ (poids ⚪) |
+| « - Topic » +0,9 | `:10220` `topicChannel: 0.9` | ✅ |
+| categoryId 10 +0,7 | `:10221` `musicCategory: 0.7` | ✅ |
+| Durée 2–7 min | `:10243` `if (seconds >= 120 && seconds <= 420) score += MUSIC_SIGNALS.trackLength;` (+0,2) | ✅ (poids ⚪ absent du handoff) |
+| Motif « Artiste - Titre » | `:10244` `if (hasArtistTitlePattern(v.title \|\| '')) score += MUSIC_SIGNALS.artistTitle;` (+0,2) | ✅ (poids ⚪) |
 | Seuils 80 % / 50–80 % | `:10227-10228` | ✅ |
 | Forçages permanents | `:10197` `localStorage.getItem('playlistViewMode')` — persisté, et prioritaire sur la détection `:10210` | ✅ (non purgé : voir AUD-03) |
-| Seuil par vidéo 0.7, échantillon de 50, vidéo longue −0.5 | `:10224-10229` | ⚪ absent du handoff ; document de spécification manquant |
+| Seuil par vidéo 0,7, échantillon de 50, vidéo longue −0,5 | `:10224-10229` | ⚪ absent du handoff ; document de spécification manquant |
 
 ---
 

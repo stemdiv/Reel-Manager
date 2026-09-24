@@ -8,11 +8,11 @@ Base `origin/main` @ `9c824eb`, app **v1.27.3**. Lecture seule. Le skill `engine
 
 | Fichier | Lignes | Rôle |
 |---|---|---|
-| `youtube-playlist-manager.html` | 15,457 | L'app entière : CSS l.22–1321, HTML l.1323–2759, JS l.2760–15454, le tout dans un seul fichier |
-| `reel-studio.html` | 1,786 | Seconde UI (habillage « musique ») qui se contente de **lire** le cache de l'app (IndexedDB `ytpm` + ancien `autoCache`) et lit les vidéos via l'IFrame API. **Elle ne fait aucun appel à la Data API** (0 `ytApi`/`fetch` vers googleapis). |
-| `tests.html` | 3,041 | Harnais de régression de même origine : charge l'app dans une iframe et appelle ses globales |
+| `youtube-playlist-manager.html` | 15 457 | L'app entière : CSS l.22–1321, HTML l.1323–2759, JS l.2760–15454, le tout dans un seul fichier |
+| `reel-studio.html` | 1 786 | Seconde UI (habillage « musique ») qui se contente de **lire** le cache de l'app (IndexedDB `ytpm` + ancien `autoCache`) et lit les vidéos via l'IFrame API. **Elle ne fait aucun appel à la Data API** (0 `ytApi`/`fetch` vers googleapis). |
+| `tests.html` | 3 041 | Harnais de régression de même origine : charge l'app dans une iframe et appelle ses globales |
 | `sw.js` | 85 | Service worker `reel-manager-v32` |
-| `how-it-works.html`, `quota-estimator.html` | 323 / 1,011 | Pages autonomes de présentation/outillage ; non reliées à l'exécution de l'app |
+| `how-it-works.html`, `quota-estimator.html` | 323 / 1 011 | Pages autonomes de présentation/outillage ; non reliées à l'exécution de l'app |
 | `index.html`, `manifest.json`, `icons/`, `LANCER-APP.bat` | — | Redirection vers l'app, manifeste PWA, lanceur Windows (`python -m http.server`) |
 
 Le dépôt ne contient ni étape de build, ni gestionnaire de paquets, ni backend, ni code serveur.
@@ -24,7 +24,7 @@ Repérés grâce aux bannières de section `// ====` du fichier lui-même. Les t
 | Module | Emplacement | ~Lignes | Responsabilité | Principal état détenu |
 |---|---|---|---|---|
 | Constantes | :2763–2771 | 10 | `API_BASE`, scopes OAuth | `currentScope` |
-| **i18n** | :2772–4373 | 1,600 | `I18N.fr` (:2775) / `I18N.en` (:3553), `t()` :4334, `applyLanguage()` :4342 | `currentLang` (`appLang`) |
+| **i18n** | :2772–4373 | 1 600 | `I18N.fr` (:2775) / `I18N.en` (:3553), `t()` :4334, `applyLanguage()` :4342 | `currentLang` (`appLang`) |
 | **État APP** | :4374–4409 | 35 | Objet global unique `APP` (:4376) : jeton, quota, playlists, `allVideos`, tags, dossiers, deck, file d'attente, favoris, indicateur lecture seule | Hydraté depuis ~10 clés localStorage au moment du parsing |
 | **Journal de diagnostic** (#66) | :4410–4850, :15426+ | 440 | `log()` :4645, `_logRedact()` :4692, `persistLog()` :4730, capture globale des erreurs | `APP.log`, `diagnosticLog` |
 | Mode lecture seule (#43) | :4851–4889 | 40 | Bloque les écritures dans toute l'app | `readOnlyMode` |
@@ -43,7 +43,7 @@ Repérés grâce aux bannières de section `// ====` du fichier lui-même. Les t
 | Registre bêta | :8866–8968 | 100 | UI des feature flags | — |
 | **Studio Creator** | :8969–9436 | 470 | Métadonnées vidéo, miniatures, sous-titres, branding de chaîne, **upload de vidéo** | — |
 | Changement de vue | :9437–9494 | 60 | `switchView()` :9439 | — |
-| Playlists + détail + filtres + couvertures (#I1) + Shorts + **Mode Musique** | :9495–10682 | 1,190 | Liste, détail, filtres, `pickThumb()` :9827, couvertures :9884–10100, `detectShort()` :10114, `musicScore()` :10236, `parseArtistTitle()` :10319, `classifyVideoType()` :10356 | `playlistViewMode`, `reelMusicMode`, `libraryLens` |
+| Playlists + détail + filtres + couvertures (#I1) + Shorts + **Mode Musique** | :9495–10682 | 1 190 | Liste, détail, filtres, `pickThumb()` :9827, couvertures :9884–10100, `detectShort()` :10114, `musicScore()` :10236, `parseArtistTitle()` :10319, `classifyVideoType()` :10356 | `playlistViewMode`, `reelMusicMode`, `libraryLens` |
 | Réordonnancement | :10683–11028 | 345 | Glisser-déposer `playlistItems.update`, créer/renommer/supprimer une playlist | — |
 | Recherche + récentes | :11029–11332 | 300 | Recherche locale globale | `recentSearches` |
 | **Discover** | :11333–12138 | 805 | `search.list`, statistiques (`batchGetStats`), recherche d'entités (#82), création de playlist depuis les résultats | `discoverFilters` |
@@ -65,7 +65,7 @@ Repérés grâce aux bannières de section `// ====` du fichier lui-même. Les t
 - **A1 — Tout est global.** 32 clés localStorage, un objet `APP`, et un état `let` au niveau module (`videoDetailsCache`, `currentDetailVideos`, `moveVideosCache`, `musicMode`, `PLAYER`…). Les bannières de section sont la seule frontière entre modules. L'ordre est fragile : :5521 porte le commentaire `// Video details cache — MUST be declared before loadBackupFromStorage() to avoid TDZ`.
 - **A2 — Le HTML sert de bus d'événements.** 322 attributs inline `on*="…"` appellent des globales par leur nom. C'est pour cela que la CSP garde `'unsafe-inline'` (voir AUD-02), et c'est le principal obstacle au découpage du fichier en modules ES.
 - **A3 — Deux UI partagent un même contrat de stockage sans version de schéma sur la charge utile IDB**, en dehors de `CACHE_DB_VERSION = 1` (:5673). Reel Studio réimplémente `pickThumb`, le sélecteur de couleur et le code des thèmes (`reel-studio.html:631–849`, `:920`) au lieu de les partager. C'est de la duplication, traitée en passe 4.
-- **A4 — Le compteur de quota est par navigateur, pas par projet Google Cloud.** `APP.quota` réside dans `localStorage` (:5340 `saveQuotaState`), alors que le pool de 10,000 unités de Google est par **client ID**. Plusieurs appareils, ou plusieurs utilisateurs partageant un client ID, ne voient chacun que leur propre part. Le compteur est une estimation locale, pas le plafond réel. C'est attendu pour une app purement client, et c'est exactement ce que le proxy de la Phase 4 doit corriger. « non vérifié » : la manière dont l'UI formule cela pour les utilisateurs.
+- **A4 — Le compteur de quota est par navigateur, pas par projet Google Cloud.** `APP.quota` réside dans `localStorage` (:5340 `saveQuotaState`), alors que le pool de 10 000 unités de Google est par **client ID**. Plusieurs appareils, ou plusieurs utilisateurs partageant un client ID, ne voient chacun que leur propre part. Le compteur est une estimation locale, pas le plafond réel. C'est attendu pour une app purement client, et c'est exactement ce que le proxy de la Phase 4 doit corriger. « non vérifié » : la manière dont l'UI formule cela pour les utilisateurs.
 
 ## 3. Pipeline des requêtes (`ytApi`, :7302–7514)
 
@@ -99,7 +99,7 @@ Le coût et le bucket proviennent de `YT_QUOTA_COSTS` (:5175) et `QUOTA_BUCKETS`
 | `videos.list` chart=mostPopular | 1 | pool | `loadTrending` :8128 | — | — |
 | `videos.list` (détails Discover) | 1 | pool | `performDiscoverSearch` :11855 | — | — |
 | `videos.list` statistics (repli) | 1 | pool | `fetchVideoStats` :11593 | — | — |
-| `videos:batchGetStats` | 1 | **stats** (10,000) | `fetchVideoStats` :11580 | — | — |
+| `videos:batchGetStats` | 1 | **stats** (10 000) | `fetchVideoStats` :11580 | — | — |
 | `videos/getRating` | 1 | pool | `fetchRating` :8594 | — | — |
 | `search.list` | 1 **appel** | **search** (100 appels) | `performDiscoverSearch` :11835, `performDiscoverEntitySearch` :11361 | pages choisies par l'utilisateur | ✅ :11795 (bucket search) |
 | `subscriptions.list` | 1/page | pool | `loadSubscriptions` :14051, `probeSubscription` :14188 | ≤20 pages | — |
@@ -218,7 +218,7 @@ Le refactor des gestionnaires inline (AUD-02) avance en parallèle. C'est un pr�
 ## 7. Points relevés ici pour les passes suivantes (pas encore des constats)
 
 - Le quota est facturé **avant** la requête (:7380) dans `ytApi`, mais seulement **après succès** pour les uploads directs. Les règles sont incohérentes → passe 3.
-- La valeur par défaut de `fetchAllPages`, 20 pages = 1,000 éléments, est utilisée par `loadPlaylistVideos` (:7900) sans surcharge. Les playlists YouTube vont jusqu'à 5,000 éléments → passe 3.
+- La valeur par défaut de `fetchAllPages`, 20 pages = 1 000 éléments, est utilisée par `loadPlaylistVideos` (:7900) sans surcharge. Les playlists YouTube vont jusqu'à 5 000 éléments → passe 3.
 - `If-Match` est recherché avec la clé de cache de l'URL d'écriture → passe 3.
 - Le pré-vol de `videos.insert` est vérifié sur le bucket pool ; plusieurs clés `estimateQuotaCost` manquent → passe 3.
 - `checkAuth` accepte n'importe quel `#access_token` sans `state` (#G6) → passe 2.
