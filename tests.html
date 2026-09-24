@@ -4517,6 +4517,31 @@ const SUITES = [
     ['a toast lives CONFIG.TOAST_MS', w => aud48Toast(w, 'info', null, t => eq(t.live().map(x => x.ms), [w.CONFIG.TOAST_MS], 'life'))],
   ],
 },
+{
+  id: 'AUD-38/29', title: 'Dead code is gone', note: 'a mini-player nothing ever showed, a progress timer that only fed it, two unused helpers and a shadowed global',
+  cases: [
+    ['the dead mini-player is gone, markup and code', w => {
+      eq(w.document.getElementById('miniPlayer'), null, 'markup');
+      return eq(['updateMiniPlayer', 'startProgressTracking', 'stopProgressTracking'].map(n => typeof w[n]), ['undefined', 'undefined', 'undefined'], 'functions');
+    }],
+    ['unused helpers are gone', w => eq(['addToQueueFromCard', 'isCategoryAssignable', 'toggleMusicMode', 'updateMusicModeBtn'].map(n => typeof w[n]),
+                                         ['undefined', 'undefined', 'undefined', 'undefined'])],
+    ['no global is shadowed by executeRestore()', w => {
+      eq(typeof w.updateProgress, 'undefined', 'global updateProgress');
+      return eq(typeof w.updateCategorizerProgress, 'function', 'the categorizer helper');
+    }],
+    ['the player still docks and closes without the mini-player', w => {
+      const overlay = w.document.getElementById('playerModalOverlay');
+      const before = overlay.className;
+      try {
+        w.minimizePlayer();
+        ok(overlay.classList.contains('docked'), 'not docked');
+        w.closePlayer();
+        return eq(overlay.classList.contains('active'), false, 'still open after close');
+      } finally { overlay.className = before; }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
