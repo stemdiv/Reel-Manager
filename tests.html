@@ -3870,6 +3870,43 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-10', title: 'The diagnostic log never keeps a token', note: 'redaction matched whole strings only, and the message itself was never redacted',
+  cases: [
+    ['a token inside a longer string is redacted (X7)', w => {
+      const out = JSON.stringify(w._logRedact({
+        source: 'https://x/#access_token=ya29.abcDEF&x=1',
+        err: 'Request failed: Authorization: Bearer ya29.qwerty',
+        revoke: 'https://oauth2.googleapis.com/revoke?token=1//refresh-ish',
+        list: ['ok', 'see ya29.zzz_1 here'],
+      }));
+      ok(!/ya29\.[a-zA-Z]/.test(out) && !out.includes('abcDEF') && !out.includes('refresh-ish'), 'a token survived: ' + out);
+      return ok(out.includes('https://x/#access_token=…&x=1'), 'the rest of the URL should stay readable: ' + out);
+    }],
+    ['the message is redacted too (X7)', w => {
+      const out = aud10Logged(w, 'aud10msg', () => w.log('warn', 'test', 'aud10msg call failed with Bearer ya29.msgTOKEN'));
+      ok(out.length === 1, 'entry not found');
+      return eq(out[0].msg, 'aud10msg call failed with Bearer …', 'message');
+    }],
+    ['an uncaught error on a URL with a token logs no token', w => {
+      const out = aud10Logged(w, 'aud10err', () => w.dispatchEvent(new w.ErrorEvent('error', {
+        message: 'aud10err boom near #access_token=ya29.errTOKEN', filename: 'https://app/#access_token=ya29.fileTOKEN&expires_in=3599', lineno: 1 })));
+      ok(out.length === 1, 'entry not found');
+      const text = JSON.stringify(out[0]);
+      return ok(!text.includes('TOKEN'), 'a token reached the log: ' + text);
+    }],
+    ['ordinary text is left alone', w => {
+      eq(w._logRedact('hello world, token count 3'), 'hello world, token count 3', 'plain text');
+      return eq(w._logRedact({ q: 'a?list=PL123&index=2' }), { q: 'a?list=PL123&index=2' }, 'a URL without a token');
+    }],
+    ['no log call records a title', async w => {
+      const src = await fetch('youtube-playlist-manager.html?aud10=' + Date.now()).then(r => r.text());
+      const calls = src.match(/\blog\('(?:debug|info|warn|error)'[^;]*;/g) || [];
+      const withTitle = calls.filter(c => /[{,]\s*title\s*:/.test(c));
+      return eq(withTitle, [], 'log calls with a title');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -4108,6 +4145,18 @@ async function runRetry(w, method, script) {
     catch (e) { threw = true; message = e.message; }
     return { fetches, threw, message, toasts };
   } finally { Object.assign(w, real); }
+}
+
+// AUD-10 — run something that logs, persist the log and return the entries
+// that mention `marker`. The stored log is put back afterwards.
+function aud10Logged(w, marker, act) {
+  const snap = snapshot(w, ['diagnosticLog']);
+  try {
+    act();
+    w.persistLog();
+    const all = JSON.parse(w.localStorage.getItem('diagnosticLog') || '[]');
+    return all.filter(e => String(e.msg).includes(marker) || JSON.stringify(e.data || '').includes(marker));
+  } finally { restore(w, snap); }
 }
 
 // #G6 — run checkAuth() on a fragment with a given pending state (null: none,
