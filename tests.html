@@ -3990,6 +3990,41 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-11', title: 'A ?bookmark= link can only bring a playlist id', note: 'the deep-link value went into the modal with only its double quotes escaped',
+  cases: [
+    ['raw playlist ids are kept as they are (U1)', w => {
+      const ids = ['PLabcdefghij', 'LLxxxxxxxxxx', 'RDxxxxxxxxxx', 'OLAK5uy_abcdefghijk'];
+      return eq(ids.map(w.extractPlaylistId), ids);
+    }],
+    ['full and share URLs give the id (U2)', w => eq([
+      'https://www.youtube.com/playlist?list=PLabcdefghij',
+      'https://youtu.be/xyz?list=PLabcdefghij&t=3',
+      'https://music.youtube.com/playlist?list=OLAK5uy_abcdefghijk',
+    ].map(w.extractPlaylistId), ['PLabcdefghij', 'PLabcdefghij', 'OLAK5uy_abcdefghijk'])],
+    ['anything else is refused (U3)', w => eq([
+      'PL', 'javascript:alert(1)', 'list=<script>', 'https://evil/?list=PL"onx=', '"><img src=x onerror=alert(1)>', '', null,
+    ].map(w.extractPlaylistId), [null, null, null, null, null, null, null])],
+    ['the deep link keeps only a valid id', w => eq([
+      '?bookmark=PLabcdefghij',
+      '?bookmark=' + encodeURIComponent('https://www.youtube.com/playlist?list=PLabcdefghij'),
+      '?bookmark=' + encodeURIComponent('"><img src=x onerror=alert(1)>'),
+      '?other=1',
+    ].map(w.readBookmarkDeepLink), ['PLabcdefghij', 'PLabcdefghij', null, null])],
+    ['the modal prefill is inert and holds only an id (U5)', w => {
+      const read = value => {
+        w.showAddBookmarkModal(value);
+        const box = w.document.getElementById('modalContent');
+        const r = { value: box.querySelector('#bookmarkInput').value, injected: box.querySelectorAll('img, [onerror]').length };
+        w.closeModal();
+        return r;
+      };
+      eq(read('"><img src=x onerror="window.__pwn=1">'), { value: '', injected: 0 }, 'hostile value');
+      eq(w.__pwn, undefined, 'ran');
+      return eq(read('https://www.youtube.com/playlist?list=PLabcdefghij'), { value: 'PLabcdefghij', injected: 0 }, 'a URL');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {

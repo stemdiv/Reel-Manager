@@ -4436,11 +4436,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.29'; // bump per release
+const APP_VERSION = '1.27.30'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.30', date: '2026-09-24', items: [
+    "LIENS (AUD-11) — un lien ?bookmark= transmettait sa valeur telle quelle a la fenetre d ajout de favori, seuls les guillemets etant echappes. Seul un identifiant de playlist valide (ou une adresse YouTube qui en contient un) est desormais retenu ; toute autre valeur est ignoree",
+  ]},
   { v: '1.27.29', date: '2026-09-24', items: [
     "SECURITE (AUD-08) — la politique de securite (CSP) n interdisait pas l envoi de formulaires vers un autre site : un formulaire injecte aurait pu y poster des donnees de la page. C est desormais interdit dans l app et dans Reel Studio. Les pages Comment ca marche et Estimateur de quota, sur la meme origine, recoivent leur propre CSP ; l estimateur n autorise que son script, par empreinte. La protection contre l inclusion dans un cadre (clickjacking) demande un en-tete HTTP de l hebergeur : a configurer lors du deploiement",
   ]},
@@ -5020,6 +5023,21 @@ function setReadOnlyMode(enabled) {
 // 32+ chars but we stay permissive to handle future YouTube formats.
 const BOOKMARK_ID_REGEX = /^(PL|LL|FL|UU|RD|OL|WL|PU|LP)[A-Za-z0-9_-]{10,}$/;
 
+/**
+ * AUD-11 — the `?bookmark=` deep link, reduced to a playlist id or null. Only a
+ * value that extractPlaylistId() accepts is kept, so nothing else from a link
+ * someone sent reaches the page.
+ */
+function readBookmarkDeepLink(search) {
+  let raw = null;
+  try { raw = new URLSearchParams(search || '').get('bookmark'); } catch (_) {}
+  if (!raw) return null;
+  const id = extractPlaylistId(raw);
+  if (id) log('info', 'action', 'deep-link bookmark detected', { id: id.substring(0, 8) + '…' });
+  else log('warn', 'action', 'deep-link bookmark ignored: not a playlist id');
+  return id;
+}
+
 /** Extract a playlist ID from any of: raw ID, full URL, share URL. */
 function extractPlaylistId(input) {
   if (!input || typeof input !== 'string') return null;
@@ -5155,11 +5173,14 @@ function removeBookmark(playlistId) {
 
 /** Open a small modal to enter a playlist URL/ID and bookmark it. */
 function showAddBookmarkModal(prefilledId = '') {
+  // AUD-11 — prefill only a real playlist id; the old quote-only escape was
+  // enough for this attribute, but a value from a link is checked, not patched.
+  const prefill = extractPlaylistId(prefilledId) || '';
   const content = `
     <div style="max-width: 480px; padding: 24px;">
       <h2 style="margin: 0 0 6px 0; font-size: 17px;">${t('bookmark_modal_title')}</h2>
       <p style="margin: 0 0 14px 0; color: var(--text2); font-size: 12px; line-height: 1.5;">${t('bookmark_modal_hint')}</p>
-      <input type="text" id="bookmarkInput" value="${prefilledId.replace(/"/g, '&quot;')}" placeholder="${t('bookmark_input_placeholder')}"
+      <input type="text" id="bookmarkInput" value="${escapeHtml(prefill)}" placeholder="${t('bookmark_input_placeholder')}"
         style="width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface2); color: var(--text); font-family: inherit; font-size: 13px; margin-bottom: 6px;"
         onkeydown="if(event.key==='Enter'){event.preventDefault();submitAddBookmark();}">
       <div id="bookmarkError" style="display: none; color: var(--danger); font-size: 12px; margin-bottom: 6px;"></div>
@@ -5690,14 +5711,7 @@ async function init() {
   if (await checkAutoPurge()) { location.reload(); return; }
 
   // Capture deep-link bookmark ID BEFORE checkAuth() strips the URL query
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const bm = params.get('bookmark');
-    if (bm) {
-      _pendingBookmark = bm;
-      log('info', 'action', 'deep-link bookmark detected', { id: bm.substring(0, 8) + '…' });
-    }
-  } catch (_) {}
+  _pendingBookmark = readBookmarkDeepLink(window.location.search);
 
   APP.theme = localStorage.getItem('appTheme') || 'dark';
   if (APP.theme === 'light') {
