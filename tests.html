@@ -228,8 +228,21 @@ async function runMove(w, opts) {
   w.checkQuotaBudget = () => true;
   w.showToast = (msg, type) => { if (opts.toasts) opts.toasts.push({ msg, type }); };
 
+  const idb = opts.seedFromCache ? await idbSnapshot(w) : null;
   try {
-    await w.loadPlaylistVideos('PL_SRC', { force: true });   // seeds APP.allVideos.PL_SRC
+    if (opts.seedFromCache) {
+      // AUD-14 — the realistic session: the library comes from a cache written
+      // before item ids were kept, rebuilt by the app's own loader.
+      await w.cacheStore.writeAll({
+        timestamp: '2999-01-01T00:00:00.000Z',   // newer than any manual backup in this origin
+        playlists: [{ id: 'PL_SRC', title: 's', videos: [{ videoId: 'VID_A', title: 'A', thumbnail: 'u' }] }],
+        playlistObjects: [{ id: 'PL_SRC', snippet: { title: 's' }, contentDetails: { itemCount: 1 }, status: {} }],
+        tags: {}, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [], bookmarkedPlaylists: [],
+      });
+      await w.loadBackupFromStorage();
+    } else {
+      await w.loadPlaylistVideos('PL_SRC', { force: true });   // seeds APP.allVideos.PL_SRC
+    }
     calls.length = 0;                                        // only measure the move itself
     await w.performMove();
     const during = calls.slice();
@@ -245,6 +258,7 @@ async function runMove(w, opts) {
     if (oldDst) oldDst.id = 'moveDestPlaylist';
     Object.assign(w, real);
     restore(w, snap);
+    if (idb) await idbRestore(w, idb);
   }
 }
 
@@ -3160,6 +3174,59 @@ const SUITES = [
         const pl = (after?.playlists || []).find(p => p.id === 'PL_aud13_cut');
         return eq(pl && pl.videos.length, 5, 'the cached list was replaced by the truncated one');
       } finally { await idbRestore(w, idb); }
+    }],
+  ],
+},
+{
+  id: 'AUD-14', title: 'Items rebuilt from the cache can still be written to', note: 'the cache dropped the playlistItem id, so after a cache-first start Move copied and reorder/delete had nothing to address',
+  cases: [
+    ['the auto-cache keeps each item id, and the rebuild restores it', async w => {
+      const idb = await idbSnapshot(w);
+      try {
+        await withPagedPlaylist(w, 'PL_aud14', { pages: 1, perPage: 3 }, async () => {
+          await w.loadPlaylistVideos('PL_aud14', { force: true });
+          await w.autoSaveToLocalStorage({ force: true });
+        });
+        const disk = await w.cacheStore.readAll();
+        const pl = (disk?.playlists || []).find(p => p.id === 'PL_aud14');
+        eq(pl && pl.videos.map(v => v.itemId), ['IT0', 'IT1', 'IT2'], 'item ids in the cache');
+        // Offline, the rebuilt list is served as is — read it without a fetch.
+        w.setAccessToken('');
+        await w.loadBackupFromStorage();
+        const rebuilt = await w.loadPlaylistVideos('PL_aud14');
+        return eq(rebuilt.map(v => v.id), ['IT0', 'IT1', 'IT2'], 'ids after the rebuild');
+      } finally { w.setAccessToken('test-token'); await idbRestore(w, idb); }
+    }],
+
+    ['Move after a cache-first start moves, it does not copy', async w => {
+      const toasts = [];
+      const calls = await runMove(w, { seedFromCache: true, toasts });
+      const post = calls.filter(c => c.method === 'POST');
+      const del = calls.filter(c => c.method === 'DELETE');
+      eq(post.length, 1, 'inserts');
+      eq(del.length, 1, 'deletes — none means Move copied');
+      eq(del[0].params.id, 'ITEM_A', 'deleted item id');
+      return ok(!toasts.some(x => x.type === 'warning'), 'reported stuck: ' + JSON.stringify(toasts));
+    }],
+
+    ['an id-less cached list is still read offline, without a request', async w => {
+      const idb = await idbSnapshot(w);
+      const real = w.ytApi;
+      let fetched = false;
+      try {
+        await w.cacheStore.writeAll({
+          timestamp: '2999-01-01T00:00:00.000Z',
+          playlists: [{ id: 'PL_aud14_off', title: 'o', videos: [{ videoId: 'V1', title: 'one', thumbnail: 'u' }] }],
+          playlistObjects: [{ id: 'PL_aud14_off', snippet: { title: 'o' }, contentDetails: { itemCount: 1 }, status: {} }],
+          tags: {}, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [], bookmarkedPlaylists: [],
+        });
+        await w.loadBackupFromStorage();
+        w.setAccessToken('');
+        w.ytApi = async () => { fetched = true; return { items: [] }; };
+        const v = await w.loadPlaylistVideos('PL_aud14_off');
+        eq(v.length, 1, 'cached list served');
+        return eq(fetched, false, 'fetched while offline');
+      } finally { w.ytApi = real; w.setAccessToken('test-token'); await idbRestore(w, idb); }
     }],
   ],
 },

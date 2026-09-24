@@ -4419,11 +4419,15 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.9'; // bump per release
+const APP_VERSION = '1.27.10'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.10', date: '2026-09-24', items: [
+    "INTEGRITE DES DONNEES (AUD-14) — le cache et la sauvegarde ne gardaient pas l identifiant d element de playlist. Apres un demarrage depuis le cache, le cas par defaut, Deplacer inserait dans la destination sans pouvoir supprimer la source (retour du bug #G7 : deplacer copiait), et reordonner, supprimer un doublon ou une video fantome echouaient. L identifiant est desormais conserve et restaure",
+    "Un cache ecrit par une version precedente, sans ces identifiants, est recharge une fois depuis l API quand la session est connectee ; hors ligne il reste lisible tel quel",
+  ]},
   { v: '1.27.9', date: '2026-09-24', items: [
     "INTEGRITE DES DONNEES (AUD-13) — une playlist de plus de 1 000 videos etait tronquee sans un mot : la pagination s arretait a 20 pages de 50, et une page en echec rendait les pages deja lues comme si c etait tout. La tranche partait ensuite dans le cache, la sauvegarde JSON et les exports CSV. Les playlists se chargent desormais jusqu a 100 pages, soit les 5 000 elements que YouTube autorise",
     "Un chargement incomplet est signale par un avertissement ; la sauvegarde automatique conserve alors la liste plus longue deja en cache au lieu de l ecraser, et la sauvegarde manuelle comme l export previennent qu une playlist n y figure pas en entier",
@@ -5984,6 +5988,10 @@ async function loadBackupFromStorage() {
         // opened). loadPlaylistVideos() relies on `undefined` = "never loaded"
         // to know when to fetch from the API.
         APP.allVideos[pl.id] = pl.videos.map(v => ({
+          // AUD-14 — without it, Move could insert but never delete (so it
+          // copied), and reorder / duplicate / ghost removal had nothing to
+          // address. Older caches lack it; loadPlaylistVideos() refetches those.
+          ...(v.itemId ? { id: v.itemId } : {}),
           contentDetails: { videoId: v.videoId, duration: v.duration || '' },
           snippet: {
             title: v.title,
@@ -7816,6 +7824,7 @@ async function autoSaveCache(opts) {
           const detail = videoDetailsCache[videoId];
           return {
             videoId,
+            itemId: v.id || undefined,   // AUD-14 — the playlistItem id every item-level write needs
             title: v.snippet?.title || '',
             position: v.snippet?.position,
             thumbnail: pickThumb(v.snippet?.thumbnails) || pickThumb(detail?.snippet?.thumbnails),
@@ -7991,7 +8000,12 @@ async function loadPlaylistVideos(playlistId, opts) {
   // opts.force bypasses the cache after a write (reorder/merge/move).
   if (!opts?.force) {
     const cached = APP.allVideos[playlistId];
-    if (Array.isArray(cached) && cached.length > 0) return cached;
+    // AUD-14 — a list rebuilt from a cache written before item ids were kept
+    // cannot be written to. Online, fetch it once properly; the next auto-save
+    // stores the ids and this never triggers again. Offline, it is still fine
+    // to read.
+    const writable = !APP.accessToken || (Array.isArray(cached) && cached.every(v => v.id));
+    if (Array.isArray(cached) && cached.length > 0 && writable) return cached;
   }
   // #57: fields= partial response — strip server-side everything we don't read.
   // Saves ~30-50% bandwidth on large playlists (etag, channel resource, snippets
@@ -12537,7 +12551,9 @@ async function performMove() {
     // #G7: this used to insert into the destination and stop, so "Move" was a
     // copy — the video stayed in the source too. The quota estimate has always
     // charged insert + delete per item, so the delete was intended all along.
-    const sourceItems = APP.allVideos[sourceId] || [];
+    // AUD-14 — through the loader, not straight from APP.allVideos: a list
+    // rebuilt from an older cache has no item ids and is refetched first.
+    const sourceItems = await loadPlaylistVideos(sourceId);
     const stuck = [];   // inserted into the destination but still in the source
     let moved = 0;
 
@@ -14570,6 +14586,7 @@ async function createFullBackup() {
         const detail = videoDetailsCache[videoId];
         return {
           videoId,
+          itemId: v.id || undefined,   // AUD-14
           title: v.snippet?.title,
           position: v.snippet?.position,
           thumbnail: pickThumb(v.snippet?.thumbnails),
