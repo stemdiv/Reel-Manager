@@ -5,9 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#d4613a">
 <!-- CSP: blocks external script injection and exfiltration to non-whitelisted origins.
+     img-src allows blob: for the playlist-cover picker (#I1), which decodes the chosen
+     file through URL.createObjectURL; without it every cover upload failed. blob: URLs
+     are minted by this page from files the user picked — no remote origin is opened.
      'unsafe-inline' is required for now (single-file app with inline handlers); tightening
      it needs the event-delegation refactor tracked in the backlog. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://*.ytimg.com https://*.ggpht.com https://*.googleusercontent.com; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.ytimg.com https://*.ggpht.com https://*.googleusercontent.com; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'">
 <meta name="description" content="Manage, organize and analyze your YouTube playlists with advanced tools">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -4425,11 +4428,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.16'; // bump per release
+const APP_VERSION = '1.27.17'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.17', date: '2026-09-24', items: [
+    "CORRECTIF (#I1) — les couvertures de playlist personnalisees ne pouvaient jamais etre envoyees : l image choisie est lue via une URL blob:, que la politique de securite du contenu (img-src) n autorisait pas, et chaque tentative finissait sur Cette image n a pas pu etre lue. img-src accepte desormais blob:, qui ne designe que des fichiers choisis par l utilisateur. Trouve en ecrivant un test de quota ; les tests #I1 contournaient ce chemin",
+  ]},
   { v: '1.27.16', date: '2026-09-24', items: [
     "QUOTA (AUD-22) — trois copies codees en dur du modele de quota contredisaient le vrai : la carte Quota de l aide, en anglais seulement, decrivait encore le pool unique de 10 000 unites retire par #76 (le texte traduit a trois buckets existait sans etre utilise) ; le diagnostic du cache affichait / 10,000 et passait au rouge des 500 unites, soit 5 % ; la restauration et la creation de playlist depuis Decouvrir calculaient leur cout avec des 50 litteraux. Tout est desormais tire de QUOTA_LIMITS et de la table des couts",
   ]},

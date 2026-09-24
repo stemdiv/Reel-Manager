@@ -3443,6 +3443,19 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-51', title: 'A playlist cover can actually be read', note: 'found while testing AUD-21: the CSP blocked the blob: URL the cover picker decodes the file through, so every upload failed',
+  cases: [
+    ['a real PNG is decoded into an upload-ready square', async w => {
+      const c = w.document.createElement('canvas'); c.width = 64; c.height = 36;
+      const png = await new Promise(r => c.toBlob(r, 'image/png'));
+      const blob = await w.coverBlobFromFile(new w.File([png], 'c.png', { type: 'image/png' }));
+      ok(blob && blob.size > 0, 'no blob');
+      const img = await w.createImageBitmap(blob);
+      return eq([img.width, img.height], [36, 36], 'centre-cropped to a square, never upscaled');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
