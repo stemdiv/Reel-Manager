@@ -4299,6 +4299,91 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-44', title: 'Everything clickable can be reached and used from the keyboard', note: '86 clickable div/span/img had no tab stop and no role, and reordering a playlist was drag-only',
+  cases: [
+    ['rendered cards, rows and tiles get a tab stop and a role', async w => {
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      w.showToast = () => {};
+      try {
+        w.ytApi = async (endpoint, params) => endpoint === 'playlists' && params && params.mine
+          ? { items: [{ id: 'PL_aud44a', snippet: { title: 'Aud44' }, contentDetails: { itemCount: 3 }, status: { privacyStatus: 'public' } }] }
+          : { items: [] };
+        await w.loadAllPlaylists();
+        w.generateDashboardCharts();
+        w.refreshPlaylistsList();
+        await new Promise(r => setTimeout(r, 0));   // the observer runs after the render
+        const missing = [];
+        for (const id of ['dashboardCharts', 'playlistsList']) {
+          w.document.getElementById(id).querySelectorAll('[onclick]').forEach(el => {
+            if (el.matches('a[href], button, input, select, textarea, summary, label, iframe') || el.hasAttribute('data-no-kbd') || /^\s*event\.stopPropagation\(\);?\s*$/.test(el.getAttribute('onclick'))) return;
+            if (el.tabIndex !== 0 || !['button', 'link'].includes(el.getAttribute('role'))) missing.push(id + ': ' + el.outerHTML.slice(0, 80));
+          });
+        }
+        ok(w.document.querySelector('#playlistsList [data-playlist-id="PL_aud44a"]'), 'the playlist card was not rendered');
+        return eq(missing, [], 'click targets without keyboard access');
+      } finally {
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+    ['Enter and Space activate a button; a link takes Enter only', async w => {
+      const host = w.document.createElement('div');
+      host.innerHTML = '<div id="aud44b" onclick="window.__aud44 = (window.__aud44 || 0) + 1">plain</div>'
+                     + '<div id="aud44l" onclick="window.__aud44l = (window.__aud44l || 0) + 1">card <button>inner</button></div>';
+      w.document.body.appendChild(host);
+      try {
+        await new Promise(r => setTimeout(r, 0));
+        const b = w.document.getElementById('aud44b'), l = w.document.getElementById('aud44l');
+        eq([b.getAttribute('role'), l.getAttribute('role')], ['button', 'link'], 'roles');
+        const key = (el, k) => el.dispatchEvent(new w.KeyboardEvent('keydown', { key: k, bubbles: true }));
+        key(b, 'Enter'); key(b, ' ');
+        key(l, 'Enter'); key(l, ' ');
+        key(l.querySelector('button'), 'Enter');   // a real button inside is not doubled
+        return eq([w.__aud44, w.__aud44l], [2, 1], 'activations');
+      } finally { host.remove(); delete w.__aud44; delete w.__aud44l; }
+    }],
+    ['click shields and backdrops stay out of the tab order', w => {
+      eq(w.document.getElementById('modalOverlay').hasAttribute('tabindex'), false, 'modal backdrop');
+      eq(w.document.getElementById('modalContent').getAttribute('tabindex'), '-1', 'the dialog keeps its own tabindex');
+      return eq(w.document.getElementById('playerModalOverlay').hasAttribute('tabindex'), false, 'player backdrop');
+    }],
+    ['a playlist can be reordered with ↑/↓ buttons', async w => {
+      const id = 'PL_aud44r', puts = [];
+      const real = { ytApi: w.ytApi, showToast: w.showToast, checkBackupSafety: w.checkBackupSafety, checkQuotaBudget: w.checkQuotaBudget };
+      const items = [0, 1, 2].map(k => ({ id: 'IR' + k, contentDetails: { videoId: 'VR' + k },
+        snippet: { title: 'Song ' + k, position: k, resourceId: { videoId: 'VR' + k }, thumbnails: { medium: { url: 'https://i.ytimg.com/vi/x/mq.jpg' } } } }));
+      w.showToast = () => {};
+      w.checkBackupSafety = () => true;
+      w.checkQuotaBudget = () => true;
+      w.ytApi = async (endpoint, params, method, body) => {
+        if (method === 'PUT') { puts.push(body); return {}; }
+        if (endpoint === 'playlists') return { items: params && params.mine ? [{ id, snippet: { title: id }, contentDetails: { itemCount: 3 }, status: {} }] : [] };
+        if (endpoint === 'playlistItems') return { items };
+        return { items: [] };
+      };
+      const grid = w.document.getElementById('playlistDetailVideos');
+      try {
+        await w.loadAllPlaylists();
+        await w.openPlaylistDetail(id);
+        w.toggleReorderMode();
+        const ups = grid.querySelectorAll('.reorder-moves [data-dir="-1"]'), downs = grid.querySelectorAll('.reorder-moves [data-dir="1"]');
+        eq([ups.length, downs.length], [3, 3], 'move buttons');
+        eq([ups[0].disabled, downs[2].disabled, downs[0].disabled], [true, true, false], 'ends disabled');
+        ok(downs[0].getAttribute('aria-label').includes('Song 0'), 'the button does not name its video');
+        downs[0].click();
+        for (let i = 0; i < 50 && !puts.length; i++) await new Promise(r => setTimeout(r, 10));
+        return eq(puts[0], { id: 'IR0', snippet: { playlistId: id, resourceId: { kind: 'youtube#video', videoId: 'VR0' }, position: 1 } }, 'update sent');
+      } finally {
+        if (grid.classList.contains('reorder-mode')) w.toggleReorderMode();
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {

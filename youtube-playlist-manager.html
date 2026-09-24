@@ -1046,6 +1046,9 @@
   .reorder-mode .drag-handle { display: flex; align-items: center; }
   .reorder-mode .video-thumbnail { width: 80px; min-width: 80px; aspect-ratio: 16/9; border-radius: 0; }
   .reorder-mode .video-info { flex: 1; padding: 8px 12px; }
+  /* AUD-44 — the keyboard alternative to dragging */
+  .reorder-moves { display: none; gap: 4px; padding-right: 10px; flex-shrink: 0; }
+  .reorder-mode .reorder-moves { display: flex; }
   .reorder-pos { display: none; font-size: 11px; font-weight: 600; color: var(--text3); padding: 0 10px; flex-shrink: 0; min-width: 32px; text-align: center; }
   .reorder-mode .reorder-pos { display: block; }
   .video-thumbnail { width: 100%; aspect-ratio: 16/9; background: linear-gradient(135deg, var(--surface3), var(--surface2)); object-fit: cover; }
@@ -2712,7 +2715,7 @@
 <!-- MODALS -->
 <!-- AUD-45 — a real modal dialog for assistive tech: role, aria-modal, a label taken
      from the content's heading, focus moved in and given back, the page behind inert -->
-<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+<div class="modal-overlay" id="modalOverlay" data-no-kbd onclick="closeModal(event)">
   <div class="modal" id="modalContent" role="dialog" aria-modal="true" tabindex="-1" onclick="event.stopPropagation()"></div>
 </div>
 
@@ -2721,7 +2724,7 @@
 <div class="toast-container" id="toastContainer" role="status" aria-live="polite"></div>
 
 <!-- IN-APP PLAYER MODAL (Beta) -->
-<div class="player-modal-overlay" id="playerModalOverlay" role="dialog" aria-labelledby="playerTitle" onclick="if (event.target === this && !this.classList.contains('docked')) closePlayerModal()">
+<div class="player-modal-overlay" id="playerModalOverlay" data-no-kbd role="dialog" aria-labelledby="playerTitle" onclick="if (event.target === this && !this.classList.contains('docked')) closePlayerModal()">
   <div class="player-modal" onclick="event.stopPropagation()">
     <div class="player-video-wrap">
       <div id="playerIframeContainer"></div>
@@ -2782,7 +2785,7 @@
 <!-- MINI-PLAYER (Beta) -->
 <div class="mini-player" id="miniPlayer">
   <div class="mini-progress"><div class="mini-progress-bar" id="miniProgressBar"></div></div>
-  <img class="mini-thumb" id="miniThumb" src="" alt="" onclick="expandPlayer()">
+  <img class="mini-thumb" id="miniThumb" src="" alt="" data-i18n-title="player_expand" title="Expand" onclick="expandPlayer()">
   <div class="mini-info" onclick="expandPlayer()">
     <div class="mini-title" id="miniTitle">—</div>
     <div class="mini-channel" id="miniChannel">—</div>
@@ -3052,11 +3055,13 @@ const I18N = {
     detail_available: 'disponibles',
     detail_unavailable: 'indisponible(s)',
     detail_total_duration: 'Durée totale',
-    reorder_mode_on: 'Mode réorganisation activé — glissez les vidéos pour changer l\'ordre',
+    reorder_mode_on: 'Mode réorganisation activé — glissez les vidéos, ou utilisez ↑ et ↓, pour changer l\'ordre',
     reorder_mode_off: 'Mode réorganisation désactivé',
     reorder_moving: 'Déplacement en cours...',
     reorder_done: 'Position mise à jour',
     reorder_action: 'Réorganisation vidéo',
+    reorder_up: 'Monter « {title} » d\'une place',
+    reorder_down: 'Descendre « {title} » d\'une place',
 
     // Search
     search_title: 'Recherche globale',
@@ -3865,11 +3870,13 @@ const I18N = {
     detail_available: 'available',
     detail_unavailable: 'unavailable',
     detail_total_duration: 'Total duration',
-    reorder_mode_on: 'Reorder mode enabled — drag videos to change order',
+    reorder_mode_on: 'Reorder mode enabled — drag videos, or use ↑ and ↓, to change the order',
     reorder_mode_off: 'Reorder mode disabled',
     reorder_moving: 'Moving video...',
     reorder_done: 'Position updated',
     reorder_action: 'Video reorder',
+    reorder_up: 'Move “{title}” up one place',
+    reorder_down: 'Move “{title}” down one place',
 
     // Search
     search_title: 'Global Search',
@@ -4523,11 +4530,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.36'; // bump per release
+const APP_VERSION = '1.27.37'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.37', date: '2026-09-24', items: [
+    "ACCESSIBILITE (AUD-44) — pres de 90 cartes, lignes et vignettes ne reagissaient qu a la souris : impossible au clavier d ouvrir une playlist depuis le tableau de bord ou de lancer une video depuis Decouvrir. Tout element cliquable recoit desormais un arret de tabulation et s active avec Entree (et Espace pour un bouton). La reorganisation d une playlist, jusqu ici par glisser-deposer uniquement, se fait aussi avec des boutons Monter et Descendre",
+  ]},
   { v: '1.27.36', date: '2026-09-24', items: [
     "ACCESSIBILITE (AUD-42/43) — plusieurs textes etaient trop pales pour etre lus confortablement : en theme clair, la couleur d accent et les couleurs d etat (dont le compteur de quota) tombaient a 1,7-2,6:1, et les textes secondaires echouaient partout. Tous atteignent desormais 4,5:1, quel que soit le theme, le coloris ou l accent personnalise ; les boutons principaux restent lisibles avec un accent sombre, et le contour des champs de saisie est nettement visible. Reel Studio suit les memes regles",
   ]},
@@ -11100,7 +11110,7 @@ function renderFilteredVideos(videos) {
     return `
       <div class="video-card" ${cardDrag} title="${escapeHtml(v.title)}">
         <div class="drag-handle"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg></div>
-        <div style="position: relative;" ${clickPlay}>
+        <div style="position: relative;" ${clickPlay} ${clickPlay ? 'data-no-kbd' : ''}>
           <img src="${escapeHtml(v.thumbnail)}" class="video-thumbnail" alt="${escapeHtml(v.title)}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%2290%22%3E%3Crect fill=%22%23303030%22 width=%22120%22 height=%2290%22/%3E%3C/svg%3E'">
           ${isReorder ? '' : '<div class="play-overlay"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>'}
           <span style="position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,0.8); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 3px; z-index: 1;">${v.durationFormatted}</span>
@@ -11114,6 +11124,10 @@ function renderFilteredVideos(videos) {
           </div>
         </div>
         <div class="reorder-pos">#${v.position + 1}</div>
+        ${isReorder && playlistItemId ? `<div class="reorder-moves">
+          <button class="btn btn-secondary btn-sm" data-dir="-1" onclick="moveVideoBy('${escapeJsAttr(playlistItemId)}', -1)" aria-label="${escapeHtml(t('reorder_up', { title: v.title }))}" title="${escapeHtml(t('reorder_up', { title: v.title }))}" ${idx === 0 ? 'disabled' : ''}>↑</button>
+          <button class="btn btn-secondary btn-sm" data-dir="1" onclick="moveVideoBy('${escapeJsAttr(playlistItemId)}', 1)" aria-label="${escapeHtml(t('reorder_down', { title: v.title }))}" title="${escapeHtml(t('reorder_down', { title: v.title }))}" ${idx === videos.length - 1 ? 'disabled' : ''}>↓</button>
+        </div>` : ''}
       </div>
     `;
   }).join('');
@@ -11275,18 +11289,36 @@ async function onVideoDrop(e) {
   const toPosition = parseInt(targetCard.dataset.position);
 
   draggedVideoCard = null;
+  await moveVideoToPosition(fromItemId, fromVideoId, toPosition);
+}
 
+// AUD-44 — reorder was drag-only. The ↑/↓ buttons of reorder mode move one
+// step through the same path, then hand focus back to the moved video's
+// button so a keyboard user can keep going.
+async function moveVideoBy(itemId, delta) {
+  const video = currentDetailVideos.find(v => v.id === itemId);
+  if (!video) return;
+  const to = video.position + delta;
+  if (to < 0 || to >= currentDetailVideos.length) return;
+  const moved = await moveVideoToPosition(itemId, video.videoId, to);
+  const card = document.querySelector(`#playlistDetailVideos .video-card[data-item-id="${CSS.escape(itemId)}"]`);
+  const btn = card && (card.querySelector(`.reorder-moves [data-dir="${delta}"]:not([disabled])`)
+                       || card.querySelector('.reorder-moves button:not([disabled])'));
+  if (btn) btn.focus();
+  return moved;
+}
+
+async function moveVideoToPosition(fromItemId, fromVideoId, toPosition) {
   if (!fromItemId || isNaN(toPosition)) {
     showToast(t('toast_error', { msg: 'Missing item data' }), 'error');
-    return;
+    return false;
   }
 
-  if (!checkBackupSafety(t('reorder_action'))) return;
-  if (!checkQuotaBudget(t('reorder_action'), 'reorder_video', 1)) return;
+  if (!checkBackupSafety(t('reorder_action'))) return false;
+  if (!checkQuotaBudget(t('reorder_action'), 'reorder_video', 1)) return false;
 
   try {
     showToast(t('reorder_moving'), 'info');
-
     await ytApi('playlistItems', { part: 'snippet' }, 'PUT', {
       id: fromItemId,
       snippet: {
@@ -11327,10 +11359,13 @@ async function onVideoDrop(e) {
 
     applyVideoFilters();
     showToast(t('reorder_done'), 'success');
+    return true;
   } catch (err) {
     showToast(t('toast_error', { msg: err.message }), 'error');
+    return false;
   }
 }
+
 
 function showCreatePlaylistModal() {
   openModal(`
@@ -16009,6 +16044,47 @@ function drawPieChart(elementId, data) {
 // ============================================================================
 // KEYBOARD SHORTCUTS
 // ============================================================================
+
+// ── AUD-44 — keyboard access for click targets that are not controls ──────
+// 86 cards, rows and tiles took a click and nothing else: no focus, no role,
+// no key. Rather than rewrite every template, one pass gives any element with
+// an inline onclick that is not already a control a tab stop and a role, and
+// Enter (and Space, for a button) activates it. A MutationObserver applies it
+// to whatever a view renders later. Elements that only shield clicks
+// (onclick="event.stopPropagation()") and backdrops marked data-no-kbd are
+// left alone. A target that holds other controls becomes a link rather than a
+// button: a button's content is presentational, which would hide them.
+const NATIVE_CONTROL = 'a[href], button, input, select, textarea, summary, label, iframe, [contenteditable="true"]';
+
+function enhanceClickTargets(root) {
+  if (!root || root.nodeType !== 1) return;
+  const found = root.querySelectorAll('[onclick]');
+  const list = root.hasAttribute('onclick') ? [root, ...found] : found;
+  for (const el of list) {
+    if (el.matches(NATIVE_CONTROL) || el.hasAttribute('tabindex') || el.hasAttribute('data-no-kbd')) continue;
+    if (/^\s*(event\.stopPropagation\(\);?\s*)+$/.test(el.getAttribute('onclick'))) continue;
+    el.tabIndex = 0;
+    if (!el.hasAttribute('role')) {
+      el.setAttribute('role', el.querySelector(NATIVE_CONTROL + ', [onclick]') ? 'link' : 'button');
+    }
+  }
+}
+
+document.addEventListener('keydown', (e) => {
+  const el = e.target;
+  if (!(el instanceof HTMLElement) || el.matches(NATIVE_CONTROL) || !el.hasAttribute('onclick')) return;
+  const role = el.getAttribute('role');
+  if (role !== 'button' && role !== 'link') return;
+  if (e.key === 'Enter' || (e.key === ' ' && role === 'button')) {
+    e.preventDefault();
+    el.click();
+  }
+});
+
+new MutationObserver(records => {
+  for (const r of records) r.addedNodes.forEach(enhanceClickTargets);
+}).observe(document.body, { childList: true, subtree: true });
+enhanceClickTargets(document.body);
 
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey) {
