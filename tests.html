@@ -3227,7 +3227,7 @@ const SUITES = [
       try {
         await w.cacheStore.writeAll({
           timestamp: '2999-01-01T00:00:00.000Z',
-          playlists: [{ id: 'PL_aud14_off', title: 'o', videos: [{ videoId: 'V1', title: 'one', thumbnail: 'u' }] }],
+          playlists: [{ id: 'PL_aud14_off', title: 'o', videos: [{ videoId: 'V1_aud14off', title: 'one', thumbnail: 'https://i.ytimg.com/vi/V1_aud14off/mqdefault.jpg' }] }],
           playlistObjects: [{ id: 'PL_aud14_off', snippet: { title: 'o' }, contentDetails: { itemCount: 1 }, status: {} }],
           tags: {}, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [], bookmarkedPlaylists: [],
         });
@@ -3660,6 +3660,126 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-06', title: 'A backup file is checked before anything reads it', note: 'import and restore only checked that "playlists" was an array; every other field went verbatim into state, storage and HTML',
+  cases: [
+    ['a well-formed backup comes through unchanged (B1)', w => {
+      const good = aud06Backup();
+      const out = w.sanitizeBackup(JSON.parse(JSON.stringify(good)));
+      eq(out.schemaVersion, 1, 'version');
+      eq(out.playlists.map(p => [p.id, p.title, p.videos.map(v => [v.videoId, v.itemId, v.title, v.thumbnail])]),
+         good.playlists.map(p => [p.id, p.title, p.videos.map(v => [v.videoId, v.itemId, v.title, v.thumbnail])]), 'playlists');
+      eq(out.playlistObjects, good.playlistObjects, 'playlist objects');
+      for (const k of ['tags', 'tagIcons', 'folders', 'folderAssignments', 'deckColumns', 'watchQueue', 'bookmarkedPlaylists']) eq(out[k], good[k], k);
+      return 'every field kept';
+    }],
+    ['hostile ids, video ids and image URLs are dropped (B2)', w => {
+      const bad = aud06Backup();
+      bad.playlists.push({ id: AUD06_ID, title: 'x', videos: [] });
+      bad.playlists[0].videos.push({ videoId: "abc'onx=1", title: 'x' }, { videoId: 'dQw4w9WgXcQ', title: 'y', thumbnail: 'javascript:alert(1)' });
+      bad.playlistObjects.push({ id: AUD06_ID, snippet: { title: 'x', thumbnails: { medium: { url: 'https://evil.example/a.jpg' } } } });
+      bad.playlistObjects[0].snippet.thumbnails.default = { url: 'https://i.ytimg.com/vi/x/a.jpg" onerror="window.__pwn=1' };
+      bad.tags[AUD06_ID] = ['t'];
+      bad.folderAssignments.PL_aud06a = AUD06_ID;
+      bad.folders.push({ id: AUD06_ID, name: 'x' });
+      bad.deckColumns.push({ type: 'playlist', playlistId: AUD06_ID });
+      bad.watchQueue.push({ videoId: AUD06_ID, title: 'x' });
+      bad.bookmarkedPlaylists.push({ id: AUD06_ID });
+      const out = JSON.stringify(w.sanitizeBackup(bad));
+      ok(!out.includes('__pwn') && !out.includes('evil.example') && !out.includes('javascript:') && !out.includes("onx="), 'a hostile value survived: ' + out);
+      const s = w.sanitizeBackup(bad);
+      eq(s.playlists[0].videos.map(v => [v.videoId, v.thumbnail]), [['dQw4w9WgXcQ', 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg'], ['dQw4w9WgXcQ', undefined]], 'videos');
+      return eq(s.deckColumns[1], { type: 'playlist', playlistId: null }, 'a column with a bad id is kept, empty');
+    }],
+    ['a newer file, or one that is not a backup, is refused', w => {
+      const current = w.sanitizeBackup({ playlists: [] }).schemaVersion;
+      eq(w.sanitizeBackup({ ...aud06Backup(), schemaVersion: current + 1 }), null, 'newer version');
+      eq(w.sanitizeBackup({ playlists: {} }), null, 'playlists not an array');
+      eq(w.sanitizeBackup([]), null, 'array');
+      eq(w.sanitizeBackup('x'), null, 'string');
+      return eq(w.sanitizeBackup({ playlists: [] }).playlists, [], 'an unversioned file reads as version 1');
+    }],
+    ['"__proto__" keys stay out of every map', w => {
+      const raw = JSON.parse('{"playlists":[{"id":"__proto__","title":"p"}],"tags":{"__proto__":["polluted"]},'
+        + '"tagIcons":{"__proto__":"x","constructor":"y"},"folderAssignments":{"__proto__":"f_a"}}');
+      const out = w.sanitizeBackup(raw);
+      eq(out.playlists.length, 0, 'playlists');
+      ok(Object.getPrototypeOf(out.tags) === w.Object.prototype && out.tags.polluted === undefined, 'tags prototype changed');
+      ok(Object.getPrototypeOf(out.folderAssignments) === w.Object.prototype, 'folderAssignments prototype changed');
+      return eq(Object.keys(out.tagIcons), [], 'tag icons');
+    }],
+    ['restore reads the checked copy only', w => {
+      const bad = aud06Backup();
+      bad.folders[0].id = AUD06_ID;
+      bad.tags[AUD06_ID] = ['t'];
+      const r = w.parseJSONForRestore(JSON.stringify(bad));
+      ok(!JSON.stringify(r).includes('__pwn'), 'a hostile id reached the restore data');
+      return eq(r.metadata.folders.length, 0, 'folders');
+    }],
+    ['login-screen import stores the checked copy, and refuses non-JSON and empty files (B7)', async w => {
+      const snap = snapshot(w, ['lastBackup', 'lastBackupTimestamp', 'diagnosticLog']);
+      const real = { showToast: w.showToast, setTimeout: w.setTimeout };
+      const toasts = [];
+      try {
+        w.showToast = (msg, type) => toasts.push(msg);
+        w.setTimeout = (fn, ms) => String(fn).includes('reload') ? 0 : real.setTimeout.call(w, fn, ms);
+        const importFile = async (name, text) => {
+          toasts.length = 0;
+          w.importBackupFromLoginScreen({ files: [new w.File([text], name)], value: name });
+          for (let i = 0; i < 50 && !toasts.length; i++) await new Promise(r => setTimeout(r, 20));
+        };
+        await importFile('b.csv', 'a,b');
+        eq(toasts, [w.t('toast_import_invalid')], 'csv');
+        w.localStorage.setItem('lastBackup', '{"untouched":1}');
+        await importFile('b.json', '{"playlists":[]}');
+        eq(toasts, [w.t('toast_import_invalid')], 'empty');
+        eq(w.localStorage.getItem('lastBackup'), '{"untouched":1}', 'storage after a refused file');
+        const bad = aud06Backup();
+        bad.playlists.push({ id: AUD06_ID, title: 'x' });
+        bad.playlistObjects.push({ id: AUD06_ID, snippet: { title: 'x' } });
+        await importFile('b.json', JSON.stringify(bad));
+        const stored = w.localStorage.getItem('lastBackup');
+        ok(!stored.includes('__pwn'), 'the hostile id was stored');
+        return eq(JSON.parse(stored).playlists.length, 2, 'good playlists stored');
+      } finally { Object.assign(w, real); restore(w, snap); }
+    }],
+    ['a hostile backup already in storage is cleaned at startup', async w => {
+      const snap = snapshot(w, ['lastBackup', 'lastBackupTimestamp']);
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      w.showToast = () => {};
+      try {
+        const bad = aud06Backup();
+        bad.playlists.push({ id: AUD06_ID, title: 'x', videos: [] });
+        bad.playlistObjects.push({ id: AUD06_ID, snippet: { title: 'x' }, contentDetails: { itemCount: 0 } });
+        delete bad.bookmarkedPlaylists;
+        w.localStorage.setItem('lastBackup', JSON.stringify(bad));
+        w.localStorage.setItem('lastBackupTimestamp', new Date().toISOString());
+        await w.loadBackupFromStorage();
+        w.refreshPlaylistsList();
+        const list = w.document.getElementById('playlistsList');
+        const ids = [...list.querySelectorAll('[data-playlist-id]')].map(e => e.dataset.playlistId);
+        const handlers = [...list.querySelectorAll('[onclick]')].map(e => e.getAttribute('onclick'));
+        ok(!handlers.some(h => h.includes('__pwn')), 'a hostile id reached an inline handler');
+        return eq(ids.sort(), ['PL_aud06a', 'PL_aud06b'], 'rendered playlists');
+      } finally {
+        restore(w, snap);
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+    ['folder and tag names and icons render as text', w => {
+      const html = w.renderFolderNode({ id: 'f_aud06', name: AUD06_HTML, icon: AUD06_HTML, parentId: null })
+        + w.renderTagWithIcon(AUD06_HTML);
+      const box = w.document.createElement('div');
+      box.innerHTML = html;
+      eq(box.querySelectorAll('img').length, 0, 'elements injected');
+      eq(box.querySelector('.folder-name').textContent, AUD06_HTML, 'folder name');
+      box.innerHTML = w.getEmojiPickerHtml('', "tagIcon_a'b\"c");
+      return ok(box.querySelectorAll('[onclick*="pickEmoji"]').length > 1 && !box.querySelector('[c]'), 'the picker id broke its handler');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -3820,20 +3940,23 @@ async function runGhostClean(w, opts) {
   const real = { ytApi: w.ytApi, showToast: w.showToast, confirm: w.confirm, scanGhostVideos: w.scanGhostVideos,
                  checkBackupSafety: w.checkBackupSafety, checkQuotaBudget: w.checkQuotaBudget };
   const deleted = [], toasts = [];
-  const ghost = (id, v) => ({ videoId: v, itemId: id, title: 'Deleted video' });
+  // Real-shaped ids: a backup check (AUD-06) drops video ids that are not 11
+  // characters, bookmark ids that are not playlist ids, and non-Google images.
+  const vid = s => s.padEnd(11, '_');
+  const ghost = (id, v) => ({ videoId: vid(v), itemId: id, title: 'Deleted video' });
   try {
     await w.cacheStore.writeAll({
       timestamp: '2999-01-01T00:00:00.000Z',
       playlists: [
-        { id: 'PL_own', title: 'own', videos: [ghost('IG1', 'VG1'), ghost('IG2', 'VG2'), { videoId: 'VOK', itemId: 'IOK', title: 'fine', thumbnail: 'u' }] },
-        { id: 'PL_bm', title: 'bm', videos: [ghost('IG3', 'VG3')] },
+        { id: 'PL_own', title: 'own', videos: [ghost('IG1', 'VG1'), ghost('IG2', 'VG2'), { videoId: vid('VOK'), itemId: 'IOK', title: 'fine', thumbnail: 'https://i.ytimg.com/vi/VOK/mqdefault.jpg' }] },
+        { id: 'PL_bm_aud24x', title: 'bm', videos: [ghost('IG3', 'VG3')] },
       ],
       playlistObjects: [
         { id: 'PL_own', snippet: { title: 'own' }, contentDetails: { itemCount: 3 }, status: {} },
-        { id: 'PL_bm', snippet: { title: 'bm' }, contentDetails: { itemCount: 1 }, status: {} },
+        { id: 'PL_bm_aud24x', snippet: { title: 'bm' }, contentDetails: { itemCount: 1 }, status: {} },
       ],
       tags: {}, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [],
-      bookmarkedPlaylists: [{ id: 'PL_bm', addedAt: '2026-09-01T00:00:00Z' }],
+      bookmarkedPlaylists: [{ id: 'PL_bm_aud24x', addedAt: '2026-09-01T00:00:00Z' }],
     });
     await w.loadBackupFromStorage();
     w.ytApi = async (endpoint, params, method) => {
@@ -3841,7 +3964,7 @@ async function runGhostClean(w, opts) {
       if (endpoint === 'videos') {
         if (opts.recheckFails) throw new Error('Server error (503) — please try again later');
         const asked = String(params.id).split(',');
-        return { items: (opts.alive || []).filter(v => asked.includes(v)).map(id => ({ id })) };
+        return { items: (opts.alive || []).map(vid).filter(v => asked.includes(v)).map(id => ({ id })) };
       }
       return { items: [] };
     };
@@ -3895,6 +4018,37 @@ async function runRetry(w, method, script) {
     catch (e) { threw = true; message = e.message; }
     return { fetches, threw, message, toasts };
   } finally { Object.assign(w, real); }
+}
+
+// AUD-06 — a backup in the exact shape sanitizeBackup() writes, so a clean
+// file can be compared field by field, plus the two payloads used against it.
+const AUD06_ID = "x');window.__pwn=1;//";
+const AUD06_HTML = '<img src=x onerror="window.__pwn=1">';
+function aud06Backup() {
+  const thumb = 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg';
+  return {
+    schemaVersion: 1,
+    timestamp: '2026-09-01T10:00:00.000Z',
+    playlists: [
+      { id: 'PL_aud06a', title: 'Alpha', description: '', videos: [
+        { videoId: 'dQw4w9WgXcQ', itemId: 'UExfYXVkMDZhLmRRdzR3OVdnWGNR', title: 'Never Gonna Give You Up', position: 0,
+          thumbnail: thumb, channel: 'Rick Astley', duration: 'PT3M33S', addedAt: '2026-01-02T03:04:05Z' }] },
+      { id: 'PL_aud06b', title: 'Beta', description: 'd', videos: [] },
+    ],
+    playlistObjects: [
+      { id: 'PL_aud06a', snippet: { title: 'Alpha', description: '', channelTitle: 'Me', channelId: 'UCaud06aud06aud06aud06a',
+          publishedAt: '2025-01-01T00:00:00Z', thumbnails: { medium: { url: thumb } } },
+        contentDetails: { itemCount: 1 }, status: { privacyStatus: 'public' } },
+      { id: 'PL_aud06b', snippet: { title: 'Beta', description: 'd' }, contentDetails: { itemCount: 0 }, status: { privacyStatus: 'private' } },
+    ],
+    tags: { PL_aud06a: ['Music', 'Chill'] },
+    tagIcons: { Music: '🎵' },
+    folders: [{ id: 'f_aud06', name: 'Favs', icon: '⭐', parentId: null }],
+    folderAssignments: { PL_aud06a: 'f_aud06' },
+    deckColumns: [{ type: 'folder', folderId: 'f_aud06' }],
+    watchQueue: [{ videoId: 'dQw4w9WgXcQ', title: 'Never', channelTitle: 'Rick', thumbnail: thumb }],
+    bookmarkedPlaylists: [{ id: 'PLbookmark0123456789', addedAt: '2026-01-01T00:00:00.000Z' }],
+  };
 }
 
 // AUD-04 — the payload the old escaper let through: ' became \' but the \ in
