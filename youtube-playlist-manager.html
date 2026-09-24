@@ -4476,11 +4476,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.43'; // bump per release
+const APP_VERSION = '1.27.44'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.44', date: '2026-09-24', items: [
+    "MAINTENANCE (AUD-34) — trois fonctions affichaient la duree d une video, chacune a sa facon (1h02m ici, 1:02:05 la), et trois autres endroits relisaient le format de duree de YouTube a la main. Une seule fonction de formatage, en deux styles, et une seule de lecture. Les durees s affichent comme avant ; une diffusion en direct n affiche plus 0:00 dans le plan de visionnage",
+  ]},
   { v: '1.27.43', date: '2026-09-24', items: [
     "MAINTENANCE (AUD-36) — 72 blocs de capture d erreur etaient vides : une erreur y disparaissait sans laisser de trace, comme celle de la categorisation automatique en 1.27.3. Chacun passe desormais par une fonction unique qui la consigne (dans la console, et dans le journal de diagnostic pour un rafraichissement d affichage qui echoue), sans interrompre l action en cours",
   ]},
@@ -8519,11 +8522,7 @@ async function refreshDashboard() {
   for (const videos of Object.values(APP.allVideos)) {
     for (const v of videos) {
       loadedVideoCount++;
-      const dur = v.contentDetails?.duration;
-      if (dur) {
-        const m = dur.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-        if (m) totalDurationSec += (parseInt(m[1]||0)*3600) + (parseInt(m[2]||0)*60) + parseInt(m[3]||0);
-      }
+      totalDurationSec += parseDuration(v.contentDetails?.duration);   // AUD-34 — was a copy
     }
   }
   const totalHours = Math.round(totalDurationSec / 3600);
@@ -10304,13 +10303,20 @@ function parseDuration(iso) {
   return (parseInt(match[1] || 0) * 3600) + (parseInt(match[2] || 0) * 60) + parseInt(match[3] || 0);
 }
 
-function formatDuration(seconds) {
-  if (!seconds || seconds <= 0) return '--:--';
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  if (h > 0) return `${h}h${String(m).padStart(2, '0')}m`;
-  return `${m}:${String(s).padStart(2, '0')}`;
+// AUD-34 — the one duration formatter. Three copies gave three answers for
+// 3725 s: "1h02m" here, "1:02:05" in the Watch plan and in Discover.
+//   'compact' (cards, lists):  1h02m · 3:05 · --:-- when unknown
+//   'clock'   (players, plans): 1:02:05 · 3:05 · 0:00
+function formatDuration(seconds, style = 'compact') {
+  const clock = style === 'clock';
+  if (!seconds || seconds <= 0) return clock ? '0:00' : '--:--';
+  const total = Math.floor(seconds);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = n => String(n).padStart(2, '0');
+  if (h > 0) return clock ? `${h}:${pad(m)}:${pad(s)}` : `${h}h${pad(m)}m`;
+  return `${m}:${pad(s)}`;
 }
 
 // ── Thumbnails (revision history, 11 September 2026) ────────────────────────
@@ -12378,13 +12384,8 @@ async function performDiscoverSearch() {
     }
 
     discoverResults = allDetails.map(v => {
-      // Parse ISO 8601 duration
-      const dur = v.contentDetails?.duration || '';
-      const dm = dur.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-      const totalSec = dm ? (parseInt(dm[1]||0)*3600) + (parseInt(dm[2]||0)*60) + parseInt(dm[3]||0) : 0;
-      const durStr = totalSec >= 3600
-        ? `${Math.floor(totalSec/3600)}:${String(Math.floor((totalSec%3600)/60)).padStart(2,'0')}:${String(totalSec%60).padStart(2,'0')}`
-        : `${Math.floor(totalSec/60)}:${String(totalSec%60).padStart(2,'0')}`;
+      const totalSec = parseDuration(v.contentDetails?.duration || '');   // AUD-34 — was a copy
+      const durStr = formatDuration(totalSec, 'clock');
 
       // A hidden like count or disabled comments must not read as zero — that
       // silently sinks the video to the bottom of the sort. null = unknown.
@@ -14452,7 +14453,7 @@ function renderWatchVideoSelector(videos) {
       const channel = v.snippet?.videoOwnerChannelTitle || '';
       const thumb = pickThumb(v.snippet?.thumbnails);
       const dur = v.contentDetails?.duration || videoDetailsCache[videoId]?.duration || '';
-      const durStr = dur ? formatIsoDuration(dur) : '';
+      const durStr = parseDuration(dur) ? formatDuration(parseDuration(dur), 'clock') : '';
       const escapedTitle = escapeJsAttr(title);
       const escapedChannel = escapeJsAttr(channel);
       const escapedThumb = escapeJsAttr(thumb);
@@ -14478,7 +14479,7 @@ function renderWatchVideoSelector(videos) {
       const channel = v.snippet?.videoOwnerChannelTitle || '';
       const thumb = pickThumb(v.snippet?.thumbnails);
       const dur = v.contentDetails?.duration || videoDetailsCache[videoId]?.duration || '';
-      const durStr = dur ? formatIsoDuration(dur) : '';
+      const durStr = parseDuration(dur) ? formatDuration(parseDuration(dur), 'clock') : '';
       const escapedTitle = escapeJsAttr(title);
       const escapedChannel = escapeJsAttr(channel);
       const escapedThumb = escapeJsAttr(thumb);
@@ -14497,16 +14498,6 @@ function renderWatchVideoSelector(videos) {
       </div>`;
     }).join('');
   }
-}
-
-function formatIsoDuration(iso) {
-  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  if (!m) return '';
-  const h = parseInt(m[1] || 0);
-  const min = parseInt(m[2] || 0);
-  const s = parseInt(m[3] || 0);
-  if (h) return `${h}:${String(min).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-  return `${min}:${String(s).padStart(2,'0')}`;
 }
 
 function setWatchViewMode(mode) {

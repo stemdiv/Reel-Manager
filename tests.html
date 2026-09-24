@@ -4564,6 +4564,20 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-34', title: 'One duration formatter', note: 'three copies gave "1h02m", "1:02:05" and "1:02:05" for the same 3725 s, and Discover re-parsed ISO durations by hand',
+  cases: [
+    ['compact and clock styles', w => eq(
+      [w.formatDuration(3725), w.formatDuration(3725, 'clock'), w.formatDuration(185, 'clock'), w.formatDuration(185), w.formatDuration(0), w.formatDuration(0, 'clock'), w.formatDuration(59.7, 'clock')],
+      ['1h02m', '1:02:05', '3:05', '3:05', '--:--', '0:00', '0:59'])],
+    ['no other formatter or ISO parser is left', async w => {
+      const src = (await fetch('youtube-playlist-manager.html?aud34=' + Date.now()).then(r => r.text())).replace(/\/\/[^\n]*/g, '');
+      eq(typeof w.formatIsoDuration, 'undefined', 'formatIsoDuration');
+      const parsers = (src.match(/PT\(\?:\(\\d\+\)H\)/g) || []).length;
+      return eq(parsers, 1, 'ISO 8601 duration regexes (parseDuration only)');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
