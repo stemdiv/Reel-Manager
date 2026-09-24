@@ -2826,7 +2826,7 @@ const I18N = {
 
     // Header
     header_last_backup: 'Dernier backup',
-    header_backup_tooltip: 'Backup',
+    header_backup_tooltip: 'Sauvegarde',
     header_export_tooltip: 'Export',
     header_lang_toggle: 'Langue',
     header_theme_toggle: 'Thème',
@@ -2878,7 +2878,7 @@ const I18N = {
 
     // Beta
     beta_tag: 'BETA',
-    beta_title: 'Feature Lab',
+    beta_title: 'Laboratoire',
     beta_subtitle: 'Fonctionnalités en cours de test. Elles seront déplacées dans leur section définitive une fois validées.',
     beta_empty_title: 'Aucune fonctionnalité en beta',
     beta_empty_desc: 'Les nouvelles fonctionnalités en cours de déploiement apparaîtront ici.',
@@ -2925,7 +2925,7 @@ const I18N = {
     studio_channel_name: 'Nom de la chaine',
     studio_channel_description: 'Description',
     studio_channel_keywords: 'Mots-cles (separes par des virgules)',
-    studio_upload_video: 'Upload video',
+    studio_upload_video: 'Envoyer une vidéo',
     studio_upload_desc: 'Uploadez une video directement sur YouTube depuis l\'app.',
     studio_upload_file: 'Fichier video',
     studio_video_uploaded: 'Video uploadee avec succes',
@@ -2966,7 +2966,7 @@ const I18N = {
     detail_duration_all: 'Toutes',
     detail_duration_short: 'Court (< 4 min)',
     detail_duration_medium: 'Moyen (4-20 min)',
-    detail_duration_long: 'Long (> 20 min)',
+    detail_duration_long: 'Longue (> 20 min)',
     detail_status: 'Statut',
     detail_type: 'Type de contenu',
     detail_type_all: 'Tous les types',
@@ -3318,6 +3318,90 @@ const I18N = {
     modal_cancel: 'Annuler',
     modal_save: 'Sauvegarder',
     modal_close: 'Fermer',
+    // AUD-27 — strings that were written into templates, errors and toasts
+    autotag_music: 'Musique', autotag_education: 'Éducation', autotag_entertainment: 'Divertissement',
+    err_write_required: 'Accès en écriture requis — veuillez ré-autoriser l\'application',
+    err_network: 'Erreur réseau : {msg}',
+    err_server: 'Erreur serveur ({status}) — réessayez plus tard',
+    err_api_status: 'Erreur API ({status})',
+    err_api_unknown: 'Erreur API inconnue après plusieurs essais',
+    err_upload_no_url: 'YouTube n\'a pas renvoyé d\'adresse d\'envoi',
+    err_upload_http: 'Échec de l\'envoi (HTTP {status})',
+    err_upload_network: 'Erreur réseau pendant l\'envoi',
+    err_playlist_no_id: 'La création de la playlist n\'a renvoyé aucun identifiant',
+    err_missing_item: 'Données de l\'élément manquantes',
+    toast_cache_upgrading: 'Mise à jour du format du cache — chargement des miniatures…',
+    toast_cache_failed: 'Échec de l\'enregistrement du cache : {msg}',
+    toast_analysing_categories: 'Analyse des catégories…',
+    toast_analysing_topics: 'Analyse du contenu… (thèmes)',
+    toast_topics_done: 'Contenu analysé : {count} vidéos enrichies',
+    toast_analysing_count: 'Analyse du contenu… ({count})',
+    toast_category_selected: '{count} vidéo(s) sélectionnée(s) — {category}',
+    action_video_metadata: 'Mise à jour des métadonnées vidéo',
+    action_video_update: 'Mise à jour de la vidéo',
+    action_thumbnail_upload: 'Envoi de la miniature',
+    action_caption_upload: 'Envoi des sous-titres',
+    action_caption_delete: 'Suppression des sous-titres',
+    action_channel_update: 'Mise à jour de la chaîne',
+    action_video_upload: 'Envoi de la vidéo',
+    action_rename_playlists: 'Renommage de playlists',
+    action_delete_playlists: 'Suppression de playlists',
+    action_merge: 'Fusion de playlists',
+    action_move: 'Déplacement de vidéos',
+    action_clean_ghosts: 'Suppression des vidéos fantômes',
+    action_bulk_rename: 'Renommage en lot',
+    tags_uncategorised: 'Sans catégorie',
+    detail_count_filtered: '{shown} / {total} vidéos',
+    categorizer_loading_videos: 'Chargement des vidéos : {done}/{total}',
+    categorizer_loading_details: 'Récupération des détails : {done}/{total}',
+    categorizer_suggested: 'Suggéré :',
+    csv_headers: 'Playlist|Playlist ID|Titre vidéo|URL YouTube|Chaîne|Durée|Statut|Date ajout|Position|Tags',
+    backup_last_title: 'Dernier backup : {date}',
+    dash_tile_videos: 'VIDÉOS',
+    dash_unit_items: 'éléments',
+    dash_largest: 'plus grande : {name} ({count})',
+    dash_tile_folders: 'DOSSIERS',
+    dash_assigned: '{count} / {total} playlists',
+    dash_root: '{count} à la racine',
+    dash_unassigned: '{count} sans dossier',
+    dash_unit_columns: 'colonnes',
+    dash_active: '{count} actives',
+    dash_tile_watch: 'DURÉE DE VISIONNAGE',
+    dash_avg_per_video: 'moy. {min} min/vidéo',
+    dash_tile_quota: 'QUOTA API',
+    dash_donut_playlists: 'PLAYLISTS',
+    dash_all_playlists: 'Toutes les playlists',
+    dash_by_videos: 'par nombre de vidéos',
+    tags_edit_tooltip: 'Modifier les tags',
+    folders_edit: 'Modifier le dossier',
+    folders_add_sub: 'Ajouter un sous-dossier',
+    skin_custom: 'Personnalisé',
+    stats_by_category: 'Répartition par catégorie',
+    stats_overview: 'Vue d\'ensemble',
+    stats_playlists: 'Playlists',
+    stats_videos: 'Vidéos',
+    stats_categories: 'Catégories',
+    stats_avg_per_playlist: 'Moy. vidéos/playlist',
+    stats_top10: 'Top 10 playlists par nombre de vidéos',
+    emoji_none: 'aucun',
+    tags_icons_hint: 'Ajoutez des tags ci-dessus puis sauvegardez pour gérer les icônes',
+    tags_for: 'Tags pour {title}',
+    tags_input_label: 'Tags (séparés par des virgules)',
+    tags_add_title: 'Ajouter un tag',
+    modal_name: 'Nom',
+    modal_rename_playlists: 'Renommer des playlists',
+    modal_select_playlists: 'Sélectionner les playlists',
+    merge_description: 'Playlist fusionnée',
+    dupes_unknown_playlist: 'Playlist inconnue',
+    dupes_appears_in: 'Apparaît dans {count} playlists',
+    studio_upload_progress: '{pct} % — {done} / {total} Mo',
+    subs_total: 'Total abonnements',
+    subs_this_month: 'Ce mois-ci',
+    subs_avg_new: 'Moyenne vidéos',
+    subs_meta: '{date} · {total} vidéos ({new} nouvelles)',
+    subs_channel: 'Chaîne',
+    diff_common: 'En commun',
+    diff_count: '{count} vidéos',
     // AUD-47 — the privacy policy, a legal text, in both languages (static markup)
     privacy_title: 'Politique de confidentialité — Playlist Manager',
     privacy_updated: 'Dernière mise à jour :',
@@ -4133,6 +4217,90 @@ const I18N = {
     modal_cancel: 'Cancel',
     modal_save: 'Save',
     modal_close: 'Close',
+    // AUD-27
+    autotag_music: 'Music', autotag_education: 'Education', autotag_entertainment: 'Entertainment',
+    err_write_required: 'Write access required — please authorise the app again',
+    err_network: 'Network error: {msg}',
+    err_server: 'Server error ({status}) — please try again later',
+    err_api_status: 'API error ({status})',
+    err_api_unknown: 'Unknown API error after several attempts',
+    err_upload_no_url: 'YouTube returned no upload address',
+    err_upload_http: 'Upload failed (HTTP {status})',
+    err_upload_network: 'Network error during upload',
+    err_playlist_no_id: 'Creating the playlist returned no id',
+    err_missing_item: 'Missing item data',
+    toast_cache_upgrading: 'Upgrading the cache format — loading thumbnails…',
+    toast_cache_failed: 'Saving the cache failed: {msg}',
+    toast_analysing_categories: 'Analysing categories…',
+    toast_analysing_topics: 'Analysing content… (topics)',
+    toast_topics_done: 'Content analysed: {count} videos enriched',
+    toast_analysing_count: 'Analysing content… ({count})',
+    toast_category_selected: '{count} video(s) selected — {category}',
+    action_video_metadata: 'Video metadata update',
+    action_video_update: 'Video update',
+    action_thumbnail_upload: 'Thumbnail upload',
+    action_caption_upload: 'Caption upload',
+    action_caption_delete: 'Caption delete',
+    action_channel_update: 'Channel update',
+    action_video_upload: 'Video upload',
+    action_rename_playlists: 'Playlist rename',
+    action_delete_playlists: 'Playlist deletion',
+    action_merge: 'Playlist merge',
+    action_move: 'Video move',
+    action_clean_ghosts: 'Ghost video removal',
+    action_bulk_rename: 'Bulk rename',
+    tags_uncategorised: 'Uncategorised',
+    detail_count_filtered: '{shown} / {total} videos',
+    categorizer_loading_videos: 'Loading videos: {done}/{total}',
+    categorizer_loading_details: 'Fetching details: {done}/{total}',
+    categorizer_suggested: 'Suggested:',
+    csv_headers: 'Playlist|Playlist ID|Video title|YouTube URL|Channel|Duration|Status|Date added|Position|Tags',
+    backup_last_title: 'Last backup: {date}',
+    dash_tile_videos: 'VIDEOS',
+    dash_unit_items: 'items',
+    dash_largest: 'largest: {name} ({count})',
+    dash_tile_folders: 'FOLDERS',
+    dash_assigned: '{count} / {total} playlists',
+    dash_root: '{count} root',
+    dash_unassigned: '{count} unassigned',
+    dash_unit_columns: 'columns',
+    dash_active: '{count} active',
+    dash_tile_watch: 'WATCH TIME',
+    dash_avg_per_video: 'avg {min} min/video',
+    dash_tile_quota: 'API QUOTA',
+    dash_donut_playlists: 'PLAYLISTS',
+    dash_all_playlists: 'All playlists',
+    dash_by_videos: 'by videos',
+    tags_edit_tooltip: 'Edit tags',
+    folders_edit: 'Edit folder',
+    folders_add_sub: 'Add sub-folder',
+    skin_custom: 'Custom',
+    stats_by_category: 'By category',
+    stats_overview: 'Overview',
+    stats_playlists: 'Playlists',
+    stats_videos: 'Videos',
+    stats_categories: 'Categories',
+    stats_avg_per_playlist: 'Avg videos/playlist',
+    stats_top10: 'Top 10 playlists by video count',
+    emoji_none: 'none',
+    tags_icons_hint: 'Add tags above and save to manage their icons',
+    tags_for: 'Tags for {title}',
+    tags_input_label: 'Tags (comma-separated)',
+    tags_add_title: 'Add a tag',
+    modal_name: 'Name',
+    modal_rename_playlists: 'Rename playlists',
+    modal_select_playlists: 'Select playlists',
+    merge_description: 'Merged playlist',
+    dupes_unknown_playlist: 'Unknown playlist',
+    dupes_appears_in: 'Appears in {count} playlists',
+    studio_upload_progress: '{pct}% — {done} / {total} MB',
+    subs_total: 'Total subscriptions',
+    subs_this_month: 'This month',
+    subs_avg_new: 'Average videos',
+    subs_meta: '{date} · {total} videos ({new} new)',
+    subs_channel: 'Channel',
+    diff_common: 'In common',
+    diff_count: '{count} videos',
     privacy_title: 'Privacy Policy — Playlist Manager',
     privacy_updated: 'Last updated:',
     privacy_html: `<h3 style="margin-top: 20px;">1. Data collected</h3>
@@ -4476,11 +4644,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.44'; // bump per release
+const APP_VERSION = '1.27.45'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.45', date: '2026-09-24', items: [
+    "TRADUCTION (AUD-27, #80) — plus d une centaine de textes visibles ecrits en dur echappaient a la traduction : messages d erreur et notifications, tuiles du tableau de bord, fenetres de creation et de renommage, gestion des tags, abonnements, statistiques, en-tetes de l export CSV, genres musicaux, et les huit libelles de classification du #80. Ils suivent tous la langue de l interface, dates comprises ; les tags proposes par la categorisation automatique aussi",
+  ]},
   { v: '1.27.44', date: '2026-09-24', items: [
     "MAINTENANCE (AUD-34) — trois fonctions affichaient la duree d une video, chacune a sa facon (1h02m ici, 1:02:05 la), et trois autres endroits relisaient le format de duree de YouTube a la main. Une seule fonction de formatage, en deux styles, et une seule de lecture. Les durees s affichent comme avant ; une diffusion en direct n affiche plus 0:00 dans le plan de visionnage",
   ]},
@@ -7016,7 +7187,7 @@ function updateBackupIndicator() {
 
   el.textContent = label;
   el.style.color = color;
-  el.title = `Dernier backup : ${date.toLocaleString('fr-FR')}`;
+  el.title = t('backup_last_title', { date: date.toLocaleString(uiLocale()) });
 }
 
 // Off by default, and deliberately so: progressive scope is the promise the
@@ -7707,9 +7878,9 @@ function renderSkinPicker() {
     <div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
       <button id="customAccentInput" class="cp-swatch"
               onclick="openPicker('${customHex}', applyCustomAccent, this)"
-              title="Custom"
+              title="${t('skin_custom')}"
               style="background:${customHex};${customActive ? 'outline:2px solid var(--accent);outline-offset:2px;' : ''}"></button>
-      <div class="skin-swatch-label">Custom</div>
+      <div class="skin-swatch-label">${t('skin_custom')}</div>
     </div>
   `;
 }
@@ -7775,7 +7946,7 @@ function toggleSkinPickerSidebar() {
       <div style="display:inline-block;margin:3px;">
         <button id="customAccentInputSidebar" class="cp-swatch"
                 onclick="openPicker('${customHex}', hex => { applyCustomAccent(hex); updateSidebarLabels(); }, this)"
-                title="Custom"
+                title="${t('skin_custom')}"
                 style="vertical-align:middle;background:${customHex};${customActive ? 'outline:2px solid var(--accent);outline-offset:2px;' : ''}"></button>
       </div>
     `;
@@ -7830,7 +8001,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
   // Scope upgrade: if write operation with readonly scope, request upgrade
   if (method !== 'GET' && currentScope !== SCOPE_FULL) {
     if (!(await ensureWriteScope())) {
-      throw new Error('Accès en écriture requis — veuillez ré-autoriser l\'application');
+      throw new Error(t('err_write_required'));
     }
   }
 
@@ -7912,7 +8083,10 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
           await sleep(delay);
           continue;
         }
-        throw new Error(`Network error: ${networkErr.message || 'request failed'}`);
+        // AUD-27 — translated; callers test the flag, not the wording
+        const e = new Error(t('err_network', { msg: networkErr.message || 'request failed' }));
+        e.network = true;
+        throw e;
       }
 
       // 304 Not Modified — server confirms our cache is still valid
@@ -7950,7 +8124,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
         if (rateLimited) {
           throw new Error(t('error_rate_limited') || 'Rate limit exceeded — please try again in a moment');
         }
-        throw new Error(`Server error (${res.status}) — please try again later`);
+        throw Object.assign(new Error(t('err_server', { status: res.status })), { status: res.status });
       }
 
       // Non-retryable error path
@@ -7978,7 +8152,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
         if (errCode === 401) {
           throw promptReconnect(new Error(t('error_session_expired')));
         }
-        throw new Error(errMsg || `Erreur API (${errCode})`);
+        throw Object.assign(new Error(errMsg || t('err_api_status', { status: errCode })), { status: errCode });
       }
 
       // ────────────────────────────────────────────────────────────────────
@@ -8016,7 +8190,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
     }
 
     // Defensive fallback — shouldn't reach here given the loop structure
-    throw lastError || new Error('Erreur API inconnue après retries');
+    throw lastError || new Error(t('err_api_unknown'));
   } catch (err) {
     console.error('API Error:', err);
     log('error', 'api', 'API call failed', { endpoint, method, cost, durationMs: Date.now() - _logCallStart, retries: _logRetries, error: String(err && err.message || err) });
@@ -8115,7 +8289,7 @@ async function showApp() {
 
       if (!hasAnyThumb && totalVids > 0 && APP.accessToken) {
         console.log('[Startup] Old cache format detected (no thumbnails) — forcing full refresh to migrate');
-        showToast('Upgrading cache format — loading thumbnails...', 'info');
+        showToast(t('toast_cache_upgrading'), 'info');
         await loadAllPlaylists();
         APP.allVideos = {};
         videoDetailsCache = {};
@@ -8303,7 +8477,7 @@ async function autoSaveCache(opts) {
     log('info', 'backup', 'auto-cache written', { backend, playlists: cache.playlists.length, videos: totalVids });
   } catch (err) {
     console.error('[Auto-cache] FAILED:', err.message);
-    showToast(`Cache FAILED: ${err.message}`, 'error');
+    showToast(t('toast_cache_failed', { msg: err.message }), 'error');
     log('warn', 'backup', 'auto-cache write failed', { msg: err.message });
   }
 }
@@ -8570,29 +8744,29 @@ async function refreshDashboard() {
 
   const tilesHtml = `
     <div class="stat-card" onclick="switchView('statistics')" style="cursor:pointer;">
-      <div class="stat-card-label">VIDÉOS</div>
+      <div class="stat-card-label">${t('dash_tile_videos')}</div>
       <div class="stat-card-value-row">
         <div class="stat-card-value">${totalVideos.toLocaleString().replace(/,/g, ' ')}</div>
-        <div class="stat-card-unit">items</div>
+        <div class="stat-card-unit">${t('dash_unit_items')}</div>
       </div>
-      <div class="stat-card-sub">largest: ${escapeHtml(largestName.length > 18 ? largestName.slice(0, 18) + '...' : largestName)} (${largestCount})</div>
+      <div class="stat-card-sub">${escapeHtml(t('dash_largest', { name: largestName.length > 18 ? largestName.slice(0, 18) + '...' : largestName, count: largestCount }))}</div>
       <div class="stat-card-visual" style="display:flex;flex-direction:column;gap:3px;">
         ${miniBarsHtml}
       </div>
     </div>
     <div class="stat-card" onclick="switchView('folders')" style="cursor:pointer;">
-      <div class="stat-card-label">FOLDERS</div>
+      <div class="stat-card-label">${t('dash_tile_folders')}</div>
       <div class="stat-card-value-row">
         <div class="stat-card-value">${folderCount}</div>
       </div>
-      <div class="stat-card-sub">${assignedCount} / ${APP.playlists.length} playlists</div>
+      <div class="stat-card-sub">${t('dash_assigned', { count: assignedCount, total: APP.playlists.length })}</div>
       <div class="stat-card-visual">
         <div class="stat-card-bar">
           <div class="stat-card-bar-fill" style="width:${APP.playlists.length ? (assignedCount / APP.playlists.length) * 100 : 0}%;background:var(--blue);"></div>
         </div>
         <div style="display:flex;justify-content:space-between;margin-top:3px;">
-          <span style="font-size:9px;color:var(--text4);">${rootFolders} root</span>
-          <span style="font-size:9px;color:var(--text4);">${APP.playlists.length - assignedCount} unassigned</span>
+          <span style="font-size:9px;color:var(--text4);">${t('dash_root', { count: rootFolders })}</span>
+          <span style="font-size:9px;color:var(--text4);">${t('dash_unassigned', { count: APP.playlists.length - assignedCount })}</span>
         </div>
       </div>
     </div>
@@ -8600,24 +8774,24 @@ async function refreshDashboard() {
       <div class="stat-card-label">DECK</div>
       <div class="stat-card-value-row">
         <div class="stat-card-value">${deckColCount}</div>
-        <div class="stat-card-unit">columns</div>
+        <div class="stat-card-unit">${t('dash_unit_columns')}</div>
       </div>
-      <div class="stat-card-sub">${deckPlaylistCount} active</div>
+      <div class="stat-card-sub">${t('dash_active', { count: deckPlaylistCount })}</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
       <div class="stat-card" onclick="switchView('watch')" style="cursor:pointer;">
-        <div class="stat-card-label">WATCH TIME</div>
+        <div class="stat-card-label">${t('dash_tile_watch')}</div>
         <div class="stat-card-value-row">
           <div class="stat-card-value" style="font-size:22px;">${totalHours || '—'}</div>
           <div class="stat-card-unit">${totalHours ? 'h' : ''}</div>
         </div>
-        <div class="stat-card-sub">avg ${avgMinPerVideo} min/vid</div>
+        <div class="stat-card-sub">${t('dash_avg_per_video', { min: avgMinPerVideo })}</div>
       </div>
       <div class="stat-card" onclick="switchView('help')" style="cursor:pointer;">
-        <div class="stat-card-label">API QUOTA</div>
+        <div class="stat-card-label">${t('dash_tile_quota')}</div>
         <div class="stat-card-value-row">
           <div class="stat-card-value" style="font-size:22px;">${quotaUsed.toLocaleString()}</div>
-          <div class="stat-card-unit">/ 10k</div>
+          <div class="stat-card-unit">/ ${(QUOTA_LIMITS.pool / 1000).toLocaleString(uiLocale())}k</div>
         </div>
         <div class="stat-card-visual">
           <div class="stat-card-bar">
@@ -8739,8 +8913,8 @@ function renderTrendingTile() {
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
       <div class="chart-title" style="margin:0;">${t('trending_title')}</div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <select class="form-control" onchange="setTrendingCategory(this.value)" style="width:auto;font-size:12px;padding:4px 8px;" data-i18n-title="trending_category_tooltip" title="Category">${options}</select>
-        <button class="btn-icon" onclick="loadTrending()" data-i18n-title="trending_refresh" title="Refresh" style="width:28px;height:28px;">
+        <select class="form-control" onchange="setTrendingCategory(this.value)" style="width:auto;font-size:12px;padding:4px 8px;" title="${t('trending_category_tooltip')}">${options}</select>
+        <button class="btn-icon" onclick="loadTrending()" title="${t('trending_refresh')}" style="width:28px;height:28px;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
         </button>
       </div>
@@ -8832,7 +9006,7 @@ function generateDashboardCharts() {
     <circle cx="${donutSize/2}" cy="${donutSize/2}" r="${r}" fill="none" stroke="var(--surface3)" stroke-width="14"/>
     ${donutSegments}
     <text x="${donutSize/2}" y="${donutSize/2 - 4}" text-anchor="middle" fill="var(--text)" font-size="22" font-weight="600" letter-spacing="-0.02em">${plCount}</text>
-    <text x="${donutSize/2}" y="${donutSize/2 + 12}" text-anchor="middle" fill="var(--text3)" font-size="9" font-family="var(--font-mono)" letter-spacing="0.08em">PLAYLISTS</text>
+    <text x="${donutSize/2}" y="${donutSize/2 + 12}" text-anchor="middle" fill="var(--text3)" font-size="9" font-family="var(--font-mono)" letter-spacing="0.08em">${t('dash_donut_playlists')}</text>
   </svg>`;
 
   // Legend — show top 8 playlists, then "X others"
@@ -8889,8 +9063,8 @@ function generateDashboardCharts() {
       </div>
       <div class="chart-container" onclick="switchView('statistics')" style="cursor:pointer;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <div class="chart-title" style="margin:0;">All playlists</div>
-          <span class="mono" style="font-size:10px;color:var(--text4);">by videos</span>
+          <div class="chart-title" style="margin:0;">${t('dash_all_playlists')}</div>
+          <span class="mono" style="font-size:10px;color:var(--text4);">${t('dash_by_videos')}</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;">${barsHtml || `<p class="text-muted">${t('no_data')}</p>`}</div>
       </div>
@@ -9587,7 +9761,7 @@ function renderStudioThumbGrid(panel) {
       <div class="studio-thumb-title">${escapeHtml(title.substring(0, 40))}</div>
     </div>`;
   }
-  grid.innerHTML = html || '<p class="text-muted" style="font-size:12px;">No videos</p>';
+  grid.innerHTML = html || `<p class="text-muted" style="font-size:12px;">${t('no_video')}</p>`;
 }
 
 function selectStudioThumbVideo(panel, videoId) {
@@ -9635,8 +9809,8 @@ async function onStudioVideoSelect() {
 async function saveVideoMetadata() {
   const videoId = document.getElementById('studioVideoSelect').value;
   if (!videoId) return;
-  if (!checkBackupSafety('Video metadata update')) return;
-  if (!checkQuotaBudget('Video update', 'video_update', 1)) return;
+  if (!checkBackupSafety(t('action_video_metadata'))) return;
+  if (!checkQuotaBudget(t('action_video_update'), 'video_update', 1)) return;
 
   const title = document.getElementById('studioVideoTitle').value.trim();
   const description = document.getElementById('studioVideoDesc').value.trim();
@@ -9680,8 +9854,8 @@ async function uploadThumbnail() {
     showToast(t('toast_error', { msg: 'Select a video and file' }), 'error');
     return;
   }
-  if (!checkBackupSafety('Thumbnail upload')) return;
-  if (!checkQuotaBudget('Thumbnail upload', 'thumbnail_set', 1)) return;
+  if (!checkBackupSafety(t('action_thumbnail_upload'))) return;
+  if (!checkQuotaBudget(t('action_thumbnail_upload'), 'thumbnail_set', 1)) return;
 
   const file = fileInput.files[0];
   if (file.size > 2 * 1024 * 1024) {
@@ -9754,8 +9928,8 @@ async function uploadCaption() {
     showToast(t('toast_error', { msg: 'Fill all required fields' }), 'error');
     return;
   }
-  if (!checkBackupSafety('Caption upload')) return;
-  if (!checkQuotaBudget('Caption upload', 'caption_insert', 1)) return;
+  if (!checkBackupSafety(t('action_caption_upload'))) return;
+  if (!checkQuotaBudget(t('action_caption_upload'), 'caption_insert', 1)) return;
 
   const file = fileInput.files[0];
   try {
@@ -9785,7 +9959,7 @@ async function uploadCaption() {
 
 async function deleteCaption(captionId, videoId) {
   if (!confirm(t('studio_caption_delete_confirm'))) return;
-  if (!checkBackupSafety('Caption delete')) return;
+  if (!checkBackupSafety(t('action_caption_delete'))) return;
 
   try {
     await ytApi('captions', { id: captionId }, 'DELETE');
@@ -9816,8 +9990,8 @@ async function loadChannelInfo() {
 async function saveChannelInfo() {
   const channelId = document.getElementById('studioChannelForm').dataset.channelId;
   if (!channelId) return;
-  if (!checkBackupSafety('Channel update')) return;
-  if (!checkQuotaBudget('Channel update', 'channel_update', 1)) return;
+  if (!checkBackupSafety(t('action_channel_update'))) return;
+  if (!checkQuotaBudget(t('action_channel_update'), 'channel_update', 1)) return;
 
   const description = document.getElementById('studioChannelDesc').value.trim();
   const keywords = document.getElementById('studioChannelKeywords').value.trim();
@@ -9847,8 +10021,8 @@ async function uploadVideo() {
     showToast(t('toast_error', { msg: 'Select a file and enter a title' }), 'error');
     return;
   }
-  if (!checkBackupSafety('Video upload')) return;
-  if (!checkQuotaBudget('Video upload', 'video_insert', 1, 'upload')) return;
+  if (!checkBackupSafety(t('action_video_upload'))) return;
+  if (!checkQuotaBudget(t('action_video_upload'), 'video_insert', 1, 'upload')) return;
 
   const file = fileInput.files[0];
   const progressDiv = document.getElementById('uploadProgress');
@@ -9886,7 +10060,7 @@ async function uploadVideo() {
     }
 
     const uploadUrl = initRes.headers.get('Location');
-    if (!uploadUrl) throw new Error('No upload URL returned');
+    if (!uploadUrl) throw new Error(t('err_upload_no_url'));
 
     // Upload file with XMLHttpRequest for progress tracking
     await new Promise((resolve, reject) => {
@@ -9897,14 +10071,14 @@ async function uploadVideo() {
         if (e.lengthComputable) {
           const pct = Math.round((e.loaded / e.total) * 100);
           progressBar.style.width = pct + '%';
-          progressText.textContent = `${pct}% — ${(e.loaded / 1024 / 1024).toFixed(1)} / ${(e.total / 1024 / 1024).toFixed(1)} Mo`;
+          progressText.textContent = t('studio_upload_progress', { pct, done: (e.loaded / 1024 / 1024).toFixed(1), total: (e.total / 1024 / 1024).toFixed(1) });
         }
       });
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
-        else reject(new Error(`Upload failed: HTTP ${xhr.status}`));
+        else reject(new Error(t('err_upload_http', { status: xhr.status })));
       };
-      xhr.onerror = () => reject(new Error('Network error during upload'));
+      xhr.onerror = () => reject(Object.assign(new Error(t('err_upload_network')), { network: true }));
       xhr.send(file);
     });
 
@@ -10073,8 +10247,8 @@ function refreshPlaylistsList() {
     // Action buttons: owned → rename/delete, bookmarked → remove bookmark
     const actions = isBookmark
       ? `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); confirmRemoveBookmark('${pl.id}')" data-i18n-title="bookmark_remove" title="${t('bookmark_remove')}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg></button>`
-      : `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); showRenamePlaylistModal('${pl.id}')" title="Rename"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></button>
-         <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deletePlaylist('${pl.id}')" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`;
+      : `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); showRenamePlaylistModal('${pl.id}')" title="${t('dash_rename')}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></button>
+         <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deletePlaylist('${pl.id}')" title="${t('dash_delete')}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>`;
     return `
       <div class="playlist-card${isBookmark ? ' is-bookmark' : ''}" data-playlist-id="${pl.id}" onclick="openPlaylistDetail('${pl.id}')">
         ${bookmarkBadge}
@@ -10307,6 +10481,9 @@ function parseDuration(iso) {
 // 3725 s: "1h02m" here, "1:02:05" in the Watch plan and in Discover.
 //   'compact' (cards, lists):  1h02m · 3:05 · --:-- when unknown
 //   'clock'   (players, plans): 1:02:05 · 3:05 · 0:00
+// AUD-27 — dates and numbers follow the UI language (they were always fr-FR)
+function uiLocale() { return currentLang === 'en' ? 'en-GB' : 'fr-FR'; }
+
 function formatDuration(seconds, style = 'compact') {
   const clock = style === 'clock';
   if (!seconds || seconds <= 0) return clock ? '0:00' : '--:--';
@@ -10354,7 +10531,12 @@ function getCategoryName(id, lang) {
   return c[l] || c.fr || c.en || ('#' + id);
 }
 
-const GENRE_LABELS = { 'Electronic_music':'Électronique / EDM', 'Hip_hop_music':'Hip-hop / Rap', 'Pop_music':'Pop', 'Rock_music':'Rock', 'Rhythm_and_blues':'R&B', 'Soul_music':'Soul', 'Classical_music':'Classique', 'Country_music':'Country', 'Christian_music':'Gospel / Chrétienne', 'Independent_music':'Indé', 'Music_of_Latin_America':'Latino', 'Music_of_Asia':'Asie', 'Jazz':'Jazz', 'Reggae':'Reggae', 'Blues':'Blues' };
+// Wikipedia topic → genre label, [fr, en] (AUD-27: was French only)
+const GENRE_LABELS = { 'Electronic_music': ['Électronique / EDM', 'Electronic / EDM'], 'Hip_hop_music': ['Hip-hop / Rap', 'Hip-hop / Rap'],
+  'Pop_music': ['Pop', 'Pop'], 'Rock_music': ['Rock', 'Rock'], 'Rhythm_and_blues': ['R&B', 'R&B'], 'Soul_music': ['Soul', 'Soul'],
+  'Classical_music': ['Classique', 'Classical'], 'Country_music': ['Country', 'Country'], 'Christian_music': ['Gospel / Chrétienne', 'Gospel / Christian'],
+  'Independent_music': ['Indé', 'Indie'], 'Music_of_Latin_America': ['Latino', 'Latin'], 'Music_of_Asia': ['Asie', 'Asian'],
+  'Jazz': ['Jazz', 'Jazz'], 'Reggae': ['Reggae', 'Reggae'], 'Blues': ['Blues', 'Blues'] };
 
 async function ensureClassificationData(videos) {
   try {
@@ -10888,7 +11070,7 @@ function classifyVideoType(v) {
     let genre = null;
     if (isMusic) {
       const gseg = topicSegs.find(s => /music/i.test(s) && !/^Music$/i.test(s)) || topicSegs.find(s => /^(Jazz|Reggae|Blues)$/i.test(s));
-      if (gseg) genre = (GENRE_LABELS[gseg] || gseg.replace(/_/g,' '));
+      if (gseg) genre = GENRE_LABELS[gseg] ? GENRE_LABELS[gseg][currentLang === 'en' ? 1 : 0] : gseg.replace(/_/g, ' ');
     }
     return { isMusic: isMusic, type: type, genre: genre };
   } catch (e) {
@@ -10903,7 +11085,7 @@ async function onCategoryFilterChange() {
     const need = currentDetailVideos.some(x => (x.categoryId === undefined || x.categoryId === null) && !x.topicCategories);
     if (need) {
       if (sel) sel.disabled = true;
-      try { showToast('Analyse des catégories…', 'info'); } catch (e) { swallow('onCategoryFilterChange:toast', e); }
+      try { showToast(t('toast_analysing_categories'), 'info'); } catch (e) { swallow('onCategoryFilterChange:toast', e); }
       await ensureClassificationData(currentDetailVideos);
       refreshCategoryFilterOptions();
       if (sel) sel.disabled = false;
@@ -10918,7 +11100,7 @@ function refreshCategoryFilterOptions() {
   for (const v of currentDetailVideos) { if (v.categoryId !== undefined && v.categoryId !== null && v.categoryId !== '') { const k = String(v.categoryId); counts[k] = (counts[k] || 0) + 1; } }
   const ids = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
   const cur = sel.value;
-  let html = '<option value="all">' + (typeof t === 'function' ? t('detail_all_categories') : 'Toutes catégories') + '</option>';
+  let html = '<option value="all">' + t('detail_all_categories') + '</option>';
   if (ids.length) { for (const id of ids) { html += '<option value="' + id + '">' + escapeHtml(getCategoryName(id)) + ' (' + counts[id] + ')</option>'; } }
   else { html += assignableCategoryOptionsHTML(); }
   sel.innerHTML = html;
@@ -10932,9 +11114,9 @@ async function onFilterTypeChange() {
     const need = currentDetailVideos.some(x => (x.categoryId === undefined || x.categoryId === null) && !x.topicCategories);
     if (need) {
       if (sel) sel.disabled = true;
-      try { showToast('Analyse du contenu… (topics)', 'info'); } catch (e) { swallow('onFilterTypeChange:toast', e); }
+      try { showToast(t('toast_analysing_topics'), 'info'); } catch (e) { swallow('onFilterTypeChange:toast', e); }
       const n = await ensureClassificationData(currentDetailVideos);
-      try { showToast('Contenu analysé : ' + n + ' vidéos enrichies', 'success'); } catch (e) { swallow('onFilterTypeChange:toast', e); }
+      try { showToast(t('toast_topics_done', { count: n }), 'success'); } catch (e) { swallow('onFilterTypeChange:toast', e); }
       if (sel) sel.disabled = false;
     }
   }
@@ -11017,7 +11199,7 @@ function applyVideoFilters() {
   document.getElementById('filterResultCount').textContent =
     filtered.length === currentDetailVideos.length
       ? ''
-      : `${filtered.length} / ${currentDetailVideos.length} vidéos`;
+      : t('detail_count_filtered', { shown: filtered.length, total: currentDetailVideos.length });
 
   // Render
   renderFilteredVideos(filtered);
@@ -11041,12 +11223,12 @@ function renderFilteredVideos(videos) {
   const isReorder = reorderModeActive;
   const html = videos.map((v, idx) => {
     const statusBadge = v.status === 'deleted'
-      ? '<span style="color: #e74c3c; font-size: 11px;">Supprimée</span>'
+      ? `<span style="color: #e74c3c; font-size: 11px;">${t('detail_status_deleted')}</span>`
       : v.status === 'private'
-        ? '<span style="color: #f39c12; font-size: 11px;">Privée</span>'
+        ? `<span style="color: #f39c12; font-size: 11px;">${t('detail_status_private')}</span>`
         : '';
 
-    const dateStr = v.addedAt ? new Date(v.addedAt).toLocaleDateString('fr-FR') : '';
+    const dateStr = v.addedAt ? new Date(v.addedAt).toLocaleDateString(uiLocale()) : '';
 
     const safeTitle = escapeJsAttr(v.title);
     const safeChannel = escapeJsAttr(v.channelTitle);
@@ -11264,7 +11446,7 @@ async function moveVideoBy(itemId, delta) {
 
 async function moveVideoToPosition(fromItemId, fromVideoId, toPosition) {
   if (!fromItemId || isNaN(toPosition)) {
-    showToast(t('toast_error', { msg: 'Missing item data' }), 'error');
+    showToast(t('toast_error', { msg: t('err_missing_item') }), 'error');
     return false;
   }
 
@@ -11324,21 +11506,21 @@ async function moveVideoToPosition(fromItemId, fromVideoId, toPosition) {
 function showCreatePlaylistModal() {
   openModal(`
     <div class="modal-header">
-      <div class="modal-title">Créer une nouvelle playlist</div>
+      <div class="modal-title">${t('modal_create_playlist')}</div>
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label class="form-label">Nom</label>
+        <label class="form-label" for="newPlaylistName">${t('modal_name')}</label>
         <input type="text" class="form-control" id="newPlaylistName" placeholder="${t('modal_playlist_name')}">
       </div>
       <div class="form-group">
-        <label class="form-label">Description</label>
+        <label class="form-label" for="newPlaylistDesc">${t('studio_video_desc')}</label>
         <textarea class="form-control" id="newPlaylistDesc" placeholder="${t('modal_playlist_desc')}"></textarea>
       </div>
       <div class="form-group">
         <label class="form-checkbox">
           <input type="checkbox" id="newPlaylistPublic" checked>
-          <span class="checkbox-label">Publique</span>
+          <span class="checkbox-label">${t('modal_playlist_public')}</span>
         </label>
       </div>
     </div>
@@ -11397,15 +11579,15 @@ function showRenamePlaylistModal(playlistId = null) {
 
     openModal(`
       <div class="modal-header">
-        <div class="modal-title">Renommer playlists</div>
+        <div class="modal-title">${t('modal_rename_playlists')}</div>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label">Sélectionner playlists</label>
+          <label class="form-label">${t('modal_select_playlists')}</label>
           ${selectHtml}
         </div>
         <div class="form-group">
-          <label class="form-label">Nouveau nom</label>
+          <label class="form-label" for="newPlaylistNameInput">${t('modal_new_name')}</label>
           <input type="text" class="form-control" id="newPlaylistNameInput" placeholder="${t('modal_rename_placeholder')}">
         </div>
       </div>
@@ -11418,11 +11600,11 @@ function showRenamePlaylistModal(playlistId = null) {
     const playlist = APP.playlists.find(p => p.id === playlistId);
     openModal(`
       <div class="modal-header">
-        <div class="modal-title">Renommer playlist</div>
+        <div class="modal-title">${t('modal_rename_playlist')}</div>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label">Nouveau nom</label>
+          <label class="form-label" for="renamePlaylistInput">${t('modal_new_name')}</label>
           <input type="text" class="form-control" id="renamePlaylistInput" value="${escapeHtml(playlist.snippet.title)}">
         </div>
       </div>
@@ -11462,7 +11644,7 @@ async function renamePlaylist(playlistId) {
 }
 
 async function applyRenames() {
-  if (!checkBackupSafety('Renommage de playlists')) return;
+  if (!checkBackupSafety(t('action_rename_playlists'))) return;
   const selected = Array.from(document.querySelectorAll('.rename-playlist-select:checked')).map(el => el.value);
   const newName = document.getElementById('newPlaylistNameInput').value.trim();
 
@@ -11470,7 +11652,7 @@ async function applyRenames() {
     showToast(t('toast_select_enter'), 'error');
     return;
   }
-  if (!checkQuotaBudget('Renommage de playlists', 'rename_playlists', selected.length)) return;
+  if (!checkQuotaBudget(t('action_rename_playlists'), 'rename_playlists', selected.length)) return;
 
   try {
     for (const id of selected) {
@@ -11514,10 +11696,10 @@ function showDeletePlaylistModal() {
 }
 
 async function deleteSelectedPlaylists() {
-  if (!checkBackupSafety('Suppression de playlists')) return;
+  if (!checkBackupSafety(t('action_delete_playlists'))) return;
   const selected = Array.from(document.querySelectorAll('.delete-playlist-select:checked')).map(el => el.value);
   if (!selected.length) return;
-  if (!checkQuotaBudget('Suppression de playlists', 'delete_playlists', selected.length)) return;
+  if (!checkQuotaBudget(t('action_delete_playlists'), 'delete_playlists', selected.length)) return;
 
   for (const id of selected) {
     await deletePlaylist(id);
@@ -11579,7 +11761,7 @@ function gsRefreshCategoryOptions() {
   const counts = {};
   if (query) { for (const [pid, videos] of Object.entries(APP.allVideos)) { for (const v of videos) { if (((v.snippet && v.snippet.title) || '').toLowerCase().includes(query)) { const d = videoDetailsCache[gsVideoId(v)]; const c = d && d.snippet ? d.snippet.categoryId : undefined; if (c != null) counts[String(c)] = (counts[String(c)] || 0) + 1; } } } }
   const ids = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
-  const cur = sel.value; const lbl = (typeof t === 'function' ? t('detail_all_categories') : 'Toutes catégories');
+  const cur = sel.value; const lbl = t('detail_all_categories');
   let html = '<option value="all">' + lbl + '</option>';
   if (ids.length) { for (const id of ids) html += '<option value="' + id + '">' + escapeHtml(getCategoryName(id)) + ' (' + counts[id] + ')</option>'; }
   else { html += assignableCategoryOptionsHTML(); }
@@ -11591,7 +11773,7 @@ async function onGlobalClassChange() {
   const ids = new Set();
   for (const [pid, videos] of Object.entries(APP.allVideos)) { for (const v of videos) { if (((v.snippet && v.snippet.title) || '').toLowerCase().includes(query)) { const id = gsVideoId(v); if (id) ids.add(id); } } }
   const need = [...ids].filter(id => { const d = videoDetailsCache[id]; const hasCat = d && d.snippet && d.snippet.categoryId != null; const hasTop = d && d.topicDetails; return !hasCat && !hasTop; });
-  if (need.length) { try { showToast('Analyse des résultats… (' + need.length + ')', 'info'); const det = await getVideoDetails(need); Object.assign(videoDetailsCache, det); } catch (e) { console.warn('onGlobalClassChange', e); } }
+  if (need.length) { try { showToast(t('toast_analysing_count', { count: need.length }), 'info'); const det = await getVideoDetails(need); Object.assign(videoDetailsCache, det); } catch (e) { console.warn('onGlobalClassChange', e); } }
   gsRefreshCategoryOptions();
   performGlobalSearch();
 }
@@ -12064,6 +12246,8 @@ function parseStatsItems(items) {
 }
 
 function isBatchStatsUnavailable(err) {
+  // AUD-27 — messages are translated now: status and network are flags
+  if (err && (err.network || err.status === 404 || err.status === 400)) return true;
   const msg = String(err && err.message || '').toLowerCase();
   return /\b(404|400)\b/.test(msg)
       || msg.includes('not found')
@@ -12462,7 +12646,7 @@ function renderDiscoverResults(query) {
         onclick="event.stopPropagation();playVideo('${escapeJsAttr(v.videoId)}','${escapeJsAttr(v.title)}','${escapeJsAttr(v.channel)}','${escapeJsAttr(v.thumbnail)}')">
         ${v.thumbnail
           ? `<img src="${escapeHtml(v.thumbnail)}" style="width:160px;aspect-ratio:16/9;object-fit:cover;border-radius:var(--r-sm);display:block;">`
-          : `<div style="width:160px;aspect-ratio:16/9;background:var(--surface3);border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--text4);font-size:10px;">No thumb</div>`
+          : `<div style="width:160px;aspect-ratio:16/9;background:var(--surface3);border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--text4);font-size:10px;">${t('no_thumbnail')}</div>`
         }
         <div style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,0.8);color:#fff;font-size:10px;padding:1px 4px;border-radius:3px;font-family:var(--font-mono);">${v.duration}</div>
         <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;background:rgba(0,0,0,0.4);border-radius:var(--r-sm);"
@@ -12478,9 +12662,9 @@ function renderDiscoverResults(query) {
           ${v.isShort ? shortBadgeHTML() : ''}<span>${escapeHtml(v.channel)}</span>${subscribeButtonHTML(v.channelId, v.channel)}
         </div>
         <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;">
-          <span title="Views">${v.views} ${t('views_label')}</span>
-          <span title="Likes">${v.likes} ${t('likes_label')}</span>
-          <span title="Comments">${v.comments} ${t('comments_label')}</span>
+          <span title="${t('views_label')}">${v.views} ${t('views_label')}</span>
+          <span title="${t('likes_label')}">${v.likes} ${t('likes_label')}</span>
+          <span title="${t('comments_label')}">${v.comments} ${t('comments_label')}</span>
           <span>${v.publishedAt}</span>
           <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener"
             onclick="event.stopPropagation()" style="color:var(--accent-text);text-decoration:none;font-size:10px;">YouTube &nearr;</a>
@@ -12595,7 +12779,7 @@ async function createPlaylistFromDiscover() {
     });
 
     const playlistId = plData.id;
-    if (!playlistId) throw new Error('Playlist creation failed — no ID returned');
+    if (!playlistId) throw new Error(t('err_playlist_no_id'));
 
     // Step 2: Add each video (50 quota each)
     let added = 0;
@@ -12684,7 +12868,7 @@ function onMergeDestChange() {
 }
 
 async function performMerge() {
-  if (!checkBackupSafety('Fusion de playlists')) return;
+  if (!checkBackupSafety(t('action_merge'))) return;
   const selected = Array.from(document.querySelectorAll('.merge-playlist-select:checked')).map(el => el.value);
   const destChoice = document.getElementById('mergeDestPlaylist')?.value || '__new__';
   const destName = document.getElementById('mergeDestName').value.trim();
@@ -12725,7 +12909,7 @@ async function performMerge() {
     showToast(t('toast_error', { msg: err.message }), 'error');
     return;
   }
-  if (!checkQuotaBudget('Fusion de playlists', creatingNew ? 'merge_new' : 'merge', toInsert.length)) return;
+  if (!checkQuotaBudget(t('action_merge'), creatingNew ? 'merge_new' : 'merge', toInsert.length)) return;
 
   try {
     // #G18: resolve the destination by id. The old code looked it up by title,
@@ -12734,7 +12918,7 @@ async function performMerge() {
     let destId;
     if (creatingNew) {
       const res = await ytApi('playlists', { part: 'snippet,status' }, 'POST', {
-        snippet: { title: destName, description: 'Merged playlist' },
+        snippet: { title: destName, description: t('merge_description') },
         status: { privacyStatus: 'private' }
       });
       APP.playlists.push(res);
@@ -12821,7 +13005,7 @@ function renderMoveVideos() {
             ${thumbUrl
               ? `<img src="${escapeHtml(thumbUrl)}" class="video-thumbnail" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
                  <div class="video-thumbnail" style="display:none;align-items:center;justify-content:center;background:var(--surface3);color:var(--text3);font-size:11px;">${t('no_thumbnail')}</div>`
-              : `<div class="video-thumbnail" style="display:flex;align-items:center;justify-content:center;background:var(--surface3);color:var(--text3);font-size:11px;">No thumbnail</div>`
+              : `<div class="video-thumbnail" style="display:flex;align-items:center;justify-content:center;background:var(--surface3);color:var(--text3);font-size:11px;">${t('no_thumbnail')}</div>`
             }
             <a href="${ytLink}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${t('view_on_youtube')}"
               style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;background:rgba(0,0,0,0.4);text-decoration:none;"
@@ -12919,7 +13103,7 @@ function populateMoveCategoryOptions() {
   for (const v of moveVideosCache) { const c = moveVideoCategory(v); if (c != null) counts[String(c)] = (counts[String(c)] || 0) + 1; }
   const ids = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
   const cur = sel.value;
-  const lbl = (typeof t === 'function' ? t('detail_category') : 'Catégorie');
+  const lbl = t('detail_category');
   let html = '<option value="">— ' + lbl + ' —</option>';
   if (ids.length) { for (const id of ids) html += '<option value="' + id + '">' + escapeHtml(getCategoryName(id)) + ' (' + counts[id] + ')</option>'; }
   else { html += assignableCategoryOptionsHTML(); }
@@ -12930,7 +13114,7 @@ async function onMoveCategorySelect() {
   const sel = document.getElementById('moveCategoryFilter'); const val = sel ? sel.value : '';
   if (!val) return;
   sel.disabled = true;
-  try { showToast('Analyse des catégories…', 'info'); } catch (e) { swallow('onMoveCategorySelect:toast', e); }
+  try { showToast(t('toast_analysing_categories'), 'info'); } catch (e) { swallow('onMoveCategorySelect:toast', e); }
   await ensureMoveCategories();
   populateMoveCategoryOptions(); sel.value = val;
   let n = 0;
@@ -12940,11 +13124,11 @@ async function onMoveCategorySelect() {
     cb.checked = !!match; if (match) n++;
   });
   sel.disabled = false;
-  try { showToast(n + ' vidéo(s) sélectionnée(s) — ' + getCategoryName(val), 'success'); } catch (e) { swallow('onMoveCategorySelect:toast', e); }
+  try { showToast(t('toast_category_selected', { count: n, category: getCategoryName(val) }), 'success'); } catch (e) { swallow('onMoveCategorySelect:toast', e); }
 }
 
 async function performMove() {
-  if (!checkBackupSafety('Déplacement de vidéos')) return;
+  if (!checkBackupSafety(t('action_move'))) return;
   const sourceId = document.getElementById('moveSourcePlaylist').value;
   const destId = document.getElementById('moveDestPlaylist').value;
   const selected = Array.from(document.querySelectorAll('.move-video-select:checked')).map(el => el.value);
@@ -12953,7 +13137,7 @@ async function performMove() {
     showToast(t('toast_select_source_dest'), 'error');
     return;
   }
-  if (!checkQuotaBudget('Déplacement de vidéos', 'move', selected.length)) return;
+  if (!checkQuotaBudget(t('action_move'), 'move', selected.length)) return;
 
   // AUD-16 — the counters live outside the try: whatever stops the loop, the
   // report and the cache refresh below still know how far it got.
@@ -13102,7 +13286,7 @@ async function removeGhostVideo(playlistId, itemId, opts) {
 }
 
 async function cleanAllGhosts() {
-  if (!checkBackupSafety('Suppression des vidéos fantômes')) return;
+  if (!checkBackupSafety(t('action_clean_ghosts'))) return;
   if (!confirm(t('confirm_clean_ghosts'))) return;
 
   const candidates = await collectGhosts();
@@ -13118,7 +13302,7 @@ async function cleanAllGhosts() {
   }
   if (!ghosts.length) { scanGhostVideos(); return; }
 
-  if (!checkQuotaBudget('Suppression des vidéos fantômes', 'clean_ghosts', ghosts.length)) return;
+  if (!checkQuotaBudget(t('action_clean_ghosts'), 'clean_ghosts', ghosts.length)) return;
 
   // #G9: this used to call the single-delete path, which re-scanned every
   // playlist and raised a toast per ghost — O(n²) work and n toasts.
@@ -13192,7 +13376,7 @@ async function scanDuplicates() {
     })();
 
     const playlistPills = instances.map(inst => {
-      const plName = APP.playlists.find(p => p.id === inst.playlistId)?.snippet?.title || 'Unknown';
+      const plName = APP.playlists.find(p => p.id === inst.playlistId)?.snippet?.title || t('dupes_unknown_playlist');
       return `<span class="tag" style="font-size:11px;display:inline-flex;align-items:center;gap:4px;">
         ${escapeHtml(plName)}
         <button onclick="removeDuplicateFromPlaylist('${inst.itemId}', '${inst.playlistId}', this)" title="${t('duplicate_remove_tooltip')}"
@@ -13204,8 +13388,8 @@ async function scanDuplicates() {
       <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" style="flex-shrink:0;position:relative;display:block;width:120px;" title="${t('view_on_youtube')}">
         ${thumbUrl
           ? `<img src="${escapeHtml(thumbUrl)}" class="dupe-thumb" style="width:120px;aspect-ratio:16/9;object-fit:cover;border-radius:var(--r-sm);display:block;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-             <div class="dupe-thumb" style="display:none;width:120px;aspect-ratio:16/9;background:var(--surface3);border-radius:var(--r-sm);align-items:center;justify-content:center;color:var(--text4);font-size:10px;">No thumb</div>`
-          : `<div class="dupe-thumb" style="display:flex;width:120px;aspect-ratio:16/9;background:var(--surface3);border-radius:var(--r-sm);align-items:center;justify-content:center;color:var(--text4);font-size:10px;">No thumb</div>`
+             <div class="dupe-thumb" style="display:none;width:120px;aspect-ratio:16/9;background:var(--surface3);border-radius:var(--r-sm);align-items:center;justify-content:center;color:var(--text4);font-size:10px;">${t('no_thumbnail')}</div>`
+          : `<div class="dupe-thumb" style="display:flex;width:120px;aspect-ratio:16/9;background:var(--surface3);border-radius:var(--r-sm);align-items:center;justify-content:center;color:var(--text4);font-size:10px;">${t('no_thumbnail')}</div>`
         }
         <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;background:rgba(0,0,0,0.4);border-radius:var(--r-sm);" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0'">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff" stroke="none"><path d="m6 3 14 9-14 9V3z"/></svg>
@@ -13213,7 +13397,7 @@ async function scanDuplicates() {
       </a>
       <div style="flex:1;min-width:0;">
         <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" style="font-weight:600;font-size:13px;margin-bottom:4px;display:block;color:var(--text);text-decoration:none;" title="${t('view_on_youtube')}">${escapeHtml(instances[0].title || t('untitled'))}</a>
-        <div class="mono" style="font-size:11px;color:var(--text3);margin-bottom:8px;">Apparaît dans ${instances.length} playlists</div>
+        <div class="mono" style="font-size:11px;color:var(--text3);margin-bottom:8px;">${t('dupes_appears_in', { count: instances.length })}</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;">${playlistPills}</div>
       </div>
     </div>`;
@@ -13277,7 +13461,7 @@ function generateStatisticsCharts() {
   // Compute data
   const categories = {};
   APP.playlists.forEach(pl => {
-    const tag = APP.tags[pl.id]?.[0] || 'Sans catégorie';
+    const tag = APP.tags[pl.id]?.[0] || t('tags_uncategorised');
     categories[tag] = (categories[tag] || 0) + (pl.contentDetails?.itemCount || 0);
   });
 
@@ -13356,36 +13540,36 @@ function generateStatisticsCharts() {
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
       <div class="chart-container">
-        <div class="chart-title">Répartition par catégorie</div>
+        <div class="chart-title">${t('stats_by_category')}</div>
         <div style="display:flex;align-items:center;gap:24px;padding:12px 0;">
           <svg id="statCategoryChart" width="180" height="180" viewBox="0 0 180 180"></svg>
           <div style="flex:1;max-height:180px;overflow-y:auto;">${legendHtml}</div>
         </div>
       </div>
       <div class="chart-container">
-        <div class="chart-title">Vue d'ensemble</div>
+        <div class="chart-title">${t('stats_overview')}</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px 0;">
           <div style="text-align:center;padding:16px;background:var(--surface2);border-radius:8px;">
             <div style="font-size:28px;font-weight:600;color:var(--text);letter-spacing:-0.03em;">${totalPlaylists}</div>
-            <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:0.08em;">Playlists</div>
+            <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:0.08em;">${t('stats_playlists')}</div>
           </div>
           <div style="text-align:center;padding:16px;background:var(--surface2);border-radius:8px;">
             <div style="font-size:28px;font-weight:600;color:var(--text);letter-spacing:-0.03em;">${totalVideos.toLocaleString()}</div>
-            <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:0.08em;">Vidéos</div>
+            <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:0.08em;">${t('stats_videos')}</div>
           </div>
           <div style="text-align:center;padding:16px;background:var(--surface2);border-radius:8px;">
             <div style="font-size:28px;font-weight:600;color:var(--text);letter-spacing:-0.03em;">${catEntries.length}</div>
-            <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:0.08em;">Catégories</div>
+            <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:0.08em;">${t('stats_categories')}</div>
           </div>
           <div style="text-align:center;padding:16px;background:var(--surface2);border-radius:8px;">
             <div style="font-size:28px;font-weight:600;color:var(--text);letter-spacing:-0.03em;">${Math.round(totalVideos / Math.max(totalPlaylists, 1))}</div>
-            <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:0.08em;">Moy. vidéos/playlist</div>
+            <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:0.08em;">${t('stats_avg_per_playlist')}</div>
           </div>
         </div>
       </div>
     </div>
     <div class="chart-container">
-      <div class="chart-title">Top 10 playlists par nombre de vidéos</div>
+      <div class="chart-title">${t('stats_top10')}</div>
       <div style="padding:12px 0;">${barsHtml || `<p class="text-muted">${t('no_data')}</p>`}</div>
     </div>
   `;
@@ -13418,7 +13602,7 @@ function renderTagWithIcon(tagName) {
 function getEmojiPickerHtml(selectedEmoji, inputId) {
   return `
     <div style="display: flex; flex-wrap: wrap; gap: 4px; max-width: 300px; margin-top: 4px;">
-      <span class="emoji-pick${!selectedEmoji ? ' selected' : ''}" onclick="pickEmoji('', '${escapeJsAttr(inputId)}')" style="cursor:pointer; padding: 4px 6px; border-radius: 4px; border: 2px solid ${!selectedEmoji ? 'var(--red)' : 'transparent'}; font-size: 11px; color: var(--text2);">aucun</span>
+      <span class="emoji-pick${!selectedEmoji ? ' selected' : ''}" onclick="pickEmoji('', '${escapeJsAttr(inputId)}')" style="cursor:pointer; padding: 4px 6px; border-radius: 4px; border: 2px solid ${!selectedEmoji ? 'var(--red)' : 'transparent'}; font-size: 11px; color: var(--text2);">${t('emoji_none')}</span>
       ${TAG_EMOJI_PALETTE.map(e => `<span class="emoji-pick${selectedEmoji === e ? ' selected' : ''}" onclick="pickEmoji('${e}', '${escapeJsAttr(inputId)}')" style="cursor:pointer; padding: 4px 6px; border-radius: 4px; border: 2px solid ${selectedEmoji === e ? 'var(--red)' : 'transparent'}; font-size: 18px;">${e}</span>`).join('')}
     </div>
   `;
@@ -13445,7 +13629,7 @@ function refreshTagsList() {
             ${tags.length ? tags.map(tg => renderTagWithIcon(tg)).join('') : `<span class="text-muted">${t('tags_no_tag')}</span>`}
           </div>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="editPlaylistTags('${pl.id}')" title="Edit tags"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></button>
+        <button class="btn btn-secondary btn-sm" onclick="editPlaylistTags('${pl.id}')" title="${t('tags_edit_tooltip')}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></button>
       </div>
     `;
   }).join('') : `<p class="text-muted">${t('no_playlist')}</p>`;
@@ -13468,19 +13652,19 @@ function editPlaylistTags(playlistId) {
         </div>
       </div>
     `;
-  }).join('') : '<p class="text-muted">Ajoutez des tags ci-dessus puis sauvegardez pour gérer les icônes</p>';
+  }).join('') : `<p class="text-muted">${t('tags_icons_hint')}</p>`;
 
   openModal(`
     <div class="modal-header">
-      <div class="modal-title">Tags pour ${escapeHtml(playlist.snippet.title)}</div>
+      <div class="modal-title">${escapeHtml(t('tags_for', { title: playlist.snippet.title }))}</div>
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label class="form-label">Tags (séparés par des virgules)</label>
+        <label class="form-label" for="tagsInput">${t('tags_input_label')}</label>
         <input type="text" class="form-control" id="tagsInput" value="${escapeHtml(currentTags.join(', '))}">
       </div>
       <div class="form-group" style="margin-top: 16px;">
-        <label class="form-label">Icônes par tag</label>
+        <label class="form-label">${t('tags_per_tag')}</label>
         <div id="tagIconEditors">${tagIconEditors}</div>
       </div>
     </div>
@@ -13518,15 +13702,15 @@ function savePlaylistTags(playlistId) {
 function showAddTagModal() {
   openModal(`
     <div class="modal-header">
-      <div class="modal-title">Ajouter tag</div>
+      <div class="modal-title">${t('tags_add_title')}</div>
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label class="form-label">Tag</label>
+        <label class="form-label" for="newTagInput">Tag</label>
         <input type="text" class="form-control" id="newTagInput" placeholder="${t('modal_tag_name')}">
       </div>
       <div class="form-group">
-        <label class="form-label">Icône (optionnel)</label>
+        <label class="form-label">${t('tags_icon_label')}</label>
         <input type="hidden" id="newTagIconInput" value="">
         ${getEmojiPickerHtml('', 'newTagIconInput')}
       </div>
@@ -13662,9 +13846,9 @@ function renderFolderNode(folder) {
         <span class="folder-name">${escapeHtml(folder.name)}</span>
         <span class="folder-count">${totalCount}</span>
         <div class="folder-actions">
-          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); showEditFolderModal('${folder.id}')" title="Edit"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></button>
-          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); showCreateFolderModal('${folder.id}')" title="Add sub-folder"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
-          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); deleteFolder('${folder.id}')" title="Delete"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); showEditFolderModal('${folder.id}')" title="${t('folders_edit')}"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></button>
+          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); showCreateFolderModal('${folder.id}')" title="${t('folders_add_sub')}"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+          <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); deleteFolder('${folder.id}')" title="${t('dash_delete')}"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
         </div>
       </div>
       <div class="folder-children ${!isExpanded ? 'collapsed' : ''}">
@@ -13674,7 +13858,7 @@ function renderFolderNode(folder) {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M21 15V6"/><path d="M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/><path d="M12 12V3"/><path d="M9.5 15a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/><path d="M3 9V0"/></svg>
             <span style="flex:1;">${escapeHtml(pl.snippet.title)}</span>
             <span class="playlist-count">${pl.contentDetails?.itemCount || 0}</span>
-            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); unassignPlaylist('${pl.id}')" title="Remove" style="padding: 2px 4px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); unassignPlaylist('${pl.id}')" title="${t('player_remove')}" style="padding: 2px 4px;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
           </div>
         `).join('')}
       </div>
@@ -14220,12 +14404,13 @@ function keywordCategory(title, keywords) {
 }
 
 async function showAutoCategorizerModal() {
+  // The suggested tag names are the user's future tags: in the UI language (AUD-27)
   const keywords = {
-    'Musique': ['music', 'chanson', 'playlist', 'audio', 'son'],
+    [t('autotag_music')]: ['music', 'chanson', 'playlist', 'audio', 'son'],
     'Fitness': ['gym', 'sport', 'exercise', 'workout', 'fitness'],
     'Tech': ['tech', 'code', 'programming', 'software', 'developer'],
-    'Éducation': ['course', 'tutorial', 'learn', 'education', 'school'],
-    'Divertissement': ['funny', 'comedy', 'entertainment', 'movie', 'film'],
+    [t('autotag_education')]: ['course', 'tutorial', 'learn', 'education', 'school'],
+    [t('autotag_entertainment')]: ['funny', 'comedy', 'entertainment', 'movie', 'film'],
   };
 
   const suggestions = {};
@@ -14263,12 +14448,12 @@ async function showAutoCategorizerModal() {
     const total = APP.playlists.length;
     for (let i = 0; i < APP.playlists.length; i++) {
       const pl = APP.playlists[i];
-      updateCategorizerProgress((i / total) * 50, `Chargement des vidéos: ${i + 1}/${total}`);
+      updateCategorizerProgress((i / total) * 50, t('categorizer_loading_videos', { done: i + 1, total }));
 
       const videos = await loadPlaylistVideos(pl.id);
 
       if (videos.length > 0) {
-        updateCategorizerProgress((i / total) * 50 + 25, `Récupération des détails: ${i + 1}/${total}`);
+        updateCategorizerProgress((i / total) * 50 + 25, t('categorizer_loading_details', { done: i + 1, total }));
 
         // Get video details in batches
         const videoIds = videos
@@ -14326,7 +14511,7 @@ async function showAutoCategorizerModal() {
           <input type="checkbox" data-pl-id="${plId}" class="categorizer-checkbox" checked>
           <div style="flex: 1;">
             <div style="font-weight: 500; font-size: 14px;">${escapeHtml(info.title)}</div>
-            <div style="font-size: 12px; color: var(--text2);">Suggéré: <strong>${escapeHtml(info.suggested)}</strong></div>
+            <div style="font-size: 12px; color: var(--text2);">${t('categorizer_suggested')} <strong>${escapeHtml(info.suggested)}</strong></div>
           </div>
         </div>
       `;
@@ -14387,7 +14572,7 @@ function populateWatchCategoryOptions() {
   const all = getWatchSourceVideos(); const counts = {};
   for (const v of all) { const d = videoDetailsCache[gsVideoId(v)]; const c = d && d.snippet ? d.snippet.categoryId : undefined; if (c != null) counts[String(c)] = (counts[String(c)] || 0) + 1; }
   const ids = Object.keys(counts).sort((a, b) => counts[b] - counts[a]); const cur = sel.value;
-  const lbl = (typeof t === 'function' ? t('detail_all_categories') : 'Toutes catégories');
+  const lbl = t('detail_all_categories');
   let html = '<option value="all">' + lbl + '</option>';
   if (ids.length) { for (const id of ids) html += '<option value="' + id + '">' + escapeHtml(getCategoryName(id)) + ' (' + counts[id] + ')</option>'; }
   else { html += assignableCategoryOptionsHTML(); }
@@ -14401,7 +14586,7 @@ function applyWatchFilters() {
   const all = getWatchSourceVideos();
   watchCurrentVideos = all.filter(v => gsPasses(v, dur, stat, type, cat));
   const cnt = document.getElementById('watchVideoCount');
-  if (cnt) cnt.textContent = watchCurrentVideos.length + ' / ' + all.length + ' ' + (typeof t === 'function' ? t('watch_videos_label').toLowerCase() : 'vidéos');
+  if (cnt) cnt.textContent = watchCurrentVideos.length + ' / ' + all.length + ' ' + t('watch_videos_label').toLowerCase();
   const sa = document.getElementById('watchSelectAll'); if (sa) sa.checked = false;
   renderWatchVideoSelector(watchCurrentVideos);
 }
@@ -14409,7 +14594,7 @@ async function onWatchClassChange() {
   const all = getWatchSourceVideos();
   const ids = all.map(gsVideoId).filter(Boolean);
   const miss = ids.filter(id => { const d = videoDetailsCache[id]; return !(d && d.snippet && d.snippet.categoryId != null) && !(d && d.topicDetails); });
-  if (miss.length) { try { showToast('Analyse du contenu… (' + miss.length + ')', 'info'); const det = await getVideoDetails(miss); Object.assign(videoDetailsCache, det); } catch (e) { console.warn('onWatchClassChange', e); } }
+  if (miss.length) { try { showToast(t('toast_analysing_count', { count: miss.length }), 'info'); const det = await getVideoDetails(miss); Object.assign(videoDetailsCache, det); } catch (e) { console.warn('onWatchClassChange', e); } }
   populateWatchCategoryOptions();
   applyWatchFilters();
 }
@@ -14670,15 +14855,15 @@ function renderSubscriptions() {
 
   const statsHtml = `
     <div class="stat-card">
-      <div class="stat-card-label">Total abonnements</div>
+      <div class="stat-card-label">${t('subs_total')}</div>
       <div class="stat-card-value">${APP.subscriptions.length}</div>
     </div>
     <div class="stat-card">
-      <div class="stat-card-label">Ce mois-ci</div>
+      <div class="stat-card-label">${t('subs_this_month')}</div>
       <div class="stat-card-value">${thisMonth}</div>
     </div>
     <div class="stat-card">
-      <div class="stat-card-label">Moyenne vidéos</div>
+      <div class="stat-card-label">${t('subs_avg_new')}</div>
       <div class="stat-card-value">${avgNewVideos}</div>
     </div>
   `;
@@ -14690,7 +14875,7 @@ function renderSubscriptions() {
     const channelId = sub.snippet?.resourceId?.channelId || '';
     const thumb = pickThumb(sub.snippet?.thumbnails) || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22%3E%3Crect fill=%22%23303030%22 width=%2248%22 height=%2248%22/%3E%3C/svg%3E';
     const pubDate = new Date(sub.snippet?.publishedAt);
-    const dateStr = pubDate.toLocaleDateString('fr-FR');
+    const dateStr = pubDate.toLocaleDateString(uiLocale());
     const desc = (sub.snippet?.description || '').substring(0, 100);
     const totalVideos = sub.contentDetails?.totalItemCount || 0;
     const newVideos = sub.contentDetails?.newItemCount || 0;
@@ -14702,7 +14887,7 @@ function renderSubscriptions() {
           <div class="sub-title">${escapeHtml(sub.snippet?.title)}</div>
           <div class="sub-desc">${desc}</div>
           <div class="sub-meta">
-            ${dateStr} · ${totalVideos} videos (${newVideos} new)
+            ${t('subs_meta', { date: dateStr, total: totalVideos, new: newVideos })}
           </div>
         </div>
         <div class="sub-actions">
@@ -14710,8 +14895,8 @@ function renderSubscriptions() {
           <button class="btn btn-secondary btn-sm" onclick="openChannelSystemPlaylist('${channelId}', 'shorts')" title="${t('shorts_channel_open_tooltip')}">${t('shorts_channel_open')}</button>
           <button class="btn btn-secondary btn-sm" onclick="openChannelSystemPlaylist('${channelId}', 'longForm')" title="${t('longform_channel_open_tooltip')}">${t('longform_channel_open')}</button>
           <button class="btn btn-secondary btn-sm" onclick="searchChannelInDiscover('${channelId}')" title="${t('discover_channel_search')}">${t('discover_channel_search')}</button>
-          <button class="btn btn-secondary btn-sm" onclick="window.open('https://www.youtube.com/channel/${channelId}', '_blank')">Channel</button>
-          <button class="btn btn-danger btn-sm" onclick="confirmUnsubscribe('${sub.id}', '${escapeHtml((sub.snippet?.title || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')">Unsubscribe</button>
+          <button class="btn btn-secondary btn-sm" onclick="window.open('https://www.youtube.com/channel/${channelId}', '_blank')">${t('subs_channel')}</button>
+          <button class="btn btn-danger btn-sm" onclick="confirmUnsubscribe('${sub.id}', '${escapeHtml((sub.snippet?.title || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"))}')">${t('subs_unsubscribe')}</button>
         </div>
       </div>
     `;
@@ -14885,8 +15070,8 @@ async function performPlaylistDiff() {
         </div>
       </div>
       <div class="p-16" style="background: var(--surface); border-radius: var(--radius);">
-        <h3 style="margin-bottom: 12px;">En commun</h3>
-        <div class="text-muted" style="margin-bottom: 12px;">${common.length} vidéos</div>
+        <h3 style="margin-bottom: 12px;">${t('diff_common')}</h3>
+        <div class="text-muted" style="margin-bottom: 12px;">${t('diff_count', { count: common.length })}</div>
         <div style="max-height: 300px; overflow-y: auto; font-size: 13px;">
           ${common.map(([id, title]) => `<div style="padding: 4px 0; border-bottom: 1px solid var(--border);">${escapeHtml(title)}</div>`).join('')}
         </div>
@@ -14945,7 +15130,7 @@ function updateBulkRenameUI() {
 }
 
 async function performBulkRename() {
-  if (!checkBackupSafety('Renommage en lot')) return;
+  if (!checkBackupSafety(t('action_bulk_rename'))) return;
   const mode = document.getElementById('bulkRenameMode').value;
   const selected = Array.from(document.querySelectorAll('.bulkrename-select:checked')).map(el => el.value);
 
@@ -14953,7 +15138,7 @@ async function performBulkRename() {
     showToast(t('toast_select_playlist'), 'error');
     return;
   }
-  if (!checkQuotaBudget('Renommage en lot', 'bulk_rename', selected.length)) return;
+  if (!checkQuotaBudget(t('action_bulk_rename'), 'bulk_rename', selected.length)) return;
 
   let updated = 0;
   for (const playlistId of selected) {
@@ -15076,7 +15261,7 @@ async function createFullBackup() {
 function createCSVBackup() {
   const BOM = '﻿'; // UTF-8 BOM for Excel compatibility
   const sep = ',';
-  const headers = ['Playlist', 'Playlist ID', 'Titre vidéo', 'URL YouTube', 'Chaîne', 'Durée', 'Statut', 'Date ajout', 'Position', 'Tags'];
+  const headers = t('csv_headers').split('|');   // AUD-27 — restore reads columns by position, not by name
 
   const rows = [];
   for (const pl of APP.playlists) {
@@ -15094,7 +15279,7 @@ function createCSVBackup() {
         const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
         const title = v.snippet?.title || '';
         const url = videoId ? `https://www.youtube.com/watch?v=${videoId}` : '';
-        const addedAt = v.snippet?.publishedAt ? new Date(v.snippet.publishedAt).toLocaleDateString('fr-FR') : '';
+        const addedAt = v.snippet?.publishedAt ? new Date(v.snippet.publishedAt).toLocaleDateString(uiLocale()) : '';
         const position = v.snippet?.position ?? '';
 
         // Channel: prefer videoOwnerChannelTitle (video author), then videoDetailsCache, then channelTitle (playlist owner fallback)
@@ -15108,7 +15293,7 @@ function createCSVBackup() {
 
         // Status
         const gs = ghostStatus(v);
-        const status = gs === 'deleted' ? 'Supprimée' : gs === 'private' ? 'Privée' : 'Disponible';
+        const status = gs === 'deleted' ? t('csv_deleted') : gs === 'private' ? t('csv_private') : t('csv_available');
 
         rows.push(csvRow([pl.snippet.title, pl.id, title, url, channel, duration, status, addedAt, position, tags]));
       }
@@ -15674,7 +15859,7 @@ async function exportLibrary() {
   if (format === 'csv') {
     // Same 10-column format as backup CSV
     const BOM = '﻿';
-    const headers = ['Playlist', 'Playlist ID', 'Titre vidéo', 'URL YouTube', 'Chaîne', 'Durée', 'Statut', 'Date ajout', 'Position', 'Tags'];
+    const headers = t('csv_headers').split('|');   // AUD-27 — restore reads columns by position, not by name
     const rows = [];
     let videoCount = 0;
 
@@ -15692,7 +15877,7 @@ async function exportLibrary() {
           const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
           const title = v.snippet?.title || '';
           const url = videoId ? `https://www.youtube.com/watch?v=${videoId}` : '';
-          const addedAt = v.snippet?.publishedAt ? new Date(v.snippet.publishedAt).toLocaleDateString('fr-FR') : '';
+          const addedAt = v.snippet?.publishedAt ? new Date(v.snippet.publishedAt).toLocaleDateString(uiLocale()) : '';
           const position = v.snippet?.position ?? '';
 
           // Channel: prefer videoOwnerChannelTitle (video author), then videoDetailsCache, then channelTitle (playlist owner fallback)
@@ -15706,7 +15891,7 @@ async function exportLibrary() {
 
           // Status
           const gs = ghostStatus(v);
-          const status = gs === 'deleted' ? 'Supprimée' : gs === 'private' ? 'Privée' : 'Disponible';
+          const status = gs === 'deleted' ? t('csv_deleted') : gs === 'private' ? t('csv_private') : t('csv_available');
 
           rows.push(csvRow([pl.snippet.title, pl.id, title, url, channel, duration, status, addedAt, position, tags]));
           videoCount++;
@@ -15766,7 +15951,7 @@ async function exportLibrary() {
 
 function populateSelectDropdowns() {
   const options = APP.playlists.map(pl => `<option value="${pl.id}">${escapeHtml(pl.snippet.title)}</option>`).join('');
-  const baseHtml = '<option value="">Sélectionner...</option>' + options;
+  const baseHtml = '<option value="">' + t('move_select') + '</option>' + options;
   
   document.getElementById('moveSourcePlaylist').innerHTML = baseHtml;
   document.getElementById('moveDestPlaylist').innerHTML = baseHtml;

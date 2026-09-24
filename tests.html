@@ -3385,7 +3385,8 @@ const SUITES = [
     ['the video upload is checked against the upload bucket', async w => {
       // The bug was the caller, not checkQuotaBudget: it never named the bucket.
       const src = await (await fetch('youtube-playlist-manager.html?aud15b=' + Date.now())).text();
-      const call = (src.match(/checkQuotaBudget\([^)]*'video_insert'[^)]*\)/) || [''])[0];
+      // The action name is a t('…') call since AUD-27, hence the nested parentheses.
+      const call = (src.match(/checkQuotaBudget\((?:t\('[^']*'\)|[^)])*'video_insert'[^)]*\)/) || [''])[0];
       ok(/'upload'\s*\)$/.test(call), 'the upload pre-flight does not name the upload bucket: ' + call);
       const snap = seedQuota(w, { pool: 0, search: 0, upload: 100, stats: 0 });
       const real = { confirm: w.confirm, showToast: w.showToast };
@@ -4575,6 +4576,71 @@ const SUITES = [
       eq(typeof w.formatIsoDuration, 'undefined', 'formatIsoDuration');
       const parsers = (src.match(/PT\(\?:\(\\d\+\)H\)/g) || []).length;
       return eq(parsers, 1, 'ISO 8601 duration regexes (parseDuration only)');
+    }],
+  ],
+},
+{
+  id: 'AUD-27', title: 'Visible strings go through t()', note: 'errors, toasts, dashboard tiles, modals, CSV headers and the #80 classification labels were French or English whatever the UI language',
+  cases: [
+    ['no French text is left in the code outside the translation tables', async w => {
+      const src = await fetch('youtube-playlist-manager.html?aud27=' + Date.now()).then(r => r.text());
+      const code = src.slice(src.indexOf('<script>\n// ===='));
+      const i18n = [code.indexOf('const I18N = {'), code.indexOf('function t(key')];
+      const cl = [code.indexOf('const CHANGELOG'), code.indexOf('\n];', code.indexOf('const CHANGELOG'))];
+      const bad = [];
+      let off = 0;
+      for (const line of code.split('\n')) {
+        const inTable = (off >= i18n[0] && off <= i18n[1]) || (off >= cl[0] && off <= cl[1]);
+        const st = line.trim();
+        const skip = inTable || /^(\/\/|\*|\/\*)/.test(st) || /console\.|\blog\('/.test(line)
+          || /fr:"[^"]*",\s*en:/.test(line) || /\['[^']*', '[^']*'\]/.test(line);   // bilingual tables
+        if (!skip) for (const m of line.matchAll(/(['"`])((?:(?!\1).)*?[éèêàùçôîÉÀ](?:(?!\1).)*?)\1/g)) bad.push(m[2].slice(0, 50));
+        off += line.length + 1;
+      }
+      return eq(bad, [], 'French literals');
+    }],
+    ['the dashboard tiles follow the language', async w => {
+      const snap = snapshot(w, ['appLang']);
+      const before = w.localStorage.getItem('appLang') || 'fr';   // currentLang is a let, not on window
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      w.showToast = () => {};
+      try {
+        w.ytApi = async (endpoint, params) => endpoint === 'playlists' && params && params.mine
+          ? { items: [{ id: 'PL_aud27', snippet: { title: 'Aud27' }, contentDetails: { itemCount: 3 }, status: {} }] } : { items: [] };
+        await w.loadAllPlaylists();
+        const render = lang => { w.applyLanguage(lang); w.refreshDashboard(); return w.document.getElementById('dashboardStatTiles').textContent; };
+        const en = render('en'), fr = render('fr');
+        ok(/VIDEOS/.test(en) && /largest/.test(en) && !/VIDÉOS|plus grande/.test(en), 'English tiles: ' + en.slice(0, 120));
+        return ok(/VIDÉOS/.test(fr) && /plus grande/.test(fr) && !/largest/.test(fr), 'French tiles: ' + fr.slice(0, 120));
+      } finally {
+        w.applyLanguage(before); restore(w, snap);
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+    ['a network failure is translated, and still recognised by its flag', async w => {
+      const snap = snapshot(w, ['appLang']);
+      const before = w.localStorage.getItem('appLang') || 'fr';   // currentLang is a let, not on window
+      const real = { fetch: w.fetch, sleep: w.sleep };
+      try {
+        w.applyLanguage('fr');
+        w.sleep = async () => {};
+        w.fetch = async () => { throw new TypeError('Failed to fetch'); };
+        let err = null;
+        try { await w.ytApi('playlists', { part: 'id', aud27: Date.now() }); } catch (e) { err = e; }
+        ok(err && /^Erreur réseau/.test(err.message), 'message: ' + (err && err.message));
+        eq(err.network, true, 'flag');
+        return eq(w.isBatchStatsUnavailable(Object.assign(new Error('Erreur serveur'), { status: 404 })), true, 'status flag read');
+      } finally { Object.assign(w, real); w.applyLanguage(before); restore(w, snap); }
+    }],
+    ['CSV headers and status labels exist in both languages, with the same column count', w => {
+      const snap = snapshot(w, ['appLang']);
+      const before = w.localStorage.getItem('appLang') || 'fr';
+      const cols = lang => { w.applyLanguage(lang); return [w.t('csv_headers').split('|').length, w.t('csv_deleted')]; };
+      try {
+        return eq([cols('fr'), cols('en')], [[10, 'Supprimée'], [10, 'Deleted']]);
+      } finally { w.applyLanguage(before); restore(w, snap); }
     }],
   ],
 },
