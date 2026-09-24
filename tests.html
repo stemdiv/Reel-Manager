@@ -3299,6 +3299,27 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-32', title: 'No orphaned Music Mode', note: 'the #J2 button was removed but its saved state kept steering the filters, with no way to turn it off',
+  cases: [
+    ['with the old key set before start-up, Reset returns the filters to All', async w => {
+      const snap = snapshot(w, ['reelMusicMode']);
+      w.localStorage.setItem('reelMusicMode', '1');        // what a user of the old button carries
+      const f = await openFreshApp();
+      try {
+        const aw = f.contentWindow;
+        aw.resetVideoFilters();
+        eq(aw.document.getElementById('filterType').value, 'all', 'Reset left the Music filter on');
+        return eq(aw.localStorage.getItem('reelMusicMode'), null, 'the stale key survived start-up');
+      } finally { f.remove(); restore(w, snap); }
+    }],
+
+    ['the toggle and its state are gone', w => {
+      eq(typeof w.toggleMusicMode, 'undefined', 'toggleMusicMode still defined');
+      return eq(typeof w.updateMusicModeBtn, 'undefined', 'updateMusicModeBtn still defined');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -3496,6 +3517,19 @@ async function runGhostClean(w, opts) {
     restore(w, lsSnap);
     await idbRestore(w, idb);
   }
+}
+
+// AUD-32 — a second, fresh copy of the app, for state that is read when the
+// script is parsed and therefore cannot be set on the already-running one.
+function openFreshApp() {
+  return new Promise((resolve, reject) => {
+    const f = document.createElement('iframe');
+    f.style.cssText = 'display:block;position:absolute;left:-12000px;top:0;width:1024px;height:768px;border:0;';
+    f.src = 'youtube-playlist-manager.html?fresh=' + Date.now();
+    const t = setTimeout(() => reject(new Error('fresh app did not load')), 15000);
+    f.addEventListener('load', () => { clearTimeout(t); setTimeout(() => resolve(f), 300); });
+    document.body.appendChild(f);
+  });
 }
 
 // AUD-04 — the payload the old escaper let through: ' became \' but the \ in

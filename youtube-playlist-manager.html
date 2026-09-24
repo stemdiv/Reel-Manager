@@ -3268,8 +3268,6 @@ const I18N = {
     music_shuffle: 'Aléatoire',
     music_filter_label: 'Musique seulement',
     music_filter_tooltip: 'Ne montrer que les vidéos classées comme musique',
-    music_filter_on: 'Filtre musique activé',
-    music_filter_off: 'Filtre musique désactivé',
     music_hint_mixed: 'On dirait de la musique — passer en vue Musique ?',
     music_hint_switch: 'Passer en vue Musique',
     music_hint_dismiss: 'Pas maintenant',
@@ -4051,8 +4049,6 @@ const I18N = {
     music_shuffle: 'Shuffle',
     music_filter_label: 'Music only',
     music_filter_tooltip: 'Show only the videos classified as music',
-    music_filter_on: 'Music filter on',
-    music_filter_off: 'Music filter off',
     music_hint_mixed: 'Looks like music — switch to the Music view?',
     music_hint_switch: 'Switch to Music view',
     music_hint_dismiss: 'Not now',
@@ -4425,11 +4421,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.12'; // bump per release
+const APP_VERSION = '1.27.13'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.13', date: '2026-09-24', items: [
+    "CORRECTIF (AUD-32) — le bouton Mode Musique en un clic (#J2) a ete remplace par la lentille de bibliotheque (#17), mais son etat enregistre restait actif : qui l avait allume ne pouvait plus l eteindre, et Reinitialiser remettait les filtres sur Musique au lieu de Tous. L etat et son bouton fantome sont retires, la cle reelMusicMode est effacee au demarrage",
+  ]},
   { v: '1.27.12', date: '2026-09-24', items: [
     "DEPLACER (AUD-16) — la premiere insertion en echec (quota, session, limite de debit) interrompait tout sur un simple message d erreur : ni la playlist source ni la destination n etaient rafraichies, et rien ne disait combien de videos avaient deja ete deplacees. Le deplacement s arrete toujours au premier echec, puisque les suivants echoueraient de meme en consommant du quota, mais il dit desormais combien de videos sont deplacees, copiees sans retrait et non traitees, et recharge les deux playlists dans tous les cas",
   ]},
@@ -10794,23 +10793,11 @@ function shuffleCurrentPlaylist() {
   playPlaylist(currentDetailPlaylistId, 0);
 }
 
-let musicMode = false;
-try { musicMode = (typeof localStorage !== 'undefined' && localStorage.getItem('reelMusicMode') === '1'); } catch (e) {}
-function updateMusicModeBtn() {
-  const b = document.getElementById('musicModeBtn'); if (!b) return;
-  b.classList.toggle('btn-primary', musicMode);
-  b.classList.toggle('btn-secondary', !musicMode);
-  b.setAttribute('aria-pressed', musicMode ? 'true' : 'false');
-}
-function toggleMusicMode() {
-  musicMode = !musicMode;
-  try { localStorage.setItem('reelMusicMode', musicMode ? '1' : '0'); } catch (e) {}
-  updateMusicModeBtn();
-  const ft = document.getElementById('filterType');
-  if (ft) ft.value = musicMode ? 'music' : 'all';
-  if (musicMode) { try { showToast(t('music_filter_on'), 'success'); } catch (e) {} onFilterTypeChange(); }
-  else { try { showToast(t('music_filter_off'), 'info'); } catch (e) {} applyVideoFilters(); }
-}
+// AUD-32 — the one-click "Mode Musique" button (#J2) was replaced by the library
+// lens (#17), but its saved state stayed live: a user who had it on could no
+// longer turn it off, and "Reset" reset the filters *to* Music. The state is
+// gone; this drops the key a previous version may have left behind.
+try { localStorage.removeItem('reelMusicMode'); } catch (_) {}
 
 function resetVideoFilters() {
   document.getElementById('filterSearch').value = '';
@@ -10818,12 +10805,11 @@ function resetVideoFilters() {
   document.getElementById('filterStatus').value = 'all';
   document.getElementById('filterSort').value = 'position';
   const ft = document.getElementById('filterType');
-  if (ft) ft.value = musicMode ? 'music' : 'all';
+  if (ft) ft.value = 'all';
   const fc = document.getElementById('filterCategory');
   if (fc) fc.value = 'all';
   try { refreshCategoryFilterOptions(); } catch (e) {}
-  updateMusicModeBtn();
-  if (musicMode) { onFilterTypeChange(); } else { applyVideoFilters(); }
+  applyVideoFilters();
 }
 
 // ============================================================================
