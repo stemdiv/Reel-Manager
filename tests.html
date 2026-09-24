@@ -4925,6 +4925,20 @@ const SUITES = [
       const offline = await aud30Worker('1.2.3', { offline: true });
       return eq(await offline.fetchEvent('http://app.test/shared/core.js', 'no-cors', 'script'), 'CACHED', 'offline');
     }],
+    ['Reel Studio is pre-cached too', async w => {
+      const sw = await aud30Worker('1.2.3');
+      await sw.fire('install');
+      return ok(sw.added.includes('reel-studio.html'), 'pre-cached: ' + sw.added.join(', '));
+    }],
+    ['server down and nothing cached: a page that says so, not a bare ERR_FAILED', async w => {
+      const sw = await aud30Worker('1.2.3', { offline: true, miss: true });
+      const page = await sw.fetchEvent('http://app.test/reel-studio.html?v=1.2.3', 'navigate');
+      ok(page instanceof Response, 'navigation got: ' + page);
+      eq(page.status, 503, 'status');
+      ok((await page.text()).includes('LANCER-APP.bat'), 'the page does not say what to do');
+      const script = await sw.fetchEvent('http://app.test/shared/core.js', 'no-cors', 'script');
+      return eq([script instanceof Response, script && script.type], [true, 'error'], 'a script gets a network error');
+    }],
     ['the app registers the worker with its version', async w => {
       const src = await fetch('youtube-playlist-manager.html?aud30=' + Date.now()).then(r => r.text());
       return ok(/serviceWorker\.register\('sw\.js\?v=' \+ encodeURIComponent\(APP_VERSION\)\)/.test(src), 'registration without the release');
@@ -5296,7 +5310,7 @@ async function aud30Worker(version, opts = {}) {
     open: async name => { rec.opened.push(name); return cache; },
     keys: async () => opts.keys || [],
     delete: async name => { rec.deleted.push(name); return true; },
-    match: async (req, o) => { rec.matched.push({ url: req.url, opts: o }); return 'CACHED'; },
+    match: async (req, o) => { rec.matched.push({ url: req.url, opts: o }); return opts.miss ? undefined : 'CACHED'; },
   };
   const self = {
     location: new URL('http://app.test/sw.js?v=' + version),

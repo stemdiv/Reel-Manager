@@ -15,6 +15,7 @@ const CACHE_NAME = 'reel-manager-' + RELEASE;
 // goes straight to the network). shared/core.js is needed to boot offline.
 const STATIC_ASSETS = [
   'youtube-playlist-manager.html',
+  'reel-studio.html',
   'shared/core.js',
   'manifest.json',
   'icons/icon-192.png',
@@ -40,6 +41,18 @@ self.addEventListener('activate', event => {
     ).then(() => self.clients.claim())
   );
 });
+
+// The page to show when the local server does not answer and the page was
+// never cached. Without it the fallback resolved to undefined and Chrome showed
+// a bare ERR_FAILED, which reads like a broken app rather than a stopped server.
+function serverDownPage() {
+  const body = '<!doctype html><meta charset="utf-8"><title>Reel Manager</title>'
+    + '<body style="font-family:system-ui,sans-serif;background:#111;color:#eee;padding:48px;line-height:1.5">'
+    + '<h1 style="font-size:20px">Le serveur local ne r\u00e9pond pas \u00b7 The local server is not answering</h1>'
+    + '<p>Relancez <code>LANCER-APP.bat</code>, puis rechargez cette page.<br>'
+    + 'Run <code>LANCER-APP.bat</code> again, then reload this page.</p></body>';
+  return new Response(body, { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+}
 
 // Fetch strategy
 self.addEventListener('fetch', event => {
@@ -68,7 +81,9 @@ self.addEventListener('fetch', event => {
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
         }
         return response;
-      }).catch(() => caches.match(event.request, { ignoreSearch: true }))   // offline: fall back to cache
+      }).catch(() => caches.match(event.request, { ignoreSearch: true })   // offline: fall back to cache
+        .then(cached => cached
+          || (event.request.mode === 'navigate' ? serverDownPage() : Response.error())))
     );
     return;
   }

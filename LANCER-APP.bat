@@ -32,6 +32,7 @@ powershell -ExecutionPolicy Bypass -Command ^
   "$docRoot = (Get-Location).Path; " ^
   "while ($listener.IsListening) { " ^
   "  $ctx = $listener.GetContext(); " ^
+  "  try { " ^
   "  $req = $ctx.Request; " ^
   "  $resp = $ctx.Response; " ^
   "  $localPath = $req.Url.LocalPath.TrimStart('/'); " ^
@@ -54,8 +55,9 @@ powershell -ExecutionPolicy Bypass -Command ^
   "    $msg = [System.Text.Encoding]::UTF8.GetBytes('404 Not Found'); " ^
   "    $resp.OutputStream.Write($msg, 0, $msg.Length); " ^
   "  } " ^
-  "  $resp.OutputStream.Close(); " ^
   "  Write-Host \"  $($req.HttpMethod) $($req.Url.LocalPath)\"; " ^
+  "  } catch { Write-Host ('  (requete interrompue) ' + $_.Exception.Message); } " ^
+  "  finally { try { $resp.OutputStream.Close(); } catch { } } " ^
   "}"
 
 pause

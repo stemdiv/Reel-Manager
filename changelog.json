@@ -1,5 +1,15 @@
 [
  {
+  "v": "1.27.53",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "Serveur local : LANCER-APP.bat ne s'arrête plus quand le navigateur interrompt une requête, et une page claire remplace « ERR_FAILED » quand le serveur ne répond pas. Reel Studio est aussi disponible hors ligne.",
+    "en": "Local server: LANCER-APP.bat no longer stops when the browser cancels a request, and a clear page replaces \"ERR_FAILED\" when the server is not answering. Reel Studio is also available offline."
+   }
+  ]
+ },
+ {
   "v": "1.27.52",
   "date": "2026-09-24",
   "items": [
