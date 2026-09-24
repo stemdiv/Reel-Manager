@@ -4536,11 +4536,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.40'; // bump per release
+const APP_VERSION = '1.27.41'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.41', date: '2026-09-24', items: [
+    "MAINTENANCE (AUD-39) — les valeurs reglables de l app (taille des lots d appels a l API, plafonds de pagination, delai de purge, age d alerte de la sauvegarde, duree des notifications) sont regroupees en un seul endroit. Aucun changement de comportement",
+  ]},
   { v: '1.27.40', date: '2026-09-24', items: [
     "ACCESSIBILITE — une verification automatique (axe-core) apres ce lot a trouve les derniers ecarts : trois champs de sauvegarde sans libelle, les etiquettes Beta et le filtre actif de la bibliotheque illisibles en theme clair, une ligne d accueil trop pale et un menu de tri sans nom dans Reel Studio 0.7.5. Tous corriges ; la verification ne releve plus rien",
   ]},
@@ -5381,8 +5384,8 @@ async function fetchBookmarkedMetadata() {
   if (!APP.bookmarkedPlaylists || APP.bookmarkedPlaylists.length === 0) return [];
   const ids = APP.bookmarkedPlaylists.map(b => b.id);
   const out = [];
-  for (let i = 0; i < ids.length; i += 50) {
-    const batch = ids.slice(i, i + 50);
+  for (let i = 0; i < ids.length; i += CONFIG.API_BATCH_SIZE) {
+    const batch = ids.slice(i, i + CONFIG.API_BATCH_SIZE);
     try {
       const data = await ytApi('playlists', {
         part: 'snippet,contentDetails,status',
@@ -5509,6 +5512,21 @@ const QUOTA_BUCKETS = {
 
 // Daily allowance per bucket. pool is in units; search and upload are in calls.
 const QUOTA_LIMITS = { pool: 10000, search: 100, upload: 100, stats: 10000 };
+
+// AUD-39 — the app's tunable numbers, in one place. They were literals spread
+// through the file, some repeated ten times. Frozen: nothing writes them at
+// run time. `var` so tests.html can read them.
+var CONFIG = Object.freeze({
+  API_BATCH_SIZE: 50,                // ids per videos.list call, items per page: the API maximum
+  DEFAULT_MAX_PAGES: 20,             // fetchAllPages() cap when the caller sets none
+  PLAYLIST_ITEMS_MAX_PAGES: 100,     // AUD-13 — 5,000 items per playlist
+  CHANNEL_PLAYLISTS_MAX_PAGES: 3,    // AUD-01 — 150 playlists per browsed channel
+  AUTO_PURGE_DAYS: 30,               // local data is purged after this long without a sign-in
+  BACKUP_STALE_HOURS: 24,            // a write action warns when the last backup is older
+  OAUTH_RESUME_WINDOW_MS: 10 * 60 * 1000,   // "action pending" notice after a scope redirect
+  TOAST_MS: 3000,
+  TOAST_ACTION_MS: 10000,            // a toast you are meant to click must outlast a glance
+});
 
 // A zeroed set of counters, derived from QUOTA_LIMITS so a new bucket does not
 // have to be added in four separate places.
@@ -6536,7 +6554,7 @@ function checkBackupSafety(actionName) {
   // Backup exists but older than 24h → warn
   const age = Date.now() - new Date(timestamp).getTime();
   const hours = Math.floor(age / 3600000);
-  if (hours >= 24) {
+  if (hours >= CONFIG.BACKUP_STALE_HOURS) {
     const days = Math.floor(hours / 24);
     const ageStr = days > 0 ? days + 'j' : hours + 'h';
     const proceed = confirm(t('confirm_old_backup', { age: ageStr, action: actionName }));
@@ -6798,7 +6816,7 @@ async function checkAutoPurge() {
   if (!lastLogin) return false;
 
   const daysSinceLogin = (Date.now() - new Date(lastLogin).getTime()) / (1000 * 60 * 60 * 24);
-  if (!(daysSinceLogin > 30)) return false;
+  if (!(daysSinceLogin > CONFIG.AUTO_PURGE_DAYS)) return false;
   await purgeLocalData();
   console.info('[Auto-purge] Données supprimées après 30 jours sans connexion');
   return true;
@@ -7240,7 +7258,7 @@ function checkAuth() {
       if (pendingTs) {
         sessionStorage.removeItem('pendingActionAfterOAuth');
         // Reject stale notices (>10 min — user probably forgot anyway)
-        if (Date.now() - parseInt(pendingTs, 10) < 600_000) {
+        if (Date.now() - parseInt(pendingTs, 10) < CONFIG.OAUTH_RESUME_WINDOW_MS) {
           // Defer the toast so it doesn't fight with showApp's own UI work
           setTimeout(() => showToast(t('toast_action_pending_resume'), 'info'), 600);
         }
@@ -8044,7 +8062,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
   }
 }
 
-async function fetchAllPages(endpoint, params = {}, itemsKey = 'items', maxPages = 20) {
+async function fetchAllPages(endpoint, params = {}, itemsKey = 'items', maxPages = CONFIG.DEFAULT_MAX_PAGES) {
   // Pagination cap (audit #51): YouTube returns up to 50 items/page, so maxPages=20 → 1000 items max.
   // Cheap endpoints (playlists.list, playlistItems.list = 1 unit/page) won't burn quota even at the cap.
   // For expensive endpoints (search.list = 100 units/page), callers should pass a smaller maxPages.
@@ -8437,7 +8455,6 @@ async function loadAllPlaylists() {
 
 // AUD-13 — a YouTube playlist holds up to 5 000 items, 50 per page. The generic
 // 20-page cap of fetchAllPages stopped at 1 000 and nothing said so.
-const PLAYLIST_ITEMS_MAX_PAGES = 100;
 
 async function loadPlaylistVideos(playlistId, opts) {
   // Treat an empty cached array as "never loaded" — protects against cache
@@ -8463,7 +8480,7 @@ async function loadPlaylistVideos(playlistId, opts) {
   };
   let videos;
   try {
-    videos = await fetchAllPages('playlistItems', params, 'items', PLAYLIST_ITEMS_MAX_PAGES);
+    videos = await fetchAllPages('playlistItems', params, 'items', CONFIG.PLAYLIST_ITEMS_MAX_PAGES);
   } catch (err) {
     // A malformed fields= selector is a 400 on every page, and the library stops
     // loading entirely — that is exactly what a wrong field name cost in v1.11.0.
@@ -8472,7 +8489,7 @@ async function loadPlaylistVideos(playlistId, opts) {
     log('warn', 'api', 'playlistItems with fields= failed, retrying without it',
         { playlistId, msg: err.message });
     const { fields, ...noFields } = params;
-    videos = await fetchAllPages('playlistItems', noFields, 'items', PLAYLIST_ITEMS_MAX_PAGES);
+    videos = await fetchAllPages('playlistItems', noFields, 'items', CONFIG.PLAYLIST_ITEMS_MAX_PAGES);
   }
   if (videos.complete === false) {
     APP.incompletePlaylists.add(playlistId);
@@ -8490,8 +8507,8 @@ async function getVideoDetails(videoIds) {
   if (!videoIds.length) return {};
 
   const details = {};
-  for (let i = 0; i < videoIds.length; i += 50) {
-    const batch = videoIds.slice(i, i + 50).filter(Boolean);
+  for (let i = 0; i < videoIds.length; i += CONFIG.API_BATCH_SIZE) {
+    const batch = videoIds.slice(i, i + CONFIG.API_BATCH_SIZE).filter(Boolean);
     if (!batch.length) continue;
     try {
       // #57: fields= partial response — drop server-side payload we never display.
@@ -10097,8 +10114,8 @@ async function loadPlaylistViewTotals() {
 
   const totals = {};
   try {
-    for (let i = 0; i < ids.length; i += 50) {
-      const { byId } = await fetchVideoStats(ids.slice(i, i + 50));
+    for (let i = 0; i < ids.length; i += CONFIG.API_BATCH_SIZE) {
+      const { byId } = await fetchVideoStats(ids.slice(i, i + CONFIG.API_BATCH_SIZE));
       for (const [vid, s] of Object.entries(byId)) {
         const pid = owner[vid];
         if (!pid) continue;
@@ -11774,8 +11791,8 @@ async function loadSearchThumbnails() {
 
     // Fetch in batches of 50
     const thumbMap = {};
-    for (let i = 0; i < needFetch.length; i += 50) {
-      const batch = needFetch.slice(i, i + 50);
+    for (let i = 0; i < needFetch.length; i += CONFIG.API_BATCH_SIZE) {
+      const batch = needFetch.slice(i, i + CONFIG.API_BATCH_SIZE);
       const data = await ytApi('videos', { part: 'snippet', id: batch.join(',') });
       for (const item of (data.items || [])) {
         thumbMap[item.id] = pickThumb(item.snippet?.thumbnails);
@@ -11961,11 +11978,11 @@ async function performDiscoverEntitySearch(type, opts) {
 /** One playlists.list per 50 ids (1 unit) to turn ids into item counts. */
 async function fillDiscoverPlaylistCounts() {
   const ids = discoverEntities.map(e => e.id);
-  for (let i = 0; i < ids.length; i += 50) {
+  for (let i = 0; i < ids.length; i += CONFIG.API_BATCH_SIZE) {
     try {
       const data = await ytApi('playlists', {
         part: 'contentDetails',
-        id: ids.slice(i, i + 50).join(','),
+        id: ids.slice(i, i + CONFIG.API_BATCH_SIZE).join(','),
         fields: 'items(id,contentDetails(itemCount))',
       });
       for (const item of (data.items || [])) {
@@ -12051,10 +12068,9 @@ function tagBookmarkSource(playlistId, source) {
 // AUD-01 — #82 promised "a page cap so one click cannot become twenty calls",
 // and the cap was 20. Three pages = 150 playlists, which covers nearly every
 // channel; beyond that the user is told the list stops there.
-const CHANNEL_PLAYLISTS_MAX_PAGES = 3;
 
 async function browseChannelPlaylists(channelId, channelTitle) {
-  if (!checkQuotaBudget(t('discover_channel_playlists'), 'channel_playlists_pages', CHANNEL_PLAYLISTS_MAX_PAGES)) return;
+  if (!checkQuotaBudget(t('discover_channel_playlists'), 'channel_playlists_pages', CONFIG.CHANNEL_PLAYLISTS_MAX_PAGES)) return;
   const btnHost = document.getElementById('discoverSearchBtn');
   if (btnHost) btnHost.disabled = true;
   try {
@@ -12062,11 +12078,11 @@ async function browseChannelPlaylists(channelId, channelTitle) {
     let pageToken = '';
     // 1 unit per page, capped: a channel with hundreds of playlists must not
     // quietly turn one click into many calls.
-    for (let p = 0; p < CHANNEL_PLAYLISTS_MAX_PAGES; p++) {
+    for (let p = 0; p < CONFIG.CHANNEL_PLAYLISTS_MAX_PAGES; p++) {
       const params = {
         part: 'snippet,contentDetails',
         channelId,
-        maxResults: 50,
+        maxResults: CONFIG.API_BATCH_SIZE,
         fields: 'nextPageToken,items(id,snippet(title,channelTitle,thumbnails(medium(url),high(url),default(url))),contentDetails(itemCount))',
       };
       if (pageToken) params.pageToken = pageToken;
@@ -12152,7 +12168,7 @@ function isBatchStatsUnavailable(err) {
  * Returns { byId, source } so the caller can log which path was taken.
  */
 async function fetchVideoStats(ids) {
-  const batch = (ids || []).filter(Boolean).slice(0, 50);
+  const batch = (ids || []).filter(Boolean).slice(0, CONFIG.API_BATCH_SIZE);
   if (!batch.length) return { byId: {}, source: 'none' };
 
   if (batchStatsEnabled()) {
@@ -12432,8 +12448,8 @@ async function performDiscoverSearch() {
 
     // Step 2: Get video details in batches of 50 (1 quota unit per batch)
     let allDetails = [];
-    for (let i = 0; i < allVideoIds.length; i += 50) {
-      const batch = allVideoIds.slice(i, i + 50);
+    for (let i = 0; i < allVideoIds.length; i += CONFIG.API_BATCH_SIZE) {
+      const batch = allVideoIds.slice(i, i + CONFIG.API_BATCH_SIZE);
       btn.innerHTML = `<span class="mono" style="font-size:11px;">${allVideoIds.length > 50 ? t('discover_loading_details', {current: Math.min(i+50, allVideoIds.length), total: allVideoIds.length}) : t('btn_loading')}</span>`;
       // statistics is fetched separately (own bucket); player carries the
       // Shorts aspect ratio (#68) at no extra cost on the same call.
@@ -12936,8 +12952,8 @@ async function loadMoveThumbnails() {
   try {
     const videoIds = [...new Set(moveVideosCache.map(v => v.contentDetails?.videoId || v.snippet?.resourceId?.videoId).filter(Boolean))];
     const thumbMap = {};
-    for (let i = 0; i < videoIds.length; i += 50) {
-      const batch = videoIds.slice(i, i + 50);
+    for (let i = 0; i < videoIds.length; i += CONFIG.API_BATCH_SIZE) {
+      const batch = videoIds.slice(i, i + CONFIG.API_BATCH_SIZE);
       const data = await ytApi('videos', { part: 'snippet', id: batch.join(',') });
       for (const item of (data.items || [])) {
         thumbMap[item.id] = pickThumb(item.snippet?.thumbnails);
@@ -13130,8 +13146,8 @@ async function collectGhosts() {
 async function confirmGhostsLive(ghosts) {
   const ids = [...new Set(ghosts.map(g => g.videoId).filter(Boolean))];
   const alive = new Set();
-  for (let i = 0; i < ids.length; i += 50) {
-    const data = await ytApi('videos', { part: 'id', id: ids.slice(i, i + 50).join(','), fields: 'items(id)' });
+  for (let i = 0; i < ids.length; i += CONFIG.API_BATCH_SIZE) {
+    const data = await ytApi('videos', { part: 'id', id: ids.slice(i, i + CONFIG.API_BATCH_SIZE).join(','), fields: 'items(id)' });
     (data.items || []).forEach(it => alive.add(it.id));
   }
   return ghosts.filter(g => !alive.has(g.videoId));
@@ -13305,8 +13321,8 @@ async function loadDupeThumbnails() {
   try {
     const uniqueIds = [...new Set(lastDupeVideoIds)];
     const thumbMap = {};
-    for (let i = 0; i < uniqueIds.length; i += 50) {
-      const batch = uniqueIds.slice(i, i + 50);
+    for (let i = 0; i < uniqueIds.length; i += CONFIG.API_BATCH_SIZE) {
+      const batch = uniqueIds.slice(i, i + CONFIG.API_BATCH_SIZE);
       const data = await ytApi('videos', { part: 'snippet', id: batch.join(',') });
       for (const item of (data.items || [])) {
         thumbMap[item.id] = pickThumb(item.snippet?.thumbnails);
@@ -14180,7 +14196,7 @@ async function loadDeckColumnVideos(colIdx) {
     const videos = await fetchAllPages('playlistItems', {
       part: 'snippet,contentDetails',
       playlistId: col.playlistId,
-      maxResults: 50
+      maxResults: CONFIG.API_BATCH_SIZE
     });
     APP.deckVideos[col.playlistId] = videos;
     renderDeck();
@@ -14200,7 +14216,7 @@ async function loadDeckFolderVideos(colIdx) {
         const videos = await fetchAllPages('playlistItems', {
           part: 'snippet,contentDetails',
           playlistId: pl.id,
-          maxResults: 50
+          maxResults: CONFIG.API_BATCH_SIZE
         });
         APP.deckVideos[pl.id] = videos;
         renderDeck();
@@ -14345,7 +14361,7 @@ async function showAutoCategorizerModal() {
         const videoIds = videos
           .map(v => v.contentDetails?.videoId)
           .filter(v => v)
-          .slice(0, 50);
+          .slice(0, CONFIG.API_BATCH_SIZE);
 
         if (videoIds.length > 0) {
           try {
@@ -15939,14 +15955,14 @@ function showToast(message, type = 'info', action = null) {
   text.textContent = message;
   toast.appendChild(text);
 
-  let life = 3000;
+  let life = CONFIG.TOAST_MS;
   if (action && action.label) {
     const btn = document.createElement('button');
     btn.className = 'toast-action';
     btn.textContent = action.label;
     btn.onclick = () => { toast.remove(); try { action.onClick && action.onClick(); } catch (_) {} };
     toast.appendChild(btn);
-    life = 10000;   // a toast you are meant to click must outlast a glance
+    life = CONFIG.TOAST_ACTION_MS;
   }
 
   document.getElementById('toastContainer').appendChild(toast);

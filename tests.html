@@ -4499,6 +4499,24 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-39', title: 'Tunable numbers live in one CONFIG block', note: 'caps, retention, timers and the API batch size were literals, the batch size in more than ten places',
+  cases: [
+    ['CONFIG holds the values and cannot be changed at run time', w => {
+      ok(w.CONFIG && Object.isFrozen(w.CONFIG), 'CONFIG missing or writable');
+      return eq([w.CONFIG.API_BATCH_SIZE, w.CONFIG.PLAYLIST_ITEMS_MAX_PAGES, w.CONFIG.CHANNEL_PLAYLISTS_MAX_PAGES, w.CONFIG.AUTO_PURGE_DAYS, w.CONFIG.BACKUP_STALE_HOURS],
+                [50, 100, 3, 30, 24], 'values');
+    }],
+    ['no copy of those numbers is left in the code', async w => {
+      const src = (await fetch('youtube-playlist-manager.html?aud39=' + Date.now()).then(r => r.text()))
+        .replace(/\/\/[^\n]*/g, '');
+      const patterns = { 'i += 50': /i \+= 50\b/, 'i + 50': /i \+ 50\b/, 'maxResults: 50': /maxResults: 50\b/, 'maxPages = 20': /maxPages = 20\b/,
+        'daysSinceLogin > 30': /daysSinceLogin > 30/, 'hours >= 24': /hours >= 24/, '600_000': /600_000/, 'life = 3000': /life = 3000/, 'life = 10000': /life = 10000/ };
+      return eq(Object.keys(patterns).filter(k => patterns[k].test(src)), [], 'literals still in the code');
+    }],
+    ['a toast lives CONFIG.TOAST_MS', w => aud48Toast(w, 'info', null, t => eq(t.live().map(x => x.ms), [w.CONFIG.TOAST_MS], 'life'))],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
