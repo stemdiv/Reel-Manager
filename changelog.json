@@ -1,5 +1,15 @@
 [
  {
+  "v": "1.27.50",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "MAINTENANCE (AUD-33) — l’app et Reel Studio 0.7.6 partagent désormais un seul exemplaire de leurs fonctions communes (calculs de couleurs des thèmes, choix des miniatures, lecture des durées), dans shared/core.js. Chaque correction de thème devait jusqu’ici être faite deux fois, et les deux copies avaient commencé à diverger. Aucun changement visible",
+    "en": "MAINTENANCE (AUD-33) — the app and Reel Studio 0.7.6 now share a single copy of their common functions (theme colour maths, thumbnail choice, duration parsing), in shared/core.js. Every theme fix used to be made twice, and the two copies had started to drift apart. No visible change"
+   }
+  ]
+ },
+ {
   "v": "1.27.49",
   "date": "2026-09-24",
   "items": [

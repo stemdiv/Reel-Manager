@@ -4572,10 +4572,12 @@ const SUITES = [
       [w.formatDuration(3725), w.formatDuration(3725, 'clock'), w.formatDuration(185, 'clock'), w.formatDuration(185), w.formatDuration(0), w.formatDuration(0, 'clock'), w.formatDuration(59.7, 'clock')],
       ['1h02m', '1:02:05', '3:05', '3:05', '--:--', '0:00', '0:59'])],
     ['no other formatter or ISO parser is left', async w => {
-      const src = (await fetch('youtube-playlist-manager.html?aud34=' + Date.now()).then(r => r.text())).replace(/\/\/[^\n]*/g, '');
+      // parseDuration() lives in shared/core.js since AUD-33: count both pages and it
+      const files = ['youtube-playlist-manager.html', 'reel-studio.html', 'shared/core.js'];
+      const srcs = await Promise.all(files.map(f => fetch(f + '?aud34=' + Date.now()).then(r => r.text())));
       eq(typeof w.formatIsoDuration, 'undefined', 'formatIsoDuration');
-      const parsers = (src.match(/PT\(\?:\(\\d\+\)H\)/g) || []).length;
-      return eq(parsers, 1, 'ISO 8601 duration regexes (parseDuration only)');
+      const parsers = srcs.map(src => (src.replace(/\/\/[^\n]*/g, '').match(/PT\(\?:\(\\d\+\)H\)/g) || []).length);
+      return eq(parsers, [0, 0, 1], 'ISO 8601 duration regexes per file (parseDuration only)');
     }],
   ],
 },
@@ -4793,6 +4795,38 @@ const SUITES = [
         // v1.7.0's note quotes <input type="color">; it used to render as a real input
         return eq(en.inputs, 0, 'markup from a note rendered as HTML');
       } finally { w.applyLanguage(before); restore(w, snap); }
+    }],
+  ],
+},
+{
+  id: 'AUD-33', title: 'App and Reel Studio share one copy of their common helpers', note: 'colour maths, thumbnail choice and duration parsing were written twice and had started to drift',
+  cases: [
+    ['the helpers are defined once, in shared/core.js', async w => {
+      const names = ['hexToRgb', 'rgbToHex', 'rgbToHsv', 'hsvToRgb', 'hexToHsl', 'hsl', 'accentRamp', 'categoricalsFor', 'THUMB_ORDER', 'THUMB_ORDER_CARD', 'pickThumb', 'parseDuration'];
+      const files = ['shared/core.js', 'youtube-playlist-manager.html', 'reel-studio.html'];
+      const srcs = await Promise.all(files.map(f => fetch(f + '?aud33=' + Date.now()).then(r => r.text())));
+      const defines = (src, n) => new RegExp('(^|\\n)\\s*(function ' + n + '\\s*\\(|(const|let|var) ' + n + '\\s*=)').test(src);
+      const where = names.map(n => [n, files.filter((f, i) => defines(srcs[i], n))]);
+      return eq(where.filter(([, fs]) => fs.length !== 1 || fs[0] !== 'shared/core.js').map(([n, fs]) => n + ': ' + fs.join(', ')), [], 'definitions outside shared/core.js');
+    }],
+    ['both pages load it before their own script', async w => {
+      const out = [];
+      for (const page of ['youtube-playlist-manager.html', 'reel-studio.html']) {
+        const doc = new DOMParser().parseFromString(await fetch(page + '?aud33b=' + Date.now()).then(r => r.text()), 'text/html');
+        const first = doc.querySelector('script');
+        out.push(first && first.getAttribute('src'));
+      }
+      return eq(out, ['shared/core.js', 'shared/core.js']);
+    }],
+    ['the shared helpers behave the same in each page, and never throw', async w => {
+      const f = await openStudio();
+      try {
+        const sw = f.contentWindow;
+        const probe = x => [x.pickThumb({ medium: { url: 'm' }, uhd: { url: 'u' } }, 'hero'), x.parseDuration('PT1M5S'), x.hexToHsl('#ffffff').l, x.categoricalsFor({ accents: 1 }, ['#ff2d55']).length];
+        eq(probe(sw), probe(w), 'Studio vs app');
+        eq(w.hexToRgb('nope', 0xff2d55), { r: 255, g: 45, b: 85 }, 'fallback');
+        return eq(w.hexToHsl(null).h > 0, true, 'a non-string no longer throws');
+      } finally { f.remove(); }
     }],
   ],
 },

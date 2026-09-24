@@ -543,6 +543,7 @@
 
 <nav class="dock" id="dock" data-a11y="navLabel"></nav>
 
+<script src="shared/core.js"></script>   <!-- AUD-33 — helpers shared with the app -->
 <script>
 // ═══════════════════════════════════════════════════════════════════════
 // Reel Studio — companion UI for Reel Manager (exploration 3a).
@@ -550,7 +551,7 @@
 // Strictly read-only: no API calls, no writes to the app's data keys.
 // ═══════════════════════════════════════════════════════════════════════
 
-const STUDIO_VERSION = '0.7.5';
+const STUDIO_VERSION = '0.7.6';
 
 // ── i18n ───────────────────────────────────────────────────────────────
 const LANG = (localStorage.getItem('appLang') || 'fr') === 'en' ? 'en' : 'fr';
@@ -663,34 +664,10 @@ const THEMES = {
   'studio-duo': { id: 'studio-duo', label: 'secDuo', accents: 2, defaults: ['#ff2d55', '#3fd0ff'],            combos: DUOS },
 };
 
-function hexToHsl(hex) {
-  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim());
-  const int = m ? parseInt(m[1], 16) : 0xff2d55;
-  const r = ((int >> 16) & 255) / 255, g = ((int >> 8) & 255) / 255, b = (int & 255) / 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
-  let h = 0;
-  if (d) {
-    if (max === r) h = ((g - b) / d) % 6;
-    else if (max === g) h = (b - r) / d + 2;
-    else h = (r - g) / d + 4;
-    h *= 60;
-    if (h < 0) h += 360;
-  }
-  const l = (max + min) / 2;
-  return { h, s: (d ? d / (1 - Math.abs(2 * l - 1)) : 0) * 100, l: l * 100 };
-}
-const hsl = (c, dL) => `hsl(${c.h.toFixed(1)} ${c.s.toFixed(1)}% ${Math.max(8, Math.min(94, c.l + (dL || 0))).toFixed(1)}%)`;
 const isHex = v => /^#?[0-9a-f]{6}$/i.test(String(v).trim());
 const norm = v => (String(v).trim()[0] === '#' ? String(v).trim() : '#' + String(v).trim()).toLowerCase();
 
 // Bichrome declines its single accent in intensities; the others alternate.
-function categoricalsFor(theme, accents) {
-  if (theme.accents === 1) return [16, 6, -4, -14, -24, -32].map(d => hsl(hexToHsl(accents[0]), d));
-  const c = accents.map(hexToHsl);
-  if (theme.accents === 2) return [accents[0], accents[1], hsl(c[0], 14), hsl(c[1], 14), hsl(c[0], -18), hsl(c[1], -18)];
-  return [accents[0], accents[1], accents[2], hsl(c[0], 15), hsl(c[1], 15), hsl(c[2], 15)];
-}
-
 const readStore = () => { try { return JSON.parse(localStorage.getItem('studioAccents') || '{}') || {}; } catch (_) { return {}; } };
 
 function accentsFor(themeId) {
@@ -763,39 +740,11 @@ const togglePalette = () => document.getElementById('palette').classList.toggle(
 // operating system's. Live-applies while dragging, like the rest of the panel.
 const PICKER = { themeId: null, slot: 0, h: 0, s: 1, v: 1 };
 
-function hexToRgb(hex) {
-  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim());
-  const n = m ? parseInt(m[1], 16) : 0xff2d55;
-  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
-}
-const rgbToHex = (r, g, b) => '#' + [r, g, b].map(v =>
-  Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
-
-function rgbToHsv({ r, g, b }) {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
-  let h = 0;
-  if (d) {
-    if (max === r) h = ((g - b) / d) % 6;
-    else if (max === g) h = (b - r) / d + 2;
-    else h = (r - g) / d + 4;
-    h = (h * 60 + 360) % 360;
-  }
-  return { h, s: max ? d / max : 0, v: max };
-}
-
-function hsvToRgb(h, s, v) {
-  const c = v * s, hp = (h % 360) / 60, xx = c * (1 - Math.abs((hp % 2) - 1));
-  const seg = [[c, xx, 0], [xx, c, 0], [0, c, xx], [0, xx, c], [xx, 0, c], [c, 0, xx]][Math.floor(hp) % 6];
-  const m = v - c;
-  return { r: (seg[0] + m) * 255, g: (seg[1] + m) * 255, b: (seg[2] + m) * 255 };
-}
-
 const cpHex = () => { const { r, g, b } = hsvToRgb(PICKER.h, PICKER.s, PICKER.v); return rgbToHex(r, g, b); };
 
 function openPicker(themeId, slot, anchor) {
   PICKER.themeId = themeId; PICKER.slot = slot;
-  Object.assign(PICKER, rgbToHsv(hexToRgb(accentsFor(themeId)[slot])));
+  Object.assign(PICKER, rgbToHsv(hexToRgb(accentsFor(themeId)[slot], 0xff2d55)));
   const cp = document.getElementById('cp');
   cp.classList.add('open');
   document.getElementById('cpBackdrop').classList.add('open');
@@ -815,7 +764,7 @@ function closePicker() {
 
 function renderPicker(apply) {
   const hex = cpHex();
-  const { r, g, b } = hexToRgb(hex);
+  const { r, g, b } = hexToRgb(hex, 0xff2d55);
   document.getElementById('cpSv').style.background = `hsl(${PICKER.h.toFixed(1)} 100% 50%)`;
   const knob = document.getElementById('cpSvKnob');
   knob.style.left = (PICKER.s * 100) + '%';
@@ -832,7 +781,7 @@ function renderPicker(apply) {
 
 function cpFromHex(value) {
   if (!isHex(value)) { renderPicker(false); return; }
-  Object.assign(PICKER, rgbToHsv(hexToRgb(value)));
+  Object.assign(PICKER, rgbToHsv(hexToRgb(value, 0xff2d55)));
   renderPicker();
 }
 
@@ -929,10 +878,6 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 // escapeJsAttr(): JS escapes for \ and ', then &amp; and &quot; for the HTML layer.
 const escJs = s => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' ').replace(/"/g, '&quot;');
-const parseDuration = iso => {
-  const m = String(iso || '').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  return m ? (parseInt(m[1] || 0) * 3600) + (parseInt(m[2] || 0) * 60) + parseInt(m[3] || 0) : 0;
-};
 const isGhost = title => String(title).includes('Deleted video') || String(title).includes('Private video');
 const nf = n => new Intl.NumberFormat(LANG === 'en' ? 'en-US' : 'fr-FR').format(n);
 const fmtClock = sec => {
@@ -957,19 +902,6 @@ const catColor = i => getComputedStyle(document.documentElement).getPropertyValu
 // medium || default at each call site. The new fhd/qhd/uhd keys (API revision
 // of 11 September 2026) reach Studio through autoCache, which carries the card
 // URL and, when it is a different image, one higher-resolution URL.
-const THUMB_ORDER = ['uhd', 'qhd', 'fhd', 'maxres', 'standard', 'high', 'medium', 'default'];
-const THUMB_ORDER_CARD = ['medium', 'high', 'standard', 'fhd', 'qhd', 'uhd', 'maxres', 'default'];
-
-function pickThumb(thumbs, want) {
-  if (!thumbs) return '';
-  const order = want === 'hero' ? THUMB_ORDER : THUMB_ORDER_CARD;
-  for (const key of order) {
-    const url = thumbs[key]?.url;
-    if (url) return url;
-  }
-  return '';
-}
-
 // ── Cache (#G11) ───────────────────────────────────────────────────────
 // The app moved its auto-cache from a localStorage blob to IndexedDB. Studio
 // reads the same database, read-only — no writes, no schema upgrade, no API
