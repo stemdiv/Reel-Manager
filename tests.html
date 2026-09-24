@@ -4110,6 +4110,40 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-47', title: 'The page language follows the UI language', note: 'the html lang attribute stayed "fr", and the privacy policy was French-only',
+  cases: [
+    ['switching language updates the page lang attribute', w => {
+      const snap = snapshot(w, ['appLang']);
+      const before = w.currentLang;
+      try {
+        w.applyLanguage('en');
+        eq(w.document.documentElement.lang, 'en', 'after EN');
+        w.applyLanguage('fr');
+        return eq(w.document.documentElement.lang, 'fr', 'after FR');
+      } finally { w.applyLanguage(before); restore(w, snap); }
+    }],
+    ['the privacy policy is shown in the UI language', w => {
+      const snap = snapshot(w, ['appLang']);
+      const before = w.currentLang;
+      const read = lang => {
+        w.applyLanguage(lang);
+        w.showPrivacyPolicy();
+        const box = w.document.getElementById('modalContent');
+        const r = { title: box.querySelector('h2').textContent, sections: box.querySelectorAll('h3').length,
+                    close: box.querySelector('button').textContent.trim(), text: box.textContent };
+        w.closeModal();
+        return r;
+      };
+      try {
+        const en = read('en'), fr = read('fr');
+        eq([en.title, en.close, en.sections], ['Privacy Policy — Playlist Manager', 'Close', 8], 'EN');
+        ok(!/Données|Suppression|navigateur/.test(en.text), 'French left in the English policy');
+        return eq([fr.title, fr.close, fr.sections], ['Politique de confidentialité — Playlist Manager', 'Fermer', 8], 'FR');
+      } finally { w.applyLanguage(before); restore(w, snap); }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {

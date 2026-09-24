@@ -3344,6 +3344,35 @@ const I18N = {
     modal_cancel: 'Annuler',
     modal_save: 'Sauvegarder',
     modal_close: 'Fermer',
+    // AUD-47 — the privacy policy, a legal text, in both languages (static markup)
+    privacy_title: 'Politique de confidentialité — Playlist Manager',
+    privacy_updated: 'Dernière mise à jour :',
+    privacy_html: `<h3 style="margin-top: 20px;">1. Données collectées</h3>
+      <p>Cette application accède aux données suivantes via l'API YouTube Data v3 :</p>
+      <p>- Informations de votre profil Google (nom, email, photo de profil)<br>
+      - Liste de vos playlists YouTube et leur contenu<br>
+      - Liste de vos abonnements YouTube</p>
+      <p>Aucune donnée n'est envoyée ou stockée sur un serveur externe. Toutes les données restent dans votre navigateur (localStorage et IndexedDB).</p>
+      <h3 style="margin-top: 20px;">2. Utilisation des données</h3>
+      <p>Vos données sont utilisées exclusivement pour :</p>
+      <p>- Afficher et organiser vos playlists<br>
+      - Permettre les opérations de gestion (fusion, tri, nettoyage, renommage)<br>
+      - Générer des statistiques et backups locaux</p>
+      <h3 style="margin-top: 20px;">3. Stockage local</h3>
+      <p>Les données suivantes sont stockées dans votre navigateur (localStorage et IndexedDB) :</p>
+      <p>- Tags de playlists, file d'attente de lecture, backups, préférences de thème, Client ID OAuth</p>
+      <p>Ces données ne quittent jamais votre appareil.</p>
+      <h3 style="margin-top: 20px;">4. Partage de données</h3>
+      <p>Aucune donnée personnelle n'est partagée, vendue ou transmise à des tiers.</p>
+      <h3 style="margin-top: 20px;">5. Scopes OAuth</h3>
+      <p>L'application demande l'accès en lecture seule par défaut (<code>youtube.readonly</code>). L'accès en écriture (<code>youtube</code>) n'est demandé qu'au moment d'une action de modification.</p>
+      <h3 style="margin-top: 20px;">6. Suppression des données</h3>
+      <p>Vous pouvez supprimer toutes vos données locales et révoquer l'accès OAuth à tout moment via le bouton "Supprimer mes données" disponible dans la barre latérale et sur l'écran de connexion.</p>
+      <p>Les données sont automatiquement purgées si vous ne vous reconnectez pas pendant 30 jours.</p>
+      <h3 style="margin-top: 20px;">7. YouTube API Services</h3>
+      <p>Cette application utilise les services de l'API YouTube. En l'utilisant, vous acceptez les <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener" style="color: var(--accent);">Conditions d'utilisation de YouTube</a> et la <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" style="color: var(--accent);">Politique de confidentialité de Google</a>.</p>
+      <h3 style="margin-top: 20px;">8. Contact</h3>
+      <p>Pour toute question relative à cette politique de confidentialité, contactez le développeur via les liens de la page d'aide.</p>`,
     modal_create: 'Créer',
     modal_add: 'Ajouter',
     modal_apply: 'Appliquer',
@@ -4128,6 +4157,34 @@ const I18N = {
     modal_cancel: 'Cancel',
     modal_save: 'Save',
     modal_close: 'Close',
+    privacy_title: 'Privacy Policy — Playlist Manager',
+    privacy_updated: 'Last updated:',
+    privacy_html: `<h3 style="margin-top: 20px;">1. Data collected</h3>
+      <p>This application accesses the following data through the YouTube Data API v3:</p>
+      <p>- Your Google profile information (name, email, profile picture)<br>
+      - Your YouTube playlists and their contents<br>
+      - Your YouTube subscriptions</p>
+      <p>No data is sent to or stored on an external server. All data stays in your browser (localStorage and IndexedDB).</p>
+      <h3 style="margin-top: 20px;">2. Use of data</h3>
+      <p>Your data is used only to:</p>
+      <p>- Display and organise your playlists<br>
+      - Perform management operations (merge, sort, clean-up, rename)<br>
+      - Generate local statistics and backups</p>
+      <h3 style="margin-top: 20px;">3. Local storage</h3>
+      <p>The following data is stored in your browser (localStorage and IndexedDB):</p>
+      <p>- Playlist tags, watch queue, backups, theme preferences, OAuth Client ID</p>
+      <p>This data never leaves your device.</p>
+      <h3 style="margin-top: 20px;">4. Data sharing</h3>
+      <p>No personal data is shared with, sold or transferred to third parties.</p>
+      <h3 style="margin-top: 20px;">5. OAuth scopes</h3>
+      <p>By default the application requests read-only access (<code>youtube.readonly</code>). Write access (<code>youtube</code>) is requested only when you start an action that changes something.</p>
+      <h3 style="margin-top: 20px;">6. Data deletion</h3>
+      <p>You can delete all your local data and revoke OAuth access at any time with the "Delete my data" button in the sidebar and on the sign-in screen.</p>
+      <p>Data is purged automatically if you do not sign in again for 30 days.</p>
+      <h3 style="margin-top: 20px;">7. YouTube API Services</h3>
+      <p>This application uses YouTube API Services. By using it, you agree to the <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener" style="color: var(--accent);">YouTube Terms of Service</a> and the <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" style="color: var(--accent);">Google Privacy Policy</a>.</p>
+      <h3 style="margin-top: 20px;">8. Contact</h3>
+      <p>For any question about this privacy policy, contact the developer through the links on the help page.</p>`,
     modal_create: 'Create',
     modal_add: 'Add',
     modal_apply: 'Apply',
@@ -4369,6 +4426,8 @@ function t(key, params = {}) {
 function applyLanguage(lang) {
   currentLang = lang || currentLang;
   localStorage.setItem('appLang', currentLang);
+  // AUD-47 — screen readers pick pronunciation from this; it said "fr" in English too
+  document.documentElement.lang = currentLang;
 
   // Update all elements with data-i18n attribute
   document.querySelectorAll('[data-i18n]').forEach(el => {
@@ -4441,11 +4500,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.32'; // bump per release
+const APP_VERSION = '1.27.33'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.33', date: '2026-09-24', items: [
+    "ACCESSIBILITE (AUD-47) — la page se declarait toujours en francais, meme en anglais : un lecteur d ecran prononcait alors l interface anglaise a la francaise. La langue de la page suit desormais celle de l interface. La politique de confidentialite, texte juridique jusqu ici uniquement en francais, existe maintenant en anglais",
+  ]},
   { v: '1.27.32', date: '2026-09-24', items: [
     "ACCESSIBILITE (AUD-46) — la navigation au clavier n avait aucun reperage visible : aucun style de focus, et les champs de saisie supprimaient leur contour. Un anneau de 2 px signale desormais l element actif, dans tous les themes (couleur du texte en theme clair, ou l accent est trop pale), dans l app comme dans Reel Studio",
   ]},
@@ -15716,49 +15778,17 @@ function openModal(content) {
 }
 
 function showPrivacyPolicy() {
+  // AUD-47 — was hard-coded French, date included, for English users as well
   const overlay = document.getElementById('modalOverlay');
   const content = document.getElementById('modalContent');
+  const locale = currentLang === 'en' ? 'en-GB' : 'fr-FR';
   content.innerHTML = `
     <div style="max-width: 700px; max-height: 80vh; overflow-y: auto; padding: 24px;">
-      <h2 style="margin-bottom: 16px;">Politique de confidentialité — Playlist Manager</h2>
-      <p><strong>Dernière mise à jour :</strong> ${new Date().toLocaleDateString('fr-FR')}</p>
-
-      <h3 style="margin-top: 20px;">1. Données collectées</h3>
-      <p>Cette application accède aux données suivantes via l'API YouTube Data v3 :</p>
-      <p>- Informations de votre profil Google (nom, email, photo de profil)<br>
-      - Liste de vos playlists YouTube et leur contenu<br>
-      - Liste de vos abonnements YouTube</p>
-      <p>Aucune donnée n'est envoyée ou stockée sur un serveur externe. Toutes les données restent dans votre navigateur (localStorage).</p>
-
-      <h3 style="margin-top: 20px;">2. Utilisation des données</h3>
-      <p>Vos données sont utilisées exclusivement pour :</p>
-      <p>- Afficher et organiser vos playlists<br>
-      - Permettre les opérations de gestion (fusion, tri, nettoyage, renommage)<br>
-      - Générer des statistiques et backups locaux</p>
-
-      <h3 style="margin-top: 20px;">3. Stockage local</h3>
-      <p>Les données suivantes sont stockées dans le localStorage de votre navigateur :</p>
-      <p>- Tags de playlists, file d'attente de lecture, backups, préférences de thème, Client ID OAuth</p>
-      <p>Ces données ne quittent jamais votre appareil.</p>
-
-      <h3 style="margin-top: 20px;">4. Partage de données</h3>
-      <p>Aucune donnée personnelle n'est partagée, vendue ou transmise à des tiers.</p>
-
-      <h3 style="margin-top: 20px;">5. Scopes OAuth</h3>
-      <p>L'application demande l'accès en lecture seule par défaut (<code>youtube.readonly</code>). L'accès en écriture (<code>youtube</code>) n'est demandé qu'au moment d'une action de modification.</p>
-
-      <h3 style="margin-top: 20px;">6. Suppression des données</h3>
-      <p>Vous pouvez supprimer toutes vos données locales et révoquer l'accès OAuth à tout moment via le bouton "Supprimer mes données" disponible dans la barre latérale et sur l'écran de connexion.</p>
-      <p>Les données sont automatiquement purgées si vous ne vous reconnectez pas pendant 30 jours.</p>
-
-      <h3 style="margin-top: 20px;">7. YouTube API Services</h3>
-      <p>Cette application utilise les services de l'API YouTube. En l'utilisant, vous acceptez les <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener" style="color: var(--accent);">Conditions d'utilisation de YouTube</a> et la <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" style="color: var(--accent);">Politique de confidentialité de Google</a>.</p>
-
-      <h3 style="margin-top: 20px;">8. Contact</h3>
-      <p>Pour toute question relative à cette politique de confidentialité, contactez le développeur via les liens de la page d'aide.</p>
-
+      <h2 style="margin-bottom: 16px;">${t('privacy_title')}</h2>
+      <p><strong>${t('privacy_updated')}</strong> ${new Date().toLocaleDateString(locale)}</p>
+      ${t('privacy_html')}
       <div style="margin-top: 24px; text-align: center;">
-        <button class="btn btn-secondary" onclick="closeModal()" style="min-width: 120px;">Fermer</button>
+        <button class="btn btn-secondary" onclick="closeModal()" style="min-width: 120px;">${t('modal_close')}</button>
       </div>
     </div>
   `;
