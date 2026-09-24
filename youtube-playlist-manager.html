@@ -5569,9 +5569,9 @@ const API_CACHE_CONFIG = {
     'videos.GET':              5 * 60_000,
     'videos.getRating.GET':    5 * 60_000,   // #I3 — per user + per video, rarely changes mid-session
     'videos.batchGetStats.GET': 60_000,      // 1 min — view counts move, but not second by second
-    // The trending chart is refreshed by YouTube far less often than hourly;
-    // re-fetching it on every dashboard visit would spend units for the same
-    // ten rows.
+    // videos.list?chart=mostPopular (#81) shares the 'videos.GET' key above, so
+    // its longer life cannot live here: buildTrendingParams() passes
+    // _ttlMs: 1 hour itself. (AUD-31 read this comment as a missing entry.)
   },
   defaultTtlMs: 0,           // unknown endpoints → don't cache
   maxEntries: 500,           // LRU cap — drop oldest when exceeded

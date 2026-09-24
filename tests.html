@@ -3643,6 +3643,23 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-31', title: 'Revisiting the dashboard does not re-buy the trending chart', note: 'the 1-hour TTL was set in buildTrendingParams all along; it only started to hold once AUD-17 made the cache store anything',
+  cases: [
+    ['a second tile load within the hour sends nothing', async w => {
+      const realFetch = w.fetch;
+      let fetches = 0;
+      try {
+        w.setAccessToken('test-token');
+        w.fetch = async () => { fetches++; return new w.Response(JSON.stringify({ items: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } }); };
+        const params = { ...w.buildTrendingParams('31'), aud31: Date.now() };   // a key no earlier case cached
+        await w.ytApi('videos', params);
+        await w.ytApi('videos', params);
+        return eq(fetches, 1, 'network requests for two loads');
+      } finally { w.fetch = realFetch; }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
