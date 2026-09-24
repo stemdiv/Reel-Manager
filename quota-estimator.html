@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Reel — Quota &amp; Revenue Estimator</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<!-- AUD-09 — Chart.js is served from this origin, not a CDN: a CDN response runs with this origin's
+     access to the app's IndexedDB and localStorage. npm chart.js@4.4.1, dist/chart.umd.js, unmodified. -->
+<script src="vendor/chart.umd-4.4.1.js" integrity="sha384-dug+JxfBvklEQdJ4AYuBBAIScUz0bVN73xpy273gcAwHjb3qI0fXmuYNaNfdyYJG"></script>
 <style>
   /* Dark is the default; the light set overrides the same tokens, so every
      rule below is written once and theming is a single attribute on <html>. */

@@ -3907,6 +3907,35 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-09', title: 'The quota estimator runs no third-party script', note: 'Chart.js came from cdnjs without SRI, on the origin that holds the library and the diagnostic log',
+  cases: [
+    ['every script the tool pages load is local and pinned', async w => {
+      const bad = [];
+      for (const page of ['quota-estimator.html', 'how-it-works.html']) {
+        const doc = new DOMParser().parseFromString(await fetch(page + '?aud09=' + Date.now()).then(r => r.text()), 'text/html');
+        doc.querySelectorAll('script[src]').forEach(el => {
+          const src = el.getAttribute('src');
+          if (/^(https?:)?\/\//i.test(src) || !/^sha(256|384|512)-/.test(el.getAttribute('integrity') || '')) bad.push(page + ': ' + src);
+        });
+      }
+      return eq(bad, [], 'scripts from elsewhere, or without integrity');
+    }],
+    ['Chart.js loads from this origin and draws the estimator charts', async w => {
+      const f = document.createElement('iframe');
+      f.style.cssText = 'display:block;position:absolute;left:-12000px;top:0;width:1200px;height:900px;border:0;';
+      f.src = 'quota-estimator.html?aud09=' + Date.now();
+      try {
+        await new Promise((res, rej) => { f.onload = res; setTimeout(() => rej(new Error('estimator did not load')), 15000); document.body.appendChild(f); });
+        await new Promise(r => setTimeout(r, 300));
+        const cw = f.contentWindow;
+        ok(cw.Chart, 'Chart.js did not load (a wrong integrity hash blocks it too)');
+        eq(cw.Chart.version, '4.4.1', 'version');
+        return ok(Object.keys(cw.Chart.instances || {}).length > 0, 'no chart drawn');
+      } finally { f.remove(); }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {

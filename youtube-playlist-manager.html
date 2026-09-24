@@ -4432,11 +4432,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.27'; // bump per release
+const APP_VERSION = '1.27.28'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.28', date: '2026-09-24', items: [
+    "SECURITE (AUD-09) — l estimateur de quota chargeait Chart.js depuis un CDN sans empreinte d integrite ; une reponse alteree du CDN se serait executee avec acces a la bibliotheque, aux tags et au journal de l app, qui partagent la meme origine. Chart.js 4.4.1 est desormais servi avec l application, avec une empreinte verifiee par le navigateur",
+  ]},
   { v: '1.27.27', date: '2026-09-24', items: [
     "JOURNAL (AUD-10) — le masquage des jetons ne reconnaissait qu une valeur entiere ; un jeton au milieu d une adresse, d un message d erreur ou d une pile passait tel quel, et le message lui-meme n etait jamais filtre. Les jetons sont desormais masques ou qu ils soient, message compris, et le journal ne garde plus de titres de playlists",
   ]},
