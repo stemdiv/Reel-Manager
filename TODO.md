@@ -9,6 +9,7 @@ Details for each finding: `audit/2026-09/08-remediation.md` (on branch `audit/20
   After each merge, bring `main` into the next branch. No CI in the repo: run `tests.html` locally.
 - [ ] Merge #9 (backlogs v6.6) after #8. Open the `.docx` files in Word first: they were not checked visually.
 - [ ] **Do not merge** #2 (audit).
+- [ ] Open a PR for `claude/youthful-fermi-b0e5wy` (on top of #9): tutorial detection (1.27.52), local server and offline page (1.27.53).
 
 ## To investigate
 
