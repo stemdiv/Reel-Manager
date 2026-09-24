@@ -4725,6 +4725,74 @@ const SUITES = [
   ],
 },
 {
+  id: 'music-tuto', title: 'Music-production tutorials are not music videos', note: 'the title word list missed plurals, French, "How I make…" and DAW names, and a tutorial filed under Music counted as music',
+  cases: [
+    ['tutorial titles filed under Music are tutorials, not music', w => {
+      const titles = ['Psytrance tutorials part 2', '5 Tutos Ableton', 'Piano lessons for beginners', 'How I make psytrance leads',
+        'Making a Psytrance track in Ableton Live 12', 'Serum sound design: Rolling bass', 'Leçon de guitare - Wonderwall',
+        'Comment faire un kick psytrance', 'Masterclass: Full-On Psytrance', 'Track breakdown: Astrix - Deep Jungle Walk',
+        'FL Studio beat from scratch', 'Learn Ableton in 20 minutes', 'Mixdown in 10 minutes', 'Apprendre \u00e0 mixer en 10 minutes'];
+      const wrong = titles.filter(title => {
+        const c = w.classifyVideoType({ title, categoryId: '10', durationSeconds: 300 });
+        return c.isMusic || c.type !== 'tutorial';
+      });
+      return eq(wrong, [], 'still read as music');
+    }],
+    ['song titles that brush against the word list stay music', w => {
+      const titles = ['Foo Fighters - Learn To Fly (Official HD Video)', 'Foo Fighters - Making A Fire', 'Astrix - Deep Jungle Walk',
+        'Muse - Plug In Baby', 'Stromae - Formidable', 'Beyonc\u00e9 - Formation (Official Video)', 'Coldplay - The Scientist', 'Ableton Live Set - Techno Improvisation'];
+      const wrong = titles.filter(title => !w.classifyVideoType({ title, categoryId: '10', durationSeconds: 240 }).isMusic);
+      return eq(wrong, [], 'lost as music');
+    }],
+    ['tags: one tutorial tag is a hint, two decide', w => {
+      const v = tags => ({ title: 'Rolling Bass', categoryId: '10', durationSeconds: 300, tags });
+      eq(w.classifyVideoType(v(['psytrance tutorial', 'goa'])).isMusic, true, 'one tag');
+      eq(w.classifyVideoType(v(['psytrance tutorial', 'how to make psytrance'])).type, 'tutorial', 'two tags');
+      return eq(w.classifyVideoType({ ...v(['psytrance tutorial']), categoryId: '27' }).type, 'tutorial', 'one tag plus Education');
+    }],
+    ['description: lesson phrases count, a release description counts against', w => {
+      const lesson = 'In this video I show my bass chain.\nDownload the project file below.';
+      eq(w.classifyVideoType({ title: 'Rolling Bass in Ableton', categoryId: '10', durationSeconds: 300, description: lesson }).type, 'tutorial', 'DAW + lesson description');
+      eq(w.classifyVideoType({ title: 'Rolling Bass', categoryId: '10', durationSeconds: 300, description: lesson }).isMusic, true, 'description alone is a hint');
+      const release = 'Provided to YouTube by Label\n\nTest Drive · Artist\n℗ 2020 Label';
+      return eq(w.classifyVideoType({ title: 'Artist - Test Drive', categoryId: '10', durationSeconds: 240, description: release }).isMusic, true, 'a release named "Test Drive"');
+    }],
+    ['Education, Howto and Science categories count against music', w => {
+      eq(w.classifyVideoType({ title: 'Rolling Bass in Ableton', categoryId: '27', durationSeconds: 300 }).type, 'tutorial', 'DAW + Education');
+      eq(w.classifyVideoType({ title: 'Kick and bass audio', categoryId: '26', durationSeconds: 300 }).isMusic, false, '"audio" in a Howto upload');
+      return eq(w.classifyVideoType({ title: 'Kick and bass audio', durationSeconds: 300 }).isMusic, true, '"audio" with no category, as before');
+    }],
+    ['a "- Topic" channel still wins', w => {
+      const c = w.classifyVideoType({ title: 'Tutorial', channelTitle: 'Band - Topic', durationSeconds: 200, tags: ['tutorial', 'lesson'] });
+      return eq([c.isMusic, c.isTrack], [true, true]);
+    }],
+    ['tags and description are read from the details cache', async w => {
+      // Filled the way the app fills it: ensureClassificationData() fetches the
+      // details of what it has not seen, then the classifier gets only an id.
+      const real = w.ytApi;
+      const id = 'musictuto01';
+      try {
+        w.ytApi = async () => ({ items: [{ id, contentDetails: { duration: 'PT5M' },
+          snippet: { title: 'Rolling Bass', categoryId: '10', tags: ['ableton tutorial', 'psytrance tutorial'], description: '' } }] });
+        await w.ensureClassificationData([{ videoId: id, title: 'Rolling Bass' }]);
+      } finally { w.ytApi = real; }
+      return eq(w.classifyVideoType({ videoId: id, title: 'Rolling Bass', durationSeconds: 300 }).type, 'tutorial');
+    }],
+    ['getVideoDetails asks for tags and description, and trims the description', async w => {
+      const real = w.ytApi;
+      let seen = null;
+      try {
+        w.ytApi = async (endpoint, params) => { seen = params; return { items: [
+          { id: 'D1', contentDetails: { duration: 'PT3M' }, snippet: { title: 't', description: 'x'.repeat(5000), tags: ['a'] } }] }; };
+        const d = await w.getVideoDetails(['D1']);
+        ok(/snippet\([^)]*\bdescription\b/.test(seen.fields) && /snippet\([^)]*\btags\b/.test(seen.fields), 'fields=: ' + seen.fields);
+        eq(d.D1.snippet.description.length, w.CONFIG.DESCRIPTION_KEEP_CHARS, 'kept characters');
+        return eq(w.getQuotaCost('videos', 'GET'), { bucket: 'pool', cost: 1 }, 'still one unit');
+      } finally { w.ytApi = real; }
+    }],
+  ],
+},
+{
   id: '#J3', title: 'A playlist\'s shared genre becomes a tag', note: 'the genre from topicDetails was shown as a badge and never written into the tags',
   cases: [
     ['dominantGenre needs two music videos and at least half of them', w => {

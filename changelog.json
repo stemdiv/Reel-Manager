@@ -1,5 +1,15 @@
 [
  {
+  "v": "1.27.52",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "Détection des tutos : les tutoriels de production musicale (pluriels, titres en français, « How I make… », noms de DAW) ne sont plus classés comme musique. Le tri lit aussi les tags, la description et la catégorie (Éducation, Tutoriels, Science) de la vidéo, dans la même requête, sans quota supplémentaire.",
+    "en": "Tutorial detection: music-production tutorials (plurals, French titles, \"How I make…\", DAW names) are no longer classed as music. The check also reads the video's tags, description and category (Education, Howto, Science), from the same request, at no extra quota."
+   }
+  ]
+ },
+ {
   "v": "1.27.51",
   "date": "2026-09-24",
   "items": [

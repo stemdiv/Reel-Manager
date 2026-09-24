@@ -4647,7 +4647,7 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.51'; // bump per release
+const APP_VERSION = '1.27.52'; // bump per release
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -5335,6 +5335,7 @@ var CONFIG = Object.freeze({
   OAUTH_RESUME_WINDOW_MS: 10 * 60 * 1000,   // "action pending" notice after a scope redirect
   TOAST_MS: 3000,
   TOAST_ACTION_MS: 10000,            // a toast you are meant to click must outlast a glance
+  DESCRIPTION_KEEP_CHARS: 1500,      // video description kept in the details cache (tutorial detection)
 });
 
 // A zeroed set of counters, derived from QUOTA_LIMITS so a new bucket does not
@@ -8277,11 +8278,18 @@ async function getVideoDetails(videoIds) {
         part: 'contentDetails,snippet,topicDetails,player',
         id: batch.join(','),
         maxHeight: 8192,
-        fields: 'items(id,contentDetails(duration),snippet(title,channelTitle,thumbnails(medium(url),high(url),default(url),fhd(url),qhd(url)),categoryId),topicDetails(topicCategories),player(embedHeight,embedWidth))',
+        // tags and description feed the tutorial detection (classifyVideoType):
+        // same request, same quota cost.
+        fields: 'items(id,contentDetails(duration),snippet(title,channelTitle,description,tags,thumbnails(medium(url),high(url),default(url),fhd(url),qhd(url)),categoryId),topicDetails(topicCategories),player(embedHeight,embedWidth))',
       });
       data.items?.forEach(item => {
         item._isShort = detectShort(item.player?.embedWidth, item.player?.embedHeight,
                                     parseDuration(item.contentDetails?.duration || ''));
+        // Descriptions run to 5 000 characters and the cache can hold thousands
+        // of videos; the phrases the classifier looks for sit near the top.
+        if (item.snippet && typeof item.snippet.description === 'string') {
+          item.snippet.description = item.snippet.description.slice(0, CONFIG.DESCRIPTION_KEEP_CHARS);
+        }
         details[item.id] = item;
       });
     } catch (err) {
@@ -10637,6 +10645,76 @@ function withFeat(artist, feat) {
   return a ? `${a} feat. ${feat}` : `feat. ${feat}`;
 }
 
+// ── Tutorial detection ──────────────────────────────────────────────────────
+// Music-production tutorials look like music to every music signal: category
+// 10, a genre topic, 2–7 minutes, "Artist - Title". The title word list alone
+// let most of them through (plurals, French, "How I make…", DAW names), so the
+// verdict is now a score over what the details request already returns: title,
+// tags, description and category. 1 or more is a tutorial. A strong title word
+// still decides alone, unless the description reads like a release.
+//
+// \b is ASCII-only in JS ("leçon" has no word boundary after "le"), hence the
+// Unicode letter/number lookarounds.
+function wordsRe(alternation) {
+  return new RegExp(`(?<![\\p{L}\\p{N}])(?:${alternation})(?![\\p{L}\\p{N}])`, 'iu');
+}
+const TUTORIAL_STRONG_RE = wordsRe([
+  'tutos?', 'tutorials?', 'tutoriels?', 'how ?to', 'howto',
+  'how i (?:make|made|produce|produced|mix|mixed|write|wrote|play|played|use|used)',
+  'reviews?', 'tests?', 'unboxing', 'reactions?', 'r\u00e9actions?', 'vlogs?', 'explained', 'explications?',
+  'cours', 'lessons?', 'le\u00e7ons?', 'guides?', 'setup', 'walkthrough', 'gameplay', 'podcasts?', 'interviews?',
+  'demos?', 'd\u00e9mos?', 'previews?', 'astuces?', 'tips', 'mixing', 'mastering', 'mixdown',
+  'courses?', 'beginners?', 'd\u00e9butants?', 'workflow', 'masterclass(?:es)?',
+  'learn (?:how|to (?:play|make|produce|mix)|ableton|fl studio|logic|piano|guitar|drums|bass|music production)',
+  'apprendre (?:\u00e0|a) (?:jouer|faire|mixer|produire|composer|utiliser)', 'comment (?:faire|jouer|cr\u00e9er|produire|mixer|composer)',
+  'sound design', '(?:track|song) breakdown', 'breakdown of', 'from scratch', 'the making of',
+  'making (?:a|an|my|the) (?:\\S+ ){0,2}(?:beats?|tracks?|songs?|tunes?|remix|melod(?:y|ies)|basslines?|leads?|kicks?)',
+].join('|'));
+// Tools, not lessons: a sign, not a verdict ("Ableton live set" is music).
+const TUTORIAL_WEAK_RE = wordsRe('ableton|fl studio|logic pro|bitwig|cubase|pro tools|presets?|plugins?|vsts?|daw|sample packs?');
+const TUTORIAL_DESC_RE = wordsRe([
+  'in this (?:video|tutorial|lesson|course|episode)', 'dans (?:cette|ce) (?:vid\u00e9o|tuto|tutoriel|cours)',
+  'project files?', 'fichiers? (?:du )?projet', 'download (?:the )?(?:project|presets?|samples?)',
+  'sample packs?', 'preset packs?', 'free presets?', 'masterclass', 'online course', 'formation',
+].join('|'));
+const RELEASE_DESC_RE = wordsRe([
+  'provided to youtube by', 'directed by', 'r\u00e9alis\u00e9 par', 'music video by', 'out now',
+  '(?:stream|listen)(?: to)?(?: it| the (?:album|track|song|ep|single))? (?:on|now|here)',
+  'lyrics ?:', 'paroles ?:', 'disponible (?:sur|partout)',
+].join('|'));
+const HOWTO_CATEGORIES = ['26', '27', '28'];   // Howto & Style, Education, Science & Technology
+const TUTORIAL_SIGNALS = {
+  titleStrong: 1.0,
+  titleWeak: 0.6,
+  tagsStrong: 0.6,
+  tagsManyStrong: 1.0,
+  tagsWeak: 0.3,
+  description: 0.5,
+  howtoCategory: 0.5,
+  releaseDescription: -0.5,
+};
+const TUTORIAL_THRESHOLD = 1;
+
+/** ≥ TUTORIAL_THRESHOLD reads as a tutorial. Inputs: title, tags[], description, categoryId. */
+function tutorialScore(v) {
+  v = v || {};
+  const title = String(v.title || '');
+  const tags = Array.isArray(v.tags) ? v.tags.map(String) : [];
+  const desc = String(v.description || '');
+  let score = 0;
+  if (TUTORIAL_STRONG_RE.test(title)) score += TUTORIAL_SIGNALS.titleStrong;
+  else if (TUTORIAL_WEAK_RE.test(title)) score += TUTORIAL_SIGNALS.titleWeak;
+  // One stray tag proves little; tutorials tag themselves several times over.
+  const strongTags = tags.filter(tg => TUTORIAL_STRONG_RE.test(tg)).length;
+  if (strongTags >= 2) score += TUTORIAL_SIGNALS.tagsManyStrong;
+  else if (strongTags === 1) score += TUTORIAL_SIGNALS.tagsStrong;
+  else if (tags.some(tg => TUTORIAL_WEAK_RE.test(tg))) score += TUTORIAL_SIGNALS.tagsWeak;
+  if (TUTORIAL_DESC_RE.test(desc)) score += TUTORIAL_SIGNALS.description;
+  if (HOWTO_CATEGORIES.includes(String(v.categoryId))) score += TUTORIAL_SIGNALS.howtoCategory;
+  if (RELEASE_DESC_RE.test(desc) || desc.includes('℗')) score += TUTORIAL_SIGNALS.releaseDescription;
+  return Math.round(score * 100) / 100;
+}
+
 function classifyVideoType(v) {
   try {
     v = v || {};
@@ -10656,10 +10734,20 @@ function classifyVideoType(v) {
     topics = Array.isArray(topics) ? topics : [];
     const topicSegs = topics.map(u => String(u).split('/').pop());
     const topicIsMusic = topicSegs.some(s => /music/i.test(s) || /^(Jazz|Reggae|Blues|Soul|Country)$/i.test(s));
-    const excludeRe = /\b(tuto|tutorial|tutoriel|how ?to|howto|review|test|unboxing|reaction|r\u00e9action|vlog|explained|explication|cours|lesson|guide|setup|walkthrough|gameplay|podcast|interview|demo|d\u00e9mo|preview|astuce|tips|mixing|mastering|course|beginner|workflow)\b/;
+    const cachedSnippet = (() => {
+      try { const d = v.videoId && typeof videoDetailsCache !== 'undefined' ? videoDetailsCache[v.videoId] : null; return (d && d.snippet) || {}; }
+      catch (e) { return {}; }
+    })();
+    const tutScore = tutorialScore({
+      title: v.title,
+      tags: v.tags || cachedSnippet.tags,
+      description: v.description != null ? v.description : cachedSnippet.description,
+      categoryId,
+    });
+    const isTutorial = tutScore >= TUTORIAL_THRESHOLD;
+    const howtoCategory = HOWTO_CATEGORIES.includes(String(categoryId));
     const includeRe = /\b(official (video|music video|audio)|clip officiel|lyric[s]? video|concert|full album|album complet|mix|dj ?set|remix|audio|feat\.?|ft\.?|prod\.?|cover|acoustic|bande originale|ost|soundtrack)\b/;
     const liveRe = /\blive\s*(at|@|in|from|au|aux|à)\b|\(live\)|\[live\]|\blive (session|set|concert|show|performance)\b|\bboiler room\b|\bunplugged\b|\btiny desk\b/;
-    const excludeMatched = excludeRe.test(title);
     const includeMatched = includeRe.test(title) || liveRe.test(title);
     // AUD-25 — the #17 score is one of the signals (Topic channel, category 10,
     // track length, "Artist - Title", long-form penalty), with the category
@@ -10667,20 +10755,22 @@ function classifyVideoType(v) {
     // Tutorials, reviews, podcasts… are not music, whatever else matched —
     // except on an auto-generated "- Topic" channel, which only holds tracks
     // (a song titled "Demo" or "Interlude (Live Review)" is still a song).
-    const excluded = excludeMatched && !isTopicChannel(v.channelTitle || v.videoOwnerChannelTitle || '');
+    const excluded = isTutorial && !isTopicChannel(v.channelTitle || v.videoOwnerChannelTitle || '');
     const isTrack = !excluded && musicScore({ ...v, categoryId }) >= MUSIC_SCORE_THRESHOLD;
-    const isMusic = isTrack || (!excluded && (topicIsMusic || String(categoryId) === '10' || includeMatched));
+    // "mix", "audio", "remix" in an Education or Howto upload is a lesson about
+    // them, not one of them.
+    const isMusic = isTrack || (!excluded && (topicIsMusic || String(categoryId) === '10' || (includeMatched && !howtoCategory)));
     let type;
     if (isMusic && (liveRe.test(title) || /\bconcert\b/.test(title))) type = 'live';
     else if (isMusic) type = 'music';
-    else if (excludeMatched) type = 'tutorial';
+    else if (isTutorial) type = 'tutorial';
     else type = 'other';
     let genre = null;
     if (isMusic) {
       const gseg = topicSegs.find(s => /music/i.test(s) && !/^Music$/i.test(s)) || topicSegs.find(s => /^(Jazz|Reggae|Blues)$/i.test(s));
       if (gseg) genre = GENRE_LABELS[gseg] ? GENRE_LABELS[gseg][currentLang === 'en' ? 1 : 0] : gseg.replace(/_/g, ' ');
     }
-    return { isMusic: isMusic, isTrack: isTrack, type: type, genre: genre };
+    return { isMusic: isMusic, isTrack: isTrack, type: type, genre: genre, tutorialScore: tutScore };
   } catch (e) {
     return { isMusic: false, isTrack: false, type: 'other' };
   }
