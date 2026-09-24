@@ -1,5 +1,7 @@
 # Passe 4 — Dette technique
 
+> **État (24/09/2026) :** ce rapport décrit le code à `9c824eb` (app v1.27.3). Correctifs depuis, errata et nouveaux constats : [`08-remediation.md`](08-remediation.md).
+
 > Traduction française de [`../04-tech-debt.md`](../04-tech-debt.md). En cas d'écart, la version anglaise fait foi pour les extraits de code.
 
 Base `origin/main` @ `9c824eb`, app **v1.27.3**. Lecture seule. Le skill `engineering:tech-debt` n'est pas installé : j'ai donc appliqué à la main la checklist du handoff. Les métriques proviennent de scripts jetables dans le scratchpad (analyse de la longueur des fonctions par appariement naïf des accolades, comptage des références, fenêtres dupliquées de 6 lignes, évaluation de `I18N`). Toute référence `:N` sans nom de fichier désigne `youtube-playlist-manager.html`.

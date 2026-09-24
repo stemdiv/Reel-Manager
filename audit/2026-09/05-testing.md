@@ -1,5 +1,7 @@
 # Pass 5 — Testing strategy
 
+> **Status (24/09/2026):** this report describes the code at `9c824eb` (app v1.27.3). Fixes since, errata and new findings: [`08-remediation.md`](08-remediation.md).
+
 Base `origin/main` @ `9c824eb`, app **v1.27.3**. The `engineering:testing-strategy` skill is not installed, so I applied the handoff's checklist by hand. No test was written, as instructed. `tests.html` was **run locally** (details in §1).
 
 ## 1. Current suite: recount and local run

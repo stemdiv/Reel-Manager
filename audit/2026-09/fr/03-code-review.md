@@ -1,5 +1,7 @@
 # Passe 3 — Revue de code (ensemble du code, pas un diff)
 
+> **État (24/09/2026) :** ce rapport décrit le code à `9c824eb` (app v1.27.3). Correctifs depuis, errata et nouveaux constats : [`08-remediation.md`](08-remediation.md).
+
 > Traduction française de [`../03-code-review.md`](../03-code-review.md). En cas d'écart, la version anglaise fait foi pour les extraits de code.
 
 Base `origin/main` @ `9c824eb`, app **v1.27.3**. Lecture seule ; aucun appel API. Le skill `engineering:code-review` n'est pas installé, j'ai donc appliqué à la main la checklist du handoff. Toute référence `:N` sans nom de fichier désigne `youtube-playlist-manager.html`. Sévérité : P1 sécurité / perte de données / CGU · P2 bug fonctionnel ou de quota · P3 maintenabilité / performance · P4 cosmétique.

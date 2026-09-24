@@ -12,6 +12,7 @@ Traduction française des rapports de passe de l'audit du dépôt `stemdiv/Reel-
 | 5 — Stratégie de test | [05-testing.md](05-testing.md) | [../05-testing.md](../05-testing.md) |
 | 6 — Accessibilité | [06-accessibility.md](06-accessibility.md) | [../06-accessibility.md](../06-accessibility.md) |
 | 7 — Consolidation | déjà bilingue : [../code-review-2026-09.md](../code-review-2026-09.md) | — |
+| 8 — État des correctifs (lots 4 à 9) | [08-remediation.md](08-remediation.md) | [../08-remediation.md](../08-remediation.md) |
 
 Conventions :
 - Les références `fichier:ligne`, les identifiants (AUD-xx, #Gxx…), les noms de fonctions et de clés restent identiques à l'original.

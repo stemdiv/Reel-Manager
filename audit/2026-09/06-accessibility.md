@@ -1,5 +1,7 @@
 # Pass 6 — Accessibility (WCAG 2.1 AA, code reading)
 
+> **Status (24/09/2026):** this report describes the code at `9c824eb` (app v1.27.3). Fixes since, errata and new findings: [`08-remediation.md`](08-remediation.md).
+
 Base `origin/main` @ `9c824eb`, app **v1.27.3**. The `design:accessibility-review` skill is not installed, so I applied the handoff's checklist by hand. This pass is **static analysis only**: no screen reader, no browser rendering. Contrast ratios are computed from the CSS tokens with a scratch script (oklch → linear sRGB → WCAG relative luminance). Every `:N` reference without a file name points to `youtube-playlist-manager.html`.
 
 ## Summary

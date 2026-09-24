@@ -1,5 +1,7 @@
 # Passe 1 — Architecture
 
+> **État (24/09/2026) :** ce rapport décrit le code à `9c824eb` (app v1.27.3). Correctifs depuis, errata et nouveaux constats : [`08-remediation.md`](08-remediation.md).
+
 > Traduction française de [`../01-architecture.md`](../01-architecture.md). En cas d'écart, la version anglaise fait foi pour les extraits de code.
 
 Base `origin/main` @ `9c824eb`, app **v1.27.3**. Lecture seule. Le skill `engineering:architecture` n'est pas installé dans cette session : j'ai donc appliqué à la main la checklist du handoff. Toute référence `:N` sans nom de fichier désigne `youtube-playlist-manager.html`.

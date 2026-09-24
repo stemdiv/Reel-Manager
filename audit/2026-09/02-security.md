@@ -1,5 +1,7 @@
 # Pass 2 — Security
 
+> **Status (24/09/2026):** this report describes the code at `9c824eb` (app v1.27.3). Fixes since, errata and new findings: [`08-remediation.md`](08-remediation.md).
+
 Base `origin/main` @ `9c824eb`, app **v1.27.3**. Read-only; no OAuth run, no API call. The `/security-review` skill targets a diff, so I applied its method (evidence-based, exploit scenario, severity) to the whole codebase. Every `:N` reference without a file name points to `youtube-playlist-manager.html`.
 
 Severity uses the handoff scale: **P1** exploitable security / data loss / ToS violation · **P2** functional bug or quota error · **P3** maintainability or performance · **P4** cosmetic. Security hardening with no demonstrated exploit is filed P3.

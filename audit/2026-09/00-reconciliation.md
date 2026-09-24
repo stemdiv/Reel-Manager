@@ -1,5 +1,7 @@
 # Pass 0 — Reconciliation of lots 1–3 against the code
 
+> **Status (24/09/2026):** this report describes the code at `9c824eb` (app v1.27.3). Fixes since, errata and new findings: [`08-remediation.md`](08-remediation.md).
+
 Audit branch `audit/2026-09`, base `origin/main` @ `9c824eb`. Code under review: `youtube-playlist-manager.html` **v1.27.3** (`APP_VERSION`, l.4414; the handoff quoted v1.12.1, which was the version *before* lots 1–3). Read-only pass; no API call made.
 
 ## 0. Sources and their gaps

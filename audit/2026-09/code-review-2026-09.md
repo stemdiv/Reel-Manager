@@ -1,7 +1,7 @@
 # Audit de code — septembre 2026 / Code audit — September 2026
 
 Dépôt / Repository `stemdiv/Reel-Manager` · base `origin/main` @ `9c824eb` · app **v1.27.3** · Reel Studio, `tests.html`, `sw.js` · 24/09/2026.
-Rapports détaillés / Detailed reports: [`00-reconciliation.md`](00-reconciliation.md) · [`01-architecture.md`](01-architecture.md) · [`02-security.md`](02-security.md) · [`03-code-review.md`](03-code-review.md) · [`04-tech-debt.md`](04-tech-debt.md) · [`05-testing.md`](05-testing.md) · [`06-accessibility.md`](06-accessibility.md).
+Rapports détaillés / Detailed reports: [`00-reconciliation.md`](00-reconciliation.md) · [`01-architecture.md`](01-architecture.md) · [`02-security.md`](02-security.md) · [`03-code-review.md`](03-code-review.md) · [`04-tech-debt.md`](04-tech-debt.md) · [`05-testing.md`](05-testing.md) · [`06-accessibility.md`](06-accessibility.md) · **état des correctifs / remediation status: [`08-remediation.md`](08-remediation.md)**.
 Sans préfixe, `:N` désigne `youtube-playlist-manager.html`. / Without a prefix, `:N` means `youtube-playlist-manager.html`.
 
 ---
@@ -148,6 +148,17 @@ Pré-requis transverse : committer le pilote Playwright de la passe 5 comme cont
 | Hébergement (en-têtes HTTP, `frame-ancestors`) | « non vérifié » |
 | Rendu réel, lecteur d'écran | Non testés (passe 6 en lecture de code) |
 | Backlog v6.5 FR/EN (`.docx`) | Présent, lu. **Prochain numéro libre : #85** (et non #77) |
+
+## 7. État des correctifs au 24/09/2026
+
+Les sections 1 à 6 décrivent le code à `9c824eb` et restent telles qu'écrites. Les lots 4 à 9 ont depuis été réalisés en six pull requests empilées, non fusionnées : [#3](https://github.com/stemdiv/Reel-Manager/pull/3) → [#4](https://github.com/stemdiv/Reel-Manager/pull/4) → [#5](https://github.com/stemdiv/Reel-Manager/pull/5) → [#6](https://github.com/stemdiv/Reel-Manager/pull/6) → [#7](https://github.com/stemdiv/Reel-Manager/pull/7) → [#8](https://github.com/stemdiv/Reel-Manager/pull/8). Détail par constat, commit par commit : [`fr/08-remediation.md`](fr/08-remediation.md).
+
+- App v1.27.3 → v1.27.51, Reel Studio → 0.7.6 ; `tests.html` 281 → **447 cas, tous au vert**, sans aucun appel à l'API YouTube.
+- Sur les 53 lignes du tableau §2 : **44 corrigées**, **3 partielles** (#G6 : PKCE ; AUD-08 : `frame-ancestors` ; AUD-33 : thèmes, sélecteur, lecteurs du cache), **1 faux positif** (AUD-31), **5 ouvertes** hors lots (AUD-02, AUD-26, AUD-35, AUD-37, AUD-40).
+- Les cinq risques du top 5 (§1) sont corrigés.
+- **Nouveaux constats :** AUD-51 (P2, couvertures #I1 impossibles à envoyer, CSP sans `blob:`), AUD-52 (**P1, XSS** par la description des chaînes dans la vue Abonnements), AUD-53 (P3, écarts trouvés par axe-core), tous corrigés ; AUD-54 (P4, erreur de page non analysée) reste ouvert.
+- **Errata :** AUD-31 est un faux positif ; AUD-04 touchait 7 emplacements et non 2 ; AUD-22 et AUD-34 avaient chacun une copie de plus ; seules 5 des 16 fonctions d'AUD-33 étaient identiques ; AUD-27 comptait environ 130 textes. Liste complète : `fr/08-remediation.md` §4.
+
 
 ---
 
@@ -296,3 +307,13 @@ Cross-cutting prerequisite: commit the Pass 5 Playwright driver as a CI gate (`0
 | Hosting (HTTP headers, `frame-ancestors`) | Not verified |
 | Real rendering, screen reader | Not tested (Pass 6 is code reading) |
 | Backlog v6.5 FR/EN (`.docx`) | Present, read. **Next free number: #85** (not #77) |
+
+## 7. Remediation status as of 24/09/2026
+
+Sections 1–6 describe the code at `9c824eb` and are left as written. Lots 4–9 have since been carried out as six stacked, unmerged pull requests: [#3](https://github.com/stemdiv/Reel-Manager/pull/3) → [#4](https://github.com/stemdiv/Reel-Manager/pull/4) → [#5](https://github.com/stemdiv/Reel-Manager/pull/5) → [#6](https://github.com/stemdiv/Reel-Manager/pull/6) → [#7](https://github.com/stemdiv/Reel-Manager/pull/7) → [#8](https://github.com/stemdiv/Reel-Manager/pull/8). Detail per finding, commit by commit: [`08-remediation.md`](08-remediation.md).
+
+- App v1.27.3 → v1.27.51, Reel Studio → 0.7.6; `tests.html` 281 → **447 cases, all passing**, with no YouTube API call.
+- Of the 53 rows of the §2 table: **44 fixed**, **3 partial** (#G6: PKCE; AUD-08: `frame-ancestors`; AUD-33: themes, picker, cache readers), **1 false positive** (AUD-31), **5 open** outside the lots (AUD-02, AUD-26, AUD-35, AUD-37, AUD-40).
+- All five top risks (§1) are fixed.
+- **New findings:** AUD-51 (P2, #I1 covers could never upload, CSP without `blob:`), AUD-52 (**P1, XSS** through channel descriptions in the Subscriptions view), AUD-53 (P3, gaps found by axe-core), all fixed; AUD-54 (P4, uninvestigated page error) is open.
+- **Errata:** AUD-31 is a false positive; AUD-04 had 7 sites, not 2; AUD-22 and AUD-34 each had one more copy; only 5 of AUD-33's 16 functions were identical; AUD-27 was about 130 strings. Full list: `08-remediation.md` §4.

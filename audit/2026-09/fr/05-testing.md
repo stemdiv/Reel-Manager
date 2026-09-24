@@ -1,5 +1,7 @@
 # Passe 5 — Stratégie de test
 
+> **État (24/09/2026) :** ce rapport décrit le code à `9c824eb` (app v1.27.3). Correctifs depuis, errata et nouveaux constats : [`08-remediation.md`](08-remediation.md).
+
 > Traduction française de [`../05-testing.md`](../05-testing.md). En cas d'écart, la version anglaise fait foi pour les extraits de code.
 
 Base `origin/main` @ `9c824eb`, app **v1.27.3**. Le skill `engineering:testing-strategy` n'est pas installé : j'ai donc appliqué à la main la checklist du handoff. Aucun test n'a été écrit, conformément aux instructions. `tests.html` a été **exécuté en local** (détails au §1).

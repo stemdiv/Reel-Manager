@@ -1,5 +1,7 @@
 # Pass 4 — Technical debt
 
+> **Status (24/09/2026):** this report describes the code at `9c824eb` (app v1.27.3). Fixes since, errata and new findings: [`08-remediation.md`](08-remediation.md).
+
 Base `origin/main` @ `9c824eb`, app **v1.27.3**. Read-only. The `engineering:tech-debt` skill is not installed, so I applied the handoff's checklist by hand. Metrics come from throwaway scripts in the scratchpad (function-length scan with naive brace matching, reference counting, 6-line duplicate windows, an `I18N` eval). Every `:N` reference without a file name points to `youtube-playlist-manager.html`.
 
 ## 1. Size and shape

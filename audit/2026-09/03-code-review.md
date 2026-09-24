@@ -1,5 +1,7 @@
 # Pass 3 — Code review (whole codebase, not a diff)
 
+> **Status (24/09/2026):** this report describes the code at `9c824eb` (app v1.27.3). Fixes since, errata and new findings: [`08-remediation.md`](08-remediation.md).
+
 Base `origin/main` @ `9c824eb`, app **v1.27.3**. Read-only; no API call. The `engineering:code-review` skill is not installed, so I applied the handoff's checklist by hand. Every `:N` reference without a file name points to `youtube-playlist-manager.html`. Severity: P1 security / data loss / ToS · P2 functional or quota bug · P3 maintainability / performance · P4 cosmetic.
 
 ## Summary

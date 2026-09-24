@@ -1,5 +1,7 @@
 # Passe 6 — Accessibilité (WCAG 2.1 AA, lecture de code)
 
+> **État (24/09/2026) :** ce rapport décrit le code à `9c824eb` (app v1.27.3). Correctifs depuis, errata et nouveaux constats : [`08-remediation.md`](08-remediation.md).
+
 > Traduction française de [`../06-accessibility.md`](../06-accessibility.md). En cas d'écart, la version anglaise fait foi pour les extraits de code.
 
 Base `origin/main` @ `9c824eb`, app **v1.27.3**. Le skill `design:accessibility-review` n'est pas installé : j'ai donc appliqué à la main la checklist du handoff. Cette passe est **uniquement une analyse statique** : aucun lecteur d'écran, aucun rendu navigateur. Les ratios de contraste sont calculés à partir des jetons CSS avec un script jetable (oklch → sRGB linéaire → luminance relative WCAG). Toute référence `:N` sans nom de fichier désigne `youtube-playlist-manager.html`.

@@ -1,5 +1,7 @@
 # Passe 2 — Sécurité
 
+> **État (24/09/2026) :** ce rapport décrit le code à `9c824eb` (app v1.27.3). Correctifs depuis, errata et nouveaux constats : [`08-remediation.md`](08-remediation.md).
+
 > Traduction française de [`../02-security.md`](../02-security.md). En cas d'écart, la version anglaise fait foi pour les extraits de code.
 
 Base `origin/main` @ `9c824eb`, app **v1.27.3**. Lecture seule ; aucun OAuth exécuté, aucun appel API. Le skill `/security-review` cible un diff, j'ai donc appliqué sa méthode (fondée sur des preuves, scénario d'exploitation, sévérité) à l'ensemble du code. Toute référence `:N` sans nom de fichier désigne `youtube-playlist-manager.html`.

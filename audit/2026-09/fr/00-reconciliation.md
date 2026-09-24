@@ -1,5 +1,7 @@
 # Passe 0 — Réconciliation des lots 1–3 avec le code
 
+> **État (24/09/2026) :** ce rapport décrit le code à `9c824eb` (app v1.27.3). Correctifs depuis, errata et nouveaux constats : [`08-remediation.md`](08-remediation.md).
+
 > Traduction française de [`../00-reconciliation.md`](../00-reconciliation.md). En cas d'écart, la version anglaise fait foi pour les extraits de code.
 
 Branche d'audit `audit/2026-09`, base `origin/main` @ `9c824eb`. Code examiné : `youtube-playlist-manager.html` **v1.27.3** (`APP_VERSION`, l.4414 ; le handoff citait la v1.12.1, qui était la version *antérieure* aux lots 1–3). Passe en lecture seule ; aucun appel API effectué.
