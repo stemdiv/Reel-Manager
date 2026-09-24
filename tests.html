@@ -4542,6 +4542,28 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-36', title: 'No error is swallowed without a trace', note: '72 empty catch blocks; one of them hid v1.27.3\'s auto-categorize failure',
+  cases: [
+    ['no empty catch block is left without a reason', async w => {
+      const src = await fetch('youtube-playlist-manager.html?aud36=' + Date.now()).then(r => r.text());
+      const empty = [...src.matchAll(/catch\s*(\(\s*\w+\s*\))?\s*\{\s*\}/g)].map(m => src.slice(0, m.index).split('\n').length);
+      return eq(empty, [], 'lines with an empty catch (use swallow(), or say why in a comment)');
+    }],
+    ['swallow() leaves a trace in the diagnostic log', w => {
+      const out = aud10Logged(w, 'aud36probe', () => w.swallow('aud36probe', new Error('boom'), 'warn'));
+      return eq(out.map(e => [e.level, e.category, e.msg, e.data.msg]), [['warn', 'swallowed', 'aud36probe', 'boom']]);
+    }],
+    ['a failed redraw is recorded, and the caller still returns', w => {
+      const real = w.refreshPlaylistsList;
+      try {
+        w.refreshPlaylistsList = () => { throw new Error('aud36 redraw failed'); };
+        const out = aud10Logged(w, 'aud36 redraw failed', () => w.scrollToPlaylistCard('PL_aud36_none'));
+        return eq(out.map(e => [e.level, e.msg]), [['warn', 'scrollToPlaylistCard:redraw']]);
+      } finally { w.refreshPlaylistsList = real; }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {

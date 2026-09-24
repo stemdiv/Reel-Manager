@@ -4476,11 +4476,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.42'; // bump per release
+const APP_VERSION = '1.27.43'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.43', date: '2026-09-24', items: [
+    "MAINTENANCE (AUD-36) — 72 blocs de capture d erreur etaient vides : une erreur y disparaissait sans laisser de trace, comme celle de la categorisation automatique en 1.27.3. Chacun passe desormais par une fonction unique qui la consigne (dans la console, et dans le journal de diagnostic pour un rafraichissement d affichage qui echoue), sans interrompre l action en cours",
+  ]},
   { v: '1.27.42', date: '2026-09-24', items: [
     "MAINTENANCE (AUD-38, AUD-29) — suppression de code mort : l ancien mini-lecteur que plus rien n affichait depuis l ancrage du lecteur, le minuteur qui ne servait qu a sa barre de progression, deux fonctions jamais appelees, et une fonction globale masquee par une autre du meme nom. Aucun changement visible",
   ]},
@@ -4878,6 +4881,19 @@ function log(level, category, msg, data) {
   }
 }
 
+// AUD-36 — the one way to ignore an error on purpose. Most catches in this
+// file guard optional work (storage in private mode, a toast, a redraw) that
+// must not interrupt the caller. An empty catch also hid real bugs: v1.27.3's
+// auto-categorize fell back "without a word in the console". swallow() keeps
+// the caller running and leaves a trace: 'debug' for expected noise (visible
+// in the console, and in the log when its level is lowered), 'warn' for work
+// that should have succeeded (kept in the diagnostic log).
+function swallow(tag, err, level = 'debug') {
+  const msg = err && err.message ? err.message : String(err);
+  if (level === 'debug') { try { console.debug('[swallowed]', tag, msg); } catch (_) { /* ignore: no console */ } }
+  log(level, 'swallowed', tag, { msg });
+}
+
 /**
  * Strip known sensitive values from a data payload before persisting/exporting.
  * Defensive copy — does not mutate the input.
@@ -4952,7 +4968,7 @@ function loadPersistedLog() {
     log('info', 'app', `loaded ${tail.length} persisted log entries from previous session`);
   } catch (_) {
     // Corrupted persisted log — drop it silently
-    try { localStorage.removeItem(LOG_CONFIG.storageKey); } catch (_) {}
+    try { localStorage.removeItem(LOG_CONFIG.storageKey); } catch (e) { swallow('loadPersistedLog:storage', e); }
   }
 }
 
@@ -4965,7 +4981,7 @@ async function _logBuildHeader() {
   const nowIso = new Date().toISOString();
   // Pacific date for cross-referencing with quota reset behaviour
   let pacificDate = '';
-  try { pacificDate = getPacificDateString(); } catch (_) {}
+  try { pacificDate = getPacificDateString(); } catch (e) { swallow('_logBuildHeader:other', e); }
 
   // Anonymised user identity — first 8 hex chars of SHA-256(clientId)
   let userHash = '';
@@ -4975,7 +4991,7 @@ async function _logBuildHeader() {
       const buf = await window.crypto.subtle.digest('SHA-256', enc);
       userHash = Array.from(new Uint8Array(buf)).slice(0, 4).map(b => b.toString(16).padStart(2, '0')).join('');
     }
-  } catch (_) {}
+  } catch (e) { swallow('_logBuildHeader:other', e); }
 
   const playlistCount = (APP.playlists && APP.playlists.length) || 0;
   const videoCount = APP.allVideos ? Object.values(APP.allVideos).reduce((s, v) => s + (Array.isArray(v) ? v.length : 0), 0) : 0;
@@ -5056,7 +5072,7 @@ function applyReadOnlyMode() {
   // Safe to call anytime, including before the DOM is fully built (no-op then).
   try {
     document.body.classList.toggle('read-only', !!APP.readOnlyMode);
-  } catch (_) {}
+  } catch (e) { swallow('applyReadOnlyMode:other', e); }
 }
 
 // #B14 — showAppFromCache() rendered the header as "connected" whatever the
@@ -5071,18 +5087,18 @@ function setAccessToken(token) {
 
 function applyOfflineCacheState() {
   const offline = !APP.accessToken;
-  try { document.body.classList.toggle('offline-cache', offline); } catch (_) {}
+  try { document.body.classList.toggle('offline-cache', offline); } catch (e) { swallow('applyOfflineCacheState:other', e); }
   return offline;
 }
 
 function setReadOnlyMode(enabled) {
   APP.readOnlyMode = !!enabled;
-  try { localStorage.setItem('readOnlyMode', APP.readOnlyMode ? '1' : '0'); } catch (_) {}
+  try { localStorage.setItem('readOnlyMode', APP.readOnlyMode ? '1' : '0'); } catch (e) { swallow('setReadOnlyMode:storage', e); }
   applyReadOnlyMode();
   log('info', 'action', 'read-only mode ' + (APP.readOnlyMode ? 'enabled' : 'disabled'));
   showToast(t(APP.readOnlyMode ? 'readonly_toast_enabled' : 'readonly_toast_disabled'), 'info');
   // Re-render the dashboard so any newly-hidden / revealed write buttons settle
-  try { refreshPlaylistsList(); } catch (_) {}
+  try { refreshPlaylistsList(); } catch (e) { swallow('setReadOnlyMode:redraw', e, 'warn'); }
 }
 
 // ============================================================================
@@ -5106,7 +5122,7 @@ const BOOKMARK_ID_REGEX = /^(PL|LL|FL|UU|RD|OL|WL|PU|LP)[A-Za-z0-9_-]{10,}$/;
  */
 function readBookmarkDeepLink(search) {
   let raw = null;
-  try { raw = new URLSearchParams(search || '').get('bookmark'); } catch (_) {}
+  try { raw = new URLSearchParams(search || '').get('bookmark'); } catch (e) { swallow('readBookmarkDeepLink:other', e); }
   if (!raw) return null;
   const id = extractPlaylistId(raw);
   if (id) log('info', 'action', 'deep-link bookmark detected', { id: id.substring(0, 8) + '…' });
@@ -5610,7 +5626,7 @@ function readQuotaState() {
   const legacy = localStorage.getItem('quotaUnits');
   if (legacy !== null) {
     if (!localStorage.getItem('quotaState')) q.pool = parseInt(legacy, 10) || 0;
-    try { localStorage.removeItem('quotaUnits'); } catch (_) {}
+    try { localStorage.removeItem('quotaUnits'); } catch (e) { swallow('readQuotaState:storage', e); }
   }
   return q;
 }
@@ -5892,7 +5908,7 @@ function showAppFromCache() {
       const info = JSON.parse(cachedUser);
       APP.userInfo = info;
       renderUserInfo(info);
-    } catch (_) {}
+    } catch (e) { swallow('showAppFromCache:parse', e); }
   }
 
   console.log(`[Cache-first] Displaying dashboard from backup: ${APP.playlists.length} playlists, ${Object.values(APP.allVideos).reduce((s, v) => s + v.length, 0)} videos — 0 API calls`);
@@ -6024,7 +6040,7 @@ var cacheStore = (() => {
 
     // The timestamp stays in localStorage too: several callers read it
     // synchronously to decide what to show before anything is awaited.
-    try { localStorage.setItem(LEGACY_CACHE_TS_KEY, timestamp); } catch (_) {}
+    try { localStorage.setItem(LEGACY_CACHE_TS_KEY, timestamp); } catch (e) { swallow('showAppFromCache:storage', e); }
     return { backend: 'indexeddb', bytes: null };
   }
 
@@ -6082,7 +6098,7 @@ var cacheStore = (() => {
   }
 
   async function clear() {
-    try { localStorage.removeItem(LEGACY_CACHE_KEY); localStorage.removeItem(LEGACY_CACHE_TS_KEY); } catch (_) {}
+    try { localStorage.removeItem(LEGACY_CACHE_KEY); localStorage.removeItem(LEGACY_CACHE_TS_KEY); } catch (e) { swallow('showAppFromCache:storage', e); }
     const db = await open();
     if (!db) return;
     await new Promise(resolve => {
@@ -6109,13 +6125,13 @@ var cacheStore = (() => {
     let blob;
     try { blob = JSON.parse(raw); } catch (_) {
       // Unparseable and now unreachable: dropping it is the only useful move.
-      try { localStorage.removeItem(LEGACY_CACHE_KEY); } catch (_) {}
+      try { localStorage.removeItem(LEGACY_CACHE_KEY); } catch (e) { swallow('migrateLegacy:storage', e); }
       return { migrated: false, reason: 'legacy blob was corrupt — discarded' };
     }
     const videos = (blob.playlists || []).reduce((s, p) => s + ((p.videos && p.videos.length) || 0), 0);
     await writeAll(blob);
     // Only now is it safe to drop: the new copy is committed.
-    try { localStorage.removeItem(LEGACY_CACHE_KEY); } catch (_) {}
+    try { localStorage.removeItem(LEGACY_CACHE_KEY); } catch (e) { swallow('migrateLegacy:storage', e); }
     return { migrated: true, playlists: (blob.playlists || []).length, videos };
   }
 
@@ -6459,7 +6475,7 @@ function importBackupFromLoginScreen(input) {
 
       const count = backup.playlists.length;
       log('info', 'backup', 'imported from login screen', { playlists: count, sizeKb: Math.round(text.length / 1024) });
-      try { persistLog(); } catch (_) {} // survive the reload
+      try { persistLog(); } catch (_) { /* ignore: the logger reporting on itself */ } // survive the reload
       showToast(t('toast_import_success', { count }), 'success');
 
       // Brief pause so the user sees the toast, then reload to let init() pick it up.
@@ -6670,7 +6686,7 @@ async function ensureWriteScope() {
   setAccessToken(result.token);
   if (result.expiresIn > 0) {
     APP.tokenExpiresAt = Date.now() + result.expiresIn * 1000;
-    try { sessionStorage.setItem('tokenExpiresAt', String(APP.tokenExpiresAt)); } catch (_) {}
+    try { sessionStorage.setItem('tokenExpiresAt', String(APP.tokenExpiresAt)); } catch (e) { swallow('ensureWriteScope:storage', e); }
   }
   log('info', 'oauth', 'write scope granted via popup — resuming action');
   return true;
@@ -6741,11 +6757,11 @@ async function purgeLocalData(opts) {
     APP.log.length = 0;
     APP_DIRTY = false;     // nothing left to save — no "unsaved changes" prompt
   }
-  APP_STORAGE_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
-  APP_SESSION_KEYS.forEach(k => { try { sessionStorage.removeItem(k); } catch (_) {} });
+  APP_STORAGE_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch (e) { swallow('purgeLocalData:storage', e); } });
+  APP_SESSION_KEYS.forEach(k => { try { sessionStorage.removeItem(k); } catch (e) { swallow('purgeLocalData:storage', e); } });
   // #G11 — the cache is a database, not one of those keys. Awaited: a caller
   // that reads the cache next must not find half of it.
-  try { await cacheStore.clear(); } catch (_) {}
+  try { await cacheStore.clear(); } catch (e) { swallow('purgeLocalData:storage', e); }
 }
 
 // ============================================================================
@@ -6783,7 +6799,7 @@ async function runCacheDiagnostic() {
       if (key === 'lastBackup') backupBytes = size;
       if (key === 'autoCache') cacheBytes = size;
     }
-  } catch (_) {}
+  } catch (e) { swallow('runCacheDiagnostic:storage', e); }
   const totalKB = (totalBytes / 1024).toFixed(1);
   const backupKB = (backupBytes / 1024).toFixed(1);
   const cacheKB = (cacheBytes / 1024).toFixed(1);
@@ -6808,14 +6824,14 @@ async function runCacheDiagnostic() {
       const b = JSON.parse(manualRaw);
       manualPl = b.playlists?.length || 0;
       manualVid = b.playlists?.reduce((s, p) => s + (p.videos?.length || 0), 0) || 0;
-    } catch (_) { }
+    } catch (e) { swallow('runCacheDiagnostic:parse', e); }
   }
 
   // Auto-cache data — #G11: in IndexedDB unless the fallback is in play.
   const cacheTs = localStorage.getItem('autoCacheTimestamp');
   const idbLive = await cacheStore.available().catch(() => false);
   let cacheBlob = null;
-  try { cacheBlob = await cacheStore.readAll(); } catch (_) {}
+  try { cacheBlob = await cacheStore.readAll(); } catch (e) { swallow('runCacheDiagnostic:storage', e); }
   const cacheRaw = cacheBlob ? 'idb' : null;   // "is there a cache at all"
   let cachePl = 0, cacheVid = 0;
   if (cacheBlob) {
@@ -6842,7 +6858,7 @@ async function runCacheDiagnostic() {
     try {
       const cb = JSON.parse(cacheRaw);
       cb.playlists?.forEach(p => p.videos?.forEach(v => { if (v.thumbnail) cacheThumbCount++; }));
-    } catch (_) {}
+    } catch (e) { swallow('runCacheDiagnostic:parse', e); }
   }
 
   // Coverage: a cache with playlists but no videos looks fine in the counts and
@@ -6852,7 +6868,7 @@ async function runCacheDiagnostic() {
     try {
       const cb = JSON.parse(cacheRaw);
       cachePlWithVideos = (cb.playlists || []).filter(p => (p.videos?.length || 0) > 0).length;
-    } catch (_) {}
+    } catch (e) { swallow('runCacheDiagnostic:parse', e); }
   }
 
   // Health verdict — the line that turns numbers into a diagnosis.
@@ -7007,7 +7023,7 @@ function writeScopeAtLogin() {
 }
 
 function setWriteScopeAtLogin(on) {
-  try { localStorage.setItem('writeScopeAtLogin', on ? '1' : '0'); } catch (_) {}
+  try { localStorage.setItem('writeScopeAtLogin', on ? '1' : '0'); } catch (e) { swallow('setWriteScopeAtLogin:storage', e); }
   log('info', 'oauth', 'write scope at sign-in ' + (on ? 'enabled' : 'disabled'));
 }
 
@@ -7055,10 +7071,10 @@ function buildAuthUrl(scope, state) {
 function startOAuth(scope) {
   const s = scope || currentScope;
   const state = newOAuthState();
-  try { sessionStorage.setItem(OAUTH_STATE_KEY, state); } catch (_) {}
+  try { sessionStorage.setItem(OAUTH_STATE_KEY, state); } catch (e) { swallow('startOAuth:storage', e); }
   log('info', 'oauth', 'redirecting to Google OAuth', { scope: s });
   // Persist the in-memory log before redirecting away — we'd lose it otherwise
-  try { persistLog(); } catch (_) {}
+  try { persistLog(); } catch (_) { /* ignore: the logger reporting on itself */ }
   window.location.href = buildAuthUrl(s, state);
 }
 
@@ -7157,7 +7173,7 @@ let _oauthHash = '';
 function takeOAuthHash() {
   const hash = window.location.hash || '';
   if (!hash.includes('access_token=')) return '';
-  try { window.history.replaceState({}, document.title, window.location.pathname + window.location.search); } catch (_) {}
+  try { window.history.replaceState({}, document.title, window.location.pathname + window.location.search); } catch (e) { swallow('takeOAuthHash:history', e); }
   return hash;
 }
 
@@ -7169,7 +7185,7 @@ function checkAuth() {
     if (!params.get('access_token')) return;
     // #G6 — a token is accepted only as the answer to a sign-in this tab started
     let expected = null;
-    try { expected = sessionStorage.getItem(OAUTH_STATE_KEY); sessionStorage.removeItem(OAUTH_STATE_KEY); } catch (_) {}
+    try { expected = sessionStorage.getItem(OAUTH_STATE_KEY); sessionStorage.removeItem(OAUTH_STATE_KEY); } catch (e) { swallow('checkAuth:storage', e); }
     if (!expected || params.get('state') !== expected) {
       window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
       log('warn', 'oauth', 'token refused: state missing or not ours', { stateSent: !!params.get('state'), stateExpected: !!expected });
@@ -7184,7 +7200,7 @@ function checkAuth() {
       const expiresIn = parseInt(params.get('expires_in') || '', 10);
       if (Number.isFinite(expiresIn) && expiresIn > 0) {
         APP.tokenExpiresAt = Date.now() + expiresIn * 1000;
-        try { sessionStorage.setItem('tokenExpiresAt', String(APP.tokenExpiresAt)); } catch (_) {}
+        try { sessionStorage.setItem('tokenExpiresAt', String(APP.tokenExpiresAt)); } catch (e) { swallow('checkAuth:storage', e); }
       }
       applyOfflineCacheState();   // the expiry above is only known after setAccessToken
       log('info', 'oauth', 'access token received', { scope: currentScope, expiresIn: expiresIn || '(not given)' });
@@ -7213,7 +7229,7 @@ function checkAuth() {
 
 function handleLogout() {
   log('info', 'oauth', 'logout');
-  try { persistLog(); } catch (_) {}
+  try { persistLog(); } catch (_) { /* ignore: the logger reporting on itself */ }
   setAccessToken('');
   APP.userInfo = null;
   // Mark as explicitly logged out so init() doesn't auto-show from cache
@@ -7405,7 +7421,7 @@ function cpDrag(el, onMove) {
     renderPicker();
   };
   el.addEventListener('pointerdown', ev => {
-    try { el.setPointerCapture(ev.pointerId); } catch (_) {}
+    try { el.setPointerCapture(ev.pointerId); } catch (e) { swallow('cpDrag:other', e); }
     handle(ev);
     const move = e => handle(e);
     const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); };
@@ -8340,7 +8356,7 @@ async function loadUserInfo() {
       const info = JSON.parse(cached);
       APP.userInfo = info;
       renderUserInfo(info);
-    } catch (_) {}
+    } catch (e) { swallow('loadUserInfo:parse', e); }
   }
 
   try {
@@ -8635,7 +8651,7 @@ function trendingCategory() {
 }
 
 function setTrendingCategory(id) {
-  try { localStorage.setItem('trendingCategory', id); } catch (_) {}
+  try { localStorage.setItem('trendingCategory', id); } catch (e) { swallow('setTrendingCategory:storage', e); }
   trendingVideos = [];
   loadTrending();
 }
@@ -8907,7 +8923,7 @@ function scrollToPlaylistCard(playlistId) {
   const ensureRendered = () => document.querySelector(`.playlist-card[data-playlist-id="${playlistId}"]`);
   let card = ensureRendered();
   if (!card) {
-    try { refreshPlaylistsList(); } catch (_) {}
+    try { refreshPlaylistsList(); } catch (e) { swallow('scrollToPlaylistCard:redraw', e, 'warn'); }
     card = ensureRendered();
   }
   if (!card) return;
@@ -8959,7 +8975,7 @@ function onYouTubeIframeAPIReady() {
 // left. Without this, opening the video on youtube.com (or switching to the
 // YouTube app) leaves two videos playing at once.
 function pauseEmbeddedPlayer() {
-  try { if (PLAYER.ytPlayer && PLAYER.ytPlayer.pauseVideo) PLAYER.ytPlayer.pauseVideo(); } catch (_) {}
+  try { if (PLAYER.ytPlayer && PLAYER.ytPlayer.pauseVideo) PLAYER.ytPlayer.pauseVideo(); } catch (e) { swallow('pauseEmbeddedPlayer:other', e); }
 }
 document.addEventListener('visibilitychange', () => { if (document.hidden) pauseEmbeddedPlayer(); });
 window.addEventListener('pagehide', pauseEmbeddedPlayer);
@@ -9993,7 +10009,7 @@ function playlistViewsLabel(playlistId) {
 
 function togglePlaylistViews() {
   const on = document.getElementById('showPlaylistViews')?.checked;
-  try { localStorage.setItem('showPlaylistViews', on ? '1' : '0'); } catch (_) {}
+  try { localStorage.setItem('showPlaylistViews', on ? '1' : '0'); } catch (e) { swallow('togglePlaylistViews:storage', e); }
   if (!on) { playlistViewTotals = {}; refreshPlaylistsList(); return; }
   loadPlaylistViewTotals();
 }
@@ -10355,7 +10371,7 @@ async function ensureClassificationData(videos) {
         if (d.topicDetails && d.topicDetails.topicCategories) v.topicCategories = d.topicDetails.topicCategories;
       }
     }
-    try { refreshCategoryFilterOptions(); } catch (e) {}
+    try { refreshCategoryFilterOptions(); } catch (e) { swallow('ensureClassificationData:redraw', e, 'warn'); }
     return need.length;
   } catch (e) { console.warn('ensureClassificationData', e); return 0; }
 }
@@ -10637,7 +10653,7 @@ function libraryLens() {
 
 function setLibraryLens(lens) {
   const next = LIBRARY_LENSES.includes(lens) ? lens : 'all';
-  try { localStorage.setItem('libraryLens', next); } catch (_) {}
+  try { localStorage.setItem('libraryLens', next); } catch (e) { swallow('setLibraryLens:storage', e); }
   log('info', 'action', 'library lens', { lens: next });
   renderLibraryLens();
   refreshPlaylistsList();
@@ -10679,7 +10695,7 @@ function readPlaylistViewModes() {
 function setPlaylistViewMode(playlistId, mode) {
   const all = readPlaylistViewModes();
   if (mode) all[playlistId] = mode; else delete all[playlistId];
-  try { localStorage.setItem('playlistViewMode', JSON.stringify(all)); } catch (_) {}
+  try { localStorage.setItem('playlistViewMode', JSON.stringify(all)); } catch (e) { swallow('setPlaylistViewMode:storage', e); }
   return mode;
 }
 
@@ -10847,7 +10863,7 @@ function classifyVideoType(v) {
       } catch (e) { /* ignore */ }
     }
     let topics = v.topicCategories;
-    if (!topics) { try { const _c = (typeof videoDetailsCache !== 'undefined') ? videoDetailsCache : undefined; if (v.videoId && _c && _c[v.videoId] && _c[v.videoId].topicDetails) topics = _c[v.videoId].topicDetails.topicCategories; } catch (e) {} }
+    if (!topics) { try { const _c = (typeof videoDetailsCache !== 'undefined') ? videoDetailsCache : undefined; if (v.videoId && _c && _c[v.videoId] && _c[v.videoId].topicDetails) topics = _c[v.videoId].topicDetails.topicCategories; } catch (e) { swallow('classifyVideoType:topics', e); } }
     topics = Array.isArray(topics) ? topics : [];
     const topicSegs = topics.map(u => String(u).split('/').pop());
     const topicIsMusic = topicSegs.some(s => /music/i.test(s) || /^(Jazz|Reggae|Blues|Soul|Country)$/i.test(s));
@@ -10881,7 +10897,7 @@ async function onCategoryFilterChange() {
     const need = currentDetailVideos.some(x => (x.categoryId === undefined || x.categoryId === null) && !x.topicCategories);
     if (need) {
       if (sel) sel.disabled = true;
-      try { showToast('Analyse des catégories…', 'info'); } catch (e) {}
+      try { showToast('Analyse des catégories…', 'info'); } catch (e) { swallow('onCategoryFilterChange:toast', e); }
       await ensureClassificationData(currentDetailVideos);
       refreshCategoryFilterOptions();
       if (sel) sel.disabled = false;
@@ -10910,9 +10926,9 @@ async function onFilterTypeChange() {
     const need = currentDetailVideos.some(x => (x.categoryId === undefined || x.categoryId === null) && !x.topicCategories);
     if (need) {
       if (sel) sel.disabled = true;
-      try { showToast('Analyse du contenu… (topics)', 'info'); } catch (e) {}
+      try { showToast('Analyse du contenu… (topics)', 'info'); } catch (e) { swallow('onFilterTypeChange:toast', e); }
       const n = await ensureClassificationData(currentDetailVideos);
-      try { showToast('Contenu analysé : ' + n + ' vidéos enrichies', 'success'); } catch (e) {}
+      try { showToast('Contenu analysé : ' + n + ' vidéos enrichies', 'success'); } catch (e) { swallow('onFilterTypeChange:toast', e); }
       if (sel) sel.disabled = false;
     }
   }
@@ -11031,10 +11047,10 @@ function renderFilteredVideos(videos) {
     const safeThumb = escapeJsAttr(v.thumbnail);
     const playlistItemId = v.id || '';
     let genreBadge = '';
-    try { const _cls = classifyVideoType(v); if (_cls.genre) genreBadge = `<span style="font-size:10px;color:var(--accent-text);border:1px solid var(--accent-line,rgba(255,45,85,.35));padding:0 6px;border-radius:999px;white-space:nowrap;">${escapeHtml(_cls.genre)}</span>`; } catch (e) {}
+    try { const _cls = classifyVideoType(v); if (_cls.genre) genreBadge = `<span style="font-size:10px;color:var(--accent-text);border:1px solid var(--accent-line,rgba(255,45,85,.35));padding:0 6px;border-radius:999px;white-space:nowrap;">${escapeHtml(_cls.genre)}</span>`; } catch (e) { swallow('renderFilteredVideos:badge', e); }
 
     let catBadge = '';
-    try { if (v.categoryId) { const _cn = getCategoryName(v.categoryId); if (_cn) catBadge = `<span style="font-size:10px;color:var(--text2);border:1px solid var(--border,#333);padding:0 6px;border-radius:999px;white-space:nowrap;">${escapeHtml(_cn)}</span>`; } } catch (e) {}
+    try { if (v.categoryId) { const _cn = getCategoryName(v.categoryId); if (_cn) catBadge = `<span style="font-size:10px;color:var(--text2);border:1px solid var(--border,#333);padding:0 6px;border-radius:999px;white-space:nowrap;">${escapeHtml(_cn)}</span>`; } } catch (e) { swallow('renderFilteredVideos:badge', e); }
     const shortBadge = v.isShort ? shortBadgeHTML() : '';
     const clickPlay = isReorder ? '' : `onclick="playVideo('${v.videoId}','${safeTitle}','${safeChannel}','${safeThumb}')"`;
     const cardDrag = isReorder ? `draggable="true" ondragstart="onVideoDragStart(event)" ondragover="onVideoDragOver(event)" ondragleave="onVideoDragLeave(event)" ondrop="onVideoDrop(event)" data-item-id="${playlistItemId}" data-video-id="${v.videoId}" data-position="${v.position}"` : '';
@@ -11117,7 +11133,7 @@ function queueTrackNext(videoId) {
                  thumbnail: v.thumbnail, playlistId: currentDetailPlaylistId, channelId: '' };
   const at = PLAYER.currentIndex >= 0 ? PLAYER.currentIndex + 1 : PLAYER.queue.length;
   PLAYER.queue.splice(at, 0, item);
-  if (typeof renderQueueList === 'function') { try { renderQueueList(); } catch (_) {} }
+  if (typeof renderQueueList === 'function') { try { renderQueueList(); } catch (e) { swallow('queueTrackNext:redraw', e, 'warn'); } }
   log('info', 'action', 'queue play from music view', { queueLength: PLAYER.queue.length });
   showToast(t('music_queued', { title: v.title }), 'success');
 }
@@ -11133,7 +11149,7 @@ function shuffleCurrentPlaylist() {
 // lens (#17), but its saved state stayed live: a user who had it on could no
 // longer turn it off, and "Reset" reset the filters *to* Music. The state is
 // gone; this drops the key a previous version may have left behind.
-try { localStorage.removeItem('reelMusicMode'); } catch (_) {}
+try { localStorage.removeItem('reelMusicMode'); } catch (e) { swallow('shuffleCurrentPlaylist:storage', e); }
 
 function resetVideoFilters() {
   document.getElementById('filterSearch').value = '';
@@ -11144,7 +11160,7 @@ function resetVideoFilters() {
   if (ft) ft.value = 'all';
   const fc = document.getElementById('filterCategory');
   if (fc) fc.value = 'all';
-  try { refreshCategoryFilterOptions(); } catch (e) {}
+  try { refreshCategoryFilterOptions(); } catch (e) { swallow('resetVideoFilters:redraw', e, 'warn'); }
   applyVideoFilters();
 }
 
@@ -11650,7 +11666,7 @@ async function performGlobalSearch() {
   `).join('');
 
   document.getElementById('globalSearchResults').innerHTML = html;
-  try { gsRefreshCategoryOptions(); } catch (e) {}
+  try { gsRefreshCategoryOptions(); } catch (e) { swallow('performGlobalSearch:redraw', e, 'warn'); }
 
   // Save successful search to recent list and hide dropdown
   saveRecentSearch(document.getElementById('globalSearchInput').value.trim());
@@ -12193,12 +12209,12 @@ function saveDiscoverFilters() {
   }
   const emb = document.getElementById('discoverEmbeddable');
   if (emb) state.discoverEmbeddable = emb.checked;
-  try { localStorage.setItem('discoverFilters', JSON.stringify(state)); } catch (_) {}
+  try { localStorage.setItem('discoverFilters', JSON.stringify(state)); } catch (e) { swallow('saveDiscoverFilters:storage', e); }
 }
 
 function loadDiscoverFilters() {
   let saved = {};
-  try { saved = JSON.parse(localStorage.getItem('discoverFilters') || '{}') || {}; } catch (_) {}
+  try { saved = JSON.parse(localStorage.getItem('discoverFilters') || '{}') || {}; } catch (e) { swallow('loadDiscoverFilters:storage', e); }
   for (const [id, fallback] of Object.entries(DISCOVER_FILTER_FIELDS)) {
     const el = document.getElementById(id);
     if (!el) continue;
@@ -12834,7 +12850,7 @@ async function loadPlaylistVideosForMove() {
 
   moveVideosCache = APP.allVideos[playlistId] || [];
   const mcf = document.getElementById('moveCategoryFilter'); if (mcf) mcf.value = '';
-  try { populateMoveCategoryOptions(); } catch (e) {}
+  try { populateMoveCategoryOptions(); } catch (e) { swallow('loadPlaylistVideosForMove:redraw', e, 'warn'); }
   const thumbBtn = document.getElementById('moveLoadThumbsBtn');
   if (thumbBtn) thumbBtn.style.display = moveViewMode === 'grid' && moveVideosCache.length ? 'inline-flex' : 'none';
   renderMoveVideos();
@@ -12913,7 +12929,7 @@ async function onMoveCategorySelect() {
   const sel = document.getElementById('moveCategoryFilter'); const val = sel ? sel.value : '';
   if (!val) return;
   sel.disabled = true;
-  try { showToast('Analyse des catégories…', 'info'); } catch (e) {}
+  try { showToast('Analyse des catégories…', 'info'); } catch (e) { swallow('onMoveCategorySelect:toast', e); }
   await ensureMoveCategories();
   populateMoveCategoryOptions(); sel.value = val;
   let n = 0;
@@ -12923,7 +12939,7 @@ async function onMoveCategorySelect() {
     cb.checked = !!match; if (match) n++;
   });
   sel.disabled = false;
-  try { showToast(n + ' vidéo(s) sélectionnée(s) — ' + getCategoryName(val), 'success'); } catch (e) {}
+  try { showToast(n + ' vidéo(s) sélectionnée(s) — ' + getCategoryName(val), 'success'); } catch (e) { swallow('onMoveCategorySelect:toast', e); }
 }
 
 async function performMove() {
@@ -12992,7 +13008,7 @@ async function performMove() {
     // half-way; showing either from memory would show the wrong content.
     delete APP.allVideos[destId];
     delete APP.allVideos[sourceId];
-    try { await loadAllPlaylists(); } catch (_) {}
+    try { await loadAllPlaylists(); } catch (e) { swallow('performMove:redraw', e, 'warn'); }
   }
 
   if (abortMsg !== null) {
@@ -14769,7 +14785,7 @@ async function subscribeToChannel(channelId, channelTitle) {
   if (data && data.id) {
     APP.subscriptions.push(data);
     _subscriptionProbe[channelId] = data.id;
-    try { autoSaveToLocalStorage(); } catch (_) {}
+    try { autoSaveToLocalStorage(); } catch (e) { swallow('subscribeToChannel:redraw', e, 'warn'); }
   }
   return data;
 }
@@ -14797,7 +14813,7 @@ async function toggleSubscription(channelId, channelTitle) {
   }
   refreshSubscribeButtons();
   if (typeof renderSubscriptions === 'function' && APP.subscriptions.length) {
-    try { renderSubscriptions(); } catch (_) {}
+    try { renderSubscriptions(); } catch (e) { swallow('toggleSubscription:redraw', e, 'warn'); }
   }
 }
 
@@ -15857,7 +15873,7 @@ function showToast(message, type = 'info', action = null) {
     const btn = document.createElement('button');
     btn.className = 'toast-action';
     btn.textContent = action.label;
-    btn.onclick = () => { toast.remove(); try { action.onClick && action.onClick(); } catch (_) {} };
+    btn.onclick = () => { toast.remove(); try { action.onClick && action.onClick(); } catch (e) { swallow('toastAction', e, 'warn'); } };
     toast.appendChild(btn);
     life = CONFIG.TOAST_ACTION_MS;
   }
@@ -16097,7 +16113,7 @@ window.addEventListener('error', (e) => {
       col: e.colno,
       stack: e.error && e.error.stack ? String(e.error.stack).split('\n').slice(0, 6).join('\n') : undefined,
     });
-  } catch (_) {}
+  } catch (_) { /* ignore: the logger reporting on itself */ }
 });
 
 window.addEventListener('unhandledrejection', (e) => {
@@ -16107,12 +16123,12 @@ window.addEventListener('unhandledrejection', (e) => {
       message: reason && reason.message ? reason.message : String(reason),
       stack: reason && reason.stack ? String(reason.stack).split('\n').slice(0, 6).join('\n') : undefined,
     });
-  } catch (_) {}
+  } catch (_) { /* ignore: the logger reporting on itself */ }
 });
 
 // Persist the last N entries on unload so logs survive a refresh/crash
 window.addEventListener('beforeunload', () => {
-  try { persistLog(); } catch (_) {}
+  try { persistLog(); } catch (_) { /* ignore: the logger reporting on itself */ }
 });
 </script>
 
