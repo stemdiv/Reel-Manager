@@ -4144,6 +4144,34 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-48', title: 'Toasts are announced and wait for the user', note: 'no live region, so feedback was silent for screen readers; an action toast vanished after 10 s whatever the user was doing',
+  cases: [
+    ['the toast area is a live region, and errors are alerts', w => {
+      const box = w.document.getElementById('toastContainer');
+      eq([box.getAttribute('role'), box.getAttribute('aria-live')], ['status', 'polite'], 'container');
+      const r = aud48Toast(w, 'error', null, t => t.el.getAttribute('role'));
+      eq(r, 'alert', 'error toast');
+      return eq(aud48Toast(w, 'success', null, t => t.el.getAttribute('role')), null, 'success toast');
+    }],
+    ['the countdown stops under the pointer and resumes after', w => aud48Toast(w, 'info', null, t => {
+      eq(t.live().map(x => x.ms), [3000], 'first countdown');
+      t.el.dispatchEvent(new w.MouseEvent('mouseenter'));
+      eq(t.live().length, 0, 'countdown still running under the pointer');
+      t.el.dispatchEvent(new w.MouseEvent('mouseleave'));
+      const [again] = t.live();
+      ok(again && again.ms > 0 && again.ms <= 3000, 'did not resume with the time left: ' + JSON.stringify(t.live()));
+      again.fn();
+      t.live().forEach(x => x.fn());   // the fade-out
+      return eq(t.el.isConnected, false, 'dismissed after resuming');
+    })],
+    ['focus on the action button holds the toast', w => aud48Toast(w, 'error', { label: 'Reconnect', onClick: () => {} }, t => {
+      eq(t.live().map(x => x.ms), [10000], 'action toast life');
+      t.el.querySelector('button').dispatchEvent(new w.FocusEvent('focusin', { bubbles: true }));
+      return eq(t.live().length, 0, 'countdown still running with focus inside');
+    })],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -4382,6 +4410,25 @@ async function runRetry(w, method, script) {
     catch (e) { threw = true; message = e.message; }
     return { fetches, threw, message, toasts };
   } finally { Object.assign(w, real); }
+}
+
+// AUD-48 — show one real toast under a fake clock: setTimeout calls are
+// recorded instead of scheduled, so a test can see and fire them.
+function aud48Toast(w, type, action, body) {
+  const real = { setTimeout: w.setTimeout, clearTimeout: w.clearTimeout };
+  const timers = [];
+  let el = null;
+  try {
+    w.setTimeout = (fn, ms) => { timers.push({ fn, ms, cleared: false }); return timers.length; };
+    w.clearTimeout = id => { if (timers[id - 1]) timers[id - 1].cleared = true; };
+    w.showToast('aud48', type, action);
+    el = w.document.getElementById('toastContainer').lastElementChild;
+    const live = () => timers.filter(x => !x.cleared && !x.fired).map(x => ({ ...x, fn: () => { x.fired = true; x.fn(); } }));
+    return body({ el, live });
+  } finally {
+    Object.assign(w, real);
+    if (el) el.remove();
+  }
 }
 
 // AUD-46 — focus a fresh element in a rendered app frame and read its outline.

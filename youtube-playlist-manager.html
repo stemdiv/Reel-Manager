@@ -2695,7 +2695,8 @@
 </div>
 
 <!-- TOAST CONTAINER -->
-<div class="toast-container" id="toastContainer"></div>
+<!-- AUD-48 — a polite live region: every toast is announced; errors use role="alert" -->
+<div class="toast-container" id="toastContainer" role="status" aria-live="polite"></div>
 
 <!-- IN-APP PLAYER MODAL (Beta) -->
 <div class="player-modal-overlay" id="playerModalOverlay" onclick="if (event.target === this && !this.classList.contains('docked')) closePlayerModal()">
@@ -4500,11 +4501,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.33'; // bump per release
+const APP_VERSION = '1.27.34'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.34', date: '2026-09-24', items: [
+    "ACCESSIBILITE (AUD-48) — les notifications (succes, erreurs, alertes de quota) n etaient pas annoncees par les lecteurs d ecran, et une notification avec bouton, comme Se reconnecter, disparaissait apres 10 s quoi qu on fasse. Elles sont desormais annoncees (les erreurs immediatement) et restent affichees tant que le pointeur ou le focus est dessus",
+  ]},
   { v: '1.27.33', date: '2026-09-24', items: [
     "ACCESSIBILITE (AUD-47) — la page se declarait toujours en francais, meme en anglais : un lecteur d ecran prononcait alors l interface anglaise a la francaise. La langue de la page suit desormais celle de l interface. La politique de confidentialite, texte juridique jusqu ici uniquement en francais, existe maintenant en anglais",
   ]},
@@ -15806,6 +15810,7 @@ function closeModal(event) {
 function showToast(message, type = 'info', action = null) {
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
+  if (type === 'error') toast.setAttribute('role', 'alert');   // AUD-48 — announced at once
   const text = document.createElement('span');
   text.textContent = message;
   toast.appendChild(text);
@@ -15822,11 +15827,32 @@ function showToast(message, type = 'info', action = null) {
 
   document.getElementById('toastContainer').appendChild(toast);
 
-  setTimeout(() => {
+  // AUD-48 — the countdown stops while the pointer is over the toast or focus
+  // is inside it, so an action like "Reconnect" can be reached at any pace
+  // (WCAG 2.2.1). It resumes with the time that was left.
+  let remaining = life, started = 0, timer = null;
+  const dismiss = () => {
+    timer = null;
     if (!toast.isConnected) return;
     toast.style.animation = 'slideInRight 0.3s reverse';
     setTimeout(() => toast.remove(), 300);
-  }, life);
+  };
+  const run = () => {
+    if (timer !== null) return;
+    started = Date.now();
+    timer = setTimeout(dismiss, remaining);
+  };
+  const hold = () => {
+    if (timer === null) return;
+    clearTimeout(timer);
+    timer = null;
+    remaining = Math.max(0, remaining - (Date.now() - started));
+  };
+  toast.addEventListener('mouseenter', hold);
+  toast.addEventListener('focusin', hold);
+  toast.addEventListener('mouseleave', () => { if (!toast.contains(document.activeElement)) run(); });
+  toast.addEventListener('focusout', e => { if (!toast.contains(e.relatedTarget) && !toast.matches(':hover')) run(); });
+  run();
 }
 
 function showProgressBar(containerId, current, total) {
