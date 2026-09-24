@@ -3318,6 +3318,7 @@ const I18N = {
     modal_cancel: 'Annuler',
     modal_save: 'Sauvegarder',
     modal_close: 'Fermer',
+    version_changelog_unavailable: 'Le journal des modifications n\'a pas pu être chargé.',
     // AUD-27 — strings that were written into templates, errors and toasts
     autotag_music: 'Musique', autotag_education: 'Éducation', autotag_entertainment: 'Divertissement',
     err_write_required: 'Accès en écriture requis — veuillez ré-autoriser l\'application',
@@ -4217,6 +4218,7 @@ const I18N = {
     modal_cancel: 'Cancel',
     modal_save: 'Save',
     modal_close: 'Close',
+    version_changelog_unavailable: 'The changelog could not be loaded.',
     // AUD-27
     autotag_music: 'Music', autotag_education: 'Education', autotag_entertainment: 'Entertainment',
     err_write_required: 'Write access required — please authorise the app again',
@@ -4644,348 +4646,12 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.48'; // bump per release
+const APP_VERSION = '1.27.49'; // bump per release
 
-// Shipped increments, newest first. Surfaced by showVersionInfo() so the running
-// build is identifiable at a glance — a stale service worker is otherwise silent.
-const CHANGELOG = [
-  { v: '1.27.48', date: '2026-09-24', items: [
-    "TAGS (#J3) — le genre musical d une vidéo n était qu un badge. La catégorisation automatique propose désormais aussi le genre que partage la musique d une playlist (au moins deux vidéos, et la moitié d entre elles), en plus de sa catégorie ; Appliquer écrit les deux tags. Aucun appel supplémentaire",
-  ]},
-  { v: '1.27.47', date: '2026-09-24', items: [
-    "MUSIQUE (AUD-25) — le filtre Musique et la vue Musique jugeaient chacun de leur côté et pouvaient se contredire : un titre d une chaîne « - Topic » sans catégorie était une piste pour l une et pas de la musique pour l autre. Un seul classement répond désormais aux deux questions : une piste compte toujours comme musique ; un mix de deux heures reste de la musique sans être une piste ; un cours rangé en Musique n en est pas",
-  ]},
-  { v: '1.27.46', date: '2026-09-24', items: [
-    "SECURITE — dans la vue Abonnements, la description d une chaine etait inseree dans la page sans echappement : une chaine pouvait y placer du code HTML. Elle s affiche desormais comme du texte",
-  ]},
-  { v: '1.27.45', date: '2026-09-24', items: [
-    "TRADUCTION (AUD-27, #80) — plus d une centaine de textes visibles ecrits en dur echappaient a la traduction : messages d erreur et notifications, tuiles du tableau de bord, fenetres de creation et de renommage, gestion des tags, abonnements, statistiques, en-tetes de l export CSV, genres musicaux, et les huit libelles de classification du #80. Ils suivent tous la langue de l interface, dates comprises ; les tags proposes par la categorisation automatique aussi",
-  ]},
-  { v: '1.27.44', date: '2026-09-24', items: [
-    "MAINTENANCE (AUD-34) — trois fonctions affichaient la duree d une video, chacune a sa facon (1h02m ici, 1:02:05 la), et trois autres endroits relisaient le format de duree de YouTube a la main. Une seule fonction de formatage, en deux styles, et une seule de lecture. Les durees s affichent comme avant ; une diffusion en direct n affiche plus 0:00 dans le plan de visionnage",
-  ]},
-  { v: '1.27.43', date: '2026-09-24', items: [
-    "MAINTENANCE (AUD-36) — 72 blocs de capture d erreur etaient vides : une erreur y disparaissait sans laisser de trace, comme celle de la categorisation automatique en 1.27.3. Chacun passe desormais par une fonction unique qui la consigne (dans la console, et dans le journal de diagnostic pour un rafraichissement d affichage qui echoue), sans interrompre l action en cours",
-  ]},
-  { v: '1.27.42', date: '2026-09-24', items: [
-    "MAINTENANCE (AUD-38, AUD-29) — suppression de code mort : l ancien mini-lecteur que plus rien n affichait depuis l ancrage du lecteur, le minuteur qui ne servait qu a sa barre de progression, deux fonctions jamais appelees, et une fonction globale masquee par une autre du meme nom. Aucun changement visible",
-  ]},
-  { v: '1.27.41', date: '2026-09-24', items: [
-    "MAINTENANCE (AUD-39) — les valeurs reglables de l app (taille des lots d appels a l API, plafonds de pagination, delai de purge, age d alerte de la sauvegarde, duree des notifications) sont regroupees en un seul endroit. Aucun changement de comportement",
-  ]},
-  { v: '1.27.40', date: '2026-09-24', items: [
-    "ACCESSIBILITE — une verification automatique (axe-core) apres ce lot a trouve les derniers ecarts : trois champs de sauvegarde sans libelle, les etiquettes Beta et le filtre actif de la bibliotheque illisibles en theme clair, une ligne d accueil trop pale et un menu de tri sans nom dans Reel Studio 0.7.5. Tous corriges ; la verification ne releve plus rien",
-  ]},
-  { v: '1.27.39', date: '2026-09-24', items: [
-    "ACCESSIBILITE (AUD-50) — Reel Studio 0.7.4 : aucun attribut d accessibilite ; les boutons du lecteur etaient annonces par leur symbole (⏮ ▶ ⏭) et les cartes ne s ouvraient qu a la souris. Chaque commande a desormais un nom (lecture ou pause selon l etat, aleatoire et repetition avec leur etat), les barres de progression se reglent aux fleches, les cartes s ouvrent au clavier, et la page a des reperes nommes",
-  ]},
-  { v: '1.27.38', date: '2026-09-24', items: [
-    "ACCESSIBILITE (AUD-49) — le reglage systeme Reduire les animations ne coupait que les transitions : les fondus de vues, de fenetres et de notifications, le clignotement d une carte et le defilement anime continuaient. Tout est desormais coupe ; la carte ciblee reste signalee par un contour fixe",
-  ]},
-  { v: '1.27.37', date: '2026-09-24', items: [
-    "ACCESSIBILITE (AUD-44) — pres de 90 cartes, lignes et vignettes ne reagissaient qu a la souris : impossible au clavier d ouvrir une playlist depuis le tableau de bord ou de lancer une video depuis Decouvrir. Tout element cliquable recoit desormais un arret de tabulation et s active avec Entree (et Espace pour un bouton). La reorganisation d une playlist, jusqu ici par glisser-deposer uniquement, se fait aussi avec des boutons Monter et Descendre",
-  ]},
-  { v: '1.27.36', date: '2026-09-24', items: [
-    "ACCESSIBILITE (AUD-42/43) — plusieurs textes etaient trop pales pour etre lus confortablement : en theme clair, la couleur d accent et les couleurs d etat (dont le compteur de quota) tombaient a 1,7-2,6:1, et les textes secondaires echouaient partout. Tous atteignent desormais 4,5:1, quel que soit le theme, le coloris ou l accent personnalise ; les boutons principaux restent lisibles avec un accent sombre, et le contour des champs de saisie est nettement visible. Reel Studio suit les memes regles",
-  ]},
-  { v: '1.27.35', date: '2026-09-24', items: [
-    "ACCESSIBILITE (AUD-45) — les fenetres de dialogue n etaient pas annoncees comme telles, le focus restait derriere elles et la page du dessous restait accessible au clavier ; le lecteur plein ecran ignorait Echap. Une fenetre ouverte prend desormais le focus, porte le nom de son titre, rend la page du dessous inactive et rend le focus a l element qui l a ouverte ; Echap ancre le lecteur, comme son bouton",
-  ]},
-  { v: '1.27.34', date: '2026-09-24', items: [
-    "ACCESSIBILITE (AUD-48) — les notifications (succes, erreurs, alertes de quota) n etaient pas annoncees par les lecteurs d ecran, et une notification avec bouton, comme Se reconnecter, disparaissait apres 10 s quoi qu on fasse. Elles sont desormais annoncees (les erreurs immediatement) et restent affichees tant que le pointeur ou le focus est dessus",
-  ]},
-  { v: '1.27.33', date: '2026-09-24', items: [
-    "ACCESSIBILITE (AUD-47) — la page se declarait toujours en francais, meme en anglais : un lecteur d ecran prononcait alors l interface anglaise a la francaise. La langue de la page suit desormais celle de l interface. La politique de confidentialite, texte juridique jusqu ici uniquement en francais, existe maintenant en anglais",
-  ]},
-  { v: '1.27.32', date: '2026-09-24', items: [
-    "ACCESSIBILITE (AUD-46) — la navigation au clavier n avait aucun reperage visible : aucun style de focus, et les champs de saisie supprimaient leur contour. Un anneau de 2 px signale desormais l element actif, dans tous les themes (couleur du texte en theme clair, ou l accent est trop pale), dans l app comme dans Reel Studio",
-  ]},
-  { v: '1.27.31', date: '2026-09-24', items: [
-    "RESTAURATION CSV (AUD-12) — une playlist nommee __proto__ faisait echouer toute la restauration, et un titre sur plusieurs lignes, exporte correctement, etait coupe en deux a la relecture. Le fichier est desormais lu comme un vrai CSV (retours a la ligne entre guillemets compris) et les playlists sont regroupees sans risque sur leur nom",
-  ]},
-  { v: '1.27.30', date: '2026-09-24', items: [
-    "LIENS (AUD-11) — un lien ?bookmark= transmettait sa valeur telle quelle a la fenetre d ajout de favori, seuls les guillemets etant echappes. Seul un identifiant de playlist valide (ou une adresse YouTube qui en contient un) est desormais retenu ; toute autre valeur est ignoree",
-  ]},
-  { v: '1.27.29', date: '2026-09-24', items: [
-    "SECURITE (AUD-08) — la politique de securite (CSP) n interdisait pas l envoi de formulaires vers un autre site : un formulaire injecte aurait pu y poster des donnees de la page. C est desormais interdit dans l app et dans Reel Studio. Les pages Comment ca marche et Estimateur de quota, sur la meme origine, recoivent leur propre CSP ; l estimateur n autorise que son script, par empreinte. La protection contre l inclusion dans un cadre (clickjacking) demande un en-tete HTTP de l hebergeur : a configurer lors du deploiement",
-  ]},
-  { v: '1.27.28', date: '2026-09-24', items: [
-    "SECURITE (AUD-09) — l estimateur de quota chargeait Chart.js depuis un CDN sans empreinte d integrite ; une reponse alteree du CDN se serait executee avec acces a la bibliotheque, aux tags et au journal de l app, qui partagent la meme origine. Chart.js 4.4.1 est desormais servi avec l application, avec une empreinte verifiee par le navigateur",
-  ]},
-  { v: '1.27.27', date: '2026-09-24', items: [
-    "JOURNAL (AUD-10) — le masquage des jetons ne reconnaissait qu une valeur entiere ; un jeton au milieu d une adresse, d un message d erreur ou d une pile passait tel quel, et le message lui-meme n etait jamais filtre. Les jetons sont desormais masques ou qu ils soient, message compris, et le journal ne garde plus de titres de playlists",
-  ]},
-  { v: '1.27.26', date: '2026-09-24', items: [
-    "SECURITE (#G6) — l app acceptait n importe quel jeton present dans l adresse : un lien piege pouvait connecter la victime au compte YouTube d un attaquant, ou atterriraient ensuite ses playlists et ses envois. Chaque connexion envoie desormais une valeur aleatoire (state) ; un jeton n est accepte que s il la renvoie, une seule fois, dans l onglet qui a lance la connexion. Le PKCE, qui demande un serveur, reste prevu en phase 4",
-  ]},
-  { v: '1.27.25', date: '2026-09-24', items: [
-    "SECURITE (AUD-07) — Reel Studio 0.7.3 : un nom de tag ou un identifiant de playlist place dans un gestionnaire de clic etait echappe pour le HTML, echappement que le navigateur defait avant d executer le code ; un nom comme a';alert(1);' s executait au clic. Ces valeurs sont desormais echappees pour le JavaScript, avec les memes regles que l application",
-  ]},
-  { v: '1.27.24', date: '2026-09-24', items: [
-    "SECURITE (AUD-06) — un fichier de sauvegarde partage (forum, bibliotheque de depart) pouvait executer du code a chaque ouverture de l app : l import et la restauration ne verifiaient que la presence d une liste de playlists. Chaque sauvegarde est desormais reconstruite a partir des seuls champs connus : identifiants au format YouTube, images limitees aux serveurs Google, textes bornes, le reste ecarte. Noms et icones de dossiers et de tags s affichent comme du texte. Les sauvegardes portent un numero de format ; un fichier d une version plus recente est refuse",
-  ]},
-  { v: '1.27.23', date: '2026-09-24', items: [
-    "API (AUD-20) — l API YouTube signale aussi une limite de debit par une erreur 403 (rateLimitExceeded, userRateLimitExceeded). Elle etait traduite en session expiree, avec une invite a se reconnecter qui ne servait a rien. Ces 403 sont desormais traites comme un 429 : attente puis nouvel essai, et en dernier recours le message de limite de debit",
-  ]},
-  { v: '1.27.22', date: '2026-09-24', items: [
-    "DOUBLONS (AUD-19) — une creation (POST) qui echouait sur le reseau ou en erreur 5xx etait renvoyee jusqu a trois fois ; si la premiere avait en fait abouti, cela creait une deuxieme playlist ou insererait deux fois la meme video. Une creation n est plus renvoyee qu apres un refus explicite 429 ; sinon l erreur est signalee. Les lectures, modifications et suppressions, sans risque de doublon, gardent leurs nouvelles tentatives",
-  ]},
-  { v: '1.27.21', date: '2026-09-24', items: [
-    "NETTOYAGE (AUD-18) — l en-tete If-Match sur les ecritures (#55) n etait jamais envoye : le cache n est consulte que pour les lectures, et l adresse d une ecriture n est jamais celle d une lecture en cache. Le code et son traitement de l erreur 412, inatteignables, sont retires ; aucun comportement ne change",
-  ]},
-  { v: '1.27.20', date: '2026-09-24', items: [
-    "QUOTA (AUD-17) — le cache des reponses n enregistrait une reponse que si l en-tete HTTP ETag etait lisible ; or une requete vers un autre domaine ne l expose que si le serveur l autorise. Sans lui, le cache ne gardait rien et chaque relecture pourtant dans son delai de fraicheur etait refacturee, recherches comprises. Une reponse est desormais mise en cache pour sa duree de vie, ETag ou non ; l ETag, quand il est lisible, ne sert plus qu a la revalidation",
-  ]},
-  { v: '1.27.19', date: '2026-09-24', items: [
-    "QUOTA (AUD-01) — parcourir les playlists d une chaine depuis Decouvrir pouvait couter jusqu a 20 appels en un clic, sans verification de quota ; #82 promettait justement l inverse. La liste s arrete desormais a 3 pages (150 playlists), passe par la verification de quota, et un message dit quand elle est tronquee",
-  ]},
-  { v: '1.27.18', date: '2026-09-24', items: [
-    "QUOTA (AUD-21) — deux regles de comptage cohabitaient : les appels ordinaires etaient comptes avant l envoi, echecs compris, mais les envois de miniature, de sous-titre, de video et de couverture seulement apres un succes, et sans verifier le passage a minuit heure du Pacifique. Un envoi rate ne comptait pas, alors que Google le facture ; le premier envoi d une nouvelle journee s ajoutait aux compteurs de la veille puis disparaissait. Une seule regle desormais, chargeCall : compte avant l envoi, remise a zero verifiee d abord",
-  ]},
-  { v: '1.27.17', date: '2026-09-24', items: [
-    "CORRECTIF (#I1) — les couvertures de playlist personnalisees ne pouvaient jamais etre envoyees : l image choisie est lue via une URL blob:, que la politique de securite du contenu (img-src) n autorisait pas, et chaque tentative finissait sur Cette image n a pas pu etre lue. img-src accepte desormais blob:, qui ne designe que des fichiers choisis par l utilisateur. Trouve en ecrivant un test de quota ; les tests #I1 contournaient ce chemin",
-  ]},
-  { v: '1.27.16', date: '2026-09-24', items: [
-    "QUOTA (AUD-22) — trois copies codees en dur du modele de quota contredisaient le vrai : la carte Quota de l aide, en anglais seulement, decrivait encore le pool unique de 10 000 unites retire par #76 (le texte traduit a trois buckets existait sans etre utilise) ; le diagnostic du cache affichait / 10,000 et passait au rouge des 500 unites, soit 5 % ; la restauration et la creation de playlist depuis Decouvrir calculaient leur cout avec des 50 litteraux. Tout est desormais tire de QUOTA_LIMITS et de la table des couts",
-  ]},
-  { v: '1.27.15', date: '2026-09-24', items: [
-    "QUOTA (AUD-15) — six actions verifiaient le quota avec une cle absente de la table des couts, et une cle inconnue valait 1 unite : l envoi d un sous-titre (400 unites) etait estime a 1, la mise a jour d une video, d une miniature, de la chaine et le reordonnancement a 1 au lieu de 50. Les six cles sont ajoutees ; une cle inconnue compte desormais 50 par element et le journal le signale",
-    "L envoi de video verifie le bucket des envois (100 appels par jour) au lieu du pool ; l ajout d un titre tendance a une playlist est compte 50 et non 100",
-  ]},
-  { v: '1.27.14', date: '2026-09-24', items: [
-    "FUSION (AUD-23) — une playlist jamais ouverte, un favori typiquement, n apportait aucune video a la fusion ; une video presente dans deux sources etait inseree deux fois. Chaque source est desormais chargee, chaque video n est inseree qu une fois et jamais si la destination l a deja, et un message dit combien de doublons ont ete ecartes",
-    "L estimation de quota compte ce qui sera vraiment insere, plus la creation de la playlist quand il y en a une ; elle comptait une suppression de playlist que la fusion ne fait pas. Les listes de fusion affichent le nombre de videos annonce par YouTube pour une playlist pas encore chargee, au lieu de 0",
-  ]},
-  { v: '1.27.13', date: '2026-09-24', items: [
-    "CORRECTIF (AUD-32) — le bouton Mode Musique en un clic (#J2) a ete remplace par la lentille de bibliotheque (#17), mais son etat enregistre restait actif : qui l avait allume ne pouvait plus l eteindre, et Reinitialiser remettait les filtres sur Musique au lieu de Tous. L etat et son bouton fantome sont retires, la cle reelMusicMode est effacee au demarrage",
-  ]},
-  { v: '1.27.12', date: '2026-09-24', items: [
-    "DEPLACER (AUD-16) — la premiere insertion en echec (quota, session, limite de debit) interrompait tout sur un simple message d erreur : ni la playlist source ni la destination n etaient rafraichies, et rien ne disait combien de videos avaient deja ete deplacees. Le deplacement s arrete toujours au premier echec, puisque les suivants echoueraient de meme en consommant du quota, mais il dit desormais combien de videos sont deplacees, copiees sans retrait et non traitees, et recharge les deux playlists dans tous les cas",
-  ]},
-  { v: '1.27.11', date: '2026-09-24', items: [
-    "FANTOMES (AUD-24) — le nettoyage parcourait aussi les playlists mises en favori, qui appartiennent a quelqu un d autre : chaque suppression y echouait en 403 apres avoir consomme 50 unites. Seules vos playlists sont desormais analysees et nettoyees",
-    "Avant une suppression en masse, les videos candidates sont verifiees aupres de YouTube (1 unite pour 50 videos) : une video encore disponible est conservee, et si la verification echoue rien n est supprime",
-    "Le cache garde la date de publication et la confidentialite de chaque element : apres un rechargement, une video privee n est plus classee supprimee",
-  ]},
-  { v: '1.27.10', date: '2026-09-24', items: [
-    "INTEGRITE DES DONNEES (AUD-14) — le cache et la sauvegarde ne gardaient pas l identifiant d element de playlist. Apres un demarrage depuis le cache, le cas par defaut, Deplacer inserait dans la destination sans pouvoir supprimer la source (retour du bug #G7 : deplacer copiait), et reordonner, supprimer un doublon ou une video fantome echouaient. L identifiant est desormais conserve et restaure",
-    "Un cache ecrit par une version precedente, sans ces identifiants, est recharge une fois depuis l API quand la session est connectee ; hors ligne il reste lisible tel quel",
-  ]},
-  { v: '1.27.9', date: '2026-09-24', items: [
-    "INTEGRITE DES DONNEES (AUD-13) — une playlist de plus de 1 000 videos etait tronquee sans un mot : la pagination s arretait a 20 pages de 50, et une page en echec rendait les pages deja lues comme si c etait tout. La tranche partait ensuite dans le cache, la sauvegarde JSON et les exports CSV. Les playlists se chargent desormais jusqu a 100 pages, soit les 5 000 elements que YouTube autorise",
-    "Un chargement incomplet est signale par un avertissement ; la sauvegarde automatique conserve alors la liste plus longue deja en cache au lieu de l ecraser, et la sauvegarde manuelle comme l export previennent qu une playlist n y figure pas en entier",
-  ]},
-  { v: '1.27.8', date: '2026-09-24', items: [
-    "SECURITE (#G13, rouvert par l audit) — au retour de Google, le jeton restait dans l adresse pendant tout le chargement du cache IndexedDB, avant que checkAuth ne l efface : le journal d erreurs lit l adresse de la page. Le fragment est desormais lu et efface en toute premiere instruction de init(), avant tout appel asynchrone ; le parametre ?bookmark= est conserve pour la suite du demarrage",
-  ]},
-  { v: '1.27.7', date: '2026-09-24', items: [
-    "CGU YOUTUBE (AUD-28) — Reel Studio 0.7.2 : replier le lecteur le faisait glisser hors de l ecran pendant que le son continuait, soit une lecture audio seule. Replier l ancre desormais en bas a droite, video visible en 356 x 200 au-dessus de la barre de lecture ; la musique continue, l image aussi",
-    "Reel Studio met en pause quand l onglet est masque, qu un onglet YouTube soit ouvert ou non : la lecture en arriere-plan d un lecteur integre n est pas autorisee",
-    "Le lecteur ancre de l application passe de 320 x 180 a 356 x 200 : l API IFrame exige au moins 200 x 200, en hauteur comme en largeur",
-  ]},
-  { v: '1.27.6', date: '2026-09-24', items: [
-    "RGPD (AUD-03) — Supprimer mes donnees et la purge automatique a 30 jours tenaient chacune leur propre liste de cles, et les deux avaient derive : dix-sept cles survivaient, dont le journal de diagnostic, les playlists en favori, la langue, les compteurs de quota et les deux reglages de Reel Studio. Un registre unique, APP_STORAGE_KEYS, sert desormais aux deux chemins, sessionStorage compris",
-    "Apres une suppression, le journal ne se reecrit plus au dechargement de la page, et aucune invite de modifications non enregistrees n apparait",
-    "La purge automatique attend la fin du vidage de la base IndexedDB avant de continuer, puis recharge la page : l application gardait en memoire les tags, dossiers et favoris lus avant la purge et pouvait les reecrire",
-  ]},
-  { v: '1.27.5', date: '2026-09-24', items: [
-    "SECURITE (AUD-05) — le titre d une playlist entrait brut dans l attribut title des lignes du tableau de bord et des statistiques. Un guillemet suffisait a ajouter des attributs, onmouseover compris, sans chevron ; une playlist mise en favori porte le titre choisi par son proprietaire, pas par l utilisateur. Les titres sont desormais echappes dans le donut, la legende, les barres, la plus grande playlist, les statistiques, les doublons et les listes du Studio",
-  ]},
-  { v: '1.27.4', date: '2026-09-24', items: [
-    "SECURITE (AUD-04) — sept gestionnaires onclick echappaient l apostrophe d un titre mais pas la barre oblique inverse : un titre finissant par \\ annulait son propre echappement et le reste du titre s executait comme du code, avec le jeton de l utilisateur. Decouvrir (miniature et titre), Deck, Plan de visionnage (grille et liste), file d attente et recherches recentes passent desormais tous par escapeJsAttr, qui double la barre oblique avant de proteger l apostrophe",
-    "Les recherches recentes affichaient aussi la saisie brute dans le HTML ; elle est maintenant echappee",
-  ]},
-  { v: '1.27.3', date: '2026-09-16', items: [
-    "CORRECTIF — Gestion des tags, Categorisation auto : le scan tournait, consommait du quota, puis Appliquer ne changeait rien. getVideoDetails renvoie un dictionnaire indexe par identifiant de video, pas un tableau ; le forEach echouait des la premiere playlist, le catch avalait l erreur sans un mot dans la console et tout retombait sur la liste de mots-cles. La detection par categorie n avait donc jamais fonctionne",
-    "Les mots-cles sont desormais compares mot a mot : tech est contenu dans Techno, ce qui classait une playlist de psytrance en programmation, et son est contenu dans poisson",
-    "Un identifiant de categorie que l application ne sait pas nommer ne vaut plus Autre : elle se rabat sur le titre plutot que d etiqueter toute la bibliotheque avec un mot vide de sens",
-    "Quand aucune categorie ne se degage, le bouton Appliquer disparait et un message le dit. Un cadre vide surmonte d un bouton actif qui ne fait rien, c est exactement ce qui se lisait comme Appliquer est casse",
-  ]},
-  { v: '1.27.2', date: '2026-09-16', items: [
-    "CORRECTIF — dans Decouvrir, passer de Videos a Playlists ou Chaines vidait l interface. Les affinages reserves aux videos etaient masques par leur element parent : discoverSortBy est un enfant direct de la barre de recherche, donc le champ de saisie et le bouton Rechercher partaient avec lui, et les quatre selecteurs de filtre emportaient toute leur bande",
-    "Chaque controle est desormais masque pour lui-meme. Le filtre de date de publication reste offert sur les trois types, puisque search.list l accepte partout ; seuls duree, qualite, sous-titres, licence, lecture integree et le tri par statistiques disparaissent hors des videos",
-    "Le type restaure au demarrage atteint enfin les controles : un rechargement ne revient plus avec les filtres video affiches au-dessus d une recherche de playlists",
-  ]},
-  { v: '1.27.1', date: '2026-09-16', items: [
-    "CORRECTIF CRITIQUE — Decouvrir tombait sur Network error: Failed to fetch. videos:batchGetStats est une methode personnalisee Google : le verbe s attache a la ressource par DEUX-POINTS, pas par un segment de chemin. Ecrit avec une barre oblique, il vise un chemin inexistant, le preflight CORS reste sans reponse et le navigateur ne rend qu un Failed to fetch. Le parametre part, obligatoire, manquait aussi",
-    "Le garde-fou de repli ne reconnaissait que des erreurs 404/400 propres. Une methode que le navigateur ne peut pas joindre ne se presente jamais ainsi : elle echoue au niveau reseau. Failed to fetch, Load failed et NetworkError comptent desormais comme methode indisponible, donc Decouvrir bascule sur videos.list au lieu de mourir",
-    "normalizeEndpoint comprend les deux formes — videos/getRating et videos:batchGetStats — sinon la forme a deux-points ratait son entree dans la table de couts et etait facturee au pool au lieu de son propre bucket",
-  ]},
-  { v: '1.27.0', date: '2026-09-16', items: [
-    "#I1 — couvertures de playlist personnalisees via la ressource playlistImages, derriere le drapeau FEATURES.playlistCovers. La couverture s affiche en tete de la playlist et remplace la miniature sur la carte de bibliotheque quand elle existe",
-    "CORRECTIF DE SPECIFICATION — le brief prevoyait un redimensionnement en 1280 x 720. La documentation officielle n accepte qu un ratio 1:1 carre : un envoi en 16:9 aurait ete refuse. Le recadrage est donc carre et centre, plafonne a 1280 px, sans jamais agrandir une petite image",
-    "Le champ snippet.type est obligatoire et Google n en documente pas les valeurs. Plutot que de deviner, l app relit le type que rapporte une couverture existante et ne retombe sur une constante que pour une playlist qui n en a pas — et si l API refuse, son message est affiche tel quel",
-    "Une reponse aucune couverture est memorisee : redemander a chaque visite couterait une unite pour s entendre repeter la meme chose. Un echec passager, lui, est reessaye",
-  ]},
-  { v: '1.26.0', date: '2026-09-16', items: [
-    "Decouvrir cherche desormais des playlists et des chaines, pas seulement des videos. Meme cout qu une recherche de videos — un appel du bucket recherche par page — et les resultats se branchent sur les favoris existants : un bouton Ajouter aux favoris par playlist trouvee",
-    "Les filtres propres aux videos (duree, definition, sous-titres, licence, integrabilite) ne sont plus envoyes quand on cherche des playlists ou des chaines : l API les ignore, et une requete qui transporte des parametres destines a etre jetes est une requete que plus personne ne sait relire",
-    "Depuis une carte Abonnements ou un resultat de type chaine, Playlists de cette chaine ouvre la liste dans la meme surface en lecture seule que les favoris, plafonnee a vingt pages pour qu un clic ne devienne pas silencieusement vingt appels",
-    "Un nombre de videos qu on n a pas pu recuperer s affiche comme inconnu et non comme zero. Les favoris ajoutes depuis Decouvrir gardent leur origine, pour les metriques locales uniquement",
-  ]},
-  { v: '1.25.0', date: '2026-09-16', items: [
-    "Tuile Tendances sur le tableau de bord — videos.list chart=mostPopular, 1 unite du pool et non du bucket recherche. Depuis le 21 juillet 2025 le classement melange Musique, Films et Jeux : il est donc toujours demande pour une categorie, choisie parmi celles que l app connait deja, et la region suit la langue de l interface",
-    "Chaque ligne se lit dans le lecteur, s ajoute a une playlist par la plomberie d insertion existante, et porte les badges Short et Musique deja calcules ailleurs",
-    "Le classement est mis en cache une heure par une surcharge de TTL propre a cet appel : videos.list garde ses cinq minutes pour tout le reste",
-  ]},
-  { v: '1.24.0', date: '2026-09-16', items: [
-    "#17 phase 2 — lentille de bibliotheque Toutes / Videos / Musique dans l en-tete. Elle absorbe l ancien bouton Mode Musique, qui vivait dans l en-tete du detail et ne faisait que positionner le menu deroulant situe deux lignes plus bas. Un seul controle musique par surface desormais",
-    "Une playlist jamais ouverte n a pas de verdict : elle reste visible sous toutes les lentilles plutot que d etre masquee par une reponse que personne n a calculee",
-    "CORRECTIF — reduire le lecteur le faisait disparaitre : l overlay perdait sa classe active, donc l iframe quittait la page. La specification l interdit explicitement. Le lecteur s ancre desormais en 320 x 180 en bas a droite, l iframe n est jamais deplacee dans le DOM (la deplacer rechargerait la video et perdrait la position) et le dock se ferme d un clic",
-    "#18 — export CSV pret au transfert : title, artist, album, isrc avec BOM UTF-8, presélectionné en vue Musique. Colonnes verifiees contre la documentation Soundiiz (titre et artiste au minimum, en-tetes insensibles a la casse, colonnes inconnues ignorees) et contre ce que lit TuneMyMusic. Le champ isrc reste vide : les deux services demandent de laisser vide plutot que de deviner, et un ISRC faux fait correspondre le mauvais enregistrement",
-    "Metriques locales dans le journal de diagnostic — vue Musique conservee, reversions, lectures de file, exports de transfert — sans aucun identifiant de playlist",
-  ]},
-  { v: '1.23.0', date: '2026-09-16', items: [
-    "#17 Mode Musique phase 1 — une playlist de musique s affiche en liste de pistes : numero, pochette 44 px, titre, artiste, chaine, duree. C est une couche de presentation, pas un second composant : un attribut data-viewmode echange le jeu de tokens, exactement comme le systeme de skins, et toutes les actions secondaires restent les memes",
-    "Detection par score et non par signal unique : une chaine - Topic pese 0,9, la categorie 10 pese 0,7, une duree de 2 a 7 minutes et un motif Artiste - Titre 0,2 chacun, et une duree de plus de 20 minutes retire 0,5. Un set de deux heures sur une chaine - Topic reste donc une video. Une playlist est musicale a partir de 80 % de ses 50 premieres",
-    "Entre 50 et 80 %, la playlist est dite mixte : un bandeau propose la bascule au lieu de decider a la place de l utilisateur. Un choix manuel prime toujours et n est jamais reevalue, dans les deux sens — Pas maintenant est aussi un choix",
-    "Un seul parseur artiste / titre, partage avec l export a venir : decorations retirees (Official Video, MV, Lyrics, balises 4K/HD), feat. deplace vers l artiste, decoupage au premier tiret sauf si la chaine - Topic nomme deja l artiste. Un titre qu on ne sait pas decouper reste entier plutot que d etre charcute",
-    "Statistiques d en-tete adaptees : pistes et duree moyenne en vue Musique, videos et disponibilite en vue Video",
-  ]},
-  { v: '1.22.0', date: '2026-09-16', items: [
-    "#G11 — le cache automatique quitte localStorage pour IndexedDB. Le blob JSON unique butait sur le plafond pratique d environ 5 Mo, et l echec etait silencieux : l ecriture levait une erreur, le cache restait fige, et le demarrage sur cache servait des donnees de plus en plus anciennes sans rien dire",
-    "Une fiche par playlist au lieu d un blob : enregistrer une playlist ne signifie plus re-serialiser toute la bibliotheque. La forme reassemblee est identique a l ancienne, donc ni le chargement au demarrage ni Reel Studio n ont eu a apprendre un nouveau format",
-    "Migration au premier lancement : l ancien blob est importe puis supprime, et seulement une fois la copie ecrite. Un blob illisible est jete plutot que traine indefiniment",
-    "La ou IndexedDB est indisponible — navigation privee Safari, origine bloquee, ouverture en echec — tout retombe sur l ancien blob localStorage. Ce n est pas un mode degrade a detecter : c est la meme API",
-    "Supprimer mes donnees et la purge automatique a 30 jours vident aussi la base. La projection d espace utilise navigator.storage.estimate quand le navigateur le fournit, au lieu de la constante de 5 Mo",
-    "Reel Studio lit la meme base en lecture seule, sans ecriture ni changement de CSP, et accepte encore un blob legacy",
-  ]},
-  { v: '1.21.0', date: '2026-09-16', items: [
-    "#G14 — l upgrade du scope d ecriture se fait dans une popup et non plus par une redirection plein ecran. Un renommage en lot de quarante playlists perdait sa selection et devait etre recommence : l action reprend desormais sur place, sans reclic",
-    "La page de retour detecte qu elle est dans une popup, transmet le jeton a l ouvreur par postMessage vers sa propre origine uniquement, nettoie le fragment d URL et se ferme. Un message d une autre origine ou d une autre forme est ignore",
-    "Si la popup est bloquee, la redirection d avant reste le chemin de repli, avec son marqueur de reprise. La popup fermee sans autorisation est dite comme telle plutot que de rester en attente",
-    "Nouvelle option de reglages : demander l acces en ecriture des la connexion, desactivee par defaut — le scope progressif reste la promesse faite dans le dossier de soumission",
-  ]},
-  { v: '1.20.0', date: '2026-09-16', items: [
-    "#I2 — une pastille S abonner / Abonne sur chaque carte Decouvrir et dans le lecteur. L etat vient de la liste des abonnements quand elle est chargee ; sinon une seule requete par chaine (forChannelId, 1 unite) au lieu de parcourir toute la liste pour une reponse",
-    "La distinction jamais verifie / verifie et non abonne est explicite : la premiere declenche une requete, la seconde n en declenche plus jamais. Une reponse negative est memorisee comme une positive",
-    "L abonnement rejoint immediatement la liste en memoire et le cache, pour que la pastille ne revienne pas en arriere au prochain rendu ; le desabonnement passe par la meme pastille",
-  ]},
-  { v: '1.19.0', date: '2026-09-16', items: [
-    "videos.batchGetStats (methode ajoutee le 3 juin 2026) fournit les statistiques de Decouvrir : 1 unite par appel sur un quatrieme bucket de 10 000 par jour, au lieu d une unite du pool commun par lot de 50. La table de couts publique ne la documente pas encore, donc un premier refus 404/400 fait basculer la session sur videos.list part=statistics et n y revient plus — une methode absente ne le devient pas moins au deuxieme essai",
-    "Le bucket statistiques n apparait dans l infobulle du quota qu une fois utilise : afficher un quatrieme compteur intact a tout le monde n apprend rien",
-    "Option Afficher les vues sur les cartes de playlist, desactivee par defaut. Le libelle precise sur combien de videos la somme porte, et une vue est comptee des la premiere image — ce n est pas un temps de visionnage",
-    "Correctif du lot precedent : l appel de details de Decouvrir ne demandait pas player, donc le badge Short n y apparaissait jamais",
-  ]},
-  { v: '1.18.0', date: '2026-09-16', items: [
-    "#I3 — bouton j aime dans le lecteur. Depuis la revision d API du 1er septembre 2026, videos.getRating accepte le scope lecture seule : l etat du j aime s affiche donc sans jamais demander l acces en ecriture. Seul le clic declenche l upgrade de scope",
-    "Correctif de fond : getQuotaCost, le cache et l invalidation tronquaient l endpoint a sa base, donc videos/rate aurait ete compte comme videos.POST — c est-a-dire, depuis le lot 1, sur le bucket des mises en ligne. Un seul j aime aurait consomme 1 % du quota quotidien d upload et laisse le pool intact. Le sous-chemin est desormais conserve",
-    "Le bouton reste visible mais inerte en mode lecture seule et sans jeton, avec l infobulle qui dit pourquoi ; l etat est optimiste et revient en arriere si l ecriture echoue",
-  ]},
-  { v: '1.17.0', date: '2026-09-16', items: [
-    "#68 — filtre Shorts. L API Data v3 n expose aucun indicateur officiel : le seul signal disponible est le format d integration (snippet.player), demande dans le meme appel que les details, donc a cout de quota inchange. Une video est un Short si son integration est verticale ET qu elle dure 180 s ou moins — la duree seule ou le format seul se trompent tous les deux",
-    "Deux nouvelles options de type — Shorts seulement et Exclure les Shorts — dans les trois listes concernees (detail de playlist, recherche globale, plan de visionnage). Cet axe est independant de la classification musicale : un Short musical reste les deux",
-    "Badge Short sur les cartes de playlist, les colonnes Deck et les resultats Decouvrir, avec l infobulle qui dit que c est une deduction",
-    "Depuis une carte Abonnements, les playlists systeme de la chaine (UUSH pour les Shorts, UULF pour les videos longues) s ouvrent en lecture seule — c est la liste exacte de YouTube, la ou l heuristique par video ne fait qu approcher",
-    "Statistiques : repartition Shorts / standard, en indiquant sur combien de videos chargees la mesure porte",
-  ]},
-  { v: '1.16.1', date: '2026-09-16', items: [
-    "Le message de quota depasse annoncait encore 10 000 unites par jour pour les trois quotas : il nomme desormais celui qui peut etre epuise (pool, recherches ou mises en ligne). Oubli de la v1.13.0",
-  ]},
-  { v: '1.16.0', date: '2026-09-16', items: [
-    "#B13 — un 403 ordinaire ne renvoie plus l utilisateur vers la Google Cloud Console. L application est en production : le message Ajoutez-vous aux Test users etait un faux diagnostic pour presque tous les 403. Il ne reste que pour accessNotConfigured ou un message qui dit vraiment not registered / has not completed ; le reste devient Session expiree, avec un bouton de reconnexion dans le toast",
-    "#B14 — le cache peut s afficher sans jeton : le jeton ne vit que dans le fragment d URL et un rechargement le perd, alors que l en-tete affichait Connecte. Une pastille Hors ligne — cache local le dit, avec un bouton Se reconnecter, et toute ecriture est refusee avant l appel reseau au lieu de partir avec un Bearer vide",
-    "Le jeton ne change plus qu a un seul endroit (setAccessToken), pour que l en-tete ne puisse pas diverger de son etat",
-    "expires_in est capte depuis le fragment OAuth : le journal de diagnostic distingue desormais un jeton absent d un jeton expire — les deux produisaient le meme 403",
-  ]},
-  { v: '1.15.0', date: '2026-09-16', items: [
-    "Miniatures fhd/qhd/uhd (revision d API du 11 septembre 2026). Vingt-quatre sites du code avaient chacun leur propre chaine medium || high || default ecrite a la main, parfois dans un ordre different : une ressource ne portant que les nouvelles cles passait pour n avoir aucune miniature. Une seule fonction pickThumb desormais, deux modes — carte et grand format",
-    "Les selecteurs fields demandent fhd et qhd (pas uhd : poids inutile pour des cartes). Cout de quota inchange",
-    "Le cache automatique transporte une seule URL haute definition en plus, et seulement quand c est une image differente — le blob est deja proche de la limite pratique de 5 Mo",
-    "Reel Studio partage la meme chaine et s en sert pour la tuile bento principale et les vignettes de playlists",
-  ]},
-  { v: '1.14.1', date: '2026-09-16', items: [
-    "videoCategories.list suivait FR/fr en dur : une interface anglaise recevait les noms de categories en francais, alors que tous les autres libelles de categorie suivaient deja la langue de l interface. regionCode et hl viennent maintenant de la table LANG_REGION",
-    "Au changement de langue, les listes deroulantes de categories sont re-libellees sur place — elles gardaient les anciens libelles jusqu a ce qu autre chose reconstruise la vue",
-  ]},
-  { v: '1.14.0', date: '2026-09-16', items: [
-    "#73 — les quatre filtres Decouvrir annonces livres en v1.6.0 partent enfin sur le reseau : videoDefinition, videoCaption, videoLicense, plus publishedAfter (24 h / 7 j / 30 j / 1 an) et un filtre de chaine. Ils figuraient au backlog mais performDiscoverSearch n envoyait que order, videoDuration et videoEmbeddable",
-    "regionCode et relevanceLanguage suivent la langue de l interface via une table LANG_REGION : une interface francaise recevait des resultats calques sur l IP, pas sur la langue",
-    "Les choix de filtres sont persistes, tri et ordre compris — ils etaient reinitialises a chaque rechargement. Le filtre de chaine, lui, reste volontairement temporaire",
-    "Depuis une carte Abonnements, Chercher dans cette chaine ouvre Decouvrir pre-filtre sur la chaine",
-  ]},
-  { v: '1.13.0', date: '2026-09-16', items: [
-    "#76 — le quota n est plus un pool unique. Depuis la revision d API de juin 2026, search.list et videos.insert ont chacun leur propre allocation quotidienne comptee en APPELS (100 par jour) et ne touchent plus au pool de 10 000 unites. L app comptait encore 100 unites par recherche et 1 600 par mise en ligne : une journee de Decouvrir paraissait avoir vide un quota qui etait en realite intact",
-    "Trois compteurs persistes, remis a zero ensemble a minuit heure du Pacifique ; l ancienne cle quotaUnits est reprise dans le pool puis supprimee",
-    "La jauge prend la couleur du pire des trois ratios — un bucket recherche epuise ne pouvait plus se cacher derriere un pool a 1 % — et son infobulle detaille les trois",
-    "Decouvrir estime son cout en pages contre le bucket recherche, et refuse proprement quand il est epuise au lieu de partir en 403",
-    "Les seuils 50/75/90/100 % et l en-tete du journal de diagnostic sont desormais par bucket",
-  ]},
-  { v: '1.12.1', date: '2026-08-19', items: [
-    'CORRECTIF CRITIQUE — videoPublishedAt avait ete demande dans snippet() alors qu il appartient a contentDetails. Un selecteur fields invalide ne renvoie pas moins de donnees : il renvoie une erreur 400. Depuis la v1.11.0 aucun chargement de videos ne fonctionnait, et les exports etaient vides',
-    'fetchAllPages ne transforme plus un echec total en liste vide : l erreur de la premiere page remonte, au lieu de se faire passer pour une playlist sans videos',
-    'loadPlaylistVideos reessaie sans le parametre fields si celui-ci echoue — une optimisation de bande passante ne doit jamais couter la bibliotheque',
-  ]},
-  { v: '1.12.0', date: '2026-08-19', items: [
-    '#76 — le cache automatique ne peut plus s effacer lui-meme : une ecriture sans aucune video est refusee si le cache en contient. Il etait reecrit juste apres un demarrage sur cache, quand les videos ne sont pas encore en memoire, ce qui remplacait un cache utilisable par une liste de playlists vides',
-    'Diagnostic Cache — verdict de sante (UTILISABLE / PARTIEL / DEGRADE / VIDE) avec la raison, couverture playlists-avec-videos, marge par rapport a la limite pratique de 5 Mo avec projection sur la bibliotheque complete, et anciennete lisible',
-  ]},
-  { v: '1.11.1', date: '2026-08-19', items: [
-    'Correctif du correctif #G10 : la garde anti-formule ajoutait une apostrophe a l export CSV que la restauration ne retirait pas — une playlist nommee -Techno revenait sous le nom apostrophe-Techno. Aller-retour desormais sans perte, et un titre commencant vraiment par une apostrophe est preserve',
-  ]},
-  { v: '1.11.0', date: '2026-08-19', items: [
-    '#G8 — detection des fantomes par metadonnees (miniature + videoPublishedAt + privacyStatus) au lieu du titre. Le test cherchait Deleted ou Private n importe ou dans le titre : une vraie video nommee Private Session etait signalee, et aucun compte non anglophone n etait couvert',
-    '#G9 — nettoyage en lot : une seule re-analyse et un seul message a la fin, au lieu d une re-analyse complete et d un message par suppression ; l element supprime quitte enfin le cache',
-  ]},
-  { v: '1.10.0', date: '2026-08-19', items: [
-    '#G18 — la fusion choisit sa destination par identifiant : un menu liste les playlists existantes ou permet d en creer une. Elle la cherchait par titre, donc deux playlists homonymes envoyaient les videos dans la premiere venue, et saisir un nom existant fusionnait dedans au lieu de creer',
-    '#G18 — fusionner une playlist dans elle-meme est refuse, et les insertions en echec sont signalees au lieu d etre annoncees comme une fusion propre',
-  ]},
-  { v: '1.9.0', date: '2026-08-19', items: [
-    '#G7 — Deplacer deplace enfin : l item source est supprime apres l insertion. La fonction ne faisait qu inserer dans la destination, donc elle copiait, et la video restait aussi dans la source',
-    '#G7 — le cache de la playlist source est desormais invalide lui aussi, et un echec de suppression est signale au lieu d etre annonce comme un succes',
-  ]},
-  { v: '1.8.0', date: '2026-08-19', items: [
-    'T1 / #G15 — la seconde definition de parseDuration masquait la premiere pour tout le fichier ; la version tolerante aux valeurs vides est conservee, la duplicata et formatSeconds (sans appelant) sont supprimees',
-    '#G16 — suppression de drawBarChart, defini mais jamais appele (70 lignes)',
-    '#G17 — les cartes beta suivaient APP.lang, qui n etait jamais renseigne : elles restaient en francais dans l interface anglaise',
-    '#G19 — l ecriture du cache automatique remet a zero l indicateur de modifications : plus d alerte de sortie alors que tout est deja enregistre',
-  ]},
-  { v: '1.7.2', date: '2026-08-19', items: [
-    '#G10 — injection de formule CSV : un titre commençant par = + - @ (ou tabulation / retour chariot) etait execute a l ouverture du fichier dans Excel ou Sheets ; il est desormais prefixe',
-  ]},
-  { v: '1.7.1', date: '2026-08-19', items: [
-    'Les liens entre les deux interfaces portent le numéro de version : une page conservée par un ancien service worker n’est plus servie après une mise à jour',
-  ]},
-  { v: '1.7.0', date: '2026-08-19', items: [
-    'Sélecteur de couleur intégré — carré saturation/valeur, curseur de teinte, champs HEX et RVB. <input type="color"> ouvrait la boîte de dialogue du système, très différente entre le bureau et Android et non stylable ; le nouveau sélecteur est identique partout et devient une feuille basse sous 768 px',
-  ]},
-  { v: '1.6.0', date: '2026-08-19', items: [
-    '#73 — Discover : l’ordre YouTube (pertinence / plus vues / plus récentes / mieux notées) devient un vrai contrôle, il change les résultats et pas seulement leur affichage',
-    '#73 — trois tris locaux de plus (engagement, date, durée) et filtres durée + lisible dans le lecteur intégré, sans coût quota supplémentaire',
-    '#73 — un compteur masqué (likes cachés, commentaires désactivés) n’est plus compté comme zéro : il s’affiche « — » et passe en fin de tri',
-  ]},
-  { v: '1.5.0', date: '2026-08-19', items: [
-    '#B12 — le lecteur intégré se met en pause quand l’onglet passe en arrière-plan ou que la page est quittée : plus deux vidéos en lecture simultanée',
-  ]},
-  { v: '1.4.2', date: '2026-08-19', items: [
-    'Bouton Musique conservé dans l’en-tête en portrait (icône seule) — il tombait sous la règle qui masque les outils d’en-tête sous 768 px',
-  ]},
-  { v: '1.4.1', date: '2026-08-19', items: [
-    'CR1 — deux sinks restants corrigés : noms de playlists dans Playlist Diff, et escapeJsAttr() pour les arguments des handlers inline (l’antislash n’était pas échappé)',
-    'CR4 — videos.insert corrigé à 1600 unités dans la table, et les trois uploads Studio persistent enfin le quota compté (saveQuotaState)',
-  ]},
-  { v: '1.4.0', date: '2026-08-19', items: [
-    'Bouton « Musique » — bascule vers Reel Studio depuis l’en-tête et la barre latérale',
-    'Service worker — les pages HTML sont servies réseau d’abord : une version éditée n’arrive plus avec un tour de retard',
-  ]},
-  { v: '1.3.0', date: '2026-08-19', items: [
-    'Panneau Version — build en cours + journal des modifications, accessible depuis les deux pieds de page',
-    'Reel Studio v0.4.0 — UI alternative 3a : 8 vues, panneau Palette, lecteur interne à file, et coordination avec l’onglet YouTube externe',
-  ]},
-  { v: '1.2.0', date: '2026-08-19', items: [
-    '#70 — thèmes Bichrome / Duochrome / Trichrome : noir verrouillé + 1, 2 ou 3 accents éditables',
-    '#70 — palette catégorielle dérivée des accents (rampe monochrome en Bichrome) + 12 présets',
-    '#70 — tuiles réactives au survol dans les thèmes Studio',
-  ]},
-  { v: '1.1.0', date: '2026-08-19', items: [
-    '#69 — moteur de thèmes nommés (typo, palette, rayons, mouvement appliqués en un appel)',
-    '#69 — thème Studio / Music, remplacé depuis par les trois thèmes de #70',
-  ]},
-  { v: '1.0.0', date: '2026-07-29', items: [
-    'CR1–CR5 — échappement XSS + CSP, file de lecture, cache obsolète, comptage quota, purge RGPD',
-  ]},
-];
+// AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
+// the version window opens: they were 47 KB of French-only, accent-stripped
+// text in every load. The newest entry must carry APP_VERSION (tests.html).
+
 
 const LOG_CONFIG = {
   // info+ default (matches user choice for E3). Set to 'debug' to capture everything.
@@ -7420,16 +7086,24 @@ function handleLogout() {
   location.reload();
 }
 
-function showVersionInfo() {
-  const rows = CHANGELOG.map((rel, i) => `
+async function showVersionInfo() {
+  // AUD-41 — fetched on demand; the page stays usable if the file is missing.
+  let releases = [];
+  try {
+    const res = await fetch('changelog.json?v=' + APP_VERSION, { cache: 'no-cache' });
+    if (res.ok) releases = await res.json();
+  } catch (e) { swallow('showVersionInfo:changelog', e, 'warn'); }
+  const lang = currentLang === 'en' ? 'en' : 'fr';
+  const rows = releases.length ? releases.map((rel, i) => `
     <div style="padding: 12px 0; border-top: 1px solid var(--border);">
       <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px;">
-        <span class="mono" style="font-weight: 600; color: ${i === 0 ? 'var(--accent)' : 'var(--text2)'};">v${rel.v}</span>
-        <span class="mono" style="font-size: 11px; color: var(--text3);">${rel.date}</span>
+        <span class="mono" style="font-weight: 600; color: ${i === 0 ? 'var(--accent-text)' : 'var(--text2)'};">v${escapeHtml(rel.v)}</span>
+        <span class="mono" style="font-size: 11px; color: var(--text3);">${escapeHtml(rel.date)}</span>
         ${i === 0 ? `<span style="font-size: 10px; background: var(--accent-soft); color: var(--accent-text); border-radius: var(--pill); padding: 2px 8px;">${t('version_current')}</span>` : ''}
       </div>
-      ${rel.items.map(it => `<div style="font-size: 12px; color: var(--text2); line-height: 1.6;">· ${it}</div>`).join('')}
-    </div>`).join('');
+      ${(rel.items || []).map(it => `<div style="font-size: 12px; color: var(--text2); line-height: 1.6;">· ${escapeHtml(it[lang] || it.fr || '')}</div>`).join('')}
+    </div>`).join('')
+    : `<p class="text-muted" style="padding: 12px 0; border-top: 1px solid var(--border);">${t('version_changelog_unavailable')}</p>`;
 
   openModal(`
     <div class="modal-header"><h2>${t('version_title')}</h2></div>

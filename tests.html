@@ -4586,7 +4586,8 @@ const SUITES = [
       const src = await fetch('youtube-playlist-manager.html?aud27=' + Date.now()).then(r => r.text());
       const code = src.slice(src.indexOf('<script>\n// ===='));
       const i18n = [code.indexOf('const I18N = {'), code.indexOf('function t(key')];
-      const cl = [code.indexOf('const CHANGELOG'), code.indexOf('\n];', code.indexOf('const CHANGELOG'))];
+      const clAt = code.indexOf('const CHANGELOG');   // moved out to changelog.json (AUD-41)
+      const cl = clAt < 0 ? [-1, -1] : [clAt, code.indexOf('\n];', clAt)];
       const bad = [];
       let off = 0;
       for (const line of code.split('\n')) {
@@ -4752,6 +4753,46 @@ const SUITES = [
         const stored = JSON.parse(w.localStorage.getItem('playlistTags') || '{}');
         return eq(stored['PL_j3'], ['Musique', genre], 'tags written');
       } finally { done(); restore(w, snapLs); }
+    }],
+  ],
+},
+{
+  id: 'AUD-41', title: 'The changelog is a bilingual file, loaded on demand', note: 'the release notes were 47 KB of French-only, accent-stripped text inside the app',
+  cases: [
+    ['changelog.json is well formed and starts at the running version', async w => {
+      const [cl, src] = await Promise.all([
+        fetch('changelog.json?aud41=' + Date.now()).then(r => r.json()),
+        fetch('youtube-playlist-manager.html?aud41=' + Date.now()).then(r => r.text())]);
+      const version = (src.match(/const APP_VERSION = '([^']+)'/) || [])[1];
+      eq(cl[0].v, version, 'newest entry vs APP_VERSION');
+      ok(!src.includes('const CHANGELOG'), 'the notes are still inside the app');
+      const bad = [];
+      cl.forEach(r => (r.items || []).forEach((it, i) => {
+        if (!it.fr || !it.en) bad.push(r.v + '#' + i + ' missing a language');
+        // the ASCII-folded French the old notes were written in
+        else if (/\b(desormais|etait|l app|d une|n est|a jour)\b/.test(it.fr)) bad.push(r.v + '#' + i + ' accents');
+      }));
+      return eq(bad, [], 'entries');
+    }],
+    ['the version window shows the notes in the UI language, as text', async w => {
+      const snap = snapshot(w, ['appLang']);
+      const before = w.localStorage.getItem('appLang') || 'fr';
+      const cl = await fetch('changelog.json?aud41b=' + Date.now()).then(r => r.json());
+      const read = async lang => {
+        w.applyLanguage(lang);
+        await w.showVersionInfo();
+        const box = w.document.getElementById('modalContent');
+        const r = { text: box.textContent, inputs: box.querySelectorAll('input').length };
+        w.closeModal();
+        return r;
+      };
+      try {
+        const en = await read('en'), fr = await read('fr');
+        ok(en.text.includes(cl[0].items[0].en) && !en.text.includes(cl[0].items[0].fr), 'English notes');
+        ok(fr.text.includes(cl[0].items[0].fr), 'French notes');
+        // v1.7.0's note quotes <input type="color">; it used to render as a real input
+        return eq(en.inputs, 0, 'markup from a note rendered as HTML');
+      } finally { w.applyLanguage(before); restore(w, snap); }
     }],
   ],
 },
