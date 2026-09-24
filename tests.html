@@ -4384,6 +4384,38 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-49', title: 'Reduced motion stops every animation, not only transitions', note: 'the view, modal and toast keyframes, the card flash and smooth scrolling ignored the preference',
+  cases: [
+    ['the reduced-motion rules stop keyframes and smooth scrolling', w => {
+      const rules = [];
+      for (const sheet of w.document.styleSheets) {
+        let list;
+        try { list = sheet.cssRules; } catch (_) { continue; }   // cross-origin font sheets
+        for (const r of list) if (r.media && /prefers-reduced-motion:\s*reduce/.test(r.media.mediaText)) rules.push(...r.cssRules);
+      }
+      const all = rules.find(r => r.selectorText && r.selectorText.split(',').map(x => x.trim()).includes('*'));
+      ok(all, 'no reduced-motion rule for every element');
+      eq([all.style.getPropertyValue('animation-name'), all.style.getPropertyPriority('animation-name')], ['none', 'important'], 'animation');
+      eq(all.style.getPropertyValue('scroll-behavior'), 'auto', 'scroll');
+      return ok(rules.some(r => r.selectorText === '.playlist-card.flash' && /outline:[^;]*solid/.test(r.cssText)), 'the card highlight lost its static cue');
+    }],
+    ['scrolling to a card does not animate when motion is reduced', w => {
+      const realMM = w.matchMedia;
+      const card = w.document.createElement('div');
+      card.className = 'playlist-card';
+      card.dataset.playlistId = 'PL_aud49';
+      let opts = null;
+      card.scrollIntoView = o => { opts = o; };
+      w.document.body.appendChild(card);
+      try {
+        w.matchMedia = q => ({ matches: /reduce/.test(q), media: q, addEventListener() {}, removeEventListener() {} });
+        w.scrollToPlaylistCard('PL_aud49');
+        return eq(opts && opts.behavior, 'auto', 'scroll behaviour');
+      } finally { w.matchMedia = realMM; card.remove(); }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
