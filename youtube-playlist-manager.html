@@ -4430,11 +4430,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.21'; // bump per release
+const APP_VERSION = '1.27.22'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.22', date: '2026-09-24', items: [
+    "DOUBLONS (AUD-19) — une creation (POST) qui echouait sur le reseau ou en erreur 5xx etait renvoyee jusqu a trois fois ; si la premiere avait en fait abouti, cela creait une deuxieme playlist ou insererait deux fois la meme video. Une creation n est plus renvoyee qu apres un refus explicite 429 ; sinon l erreur est signalee. Les lectures, modifications et suppressions, sans risque de doublon, gardent leurs nouvelles tentatives",
+  ]},
   { v: '1.27.21', date: '2026-09-24', items: [
     "NETTOYAGE (AUD-18) — l en-tete If-Match sur les ecritures (#55) n etait jamais envoye : le cache n est consulte que pour les lectures, et l adresse d une ecriture n est jamais celle d une lecture en cache. Le code et son traitement de l erreur 412, inatteignables, sont retires ; aucun comportement ne change",
   ]},
@@ -7549,10 +7552,12 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
 
   try {
     // Retry loop (audit #48 429, #49 5xx, #50 exponential backoff with jitter).
-    // Idempotency caveat: POST/PUT/DELETE retries could theoretically duplicate if the original
-    // request succeeded but its response was lost. Accepted risk — YouTube returns 200/204 fast
-    // on success, so loss-of-response after success is rare. Detected duplicates can be cleaned
-    // up via the existing "clean ghosts" feature.
+    // AUD-19 — only idempotent requests are retried blindly. A POST that died on
+    // the network or came back 5xx may still have been carried out: sending it
+    // again created a second playlist or a second playlistItem, and "clean
+    // ghosts" does not clean duplicates. A POST is retried only on 429, which
+    // means the request was refused before anything happened.
+    const idempotent = method !== 'POST';
     let lastError = null;
     for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
       let res;
@@ -7560,7 +7565,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
         res = await fetch(url, opts);
       } catch (networkErr) {
         lastError = networkErr;
-        if (attempt < RETRY_CONFIG.maxRetries) {
+        if (idempotent && attempt < RETRY_CONFIG.maxRetries) {
           const delay = computeBackoffDelay(attempt);
           console.warn(`[ytApi] Network error on ${method} ${endpoint}, retry ${attempt + 1}/${RETRY_CONFIG.maxRetries} in ${delay}ms`, networkErr);
           log('warn', 'api', 'network error — retrying', { endpoint, method, attempt: attempt + 1, delay });
@@ -7583,7 +7588,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
 
       // Retryable status codes (429 rate-limit, 5xx server errors)
       if (isRetryableStatus(res.status)) {
-        if (attempt < RETRY_CONFIG.maxRetries) {
+        if (attempt < RETRY_CONFIG.maxRetries && (idempotent || res.status === 429)) {
           let delay;
           if (res.status === 429) {
             const retryAfter = parseRetryAfter(res.headers.get('Retry-After'));

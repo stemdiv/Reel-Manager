@@ -3593,6 +3593,31 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-19', title: 'A create is never sent twice on a guess', note: 'a POST that timed out or came back 5xx may have been carried out; retrying it made duplicates',
+  cases: [
+    ['a POST that gets a 503 is not retried', async w => {
+      const r = await runRetry(w, 'POST', [503, 200]);
+      eq(r.fetches, 1, 'requests sent');
+      return ok(r.threw, 'the 503 was swallowed');
+    }],
+    ['a POST that dies on the network is not retried', async w => {
+      const r = await runRetry(w, 'POST', ['net', 200]);
+      eq(r.fetches, 1, 'requests sent');
+      return ok(r.threw, 'the network error was swallowed');
+    }],
+    ['a POST refused with 429 is retried', async w => {
+      const r = await runRetry(w, 'POST', [429, 200]);
+      eq(r.fetches, 2, 'requests sent');
+      return ok(!r.threw, 'failed after a successful retry');
+    }],
+    ['a PUT still retries a 503', async w => {
+      const r = await runRetry(w, 'PUT', [503, 200]);
+      eq(r.fetches, 2, 'requests sent');
+      return ok(!r.threw, 'failed after a successful retry');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -3803,6 +3828,26 @@ function openFreshApp() {
     f.addEventListener('load', () => { clearTimeout(t); setTimeout(() => resolve(f), 300); });
     document.body.appendChild(f);
   });
+}
+
+// AUD-19 — drive ytApi's retry loop with a scripted fetch: each entry is an
+// HTTP status or 'net' for a network failure. Backoff sleeps are skipped.
+async function runRetry(w, method, script) {
+  const real = { fetch: w.fetch, sleep: w.sleep, ensureWriteScope: w.ensureWriteScope };
+  let fetches = 0, threw = false;
+  try {
+    w.sleep = async () => {};
+    w.ensureWriteScope = async () => true;
+    w.fetch = async () => {
+      const step = script[Math.min(fetches++, script.length - 1)];
+      if (step === 'net') throw new TypeError('Failed to fetch');
+      return new w.Response(step === 200 ? '{"id":"X"}' : '{"error":{"message":"busy"}}',
+        { status: step, headers: { 'Content-Type': 'application/json' } });
+    };
+    try { await w.ytApi('playlists', { part: 'snippet', aud19: Date.now() }, method, { snippet: { title: 't' } }); }
+    catch (_) { threw = true; }
+    return { fetches, threw };
+  } finally { Object.assign(w, real); }
 }
 
 // AUD-04 — the payload the old escaper let through: ' became \' but the \ in
