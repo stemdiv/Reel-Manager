@@ -4052,6 +4052,64 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-46', title: 'Keyboard focus is always visible', note: 'there was no :focus-visible rule, and form fields removed their outline for a 40 %-alpha border tint',
+  cases: [
+    ['a focused text field and a focused button show a 2px ring', async w => {
+      // The main test frame is display:none, where nothing can take focus.
+      const f = await openFreshApp();
+      try {
+        const fw = f.contentWindow;
+        eq(aud46Ring(fw, '<input class="form-control" type="text">'), { style: 'solid', width: '2px' }, 'text field');
+        return eq(aud46Ring(fw, '<button class="btn btn-secondary">x</button>'), { style: 'solid', width: '2px' }, 'button');
+      } finally { f.remove(); }
+    }],
+    ['in the light theme the ring uses the text colour, not the pale accent', async w => {
+      const f = await openFreshApp();
+      try {
+        const fw = f.contentWindow, doc = fw.document;
+        doc.body.classList.add('light-theme');
+        const host = doc.createElement('div');
+        host.innerHTML = '<button class="btn">x</button>';
+        doc.body.appendChild(host);
+        const b = host.firstChild;
+        b.focus();
+        const cs = fw.getComputedStyle(b);
+        eq(cs.outlineStyle, 'solid', 'ring drawn');
+        // An element without a ring also reports currentColor, so compare with
+        // the text token explicitly, and make sure it is not the accent.
+        const probe = doc.createElement('span');
+        probe.style.color = 'var(--text)';
+        const probe2 = doc.createElement('span');
+        probe2.style.color = 'var(--accent)';
+        host.append(probe, probe2);
+        eq(cs.outlineColor, fw.getComputedStyle(probe).color, 'ring colour');
+        return ok(cs.outlineColor !== fw.getComputedStyle(probe2).color, 'the ring is the accent');
+      } finally { f.remove(); }
+    }],
+    ['no stylesheet removes the outline from a focusable element', async w => {
+      const bad = [];
+      for (const page of ['youtube-playlist-manager.html', 'reel-studio.html']) {
+        const css = [...(await fetch(page + '?aud46=' + Date.now()).then(r => r.text())).matchAll(/<style>([\s\S]*?)<\/style>/g)].map(m => m[1]).join('\n');
+        for (const m of css.matchAll(/([^{}]+)\{[^}]*outline:\s*none[^}]*\}/g)) bad.push(page + ': ' + m[1].trim());
+      }
+      // The Studio search pill draws the ring itself (.search:focus-within).
+      return eq(bad, ['reel-studio.html: .search input'], 'rules with outline: none');
+    }],
+    ['Reel Studio shows the ring too', async w => {
+      const f = await openStudio();
+      try {
+        const sw = f.contentWindow;
+        const b = sw.document.createElement('button');
+        b.textContent = 'x';
+        sw.document.body.appendChild(b);
+        b.focus();
+        const cs = sw.getComputedStyle(b);
+        return eq({ style: cs.outlineStyle, width: cs.outlineWidth }, { style: 'solid', width: '2px' }, 'ring');
+      } finally { f.remove(); }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -4290,6 +4348,19 @@ async function runRetry(w, method, script) {
     catch (e) { threw = true; message = e.message; }
     return { fetches, threw, message, toasts };
   } finally { Object.assign(w, real); }
+}
+
+// AUD-46 — focus a fresh element in a rendered app frame and read its outline.
+function aud46Ring(w, html) {
+  const host = w.document.createElement('div');
+  host.innerHTML = html;
+  w.document.body.appendChild(host);
+  try {
+    const el = host.firstChild;
+    el.focus();
+    const cs = w.getComputedStyle(el);
+    return { style: cs.outlineStyle, width: cs.outlineWidth };
+  } finally { host.remove(); }
 }
 
 // AUD-12 — a CSV in the export's exact shape (BOM, bare header, csvRow cells)

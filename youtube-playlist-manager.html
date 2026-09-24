@@ -96,6 +96,8 @@
     --text2: #4a4d55;
     --text3: #7a7d85;
     --text4: #a0a3ab;
+    /* AUD-46 — the accent is ~2.3:1 on this background; the ring uses the text colour */
+    --focus-ring: var(--text);
   }
 
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -110,6 +112,10 @@
   }
   .mono { font-family: var(--font-mono); font-feature-settings: 'tnum'; }
   button { cursor: pointer; font-family: inherit; border: none; background: none; color: inherit; }
+  /* AUD-46 — one visible focus ring for keyboard users, in every theme and skin.
+     :focus-visible leaves mouse clicks on buttons without a ring; text fields
+     always get it. Nothing may set outline: none on a focusable element. */
+  :focus-visible { outline: 2px solid var(--focus-ring, var(--accent)); outline-offset: 2px; }
 
   .header {
     background: var(--bg);
@@ -202,7 +208,7 @@
   .cp-fields { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 6px; align-items: end; }
   .cp-fields input {
     width: 100%; min-width: 0; background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 8px; padding: 6px 7px; font-family: var(--font-mono); font-size: 11.5px; text-align: center; outline: none; color: var(--text);
+    border-radius: 8px; padding: 6px 7px; font-family: var(--font-mono); font-size: 11.5px; text-align: center; color: var(--text);
   }
   .cp-fields input:focus { border-color: var(--accent); }
   .cp-fields label { font-size: 9px; color: var(--text3); text-align: center; display: block; margin-bottom: 3px; }
@@ -301,7 +307,7 @@
   .setup-guide li { margin: 8px 0; line-height: 1.6; font-size: 13px; }
   .setup-guide code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 12px; }
   .client-id-input { display: flex; gap: 8px; margin-top: 20px; }
-  .client-id-input input { flex: 1; padding: 10px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--text); font-size: 13px; font-family: inherit; outline: none; transition: border-color .15s; }
+  .client-id-input input { flex: 1; padding: 10px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--text); font-size: 13px; font-family: inherit; transition: border-color .15s; }
   .client-id-input input:focus { border-color: var(--accent-line); }
   .login-btn { padding: 10px 24px; background: var(--accent); color: #1a0a06; border: none; border-radius: var(--r-sm); font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
   .login-btn:hover { filter: brightness(1.08); }
@@ -932,7 +938,6 @@
     color: var(--text);
     font-size: 13px;
     font-family: inherit;
-    outline: none;
     transition: border-color .15s, background .15s;
   }
   .form-control:focus { border-color: var(--accent-line); background: var(--surface3); }
@@ -4436,11 +4441,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.31'; // bump per release
+const APP_VERSION = '1.27.32'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.32', date: '2026-09-24', items: [
+    "ACCESSIBILITE (AUD-46) — la navigation au clavier n avait aucun reperage visible : aucun style de focus, et les champs de saisie supprimaient leur contour. Un anneau de 2 px signale desormais l element actif, dans tous les themes (couleur du texte en theme clair, ou l accent est trop pale), dans l app comme dans Reel Studio",
+  ]},
   { v: '1.27.31', date: '2026-09-24', items: [
     "RESTAURATION CSV (AUD-12) — une playlist nommee __proto__ faisait echouer toute la restauration, et un titre sur plusieurs lignes, exporte correctement, etait coupe en deux a la relecture. Le fichier est desormais lu comme un vrai CSV (retours a la ligne entre guillemets compris) et les playlists sont regroupees sans risque sur leur nom",
   ]},
