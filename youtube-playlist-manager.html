@@ -4644,11 +4644,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.47'; // bump per release
+const APP_VERSION = '1.27.48'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.48', date: '2026-09-24', items: [
+    "TAGS (#J3) — le genre musical d une vidéo n était qu un badge. La catégorisation automatique propose désormais aussi le genre que partage la musique d une playlist (au moins deux vidéos, et la moitié d entre elles), en plus de sa catégorie ; Appliquer écrit les deux tags. Aucun appel supplémentaire",
+  ]},
   { v: '1.27.47', date: '2026-09-24', items: [
     "MUSIQUE (AUD-25) — le filtre Musique et la vue Musique jugeaient chacun de leur côté et pouvaient se contredire : un titre d une chaîne « - Topic » sans catégorie était une piste pour l une et pas de la musique pour l autre. Un seul classement répond désormais aux deux questions : une piste compte toujours comme musique ; un mix de deux heures reste de la musique sans être une piste ; un cours rangé en Musique n en est pas",
   ]},
@@ -14501,11 +14504,15 @@ async function showAutoCategorizerModal() {
             const mostCommon = Object.entries(categoryCount).sort((a, b) => b[1] - a[1])[0]?.[0];
             const suggested = (mostCommon && categoryMap[mostCommon])
                            || keywordCategory(pl.snippet.title, keywords);
-            if (suggested) suggestions[pl.id] = { title: pl.snippet.title, suggested, accepted: false };
+            // #J3 — the genre was only a badge; a playlist whose music shares one
+            // genre now gets it as a tag too. Same details, no extra quota.
+            const genre = dominantGenre(Object.values(details));
+            const tags = [suggested, genre].filter(Boolean);
+            if (tags.length) suggestions[pl.id] = { title: pl.snippet.title, suggested: tags[0], tags, accepted: false };
           } catch (err) {
             console.warn('Categorization: no details for ' + pl.id, err);
             const suggested = keywordCategory(pl.snippet.title, keywords);
-            if (suggested) suggestions[pl.id] = { title: pl.snippet.title, suggested, accepted: false };
+            if (suggested) suggestions[pl.id] = { title: pl.snippet.title, suggested, tags: [suggested], accepted: false };
           }
         }
       }
@@ -14531,7 +14538,7 @@ async function showAutoCategorizerModal() {
           <input type="checkbox" data-pl-id="${plId}" class="categorizer-checkbox" checked>
           <div style="flex: 1;">
             <div style="font-weight: 500; font-size: 14px;">${escapeHtml(info.title)}</div>
-            <div style="font-size: 12px; color: var(--text2);">${t('categorizer_suggested')} <strong>${escapeHtml(info.suggested)}</strong></div>
+            <div style="font-size: 12px; color: var(--text2);">${t('categorizer_suggested')} <strong>${escapeHtml((info.tags || [info.suggested]).join(' · '))}</strong></div>
           </div>
         </div>
       `;
@@ -14557,6 +14564,26 @@ function updateCategorizerProgress(percent, text) {
   if (textEl) textEl.textContent = text;
 }
 
+// #J3 — the genre most of a playlist's music shares, or null. Classified by
+// the same classifyVideoType() that draws the genre badge. At least two music
+// videos, and at least half of them, must agree: one track is not a genre.
+function dominantGenre(details) {
+  const counts = {};
+  let music = 0;
+  for (const d of details || []) {
+    const c = classifyVideoType({
+      videoId: d.id, title: d.snippet?.title || '', channelTitle: d.snippet?.channelTitle || '',
+      categoryId: d.snippet?.categoryId, topicCategories: d.topicDetails?.topicCategories || [],
+      durationSeconds: parseDuration(d.contentDetails?.duration || ''),
+    });
+    if (!c.isMusic) continue;
+    music++;
+    if (c.genre) counts[c.genre] = (counts[c.genre] || 0) + 1;
+  }
+  const [genre, n] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0] || [];
+  return genre && n >= 2 && n * 2 >= music ? genre : null;
+}
+
 function applyCategorization(suggestions) {
   const checked = Array.from(document.querySelectorAll('.categorizer-checkbox:checked'));
   let count = 0;
@@ -14564,12 +14591,14 @@ function applyCategorization(suggestions) {
   checked.forEach(el => {
     const plId = el.dataset.plId;
     const suggestion = suggestions[plId];
-    if (suggestion && suggestion.suggested) {
+    const tags = suggestion ? (suggestion.tags || [suggestion.suggested]).filter(Boolean) : [];
+    if (tags.length) {
       if (!APP.tags[plId]) APP.tags[plId] = [];
-      if (!APP.tags[plId].includes(suggestion.suggested)) {
-        APP.tags[plId].push(suggestion.suggested);
-        count++;
+      let added = false;
+      for (const tag of tags) {
+        if (!APP.tags[plId].includes(tag)) { APP.tags[plId].push(tag); added = true; }
       }
+      if (added) count++;
     }
   });
 

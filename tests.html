@@ -4721,6 +4721,40 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '#J3', title: 'A playlist\'s shared genre becomes a tag', note: 'the genre from topicDetails was shown as a badge and never written into the tags',
+  cases: [
+    ['dominantGenre needs two music videos and at least half of them', w => {
+      const topic = g => 'https://en.wikipedia.org/wiki/' + g;
+      const d = (id, g, cat = '10') => ({ id, snippet: { title: 'v', categoryId: cat }, contentDetails: { duration: 'PT3M' },
+                                          topicDetails: { topicCategories: g ? [topic(g), topic('Music')] : [] } });
+      const label = w.classifyVideoType({ topicCategories: [topic('Electronic_music')], categoryId: '10' }).genre;
+      ok(label, 'no genre label');
+      eq(w.dominantGenre([d('a', 'Electronic_music'), d('b', 'Electronic_music'), d('c', 'Rock_music')]), label, 'two of three');
+      eq(w.dominantGenre([d('a', 'Electronic_music')]), null, 'one track is not a genre');
+      eq(w.dominantGenre([d('a', 'Electronic_music'), d('b', 'Rock_music'), d('c', 'Pop_music'), d('d', 'Jazz')]), null, 'no majority');
+      return eq(w.dominantGenre([d('a', null, '27'), d('b', null, '27')]), null, 'no music');
+    }],
+    ['the categorizer suggests the genre and Apply writes it', async w => {
+      const snapLs = snapshot(w, ['playlistTags']);
+      const EDM = 'https://en.wikipedia.org/wiki/Electronic_music';
+      const done = await runCategorizer(w, params =>
+        ({ items: String(params.id).split(',').map(id => ({
+          id, snippet: { title: 'v', categoryId: '10' }, contentDetails: { duration: 'PT3M' },
+          topicDetails: { topicCategories: [EDM, 'https://en.wikipedia.org/wiki/Music'] },
+        })) }),
+        [{ id: 'PL_j3', snippet: { title: 'Night drive' }, contentDetails: { itemCount: 3 }, status: {} }]);
+      try {
+        const genre = w.classifyVideoType({ topicCategories: [EDM], categoryId: '10' }).genre;
+        const row = categorizerRows(w).find(r => r.id === 'PL_j3');
+        ok(row && row.text.includes(genre), 'suggestion: ' + (row && row.text));
+        w.document.getElementById('categorizerApplyBtn').click();
+        const stored = JSON.parse(w.localStorage.getItem('playlistTags') || '{}');
+        return eq(stored['PL_j3'], ['Musique', genre], 'tags written');
+      } finally { done(); restore(w, snapLs); }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
