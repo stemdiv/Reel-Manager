@@ -4644,6 +4644,28 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'Subs XSS', title: 'A channel description renders as text', note: 'found during AUD-27: the Subscriptions view put channel descriptions from the API into innerHTML unescaped',
+  cases: [
+    ['a hostile channel description injects nothing', async w => {
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      w.showToast = () => {};
+      try {
+        w.ytApi = async endpoint => endpoint === 'subscriptions' ? { items: [{ id: 'SUB_x',
+          snippet: { title: 'Chan', description: AUD06_HTML, publishedAt: '2026-01-01T00:00:00Z', resourceId: { channelId: 'UCaud00000000000000000xx' }, thumbnails: {} },
+          contentDetails: { totalItemCount: 3, newItemCount: 1 } }] } : { items: [] };
+        await w.loadSubscriptions();
+        const list = w.document.getElementById('subscriptionsList');
+        eq(list.querySelectorAll('img[onerror*="__pwn"], .sub-desc img').length, 0, 'elements injected');
+        return eq(list.querySelector('.sub-desc').textContent, AUD06_HTML.slice(0, 100), 'shown as text');
+      } finally {
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadSubscriptions(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
