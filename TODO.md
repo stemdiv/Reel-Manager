@@ -1,6 +1,6 @@
 # TODO — after the September 2026 audit
 
-State as of 2026-09-24: app v1.27.51, Reel Studio 0.7.6, 447 tests passing, i18n 785/785.
+State as of 2026-09-24: app v1.27.53, Reel Studio 0.7.6, 457 tests passing, i18n 785/785.
 Details for each finding: `audit/2026-09/08-remediation.md` (on branch `audit/2026-09`).
 
 ## Merges
@@ -13,6 +13,12 @@ Details for each finding: `audit/2026-09/08-remediation.md` (on branch `audit/20
 ## To investigate
 
 - [ ] AUD-54: page error `Cannot set properties of null (setting 'textContent')` seen during test runs.
+- [ ] "HORS LIGNE — CACHE LOCAL" appears when switching a playlist between Music and Video view.
+  The toggle does not touch the token; only a page reload (or Logout) loses it, since the token lives in memory.
+  To collect: does the page visibly reload on the switch? After **Reconnect**, does switching bring the banner back?
+  Export the diagnostic log (Help) right after it happens: it records every page load and sign-in.
+- [ ] Music detection v1.27.52: check the Ableton playlist with the Type filter; send any tutorial titles still read as music (to add as tests).
+  Option: make auto-categorize tag mostly-tutorial playlists "Tutorials" instead of the YouTube category.
 
 ## Open findings
 
