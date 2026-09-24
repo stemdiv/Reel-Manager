@@ -4430,11 +4430,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.24'; // bump per release
+const APP_VERSION = '1.27.25'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.25', date: '2026-09-24', items: [
+    "SECURITE (AUD-07) — Reel Studio 0.7.3 : un nom de tag ou un identifiant de playlist place dans un gestionnaire de clic etait echappe pour le HTML, echappement que le navigateur defait avant d executer le code ; un nom comme a';alert(1);' s executait au clic. Ces valeurs sont desormais echappees pour le JavaScript, avec les memes regles que l application",
+  ]},
   { v: '1.27.24', date: '2026-09-24', items: [
     "SECURITE (AUD-06) — un fichier de sauvegarde partage (forum, bibliotheque de depart) pouvait executer du code a chaque ouverture de l app : l import et la restauration ne verifiaient que la presence d une liste de playlists. Chaque sauvegarde est desormais reconstruite a partir des seuls champs connus : identifiants au format YouTube, images limitees aux serveurs Google, textes bornes, le reste ecarte. Noms et icones de dossiers et de tags s affichent comme du texte. Les sauvegardes portent un numero de format ; un fichier d une version plus recente est refuse",
   ]},

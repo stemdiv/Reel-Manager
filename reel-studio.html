@@ -540,7 +540,7 @@
 // Strictly read-only: no API calls, no writes to the app's data keys.
 // ═══════════════════════════════════════════════════════════════════════
 
-const STUDIO_VERSION = '0.7.2';
+const STUDIO_VERSION = '0.7.3';
 
 // ── i18n ───────────────────────────────────────────────────────────────
 const LANG = (localStorage.getItem('appLang') || 'fr') === 'en' ? 'en' : 'fr';
@@ -898,6 +898,12 @@ function renderPalette() {
 
 // ── Helpers ────────────────────────────────────────────────────────────
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// AUD-07 — for a value inside a quoted JS string inside an inline handler.
+// esc() is wrong there: the attribute is HTML-decoded before the JS runs, so
+// &#39; turns back into a quote that ends the string. Same rules as the app's
+// escapeJsAttr(): JS escapes for \ and ', then &amp; and &quot; for the HTML layer.
+const escJs = s => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' ').replace(/"/g, '&quot;');
 const parseDuration = iso => {
   const m = String(iso || '').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   return m ? (parseInt(m[1] || 0) * 3600) + (parseInt(m[2] || 0) * 60) + parseInt(m[3] || 0) : 0;
@@ -1138,14 +1144,14 @@ function videoRow(v, showPlaylist, i) {
       <span class="row-right">
         ${esc(fmtClock(v.seconds))}
         <a class="row-open" href="${v.videoId ? ytUrl(v.videoId) : '#'}" target="_blank" rel="noopener"
-           title="${esc(tr('openYT'))}" onclick="return openOnYouTube(event, '${v.videoId ? ytUrl(v.videoId) : '#'}')">↗</a>
+           title="${esc(tr('openYT'))}" onclick="return openOnYouTube(event, '${escJs(v.videoId ? ytUrl(v.videoId) : '#')}')">↗</a>
       </span>
     </div>`;
 }
 
 function playlistCard(pl) {
   return `
-    <article class="card pl-card reactive" onclick="go('playlists','${esc(pl.id)}')">
+    <article class="card pl-card reactive" onclick="go('playlists','${escJs(pl.id)}')">
       <div class="pl-thumb${pl.thumb ? '' : ' placeholder'}" ${pl.thumb ? `style="background-image:url('${esc(pl.thumbHero || pl.thumb)}')"` : ''}>
         <span class="pl-count">${nf(pl.count)}</span>
       </div>
@@ -1180,7 +1186,7 @@ function viewDashboard() {
     <div class="ticker"><div class="ticker-track">${ticks}${ticks}</div></div>
 
     <main class="bento">
-      <article class="card hero reactive" onclick="go('playlists','${esc(hero.id)}')">
+      <article class="card hero reactive" onclick="go('playlists','${escJs(hero.id)}')">
         <div class="hero-cover${heroCover ? ' has-img' : ''}" ${heroCover ? `style="background-image:url('${esc(heroCover)}')"` : ''}></div>
         <div class="hero-veil"></div>
         <div class="hero-hint">${esc(tr('cover'))}</div>
@@ -1189,7 +1195,7 @@ function viewDashboard() {
           <h3>${esc(hero.title)}</h3>
           <div class="hero-meta">${nf(hero.count)} ${esc(tr('items'))} · ${fmtHours(hero.seconds)}</div>
           <div class="hero-actions">
-            <button class="btn btn-primary" onclick="event.stopPropagation(); playPlaylistById('${esc(hero.id)}')">${esc(tr('playAll'))}</button>
+            <button class="btn btn-primary" onclick="event.stopPropagation(); playPlaylistById('${escJs(hero.id)}')">${esc(tr('playAll'))}</button>
             <button class="btn btn-ghost">${esc(tr('organise'))}</button>
           </div>
         </div>
@@ -1269,7 +1275,7 @@ function renderDashboardCharts() {
   const max = top[0]?.count || 1;
   if (bars) bars.innerHTML = top.map((p, i) => `
     <div class="bar-row">
-      <span class="bar-name" title="${esc(p.title)}" onclick="go('playlists','${esc(p.id)}')">${esc(p.title)}</span>
+      <span class="bar-name" title="${esc(p.title)}" onclick="go('playlists','${escJs(p.id)}')">${esc(p.title)}</span>
       <span class="bar-track"><span class="bar-fill" style="width:${(p.count / max * 100).toFixed(1)}%;background:${catColor(i)}"></span></span>
       <span class="bar-val">${nf(p.count)}</span>
     </div>`).join('');
@@ -1319,9 +1325,9 @@ function viewPlaylistDetail(pl) {
     <div class="view-head">
       <h2>${esc(pl.title)}</h2>
       <span class="count">${nf(pl.count)} ${esc(tr('items'))} · ${fmtHours(pl.seconds)}</span>
-      <button class="chip" onclick="playPlaylistById('${esc(pl.id)}')">${esc(tr('playAll'))}</button>
+      <button class="chip" onclick="playPlaylistById('${escJs(pl.id)}')">${esc(tr('playAll'))}</button>
       <a class="chip" style="text-decoration:none" href="${plUrl(pl.id)}" target="_blank" rel="noopener"
-         onclick="return openOnYouTube(event, '${plUrl(pl.id)}')">YouTube ↗</a>
+         onclick="return openOnYouTube(event, '${escJs(plUrl(pl.id))}')">YouTube ↗</a>
     </div>
     ${pl.tags.length ? `<div class="pl-tags" style="margin-bottom:14px">${pl.tags.map(t => `<span class="tag-pill">${esc(t)}</span>`).join('')}</div>` : ''}
     <div class="toolbar">
@@ -1391,7 +1397,7 @@ function viewKanban() {
           <span class="legend-dot" style="background:${catColor(i)}"></span>
           <b>${esc(c.name)}</b><span>${c.playlists.length}</span>
         </div>
-        ${c.playlists.map(p => `<div class="kan-item" onclick="go('playlists','${esc(p.id)}')">${esc(p.title)}<small>${nf(p.count)} ${esc(tr('items'))} · ${fmtHours(p.seconds)}</small></div>`).join('')}
+        ${c.playlists.map(p => `<div class="kan-item" onclick="go('playlists','${escJs(p.id)}')">${esc(p.title)}<small>${nf(p.count)} ${esc(tr('items'))} · ${fmtHours(p.seconds)}</small></div>`).join('')}
       </div>`).join('')}</div>`;
 }
 
@@ -1404,7 +1410,7 @@ function viewDupes() {
       <div class="dupe">
         <div class="dupe-title">
           <a href="${ytUrl(list[0].videoId)}" target="_blank" rel="noopener" style="text-decoration:none"
-             onclick="return openOnYouTube(event, '${ytUrl(list[0].videoId)}')">${esc(list[0].title)}</a>
+             onclick="return openOnYouTube(event, '${escJs(ytUrl(list[0].videoId))}')">${esc(list[0].title)}</a>
         </div>
         <div class="dupe-where">${esc(tr('inPlaylists', { n: list.length }))} — ${list.map(v => esc(v.playlistTitle)).join(' · ')}</div>
       </div>`).join('')}</div>
@@ -1437,7 +1443,7 @@ function viewStats() {
         <div class="card-label">${esc(tr('statTop'))}</div>
         ${top.map((p, i) => `
           <div class="bar-row">
-            <span class="bar-name" onclick="go('playlists','${esc(p.id)}')" title="${esc(p.title)}">${esc(p.title)}</span>
+            <span class="bar-name" onclick="go('playlists','${escJs(p.id)}')" title="${esc(p.title)}">${esc(p.title)}</span>
             <span class="bar-track"><span class="bar-fill" style="width:${(p.count / maxTop * 100).toFixed(1)}%;background:${catColor(i)}"></span></span>
             <span class="bar-val">${nf(p.count)}</span>
           </div>`).join('')}
@@ -1492,7 +1498,7 @@ function viewTags() {
   return `
     <div class="view-head"><h2>${esc(S.dock.tags)}</h2><span class="count">${d.tags.length}</span></div>
     <div class="grid">${d.tags.map((t, i) => `
-      <article class="card reactive" style="cursor:pointer" onclick="UI.plTag='${esc(t.name)}'; go('playlists')">
+      <article class="card reactive" style="cursor:pointer" onclick="UI.plTag='${escJs(t.name)}'; go('playlists')">
         <div class="legend-dot" style="background:${catColor(i)};width:12px;height:12px;margin-bottom:10px"></div>
         <div style="font-family:var(--font-display);font-weight:800;font-size:19px;margin-bottom:6px">${esc(t.name)}</div>
         <div class="pl-meta">${t.playlists.length} ${esc(tr('playlists').toLowerCase())} · ${nf(t.videos)} ${esc(tr('items'))}</div>

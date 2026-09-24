@@ -3780,6 +3780,40 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-07', title: 'Reel Studio handlers take tag names and ids literally', note: 'Studio escaped for HTML inside a JS string: the attribute decoder turned &#39; back into a quote',
+  cases: [
+    ['a hostile tag name filters the playlists and runs nothing (X4)', async w => {
+      const r = await withStudioLibrary(w, async sw => {
+        sw.location.hash = '#/tags';
+        await aud07Tick();
+        const card = sw.document.querySelector('article[onclick*="UI.plTag"]');
+        ok(card, 'no tag card rendered');
+        card.click();
+        await aud07Tick();
+        return { pwn: sw.__pwn, hash: sw.location.hash, cards: sw.document.querySelectorAll('.pl-card').length,
+                 chip: (sw.document.querySelector('.chip.active') || {}).textContent };
+      });
+      eq(r.pwn, undefined, 'the tag name ran as code');
+      eq(r.hash, '#/playlists', 'route');
+      eq(r.chip, AUD07_TAG + ' ×', 'active tag filter');
+      return eq(r.cards, 1, 'playlists shown for the tag');
+    }],
+    ['a playlist id with quotes and backslashes reaches the router intact', async w => {
+      const r = await withStudioLibrary(w, async sw => {
+        sw.location.hash = '#/playlists';
+        await aud07Tick();
+        const card = [...sw.document.querySelectorAll('.pl-card')].find(c => c.getAttribute('onclick').includes('aud07b'));
+        ok(card, 'no card for the odd id');
+        card.click();
+        await aud07Tick();
+        return { pwn: sw.__pwn, hash: sw.location.hash };
+      });
+      eq(r.pwn, undefined, 'the id ran as code');
+      return eq(r.hash, '#/playlists/' + encodeURIComponent(AUD07_ID), 'route');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -4018,6 +4052,34 @@ async function runRetry(w, method, script) {
     catch (e) { threw = true; message = e.message; }
     return { fetches, threw, message, toasts };
   } finally { Object.assign(w, real); }
+}
+
+// AUD-07 — Reel Studio reads the app's cache straight from IndexedDB, so a
+// library written there reaches it without going through the app's checks.
+const AUD07_TAG = "a';window.__pwn=1;'";
+const AUD07_ID = "PL_aud07b\\';window.__pwn=1;//";
+const aud07Tick = () => new Promise(r => setTimeout(r, 120));
+async function withStudioLibrary(w, body) {
+  const idb = await idbSnapshot(w);
+  const vid = (id, n) => ({ videoId: (id + n).padEnd(11, '_').slice(0, 11), title: 'v' + n, duration: 'PT1M', channel: 'c' });
+  let f;
+  try {
+    await w.cacheStore.writeAll({
+      timestamp: new Date().toISOString(),
+      playlists: [
+        { id: 'PL_aud07a', title: 'Tagged', videos: [vid('a', 1), vid('a', 2)] },
+        { id: AUD07_ID, title: 'Odd id', videos: [vid('b', 1)] },
+      ],
+      playlistObjects: [],
+      tags: { PL_aud07a: [AUD07_TAG] }, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [],
+    });
+    f = await openStudio();
+    await aud07Tick();
+    return await body(f.contentWindow);
+  } finally {
+    if (f) f.remove();
+    await idbRestore(w, idb);
+  }
 }
 
 // AUD-06 — a backup in the exact shape sanitizeBackup() writes, so a clean
