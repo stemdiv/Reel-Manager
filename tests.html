@@ -3357,6 +3357,54 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-15', title: 'Every pre-flight knows what it costs', note: 'six action keys were missing from the table and fell back to 1 unit — a 400-unit caption upload was checked at 1',
+  cases: [
+    ['every key passed to checkQuotaBudget has its real cost', async w => {
+      const src = await (await fetch('youtube-playlist-manager.html?aud15=' + Date.now())).text();
+      const keys = [...new Set([...src.matchAll(/checkQuotaBudget\([^,]+,\s*'([a-z_]+)'/g)].map(m => m[1]))];
+      ok(keys.length >= 14, 'found only ' + keys.length + ' pre-flight keys');
+      const expected = {
+        add_to_playlist: 50, video_update: 50, thumbnail_set: 50, caption_insert: 400, channel_update: 50,
+        video_insert: 1, cover_set: 50, reorder_video: 50, rename_playlists: 50, delete_playlists: 50,
+        discover_search_pages: 1, move: 100, clean_ghosts: 50, bulk_rename: 50, merge: 50, merge_new: 100,
+      };
+      const unknown = keys.filter(k => !(k in expected));
+      eq(unknown, [], 'pre-flight keys this case does not know — add them to `expected`');
+      const wrong = keys.filter(k => w.estimateQuotaCost(k, 1) !== expected[k]).map(k => k + '=' + w.estimateQuotaCost(k, 1));
+      return eq(wrong, [], 'wrong costs');
+    }],
+
+    ['the video upload is checked against the upload bucket', async w => {
+      // The bug was the caller, not checkQuotaBudget: it never named the bucket.
+      const src = await (await fetch('youtube-playlist-manager.html?aud15b=' + Date.now())).text();
+      const call = (src.match(/checkQuotaBudget\([^)]*'video_insert'[^)]*\)/) || [''])[0];
+      ok(/'upload'\s*\)$/.test(call), 'the upload pre-flight does not name the upload bucket: ' + call);
+      const snap = seedQuota(w, { pool: 0, search: 0, upload: 100, stats: 0 });
+      const real = { confirm: w.confirm, showToast: w.showToast };
+      const asked = [];
+      w.confirm = m => { asked.push(m); return false; };
+      w.showToast = () => {};
+      try {
+        const go = w.checkQuotaBudget('Video upload', 'video_insert', 1, 'upload');
+        eq(go, false, 'a full upload bucket let the upload through');
+        return eq(asked.length, 1, 'the user was not asked');
+      } finally { Object.assign(w, real); unseedQuota(w, snap); }
+    }],
+
+    ['a caption upload near the pool limit is caught', w => {
+      const snap = seedQuota(w, { pool: 9990, search: 0, upload: 0, stats: 0 });
+      const real = { confirm: w.confirm, showToast: w.showToast };
+      const asked = [];
+      w.confirm = m => { asked.push(m); return false; };
+      w.showToast = () => {};
+      try {
+        eq(w.checkQuotaBudget('Caption upload', 'caption_insert', 1), false, 'went through with 10 units left');
+        return ok(asked.length === 1 && /400/.test(asked[0]), 'cost not named: ' + asked[0]);
+      } finally { Object.assign(w, real); unseedQuota(w, snap); }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {

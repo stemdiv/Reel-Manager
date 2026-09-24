@@ -4423,11 +4423,15 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.14'; // bump per release
+const APP_VERSION = '1.27.15'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.15', date: '2026-09-24', items: [
+    "QUOTA (AUD-15) — six actions verifiaient le quota avec une cle absente de la table des couts, et une cle inconnue valait 1 unite : l envoi d un sous-titre (400 unites) etait estime a 1, la mise a jour d une video, d une miniature, de la chaine et le reordonnancement a 1 au lieu de 50. Les six cles sont ajoutees ; une cle inconnue compte desormais 50 par element et le journal le signale",
+    "L envoi de video verifie le bucket des envois (100 appels par jour) au lieu du pool ; l ajout d un titre tendance a une playlist est compte 50 et non 100",
+  ]},
   { v: '1.27.14', date: '2026-09-24', items: [
     "FUSION (AUD-23) — une playlist jamais ouverte, un favori typiquement, n apportait aucune video a la fusion ; une video presente dans deux sources etait inseree deux fois. Chaque source est desormais chargee, chaque video n est inseree qu une fois et jamais si la destination l a deja, et un message dit combien de doublons ont ete ecartes",
     "L estimation de quota compte ce qui sera vraiment insere, plus la creation de la playlist quand il y en a une ; elle comptait une suppression de playlist que la fusion ne fait pas. Les listes de fusion affichent le nombre de videos annonce par YouTube pour une playlist pas encore chargee, au lieu de 0",
@@ -6247,10 +6251,24 @@ function estimateQuotaCost(action, count) {
     'cover_set': count * YT_QUOTA_COSTS['playlistImages.POST'],  // #I1 — 50 per cover
     'discover_create': count * INSERT + INSERT_PLAYLIST,  // N inserts into new playlist + 1 playlist creation
     'discover_search_pages': count * SEARCH_PAGE,         // #76: cost = pages × 1 CALL, charged to the search bucket
-    'caption_upload': count * CAPTION_INSERT,             // ⚠️ very expensive: 400/track
+    'caption_insert': count * CAPTION_INSERT,             // ⚠️ very expensive: 400/track
     'caption_update': count * CAPTION_UPDATE,             // ⚠️ very expensive: 450/track
+    // AUD-15 — every key a caller passes must be here. These six were not, and
+    // an unknown key used to fall back to `count`: a 400-unit caption upload was
+    // pre-flighted at 1, and every other Studio write at 1 instead of 50.
+    'add_to_playlist': count * INSERT,                    // one item into an existing playlist
+    'video_update': count * YT_QUOTA_COSTS['videos.PUT'],
+    'thumbnail_set': count * YT_QUOTA_COSTS['thumbnails.POST'],
+    'channel_update': count * YT_QUOTA_COSTS['channels.PUT'],
+    'reorder_video': count * YT_QUOTA_COSTS['playlistItems.PUT'],
+    'video_insert': count * YT_QUOTA_COSTS['videos.POST'],   // 1 call from the upload bucket (#76)
   };
-  return costs[action] || count;
+  if (!(action in costs)) {
+    // Never again a silent 1: assume a write and say so in the log.
+    log('error', 'quota', 'estimateQuotaCost: unknown action — assuming 50 per item', { action, count });
+    return count * 50;
+  }
+  return costs[action];
 }
 
 // bucket defaults to 'pool' — every bulk action except Discover's search spends units.
@@ -8386,7 +8404,7 @@ async function addTrendingToPlaylist(videoId) {
 async function confirmAddTrending(videoId) {
   const destId = document.getElementById('trendingDestPlaylist')?.value;
   if (!destId) return;
-  if (!checkQuotaBudget(t('trending_add'), 'discover_create', 1)) return;
+  if (!checkQuotaBudget(t('trending_add'), 'add_to_playlist', 1)) return;
   closeModal();
   try {
     await ytApi('playlistItems', { part: 'snippet' }, 'POST', {
@@ -9501,7 +9519,7 @@ async function uploadVideo() {
     return;
   }
   if (!checkBackupSafety('Video upload')) return;
-  if (!checkQuotaBudget('Video upload', 'video_insert', 1)) return;
+  if (!checkQuotaBudget('Video upload', 'video_insert', 1, 'upload')) return;
 
   const file = fileInput.files[0];
   const progressDiv = document.getElementById('uploadProgress');
