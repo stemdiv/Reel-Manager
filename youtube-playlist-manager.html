@@ -4430,11 +4430,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.22'; // bump per release
+const APP_VERSION = '1.27.23'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.23', date: '2026-09-24', items: [
+    "API (AUD-20) — l API YouTube signale aussi une limite de debit par une erreur 403 (rateLimitExceeded, userRateLimitExceeded). Elle etait traduite en session expiree, avec une invite a se reconnecter qui ne servait a rien. Ces 403 sont desormais traites comme un 429 : attente puis nouvel essai, et en dernier recours le message de limite de debit",
+  ]},
   { v: '1.27.22', date: '2026-09-24', items: [
     "DOUBLONS (AUD-19) — une creation (POST) qui echouait sur le reseau ou en erreur 5xx etait renvoyee jusqu a trois fois ; si la premiere avait en fait abouti, cela creait une deuxieme playlist ou insererait deux fois la meme video. Une creation n est plus renvoyee qu apres un refus explicite 429 ; sinon l erreur est signalee. Les lectures, modifications et suppressions, sans risque de doublon, gardent leurs nouvelles tentatives",
   ]},
@@ -5515,6 +5518,16 @@ function parseRetryAfter(headerValue) {
     return Math.max(0, Math.min(RETRY_CONFIG.retryAfterCapMs, dateMs - Date.now()));
   }
   return null;
+}
+
+// AUD-20 — a 403 whose reason is a rate limit is a "slow down", not a lost
+// session. Reads a clone, so the caller can still consume the body.
+const RATE_LIMIT_REASONS = ['rateLimitExceeded', 'userRateLimitExceeded'];
+async function isRateLimit403(res) {
+  try {
+    const body = await res.clone().json();
+    return RATE_LIMIT_REASONS.includes(body?.error?.errors?.[0]?.reason);
+  } catch (_) { return false; }
 }
 
 // Decide if a status code is worth retrying.
@@ -7587,10 +7600,14 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
 
 
       // Retryable status codes (429 rate-limit, 5xx server errors)
-      if (isRetryableStatus(res.status)) {
-        if (attempt < RETRY_CONFIG.maxRetries && (idempotent || res.status === 429)) {
+      // AUD-20 — the Data API signals rate limiting with 403 and a reason, not
+      // only with 429. Those 403s were mapped to "session expired" and a
+      // reconnect prompt, when the right move is to wait and try again.
+      const rateLimited = res.status === 429 || (res.status === 403 && await isRateLimit403(res));
+      if (isRetryableStatus(res.status) || rateLimited) {
+        if (attempt < RETRY_CONFIG.maxRetries && (idempotent || rateLimited)) {
           let delay;
-          if (res.status === 429) {
+          if (rateLimited) {
             const retryAfter = parseRetryAfter(res.headers.get('Retry-After'));
             delay = retryAfter ?? computeBackoffDelay(attempt);
             console.warn(`[ytApi] 429 rate-limited on ${method} ${endpoint}, retry ${attempt + 1}/${RETRY_CONFIG.maxRetries} in ${delay}ms (Retry-After=${res.headers.get('Retry-After') || 'absent'})`);
@@ -7604,7 +7621,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
           await sleep(delay);
           continue;
         }
-        if (res.status === 429) {
+        if (rateLimited) {
           throw new Error(t('error_rate_limited') || 'Rate limit exceeded — please try again in a moment');
         }
         throw new Error(`Server error (${res.status}) — please try again later`);

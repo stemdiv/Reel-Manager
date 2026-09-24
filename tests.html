@@ -3618,6 +3618,31 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-20', title: 'A rate-limit 403 means "wait", not "log in again"', note: 'rateLimitExceeded / userRateLimitExceeded were shown as an expired session with a reconnect prompt',
+  cases: [
+    ['a 403 rateLimitExceeded is retried like a 429', async w => {
+      const r = await runRetry(w, 'GET', ['403:rateLimitExceeded', 200]);
+      eq(r.fetches, 2, 'requests sent');
+      return ok(!r.threw, 'failed after a successful retry: ' + r.message);
+    }],
+    ['a POST refused with userRateLimitExceeded is retried too', async w => {
+      const r = await runRetry(w, 'POST', ['403:userRateLimitExceeded', 200]);
+      eq(r.fetches, 2, 'requests sent');
+      return ok(!r.threw, 'failed after a successful retry');
+    }],
+    ['a persistent rate limit ends on the rate-limit message, with no reconnect prompt', async w => {
+      const r = await runRetry(w, 'GET', ['403:rateLimitExceeded']);
+      eq(r.message, w.t('error_rate_limited'), 'final message');
+      return ok(!r.toasts.some(x => x.msg === w.t('error_session_expired')), 'offered a reconnect');
+    }],
+    ['a genuine 403 still asks to reconnect', async w => {
+      const r = await runRetry(w, 'GET', ['403:forbidden']);
+      eq(r.fetches, 1, 'a real 403 is not retried');
+      return eq(r.message, w.t('error_session_expired'), 'final message');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -3833,20 +3858,25 @@ function openFreshApp() {
 // AUD-19 — drive ytApi's retry loop with a scripted fetch: each entry is an
 // HTTP status or 'net' for a network failure. Backoff sleeps are skipped.
 async function runRetry(w, method, script) {
-  const real = { fetch: w.fetch, sleep: w.sleep, ensureWriteScope: w.ensureWriteScope };
-  let fetches = 0, threw = false;
+  const real = { fetch: w.fetch, sleep: w.sleep, ensureWriteScope: w.ensureWriteScope, showToast: w.showToast };
+  let fetches = 0, threw = false, message = '';
+  const toasts = [];
   try {
     w.sleep = async () => {};
     w.ensureWriteScope = async () => true;
     w.fetch = async () => {
       const step = script[Math.min(fetches++, script.length - 1)];
       if (step === 'net') throw new TypeError('Failed to fetch');
-      return new w.Response(step === 200 ? '{"id":"X"}' : '{"error":{"message":"busy"}}',
-        { status: step, headers: { 'Content-Type': 'application/json' } });
+      const m = /^(\d{3}):(\w+)$/.exec(String(step));            // e.g. '403:rateLimitExceeded'
+      const status = m ? +m[1] : step;
+      const body = status === 200 ? '{"id":"X"}'
+        : JSON.stringify({ error: { message: m ? 'Rate Limit Exceeded' : 'busy', errors: m ? [{ reason: m[2] }] : [] } });
+      return new w.Response(body, { status, headers: { 'Content-Type': 'application/json' } });
     };
+    w.showToast = (msg, type) => toasts.push({ msg, type });
     try { await w.ytApi('playlists', { part: 'snippet', aud19: Date.now() }, method, { snippet: { title: 't' } }); }
-    catch (_) { threw = true; }
-    return { fetches, threw };
+    catch (e) { threw = true; message = e.message; }
+    return { fetches, threw, message, toasts };
   } finally { Object.assign(w, real); }
 }
 
