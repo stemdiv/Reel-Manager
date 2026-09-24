@@ -3230,6 +3230,49 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-24', title: 'Ghost cleanup only deletes what is really gone, from playlists you own', note: 'bookmarked playlists were swept too (403, 50 units each), and nothing re-checked the verdict before deleting',
+  cases: [
+    ['bulk clean skips bookmarks and videos YouTube still returns', async w => {
+      const r = await runGhostClean(w, { alive: ['VG2'] });
+      return eq(r.deleted, ['IG1'], 'deleted item ids');
+    }],
+
+    ['if the live check fails, nothing is deleted', async w => {
+      const r = await runGhostClean(w, { recheckFails: true });
+      eq(r.deleted, [], 'deleted without verification');
+      return ok(r.toasts.some(x => x.type === 'error'), 'no error toast');
+    }],
+
+    ['a private video is still "private" after a cache round-trip', async w => {
+      const idb = await idbSnapshot(w);
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      w.showToast = () => {};
+      try {
+        w.ytApi = async (endpoint, params) => {
+          if (endpoint === 'playlists') return { items: params && params.mine ? [{ id: 'PL_aud24_p', snippet: { title: 'p' }, contentDetails: { itemCount: 1 }, status: {} }] : [] };
+          if (endpoint === 'playlistItems') return { items: [{ id: 'IP1', contentDetails: { videoId: 'VP1' }, status: { privacyStatus: 'private' },
+                                                               snippet: { title: 'Private video', thumbnails: {}, resourceId: { videoId: 'VP1' } } }] };
+          return { items: [] };
+        };
+        await w.loadAllPlaylists();
+        const [item] = await w.loadPlaylistVideos('PL_aud24_p', { force: true });
+        eq(w.ghostStatus(item), 'private', 'precondition');
+        await w.autoSaveToLocalStorage({ force: true });
+        w.setAccessToken('');                      // read the rebuilt list as is
+        await w.loadBackupFromStorage();
+        const [rebuilt] = await w.loadPlaylistVideos('PL_aud24_p');
+        return eq(w.ghostStatus(rebuilt), 'private', 'status after the rebuild');
+      } finally {
+        w.setAccessToken('test-token');
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+        await idbRestore(w, idb);
+      }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -3378,6 +3421,54 @@ async function withPagedPlaylist(w, id, opts, body) {
     w.ytApi = async () => ({ items: [] });
     try { await w.loadAllPlaylists(); } catch (_) {}
     Object.assign(w, real);
+  }
+}
+
+// AUD-24 — the real cleanAllGhosts() over a library rebuilt from the cache:
+// PL_own holds a true ghost (IG1), a "ghost" YouTube still returns (IG2) and a
+// normal video; PL_bm is a bookmarked playlist holding a ghost (IG3).
+async function runGhostClean(w, opts) {
+  const idb = await idbSnapshot(w);
+  const lsSnap = snapshot(w, ['bookmarkedPlaylists']);
+  const real = { ytApi: w.ytApi, showToast: w.showToast, confirm: w.confirm, scanGhostVideos: w.scanGhostVideos,
+                 checkBackupSafety: w.checkBackupSafety, checkQuotaBudget: w.checkQuotaBudget };
+  const deleted = [], toasts = [];
+  const ghost = (id, v) => ({ videoId: v, itemId: id, title: 'Deleted video' });
+  try {
+    await w.cacheStore.writeAll({
+      timestamp: '2999-01-01T00:00:00.000Z',
+      playlists: [
+        { id: 'PL_own', title: 'own', videos: [ghost('IG1', 'VG1'), ghost('IG2', 'VG2'), { videoId: 'VOK', itemId: 'IOK', title: 'fine', thumbnail: 'u' }] },
+        { id: 'PL_bm', title: 'bm', videos: [ghost('IG3', 'VG3')] },
+      ],
+      playlistObjects: [
+        { id: 'PL_own', snippet: { title: 'own' }, contentDetails: { itemCount: 3 }, status: {} },
+        { id: 'PL_bm', snippet: { title: 'bm' }, contentDetails: { itemCount: 1 }, status: {} },
+      ],
+      tags: {}, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [],
+      bookmarkedPlaylists: [{ id: 'PL_bm', addedAt: '2026-09-01T00:00:00Z' }],
+    });
+    await w.loadBackupFromStorage();
+    w.ytApi = async (endpoint, params, method) => {
+      if (method === 'DELETE') { deleted.push(params.id); return null; }
+      if (endpoint === 'videos') {
+        if (opts.recheckFails) throw new Error('Server error (503) — please try again later');
+        const asked = String(params.id).split(',');
+        return { items: (opts.alive || []).filter(v => asked.includes(v)).map(id => ({ id })) };
+      }
+      return { items: [] };
+    };
+    w.showToast = (m, type) => toasts.push({ m, type });
+    w.confirm = () => true;
+    w.scanGhostVideos = async () => {};
+    w.checkBackupSafety = () => true;
+    w.checkQuotaBudget = () => true;
+    await w.cleanAllGhosts();
+    return { deleted, toasts };
+  } finally {
+    Object.assign(w, real);
+    restore(w, lsSnap);
+    await idbRestore(w, idb);
   }
 }
 

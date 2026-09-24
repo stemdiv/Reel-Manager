@@ -3394,6 +3394,8 @@ const I18N = {
     toast_backup_csv: 'Backup CSV créé : {playlists} playlists, {videos} lignes',
     toast_playlist_incomplete: '« {title} » n\'a été chargée qu\'en partie ({count} vidéos) — rechargez-la avant de vous fier à une sauvegarde',
     toast_backup_incomplete: 'Attention : {count} playlist(s) n\'ont été chargées qu\'en partie — cette sauvegarde ne les contient pas en entier',
+    toast_ghosts_recheck_failed: 'Vérification auprès de YouTube impossible, rien n\'a été supprimé : {msg}',
+    toast_ghosts_still_available: '{count} vidéo(s) signalée(s) comme fantômes sont toujours disponibles sur YouTube — conservées',
     toast_select_file: 'Sélectionnez un fichier JSON ou CSV',
     toast_restore_info: 'Backup chargé : {count} playlists. Sélectionnez celles à restaurer.',
     toast_read_error: 'Erreur de lecture du fichier',
@@ -4174,6 +4176,8 @@ const I18N = {
     toast_backup_csv: 'CSV backup created: {playlists} playlists, {videos} rows',
     toast_playlist_incomplete: '"{title}" only loaded partly ({count} videos) — reload it before relying on a backup',
     toast_backup_incomplete: 'Warning: {count} playlist(s) only loaded partly — this backup does not hold them in full',
+    toast_ghosts_recheck_failed: 'Could not check with YouTube, nothing was deleted: {msg}',
+    toast_ghosts_still_available: '{count} video(s) flagged as ghosts are still available on YouTube — kept',
     toast_select_file: 'Select a JSON or CSV file',
     toast_restore_info: 'Backup loaded: {count} playlists. Select the ones to restore.',
     toast_read_error: 'File read error',
@@ -4419,11 +4423,16 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.10'; // bump per release
+const APP_VERSION = '1.27.11'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.11', date: '2026-09-24', items: [
+    "FANTOMES (AUD-24) — le nettoyage parcourait aussi les playlists mises en favori, qui appartiennent a quelqu un d autre : chaque suppression y echouait en 403 apres avoir consomme 50 unites. Seules vos playlists sont desormais analysees et nettoyees",
+    "Avant une suppression en masse, les videos candidates sont verifiees aupres de YouTube (1 unite pour 50 videos) : une video encore disponible est conservee, et si la verification echoue rien n est supprime",
+    "Le cache garde la date de publication et la confidentialite de chaque element : apres un rechargement, une video privee n est plus classee supprimee",
+  ]},
   { v: '1.27.10', date: '2026-09-24', items: [
     "INTEGRITE DES DONNEES (AUD-14) — le cache et la sauvegarde ne gardaient pas l identifiant d element de playlist. Apres un demarrage depuis le cache, le cas par defaut, Deplacer inserait dans la destination sans pouvoir supprimer la source (retour du bug #G7 : deplacer copiait), et reordonner, supprimer un doublon ou une video fantome echouaient. L identifiant est desormais conserve et restaure",
     "Un cache ecrit par une version precedente, sans ces identifiants, est recharge une fois depuis l API quand la session est connectee ; hors ligne il reste lisible tel quel",
@@ -5992,7 +6001,9 @@ async function loadBackupFromStorage() {
           // copied), and reorder / duplicate / ghost removal had nothing to
           // address. Older caches lack it; loadPlaylistVideos() refetches those.
           ...(v.itemId ? { id: v.itemId } : {}),
-          contentDetails: { videoId: v.videoId, duration: v.duration || '' },
+          ...(v.privacy ? { status: { privacyStatus: v.privacy } } : {}),
+          contentDetails: { videoId: v.videoId, duration: v.duration || '',
+                            ...(v.videoPublishedAt ? { videoPublishedAt: v.videoPublishedAt } : {}) },
           snippet: {
             title: v.title,
             position: v.position,
@@ -7825,6 +7836,10 @@ async function autoSaveCache(opts) {
           return {
             videoId,
             itemId: v.id || undefined,   // AUD-14 — the playlistItem id every item-level write needs
+            // AUD-24 — the two signals ghostStatus() reads besides thumbnails.
+            // Dropping them made a reloaded private video read as "deleted".
+            videoPublishedAt: v.contentDetails?.videoPublishedAt || undefined,
+            privacy: v.status?.privacyStatus || undefined,
             title: v.snippet?.title || '',
             position: v.snippet?.position,
             thumbnail: pickThumb(v.snippet?.thumbnails) || pickThumb(detail?.snippet?.thumbnails),
@@ -12605,28 +12620,46 @@ async function performMove() {
 // GHOST VIDEOS
 // ============================================================================
 
-async function scanGhostVideos() {
-  showToast(t('toast_scanning_ghosts'), 'info');
-
-  // Load all videos first
-  for (const pl of APP.playlists) {
-    await loadPlaylistVideos(pl.id);
-  }
-
+// AUD-24 — ghosts are looked for in the user's own playlists only. A bookmarked
+// playlist belongs to someone else: its items cannot be deleted (403), and each
+// attempt was charged 50 units first. Loading goes through loadPlaylistVideos(),
+// so every item carries the id a delete needs (AUD-14).
+async function collectGhosts() {
   const ghosts = [];
-  for (const [playlistId, videos] of Object.entries(APP.allVideos)) {
+  for (const pl of APP.playlists.filter(p => !p._isBookmark)) {
+    const videos = await loadPlaylistVideos(pl.id);
     for (const v of videos) {
-      if (isGhostItem(v)) {
-        ghosts.push({
-          playlistId,
-          playlistTitle: APP.playlists.find(p => p.id === playlistId)?.snippet?.title,
-          videoId: v.contentDetails?.videoId,
-          title: v.snippet?.title || '',
-          itemId: v.id
-        });
-      }
+      if (!isGhostItem(v) || !v.id) continue;
+      ghosts.push({
+        playlistId: pl.id,
+        playlistTitle: pl.snippet?.title,
+        videoId: v.contentDetails?.videoId || v.snippet?.resourceId?.videoId,
+        title: v.snippet?.title || '',
+        itemId: v.id,
+      });
     }
   }
+  return ghosts;
+}
+
+// AUD-24 — the ghost verdict is read from metadata, and metadata can be missing
+// for reasons that have nothing to do with the video (an old cache without
+// thumbnails). Before anything is deleted in bulk, ask YouTube: a video it still
+// returns is not a ghost. 1 unit per 50 ids. Throws if the check cannot run —
+// the caller must not delete unverified.
+async function confirmGhostsLive(ghosts) {
+  const ids = [...new Set(ghosts.map(g => g.videoId).filter(Boolean))];
+  const alive = new Set();
+  for (let i = 0; i < ids.length; i += 50) {
+    const data = await ytApi('videos', { part: 'id', id: ids.slice(i, i + 50).join(','), fields: 'items(id)' });
+    (data.items || []).forEach(it => alive.add(it.id));
+  }
+  return ghosts.filter(g => !alive.has(g.videoId));
+}
+
+async function scanGhostVideos() {
+  showToast(t('toast_scanning_ghosts'), 'info');
+  const ghosts = await collectGhosts();
 
   const html = ghosts.length ? ghosts.map(g => `
     <div class="p-16" style="background: var(--surface); border-radius: var(--radius); margin-bottom: 12px;">
@@ -12663,12 +12696,18 @@ async function cleanAllGhosts() {
   if (!checkBackupSafety('Suppression des vidéos fantômes')) return;
   if (!confirm(t('confirm_clean_ghosts'))) return;
 
-  const ghosts = [];
-  for (const [playlistId, videos] of Object.entries(APP.allVideos)) {
-    for (const v of videos) {
-      if (isGhostItem(v)) ghosts.push({ playlistId, itemId: v.id });
-    }
+  const candidates = await collectGhosts();
+  let ghosts;
+  try {
+    ghosts = await confirmGhostsLive(candidates);
+  } catch (err) {
+    showToast(t('toast_ghosts_recheck_failed', { msg: err.message }), 'error');
+    return;
   }
+  if (ghosts.length < candidates.length) {
+    showToast(t('toast_ghosts_still_available', { count: candidates.length - ghosts.length }), 'info');
+  }
+  if (!ghosts.length) { scanGhostVideos(); return; }
 
   if (!checkQuotaBudget('Suppression des vidéos fantômes', 'clean_ghosts', ghosts.length)) return;
 
