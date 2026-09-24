@@ -4411,11 +4411,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.4'; // bump per release
+const APP_VERSION = '1.27.5'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.5', date: '2026-09-24', items: [
+    "SECURITE (AUD-05) — le titre d une playlist entrait brut dans l attribut title des lignes du tableau de bord et des statistiques. Un guillemet suffisait a ajouter des attributs, onmouseover compris, sans chevron ; une playlist mise en favori porte le titre choisi par son proprietaire, pas par l utilisateur. Les titres sont desormais echappes dans le donut, la legende, les barres, la plus grande playlist, les statistiques, les doublons et les listes du Studio",
+  ]},
   { v: '1.27.4', date: '2026-09-24', items: [
     "SECURITE (AUD-04) — sept gestionnaires onclick echappaient l apostrophe d un titre mais pas la barre oblique inverse : un titre finissant par \\ annulait son propre echappement et le reste du titre s executait comme du code, avec le jeton de l utilisateur. Decouvrir (miniature et titre), Deck, Plan de visionnage (grille et liste), file d attente et recherches recentes passent desormais tous par escapeJsAttr, qui double la barre oblique avant de proteger l apostrophe",
     "Les recherches recentes affichaient aussi la saisie brute dans le HTML ; elle est maintenant echappee",
@@ -8030,7 +8033,7 @@ async function refreshDashboard() {
         <div class="stat-card-value">${totalVideos.toLocaleString().replace(/,/g, ' ')}</div>
         <div class="stat-card-unit">items</div>
       </div>
-      <div class="stat-card-sub">largest: ${largestName.length > 18 ? largestName.slice(0, 18) + '...' : largestName} (${largestCount})</div>
+      <div class="stat-card-sub">largest: ${escapeHtml(largestName.length > 18 ? largestName.slice(0, 18) + '...' : largestName)} (${largestCount})</div>
       <div class="stat-card-visual" style="display:flex;flex-direction:column;gap:3px;">
         ${miniBarsHtml}
       </div>
@@ -8277,7 +8280,7 @@ function generateDashboardCharts() {
       stroke="${rainbowColor(i)}" stroke-width="14"
       stroke-dasharray="${len} ${C}" stroke-dashoffset="${-offset}"
       transform="rotate(-90 ${donutSize/2} ${donutSize/2})">
-      <title>${p.name}: ${p.value} videos</title>
+      <title>${escapeHtml(p.name)}: ${p.value} videos</title>
     </circle>`;
     offset += len;
     return seg;
@@ -8297,9 +8300,9 @@ function generateDashboardCharts() {
   const othersVideos = sortedPl.slice(legendMax).reduce((s, p) => s + p.value, 0);
 
   let legendHtml = legendEntries.map((p, i) =>
-    `<div class="dash-pl-row" data-playlist-id="${p.id}" title="${p.name} — ${t('dashboard_drill_to_library')}" onclick="event.stopPropagation(); drillFromDashboard('${p.id}', 'library')" style="display:flex;align-items:center;gap:8px;font-size:12px;">
+    `<div class="dash-pl-row" data-playlist-id="${p.id}" title="${escapeHtml(p.name)} — ${t('dashboard_drill_to_library')}" onclick="event.stopPropagation(); drillFromDashboard('${p.id}', 'library')" style="display:flex;align-items:center;gap:8px;font-size:12px;">
       <div style="width:10px;height:10px;border-radius:2px;background:${rainbowColor(i)};flex-shrink:0;"></div>
-      <span style="color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}</span>
+      <span style="color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.name)}</span>
       <span class="mono" style="font-size:11px;font-weight:500;">${p.value}</span>
     </div>`
   ).join('');
@@ -8316,9 +8319,9 @@ function generateDashboardCharts() {
   const barsMax = sortedPl.length;
   const maxVal = sortedPl.length ? sortedPl[0].value : 1;
   const barsHtml = sortedPl.map((p, i) =>
-    `<div class="dash-pl-row" data-playlist-id="${p.id}" title="${p.name} — ${t('dashboard_drill_to_detail')}" onclick="event.stopPropagation(); drillFromDashboard('${p.id}', 'detail')" style="display:grid;grid-template-columns:1fr 50px;gap:12px;align-items:center;">
+    `<div class="dash-pl-row" data-playlist-id="${p.id}" title="${escapeHtml(p.name)} — ${t('dashboard_drill_to_detail')}" onclick="event.stopPropagation(); drillFromDashboard('${p.id}', 'detail')" style="display:grid;grid-template-columns:1fr 50px;gap:12px;align-items:center;">
       <div style="display:flex;flex-direction:column;gap:4px;">
-        <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;">${p.name}</div>
+        <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;">${escapeHtml(p.name)}</div>
         <div style="height:6px;background:var(--surface3);border-radius:3px;overflow:hidden;">
           <div style="height:100%;width:${Math.max((p.value / maxVal) * 100, 2)}%;background:${rainbowColor(i)};border-radius:3px;"></div>
         </div>
@@ -9006,7 +9009,7 @@ function populateStudioVideoSelects() {
 
   const options = Array.from(allVids.entries())
     .sort((a, b) => a[1].localeCompare(b[1]))
-    .map(([id, title]) => `<option value="${id}">${title.substring(0, 80)}</option>`)
+    .map(([id, title]) => `<option value="${escapeHtml(id)}">${escapeHtml(title.substring(0, 80))}</option>`)
     .join('');
 
   const defaultOpt = `<option value="">-- ${t('studio_select_video')} --</option>`;
@@ -9081,7 +9084,7 @@ function renderStudioThumbGrid(panel) {
     const selected = videoId === currentVal ? ' selected' : '';
     html += `<div class="studio-thumb-item${selected}" onclick="selectStudioThumbVideo('${panel}','${videoId}')" title="${escapeHtml(title)}">
       <img src="${thumbUrl || placeholder}" alt="" onerror="this.src='${placeholder}'">
-      <div class="studio-thumb-title">${title.substring(0, 40)}</div>
+      <div class="studio-thumb-title">${escapeHtml(title.substring(0, 40))}</div>
     </div>`;
   }
   grid.innerHTML = html || '<p class="text-muted" style="font-size:12px;">No videos</p>';
@@ -12620,7 +12623,7 @@ async function scanDuplicates() {
     const playlistPills = instances.map(inst => {
       const plName = APP.playlists.find(p => p.id === inst.playlistId)?.snippet?.title || 'Unknown';
       return `<span class="tag" style="font-size:11px;display:inline-flex;align-items:center;gap:4px;">
-        ${plName}
+        ${escapeHtml(plName)}
         <button onclick="removeDuplicateFromPlaylist('${inst.itemId}', '${inst.playlistId}', this)" title="${t('duplicate_remove_tooltip')}"
           style="background:none;border:none;color:var(--accent);cursor:pointer;padding:0;line-height:1;font-size:14px;font-weight:600;">&times;</button>
       </span>`;
@@ -12638,7 +12641,7 @@ async function scanDuplicates() {
         </div>
       </a>
       <div style="flex:1;min-width:0;">
-        <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" style="font-weight:600;font-size:13px;margin-bottom:4px;display:block;color:var(--text);text-decoration:none;" title="${t('view_on_youtube')}">${instances[0].title || t('untitled')}</a>
+        <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" style="font-weight:600;font-size:13px;margin-bottom:4px;display:block;color:var(--text);text-decoration:none;" title="${t('view_on_youtube')}">${escapeHtml(instances[0].title || t('untitled'))}</a>
         <div class="mono" style="font-size:11px;color:var(--text3);margin-bottom:8px;">Apparaît dans ${instances.length} playlists</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;">${playlistPills}</div>
       </div>
@@ -12721,7 +12724,7 @@ function generateStatisticsCharts() {
   const legendHtml = catEntries.map(([label, value], i) =>
     `<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0;">
       <div style="width:10px;height:10px;border-radius:2px;background:${colors[i % colors.length]};flex-shrink:0;"></div>
-      <span style="color:var(--text2);flex:1;">${label}</span>
+      <span style="color:var(--text2);flex:1;">${escapeHtml(label)}</span>
       <span class="mono" style="font-size:11px;font-weight:500;">${value}</span>
     </div>`
   ).join('');
@@ -12731,7 +12734,7 @@ function generateStatisticsCharts() {
   const barsHtml = topPlaylists.map((p, i) =>
     `<div style="display:grid;grid-template-columns:1fr 50px;align-items:center;gap:12px;">
       <div style="display:flex;flex-direction:column;gap:4px;">
-        <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;" title="${p.name}">${p.name}</div>
+        <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
         <div style="height:6px;background:var(--surface3);border-radius:3px;overflow:hidden;">
           <div style="height:100%;width:${Math.max((p.value / maxVal) * 100, 2)}%;background:${colors[i % colors.length]};border-radius:3px;transition:width 0.5s;"></div>
         </div>

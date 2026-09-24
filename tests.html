@@ -2997,7 +2997,63 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-05', title: 'Playlist titles cannot add attributes', note: 'a bookmarked playlist is titled by its owner, not by the user — a " in it opened the title="" attribute',
+  cases: [
+    ['the dashboard legend keeps a hostile title inside title=""', async w => {
+      const box = await renderWithPlaylistTitle(w, HOSTILE_ATTR, () => { w.generateDashboardCharts(); return 'dashboardCharts'; });
+      ok(!box.querySelector('[data-pwned]'), 'the title injected an attribute');
+      const rows = [...box.querySelectorAll('[data-playlist-id="PL_aud05"]')];
+      ok(rows.length === 2, 'expected a legend row and a bar row, got ' + rows.length);
+      rows.forEach(r => ok(r.getAttribute('title').startsWith(HOSTILE_ATTR + ' — '), 'title attribute altered: ' + r.getAttribute('title')));
+      ok(box.textContent.includes(HOSTILE_ATTR), 'the title is not shown as text');
+      return 'legend + bars';
+    }],
+
+    ['the statistics view keeps a hostile title inside title=""', async w => {
+      const box = await renderWithPlaylistTitle(w, HOSTILE_ATTR, () => { w.generateStatisticsCharts(); return 'statisticsCharts'; });
+      ok(!box.querySelector('[data-pwned]'), 'the title injected an attribute');
+      const cell = [...box.querySelectorAll('[title]')].find(el => el.getAttribute('title') === HOSTILE_ATTR);
+      return ok(cell && cell.textContent === HOSTILE_ATTR, 'top-playlists row lost the title');
+    }],
+
+    ['markup in a title renders as text on the dashboard', async w => {
+      const title = '<img src=x data-pwned=1>';
+      const box = await renderWithPlaylistTitle(w, title, () => { w.generateDashboardCharts(); return 'dashboardCharts'; });
+      ok(!box.querySelector('[data-pwned]'), 'the title rendered as an element');
+      return ok(box.textContent.includes(title), 'the title is not shown as text');
+    }],
+  ],
+},
 ];
+
+// AUD-05 — no angle bracket needed: one double quote closes title="" and the
+// rest of the playlist title becomes attributes of the row.
+const HOSTILE_ATTR = 'a" data-pwned="1" onmouseover="window.__pwn=1';
+
+// Seed APP.playlists through the app's own loader (APP is a const this page
+// cannot reach), render, and hand back the container that was written.
+async function renderWithPlaylistTitle(w, title, render) {
+  const real = { ytApi: w.ytApi, showToast: w.showToast };
+  w.showToast = () => {};
+  const answer = items => async (endpoint) => (endpoint === 'playlists' ? { items } : { items: [] });
+  try {
+    w.ytApi = answer([{ id: 'PL_aud05', snippet: { title }, contentDetails: { itemCount: 3 }, status: { privacyStatus: 'public' } }]);
+    await w.loadAllPlaylists();
+    const id = render();
+    const box = w.document.getElementById(id);
+    // Copy out before the library is emptied again, so the assertions read
+    // exactly what was rendered.
+    const copy = w.document.createElement('div');
+    copy.innerHTML = box.innerHTML;
+    box.innerHTML = '';
+    return copy;
+  } finally {
+    w.ytApi = answer([]);
+    try { await w.loadAllPlaylists(); } catch (_) {}
+    Object.assign(w, real);
+  }
+}
 
 // AUD-04 — the payload the old escaper let through: ' became \' but the \ in
 // front of it stayed single, so the pair read as an escaped backslash followed
