@@ -2797,6 +2797,7 @@ const I18N = {
     toast_import_success: '✅ Backup importé — {count} playlists chargées',
     toast_import_error: 'Impossible de lire le fichier de backup',
     toast_import_invalid: 'Ce fichier n\'est pas un backup JSON valide',
+    toast_oauth_state_mismatch: 'Connexion refusée : elle n\'a pas été lancée depuis cet onglet. Reconnectez-vous.',
     dashboard_drill_to_library: 'Voir dans Mes playlists',
     dashboard_drill_to_detail: 'Ouvrir la playlist',
     // Diagnostic log (#66)
@@ -3580,6 +3581,7 @@ const I18N = {
     toast_import_success: '✅ Backup imported — {count} playlists loaded',
     toast_import_error: 'Could not read the backup file',
     toast_import_invalid: 'This file is not a valid JSON backup',
+    toast_oauth_state_mismatch: 'Sign-in refused: it was not started from this tab. Please sign in again.',
     dashboard_drill_to_library: 'View in My Playlists',
     dashboard_drill_to_detail: 'Open playlist',
     // Diagnostic log (#66)
@@ -4430,11 +4432,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.25'; // bump per release
+const APP_VERSION = '1.27.26'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.26', date: '2026-09-24', items: [
+    "SECURITE (#G6) — l app acceptait n importe quel jeton present dans l adresse : un lien piege pouvait connecter la victime au compte YouTube d un attaquant, ou atterriraient ensuite ses playlists et ses envois. Chaque connexion envoie desormais une valeur aleatoire (state) ; un jeton n est accepte que s il la renvoie, une seule fois, dans l onglet qui a lance la connexion. Le PKCE, qui demande un serveur, reste prevu en phase 4",
+  ]},
   { v: '1.27.25', date: '2026-09-24', items: [
     "SECURITE (AUD-07) — Reel Studio 0.7.3 : un nom de tag ou un identifiant de playlist place dans un gestionnaire de clic etait echappe pour le HTML, echappement que le navigateur defait avant d executer le code ; un nom comme a';alert(1);' s executait au clic. Ces valeurs sont desormais echappees pour le JavaScript, avec les memes regles que l application",
   ]},
@@ -6600,7 +6605,7 @@ var APP_STORAGE_KEYS = [   // var: read by tests.html, which cannot see a top-le
   // Reel Studio, same origin
   'studioTheme', 'studioAccents',
 ];
-var APP_SESSION_KEYS = ['loggedOut', 'pendingActionAfterOAuth', 'tokenExpiresAt'];
+var APP_SESSION_KEYS = ['loggedOut', 'pendingActionAfterOAuth', 'tokenExpiresAt', 'oauthState'];
 
 // Set by a final purge: the page is about to reload, and persistLog() on
 // beforeunload must not write the log back into a storage just emptied.
@@ -6898,21 +6903,39 @@ function handleLogin() {
   startOAuth(scope);
 }
 
-function buildAuthUrl(scope) {
+// #G6 — the implicit flow hands a token to whoever opens our URL with one in
+// the fragment. Without a check, a link carrying an attacker's token signs the
+// victim into the attacker's account, and what they then upload lands there.
+// Every sign-in now sends a fresh random `state`, and a returning token is
+// accepted only if it brings the same value back. Single use: the stored copy
+// is removed on the first return, accepted or not. (PKCE needs a backend and
+// stays in Phase 4.)
+const OAUTH_STATE_KEY = 'oauthState';
+
+function newOAuthState() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function buildAuthUrl(scope, state) {
   const s = scope || currentScope;
   return `https://accounts.google.com/o/oauth2/v2/auth?` +
     `client_id=${encodeURIComponent(APP.clientId)}&` +
     `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
     `response_type=token&` +
-    `scope=${encodeURIComponent(s)}`;
+    `scope=${encodeURIComponent(s)}` +
+    (state ? `&state=${encodeURIComponent(state)}` : '');
 }
 
 function startOAuth(scope) {
   const s = scope || currentScope;
+  const state = newOAuthState();
+  try { sessionStorage.setItem(OAUTH_STATE_KEY, state); } catch (_) {}
   log('info', 'oauth', 'redirecting to Google OAuth', { scope: s });
   // Persist the in-memory log before redirecting away — we'd lose it otherwise
   try { persistLog(); } catch (_) {}
-  window.location.href = buildAuthUrl(s);
+  window.location.href = buildAuthUrl(s, state);
 }
 
 // ── #G14 — scope upgrade in a popup ─────────────────────────────────────────
@@ -6942,6 +6965,7 @@ function handleOAuthPopupReturn() {
       token,
       expiresIn: parseInt(params.get('expires_in') || '', 10) || 0,
       scope: params.get('scope') || '',
+      state: params.get('state') || '',   // #G6 — checked by the opener
     }, window.location.origin);
   } catch (_) { /* opener gone — the user will be told the popup was closed */ }
   // #G13 — never leave a token sitting in a URL, not even for the instant
@@ -6952,11 +6976,13 @@ function handleOAuthPopupReturn() {
 }
 
 // Validate a message before believing a word of it. Exported for the tests
-// because this is the security boundary of the whole flow.
-function isValidOAuthMessage(event, expectedOrigin) {
+// because this is the security boundary of the whole flow. With expectedState
+// (#G6), the message must also carry the state this popup was opened with.
+function isValidOAuthMessage(event, expectedOrigin, expectedState) {
   if (!event || event.origin !== (expectedOrigin || window.location.origin)) return false;
   const d = event.data;
-  return !!(d && d.type === OAUTH_POPUP_MESSAGE && typeof d.token === 'string' && d.token);
+  if (!(d && d.type === OAUTH_POPUP_MESSAGE && typeof d.token === 'string' && d.token)) return false;
+  return expectedState === undefined || d.state === expectedState;
 }
 
 /**
@@ -6965,7 +6991,9 @@ function isValidOAuthMessage(event, expectedOrigin) {
  * or when the user closes it without granting.
  */
 function openOAuthPopup(scope) {
-  const url = buildAuthUrl(scope);
+  // #G6 — held in this closure, never stored: only this wait can match it.
+  const state = newOAuthState();
+  const url = buildAuthUrl(scope, state);
   const w = 500, h = 600;
   const left = Math.max(0, (window.screen.width - w) / 2);
   const top = Math.max(0, (window.screen.height - h) / 2);
@@ -6985,7 +7013,7 @@ function openOAuthPopup(scope) {
       resolve(result);
     };
     const onMessage = event => {
-      if (!isValidOAuthMessage(event)) return;
+      if (!isValidOAuthMessage(event, undefined, state)) return;
       finish({ blocked: false, token: event.data.token, expiresIn: event.data.expiresIn });
     };
     window.addEventListener('message', onMessage);
@@ -7014,6 +7042,16 @@ function checkAuth() {
   _oauthHash = '';
   if (hash) {
     const params = new URLSearchParams(hash.substring(1));
+    if (!params.get('access_token')) return;
+    // #G6 — a token is accepted only as the answer to a sign-in this tab started
+    let expected = null;
+    try { expected = sessionStorage.getItem(OAUTH_STATE_KEY); sessionStorage.removeItem(OAUTH_STATE_KEY); } catch (_) {}
+    if (!expected || params.get('state') !== expected) {
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+      log('warn', 'oauth', 'token refused: state missing or not ours', { stateSent: !!params.get('state'), stateExpected: !!expected });
+      showToast(t('toast_oauth_state_mismatch'), 'error');
+      return;
+    }
     setAccessToken(params.get('access_token'));
     if (APP.accessToken) {
       // #B14 — expires_in is the only thing the implicit flow tells us about

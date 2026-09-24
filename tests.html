@@ -1983,10 +1983,12 @@ const SUITES = [
     ['a valid postMessage resolves the wait with the token', async w => {
       const realOpen = w.open;
       try {
-        w.open = () => ({ closed: false, close() {} });
+        let state = '';
+        w.open = url => { state = new URL(url).searchParams.get('state'); return { closed: false, close() {} }; };
         const pending = w.openOAuthPopup('scope');
-        // The popup would post this from our own origin.
-        w.postMessage({ type: 'reel-oauth-token', token: 'TOK_OK', expiresIn: 3600 }, w.location.origin);
+        // The popup would post this from our own origin, with the state
+        // Google handed back to it (#G6).
+        w.postMessage({ type: 'reel-oauth-token', token: 'TOK_OK', expiresIn: 3600, state }, w.location.origin);
         const r = await pending;
         eq(r.blocked, false, 'blocked');
         eq(r.token, 'TOK_OK', 'token');
@@ -3814,6 +3816,60 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '#G6', title: 'A returning token is accepted only for a sign-in this tab started', note: 'the implicit flow took any #access_token, so a link could sign a victim into the attacker\'s account',
+  cases: [
+    ['every sign-in sends a fresh random state', w => {
+      const a = w.newOAuthState(), b = w.newOAuthState();
+      ok(/^[0-9a-f]{32}$/.test(a), 'format: ' + a);
+      ok(a !== b, 'two sign-ins shared a state');
+      eq(new URL(w.buildAuthUrl('scope', a)).searchParams.get('state'), a, 'state in the auth URL');
+      const redirect = w.startOAuth.toString();
+      return ok(redirect.includes('sessionStorage.setItem(OAUTH_STATE_KEY, state)') && redirect.includes('buildAuthUrl(s, state)'),
+                'the redirect sign-in does not store the state it sends');
+    }],
+    ['a token without a state is refused, and still leaves the URL (X9)', w => {
+      const r = runCheckAuth(w, 'EXPECTED_STATE', '#access_token=G6_NOSTATE&expires_in=3600');
+      eq(r.tokens, [], 'token accepted');
+      ok(!r.href.includes('access_token'), 'token left in the URL');
+      return eq(r.toasts, [w.t('toast_oauth_state_mismatch')], 'message');
+    }],
+    ['a token with another state is refused (X9)', w => {
+      const r = runCheckAuth(w, 'EXPECTED_STATE', '#access_token=G6_WRONG&expires_in=3600&state=ATTACKER_STATE');
+      return eq(r.tokens, [], 'token accepted');
+    }],
+    ['a token with no sign-in pending is refused', w => {
+      const r = runCheckAuth(w, null, '#access_token=G6_NOPENDING&state=anything');
+      return eq(r.tokens, [], 'token accepted');
+    }],
+    ['the token this tab asked for is accepted, once', w => {
+      // No expires_in: an accepted fragment would otherwise set this page's expiry.
+      const first = runCheckAuth(w, 'S1', '#access_token=G6_OK&state=S1');
+      eq(first.tokens, ['G6_OK'], 'first return');
+      eq(first.stateLeft, null, 'state kept after use');
+      const replay = runCheckAuth(w, undefined, '#access_token=G6_OK&state=S1');
+      return eq(replay.tokens, [], 'the same fragment accepted twice');
+    }],
+    ['the popup accepts only the state it was opened with', async w => {
+      const realOpen = w.open;
+      const fake = { closed: false, close() {} };
+      try {
+        let state = '';
+        w.open = url => { state = new URL(url).searchParams.get('state'); return fake; };
+        const pending = w.openOAuthPopup('scope');
+        ok(/^[0-9a-f]{32}$/.test(state), 'no state in the popup URL');
+        let settled = false;
+        pending.then(() => { settled = true; });
+        w.postMessage({ type: 'reel-oauth-token', token: 'EVIL', state: 'nope' }, w.location.origin);
+        w.postMessage({ type: 'reel-oauth-token', token: 'EVIL2' }, w.location.origin);
+        await new Promise(r => setTimeout(r, 120));
+        ok(!settled, 'a token with the wrong state ended the wait');
+        w.postMessage({ type: 'reel-oauth-token', token: 'GOOD', state }, w.location.origin);
+        return eq((await pending).token, 'GOOD', 'token');
+      } finally { fake.closed = true; w.open = realOpen; }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -4052,6 +4108,31 @@ async function runRetry(w, method, script) {
     catch (e) { threw = true; message = e.message; }
     return { fetches, threw, message, toasts };
   } finally { Object.assign(w, real); }
+}
+
+// #G6 — run checkAuth() on a fragment with a given pending state (null: none,
+// undefined: leave whatever is there). Records what it would have signed in with.
+function runCheckAuth(w, pending, fragment) {
+  const real = { setAccessToken: w.setAccessToken, showApp: w.showApp, showToast: w.showToast };
+  const lsSnap = snapshot(w, ['lastLoginTimestamp']);
+  const ssKeys = ['oauthState', 'loggedOut', 'tokenExpiresAt'];
+  const ssSnap = ssKeys.map(k => w.sessionStorage.getItem(k));
+  const tokens = [], toasts = [];
+  try {
+    if (pending === null) w.sessionStorage.removeItem('oauthState');
+    else if (pending !== undefined) w.sessionStorage.setItem('oauthState', pending);
+    w.setAccessToken = tok => { tokens.push(tok); return tok; };
+    w.showApp = () => {};
+    w.showToast = m => toasts.push(m);
+    w.history.replaceState({}, '', w.location.pathname + fragment);
+    w.checkAuth();
+    return { tokens, toasts, href: w.location.href, stateLeft: w.sessionStorage.getItem('oauthState') };
+  } finally {
+    Object.assign(w, real);
+    w.history.replaceState({}, '', w.location.pathname);
+    ssKeys.forEach((k, i) => { if (ssSnap[i] === null) w.sessionStorage.removeItem(k); else w.sessionStorage.setItem(k, ssSnap[i]); });
+    restore(w, lsSnap);
+  }
 }
 
 // AUD-07 — Reel Studio reads the app's cache straight from IndexedDB, so a
