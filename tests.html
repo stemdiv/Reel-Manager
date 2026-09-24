@@ -2933,7 +2933,116 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-04', title: 'Titles cannot break out of an inline handler', note: 'the hand-rolled escaper turned \' into \\\' and left \\ alone, so a title ending in a backslash ate its own escape',
+  cases: [
+    ['escapeJsAttr round-trips through a real inline handler', w => {
+      const host = w.document.createElement('div');
+      w.document.body.appendChild(host);
+      try {
+        const inputs = ["O'Brien", 'a\\', "\\'", 'He said "hi"', '&quot;', '</span><b>x</b>', HOSTILE_TITLE];
+        for (const s of inputs) {
+          host.innerHTML = `<span onclick="window.__got='${w.escapeJsAttr(s)}'">x</span>`;
+          w.__got = undefined;
+          host.firstChild.click();
+          eq(w.__got, s, 'round-trip of ' + JSON.stringify(s));
+        }
+        return inputs.length + ' strings';
+      } finally { host.remove(); delete w.__got; }
+    }],
+
+    ['a hostile Discover title reaches playVideo intact and runs nothing', async w => {
+      const got = await runDiscoverWithTitle(w, HOSTILE_TITLE, 'Chan\\');
+      ok(got.handlers >= 2, 'expected the thumbnail and the title handlers, found ' + got.handlers);
+      ok(w.__pwn === undefined, 'the title executed as code');
+      got.calls.forEach(c => { eq(c[1], HOSTILE_TITLE, 'title'); eq(c[2], 'Chan\\', 'channel'); });
+      return got.calls.length + ' clicks, title intact';
+    }],
+
+    ['an ordinary apostrophe still plays the right title', async w => {
+      const got = await runDiscoverWithTitle(w, "Don't Stop Me Now", "Queen - Topic");
+      ok(got.calls.length >= 2, 'no playVideo call');
+      return eq(got.calls[0].slice(1, 3), ["Don't Stop Me Now", 'Queen - Topic']);
+    }],
+
+    ['a hostile title in a Deck row reaches playVideo intact', w => {
+      const host = w.document.createElement('div');
+      w.document.body.appendChild(host);
+      const real = w.playVideo;
+      const calls = [];
+      try {
+        w.playVideo = (...a) => { calls.push(a); };
+        host.innerHTML = w.renderDeckVideoItem({ snippet: {
+          title: HOSTILE_TITLE, videoOwnerChannelTitle: 'a\\',
+          resourceId: { videoId: 'VIDdeck0001' }, thumbnails: { medium: { url: 'https://i.ytimg.com/x.jpg' } },
+        } });
+        host.querySelectorAll('[onclick*="playVideo"]').forEach(el => el.click());
+        ok(w.__pwn === undefined, 'the title executed as code');
+        ok(calls.length === 2, 'expected 2 playVideo calls, got ' + calls.length);
+        calls.forEach(c => { eq(c[1], HOSTILE_TITLE, 'title'); eq(c[2], 'a\\', 'channel'); });
+        return 'thumbnail + title';
+      } finally { w.playVideo = real; host.remove(); delete w.__pwn; }
+    }],
+
+    ['no quote-only escaper is left in the app source', async w => {
+      // The bug was a pattern, not a line: seven call sites each carried their own
+      // copy. Any single-quote escape must double backslashes first, which is what
+      // escapeJsAttr() does — the only chain allowed to start a line with it.
+      const src = await (await fetch('youtube-playlist-manager.html?aud04=' + Date.now())).text();
+      const bad = src.split('\n').map((l, i) => [i + 1, l])
+        .filter(([, l]) => l.includes("replace(/'/g"))
+        .filter(([, l]) => !l.trim().startsWith(".replace(/'/g"))       // inside escapeJsAttr's chain
+        .filter(([, l]) => !l.includes('replace(/\\\\/g'));              // backslashes doubled first
+      return eq(bad.map(([n]) => n), [], 'quote-only escapes at lines');
+    }],
+  ],
+},
 ];
+
+// AUD-04 — the payload the old escaper let through: ' became \' but the \ in
+// front of it stayed single, so the pair read as an escaped backslash followed
+// by a real closing quote.
+const HOSTILE_TITLE = "x\\');window.__pwn=1;//";
+
+// Drive the real Discover search with a stubbed ytApi, render the real result
+// card, and click every handler that plays a video. Returns what playVideo got.
+async function runDiscoverWithTitle(w, title, channel) {
+  const snap = seedQuota(w, { pool: 0, search: 0, upload: 0, stats: 0 });
+  const real = { ytApi: w.ytApi, showToast: w.showToast, playVideo: w.playVideo };
+  const host = w.document.createElement('div');
+  host.innerHTML = '<input id="__aud04Q" value="aud04">';
+  w.document.body.appendChild(host);
+  const old = w.document.getElementById('discoverSearchInput');
+  if (old) old.id = '__aud04Parked';
+  w.document.getElementById('__aud04Q').id = 'discoverSearchInput';
+  const calls = [];
+  try {
+    w.ytApi = async (endpoint) => {
+      if (endpoint === 'search') return { items: [{ id: { videoId: 'VIDaud04xx1' } }] };
+      if (endpoint === 'videos') return { items: [{
+        id: 'VIDaud04xx1',
+        snippet: { title, channelTitle: channel, channelId: 'UCaud04', description: '',
+                   thumbnails: { medium: { url: 'https://i.ytimg.com/vi/VIDaud04xx1/mqdefault.jpg' } } },
+        contentDetails: { duration: 'PT3M' }, player: {},
+      }] };
+      return { items: [] };
+    };
+    w.showToast = () => {};
+    w.playVideo = (...a) => { calls.push(a); };
+    delete w.__pwn;
+    await w.performDiscoverSearch();
+    const list = w.document.getElementById('discoverVideosList');
+    const handlers = list ? [...list.querySelectorAll('[onclick*="playVideo"]')] : [];
+    handlers.forEach(el => el.click());
+    return { calls, handlers: handlers.length };
+  } finally {
+    Object.assign(w, real);
+    const list = w.document.getElementById('discoverVideosList');
+    if (list) list.innerHTML = '';
+    host.remove(); if (old) old.id = 'discoverSearchInput';
+    unseedQuota(w, snap);
+  }
+}
 
 
 

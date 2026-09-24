@@ -4411,11 +4411,15 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.3'; // bump per release
+const APP_VERSION = '1.27.4'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.4', date: '2026-09-24', items: [
+    "SECURITE (AUD-04) — sept gestionnaires onclick echappaient l apostrophe d un titre mais pas la barre oblique inverse : un titre finissant par \\ annulait son propre echappement et le reste du titre s executait comme du code, avec le jeton de l utilisateur. Decouvrir (miniature et titre), Deck, Plan de visionnage (grille et liste), file d attente et recherches recentes passent desormais tous par escapeJsAttr, qui double la barre oblique avant de proteger l apostrophe",
+    "Les recherches recentes affichaient aussi la saisie brute dans le HTML ; elle est maintenant echappee",
+  ]},
   { v: '1.27.3', date: '2026-09-16', items: [
     "CORRECTIF — Gestion des tags, Categorisation auto : le scan tournait, consommait du quota, puis Appliquer ne changeait rien. getVideoDetails renvoie un dictionnaire indexe par identifiant de video, pas un tableau ; le forEach echouait des la premiere playlist, le catch avalait l erreur sans un mot dans la console et tout retombait sur la liste de mots-cles. La detection par categorie n avait donc jamais fonctionne",
     "Les mots-cles sont desormais compares mot a mot : tech est contenu dans Techno, ce qui classait une playlist de psytrance en programmation, et son est contenu dans poisson",
@@ -11300,8 +11304,8 @@ function showRecentSearches() {
     ${filtered.map(s => `
       <div class="recent-search-item" onclick="selectRecentSearch('${escapeJsAttr(s)}')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
-        <span>${s}</span>
-        <span class="recent-search-remove" onclick="event.stopPropagation();removeRecentSearch('${s.replace(/'/g, "\\'")}')">
+        <span>${escapeHtml(s)}</span>
+        <span class="recent-search-remove" onclick="event.stopPropagation();removeRecentSearch('${escapeJsAttr(s)}')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </span>
       </div>
@@ -11945,7 +11949,7 @@ function renderDiscoverResults(query) {
         onchange="discoverResults[${i}].selected=this.checked;updateDiscoverQuota()"
         style="margin-top:4px;accent-color:var(--accent);width:16px;height:16px;flex-shrink:0;cursor:pointer;">
       <div style="flex-shrink:0;position:relative;display:block;width:160px;cursor:pointer;"
-        onclick="event.stopPropagation();playVideo('${v.videoId}','${(v.title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.channel||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.thumbnail||'').replace(/'/g,"\\'")}')">
+        onclick="event.stopPropagation();playVideo('${escapeJsAttr(v.videoId)}','${escapeJsAttr(v.title)}','${escapeJsAttr(v.channel)}','${escapeJsAttr(v.thumbnail)}')">
         ${v.thumbnail
           ? `<img src="${v.thumbnail}" style="width:160px;aspect-ratio:16/9;object-fit:cover;border-radius:var(--r-sm);display:block;">`
           : `<div style="width:160px;aspect-ratio:16/9;background:var(--surface3);border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--text4);font-size:10px;">No thumb</div>`
@@ -11958,7 +11962,7 @@ function renderDiscoverResults(query) {
       </div>
       <div style="flex:1;min-width:0;">
         <div style="font-weight:600;font-size:13px;color:var(--text);cursor:pointer;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;"
-          onclick="event.stopPropagation();playVideo('${v.videoId}','${(v.title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.channel||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.thumbnail||'').replace(/'/g,"\\'")}')">
+          onclick="event.stopPropagation();playVideo('${escapeJsAttr(v.videoId)}','${escapeJsAttr(v.title)}','${escapeJsAttr(v.channel)}','${escapeJsAttr(v.thumbnail)}')">
           ${escapeHtml(v.title)}</div>
         <div style="font-size:11px;color:var(--text2);margin-top:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           ${v.isShort ? shortBadgeHTML() : ''}<span>${escapeHtml(v.channel)}</span>${subscribeButtonHTML(v.channelId, v.channel)}
@@ -13474,9 +13478,9 @@ function renderDeckVideoItem(video) {
   const channel = video.snippet?.videoOwnerChannelTitle || '';
   const videoId = video.snippet?.resourceId?.videoId || video.contentDetails?.videoId || '';
   const shortBadge = isShortVideo(videoId) ? shortBadgeHTML() : '';
-  const escapedTitle = title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-  const escapedChannel = channel.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-  const escapedThumb = thumb.replace(/'/g, "\\'");
+  const escapedTitle = escapeJsAttr(title);
+  const escapedChannel = escapeJsAttr(channel);
+  const escapedThumb = escapeJsAttr(thumb);
 
   return `
     <div class="deck-video-item" style="position:relative;">
@@ -13875,9 +13879,9 @@ function renderWatchVideoSelector(videos) {
       const thumb = pickThumb(v.snippet?.thumbnails);
       const dur = v.contentDetails?.duration || videoDetailsCache[videoId]?.duration || '';
       const durStr = dur ? formatIsoDuration(dur) : '';
-      const escapedTitle = title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-      const escapedChannel = channel.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-      const escapedThumb = thumb.replace(/'/g, "\\'");
+      const escapedTitle = escapeJsAttr(title);
+      const escapedChannel = escapeJsAttr(channel);
+      const escapedThumb = escapeJsAttr(thumb);
 
       return `<div class="watch-thumb-card" data-idx="${i}" onclick="toggleWatchThumbSelect(this)">
         <input type="checkbox" class="watch-thumb-check watch-video-select" value="${videoId}|${escapeHtml(title)}|${escapeHtml(channel)}|${thumb}" onclick="event.stopPropagation();" onchange="toggleWatchThumbSelect(this.closest('.watch-thumb-card'), this.checked)">
@@ -13901,9 +13905,9 @@ function renderWatchVideoSelector(videos) {
       const thumb = pickThumb(v.snippet?.thumbnails);
       const dur = v.contentDetails?.duration || videoDetailsCache[videoId]?.duration || '';
       const durStr = dur ? formatIsoDuration(dur) : '';
-      const escapedTitle = title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-      const escapedChannel = channel.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-      const escapedThumb = thumb.replace(/'/g, "\\'");
+      const escapedTitle = escapeJsAttr(title);
+      const escapedChannel = escapeJsAttr(channel);
+      const escapedThumb = escapeJsAttr(thumb);
 
       return `<div class="watch-list-item">
         <input type="checkbox" class="watch-video-select" value="${videoId}|${escapeHtml(title)}|${escapeHtml(channel)}|${thumb}" style="accent-color:var(--accent);width:14px;height:14px;flex-shrink:0;">
@@ -13985,9 +13989,9 @@ function addToWatchQueue() {
 
 function refreshWatchQueue() {
   const html = APP.watchQueue.length ? APP.watchQueue.map((item, idx) => {
-    const escapedTitle = (item.title||'').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-    const escapedChannel = (item.channelTitle||'').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-    const escapedThumb = (item.thumbnail||'').replace(/'/g, "\\'");
+    const escapedTitle = escapeJsAttr(item.title);
+    const escapedChannel = escapeJsAttr(item.channelTitle);
+    const escapedThumb = escapeJsAttr(item.thumbnail);
     return `
     <div style="background: var(--surface); border-radius: var(--radius); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; padding: 8px 10px;">
       <span class="mono" style="font-size:10px;color:var(--text4);width:18px;text-align:center;flex-shrink:0;">${idx + 1}</span>
