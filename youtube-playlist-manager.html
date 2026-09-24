@@ -400,8 +400,8 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-left: auto;
-    color: var(--warning, #f59e0b);
-    background: color-mix(in srgb, var(--warning, #f59e0b) 12%, transparent);
+    color: var(--yellow);
+    background: color-mix(in srgb, var(--yellow) 12%, transparent);
     padding: 1px 6px;
     border-radius: 100px;
   }
@@ -411,7 +411,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: var(--warning, #f59e0b);
+    color: var(--yellow);
     margin-left: 6px;
     vertical-align: middle;
   }
@@ -434,7 +434,7 @@
     padding: 2px 8px;
     border-radius: 100px;
   }
-  .beta-status.testing { color: var(--warning, #f59e0b); background: color-mix(in srgb, var(--warning, #f59e0b) 12%, transparent); }
+  .beta-status.testing { color: var(--yellow); background: color-mix(in srgb, var(--yellow) 12%, transparent); }
   .beta-status.dev { color: var(--accent-text); background: var(--accent-soft); }
   .beta-status.ready { color: var(--success, #22c55e); background: color-mix(in srgb, var(--success, #22c55e) 12%, transparent); }
 
@@ -732,7 +732,8 @@
   }
   .lens button + button { border-left: 1px solid var(--border); }
   .lens button:hover { color: var(--text); background: var(--surface2); }
-  .lens button.is-active { background: var(--accent); color: var(--bg); font-weight: 600; }
+  /* AUD-43 — like .btn-primary: dark text on a fill kept at L 0.70 or lighter (was --bg: 2.6:1 in light) */
+  .lens button.is-active { background: var(--accent); background: oklch(from var(--accent) max(l, 0.70) c h); color: #1a0a06; font-weight: 600; }
   /* Trending tile (#15) */
   .trending-list { display: flex; flex-direction: column; gap: 2px; }
   .trending-row {
@@ -1616,7 +1617,7 @@
           <a href="#" onclick="showVersionInfo(); return false;" class="mono" id="sidebarVersionLink"
              style="font-size: 10px; color: var(--accent-text); text-decoration: none;">v—</a>
         </div>
-        <div class="mono" style="margin-top: 6px; font-size: 9px; opacity: 0.5;" data-i18n="nav_powered">YouTube Data API v3</div>
+        <div class="mono" style="margin-top: 6px; font-size: 9px; color: var(--text3);" data-i18n="nav_powered">YouTube Data API v3</div>
       </div>
     </nav>
 
@@ -2197,7 +2198,7 @@
             <h3 data-i18n="backup_section">Backup</h3>
             <p class="text-muted" data-i18n="backup_subtitle">Exporte la structure complète de vos playlists</p>
             <div class="form-group" style="margin-top: 12px;">
-              <label class="form-label" data-i18n="backup_format">Format</label>
+              <label class="form-label" for="backupFormat" data-i18n="backup_format">Format</label>
               <select class="form-control" id="backupFormat">
                 <option value="json" data-i18n="backup_json">JSON (restauration)</option>
                 <option value="csv" data-i18n="backup_csv">CSV (lisible Excel / Google Sheets)</option>
@@ -2207,9 +2208,9 @@
             <button class="btn btn-primary" onclick="createBackup()" style="width: 100%; margin-top: 8px;" data-i18n="backup_create">Create backup</button>
           </div>
           <div>
-            <h3 data-i18n="restore_section">Restore</h3>
+            <h3 id="restoreHeading" data-i18n="restore_section">Restore</h3>
             <p class="text-muted" data-i18n="restore_subtitle">Restaure vos playlists depuis un backup JSON ou CSV</p>
-            <input type="file" id="backupFileInput" accept=".json,.csv" style="margin: 12px 0; width: 100%;" onchange="parseRestoreFile(this)">
+            <input type="file" id="backupFileInput" aria-labelledby="restoreHeading" accept=".json,.csv" style="margin: 12px 0; width: 100%;" onchange="parseRestoreFile(this)">
             <!-- Restore selection panel (hidden until file loaded) -->
             <div id="restorePanel" style="display:none; margin-top: 16px;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -2268,7 +2269,7 @@
           </div>
           <div>
             <div class="form-group">
-              <label class="form-label" data-i18n="backup_format">Format</label>
+              <label class="form-label" for="exportFormat" data-i18n="backup_format">Format</label>
               <select class="form-control" id="exportFormat" onchange="this.dataset.userPicked='1'">
                 <option value="csv">CSV</option>
                 <option value="csv-transfer" data-i18n="export_csv_transfer">CSV — transfer-ready (title, artist, album)</option>
@@ -4535,11 +4536,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.39'; // bump per release
+const APP_VERSION = '1.27.40'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.40', date: '2026-09-24', items: [
+    "ACCESSIBILITE — une verification automatique (axe-core) apres ce lot a trouve les derniers ecarts : trois champs de sauvegarde sans libelle, les etiquettes Beta et le filtre actif de la bibliotheque illisibles en theme clair, une ligne d accueil trop pale et un menu de tri sans nom dans Reel Studio 0.7.5. Tous corriges ; la verification ne releve plus rien",
+  ]},
   { v: '1.27.39', date: '2026-09-24', items: [
     "ACCESSIBILITE (AUD-50) — Reel Studio 0.7.4 : aucun attribut d accessibilite ; les boutons du lecteur etaient annonces par leur symbole (⏮ ▶ ⏭) et les cartes ne s ouvraient qu a la souris. Chaque commande a desormais un nom (lecture ou pause selon l etat, aleatoire et repetition avec leur etat), les barres de progression se reglent aux fleches, les cartes s ouvrent au clavier, et la page a des reperes nommes",
   ]},

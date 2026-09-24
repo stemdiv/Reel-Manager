@@ -82,7 +82,8 @@
   /* ── Greeting + ticker ─────────────────────────────────────────────── */
   .greeting { display: flex; align-items: flex-end; gap: 24px; padding: 8px 0 30px; }
   .greeting h1, .greeting h2 { font-family: var(--font-display); font-weight: 800; font-size: clamp(30px, 4.6vw, 58px); line-height: 1.02; letter-spacing: -0.02em; }
-  .greeting h2 { color: color-mix(in srgb, var(--accent) 45%, var(--surface3)); }
+  /* AUD-42 — was the accent at 45 %, 2.3:1 on the background; large text needs 3:1 */
+  .greeting h2 { color: color-mix(in oklab, var(--accent-text) 70%, var(--surface3)); }
   .eq { margin-left: auto; display: flex; align-items: flex-end; gap: 4px; height: 42px; }
   .eq span { width: 5px; background: var(--accent); border-radius: 2px; animation: eq 900ms var(--ease) infinite alternate; }
   .eq span:nth-child(1) { height: 40%; animation-delay: 0ms; }
@@ -549,7 +550,7 @@
 // Strictly read-only: no API calls, no writes to the app's data keys.
 // ═══════════════════════════════════════════════════════════════════════
 
-const STUDIO_VERSION = '0.7.4';
+const STUDIO_VERSION = '0.7.5';
 
 // ── i18n ───────────────────────────────────────────────────────────────
 const LANG = (localStorage.getItem('appLang') || 'fr') === 'en' ? 'en' : 'fr';
@@ -591,7 +592,7 @@ const S = {
     ctlCollapse: 'Réduire le lecteur', ctlExpand: 'Agrandir le lecteur', ctlStop: 'Arrêter et fermer le lecteur',
     ctlSeek: 'Position dans la vidéo', palClose: 'Fermer la palette', palHex: 'Saisir une couleur hexadécimale',
     navLabel: 'Vues', palLabel: 'Palette',
-    palCombo: 'Utiliser les couleurs {colours}', palSlot: 'Modifier l’accent {n} ({hex})', palSlotHex: 'Accent {n}, code hexadécimal',
+    sortBy: 'Trier par', palCombo: 'Utiliser les couleurs {colours}', palSlot: 'Modifier l’accent {n} ({hex})', palSlotHex: 'Accent {n}, code hexadécimal',
   },
   en: {
     search: 'Search across {n} videos…', create: '+ Create',
@@ -631,7 +632,7 @@ const S = {
     ctlCollapse: 'Collapse the player', ctlExpand: 'Expand the player', ctlStop: 'Stop and close the player',
     ctlSeek: 'Position in the video', palClose: 'Close the palette', palHex: 'Enter a hex colour',
     navLabel: 'Views', palLabel: 'Palette',
-    palCombo: 'Use the colours {colours}', palSlot: 'Change accent {n} ({hex})', palSlotHex: 'Accent {n}, hex code',
+    sortBy: 'Sort by', palCombo: 'Use the colours {colours}', palSlot: 'Change accent {n} ({hex})', palSlotHex: 'Accent {n}, hex code',
   },
 }[LANG];
 
@@ -1325,7 +1326,7 @@ function viewPlaylists() {
     <div class="toolbar">
       <input class="field" id="plFilterField" style="min-width:230px" placeholder="${esc(tr('filterPlaylists'))}" value="${esc(UI.plFilter)}"
              oninput="UI.plFilter=this.value; renderView(true)">
-      <select class="field" onchange="UI.plSort=this.value; renderView()">
+      <select class="field" aria-label="${esc(tr('sortBy'))}" onchange="UI.plSort=this.value; renderView()">
         <option value="count"${UI.plSort === 'count' ? ' selected' : ''}>${esc(tr('sortCount'))}</option>
         <option value="title"${UI.plSort === 'title' ? ' selected' : ''}>${esc(tr('sortTitle'))}</option>
         <option value="duration"${UI.plSort === 'duration' ? ' selected' : ''}>${esc(tr('sortDuration'))}</option>

@@ -4461,6 +4461,44 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'Lot 8 · axe', title: 'What an axe-core pass found after the lot', note: 'axe-core 4.13 (WCAG 2.1 A/AA) over the app and Studio with a seeded library, dark and light: these were the last findings',
+  cases: [
+    ['the Backup view fields have labels', w => {
+      const named = id => { const el = w.document.getElementById(id); return el.labels.length > 0 || !!(el.getAttribute('aria-labelledby') && w.document.getElementById(el.getAttribute('aria-labelledby'))); };
+      return eq(['backupFormat', 'exportFormat', 'backupFileInput'].map(named), [true, true, true], 'labelled');
+    }],
+    ['beta tags and the active lens read at 4.5:1', w => aud42Themes(w, (theme, c) => {
+      const bad = [];
+      const checks = [
+        // its background is a 12 % tint, so measure against the surface under it
+        ['beta status', () => c.against('<span class="beta-status testing">x</span>', 'color', 'var(--surface)')],
+        ['active lens', () => c.element('<div class="lens"><button class="is-active">x</button></div>', 'button')],
+        ['beta tag on surface', () => c.against('<div class="sidebar-section-label"><span class="beta-section-tag">x</span></div>', 'color', 'var(--surface)')],
+      ];
+      for (const [name, run] of checks) { const r = run(); if (r < 4.5) bad.push(theme + ' ' + name + ': ' + r.toFixed(2)); }
+      return bad;
+    })],
+    ['Reel Studio: the greeting line reads at 3:1 and the sort menu is named', async w => {
+      const r = await withStudioLibrary(w, async sw => {
+        sw.location.hash = '#/dashboard';
+        await aud07Tick();
+        // the default Studio accent, whatever a stored theme says
+        sw.document.documentElement.style.setProperty('--accent', '#ff2d55');
+        const c = aud42Meter(sw);
+        const h2 = sw.document.querySelector('.greeting h2');
+        ok(h2, 'no greeting rendered');
+        const ratio = c.of(h2, 'var(--bg)');
+        sw.location.hash = '#/playlists';
+        await aud07Tick();
+        const sel = sw.document.querySelector('.toolbar select');
+        return { ratio, name: sel && sel.getAttribute('aria-label') };
+      });
+      ok(r.ratio >= 3, 'greeting at ' + r.ratio.toFixed(2));
+      return ok(r.name, 'the sort menu has no name');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -4727,6 +4765,8 @@ function aud42Meter(w) {
   };
   return {
     ratio: (fg, bg) => contrast(computed(fg), computed(bg)),
+    // An element already on the page, against a background token
+    of: (el, bg) => contrast(rgb(w.getComputedStyle(el).color), computed(bg)),
     // A property of a real element, against a background token
     against: (html, prop, bg) => {
       const host = doc.createElement('div');
@@ -4736,11 +4776,11 @@ function aud42Meter(w) {
       host.remove();
       return contrast(rgb(v), computed(bg));
     },
-    element: html => {
+    element: (html, sel) => {
       const host = doc.createElement('div');
       host.innerHTML = html;
       doc.body.appendChild(host);
-      const cs = w.getComputedStyle(host.firstChild);
+      const cs = w.getComputedStyle(sel ? host.querySelector(sel) : host.firstChild);
       const r = contrast(rgb(cs.color), rgb(cs.backgroundColor));
       host.remove();
       return r;
