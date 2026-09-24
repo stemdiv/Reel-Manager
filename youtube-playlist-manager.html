@@ -4428,11 +4428,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.17'; // bump per release
+const APP_VERSION = '1.27.18'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.18', date: '2026-09-24', items: [
+    "QUOTA (AUD-21) — deux regles de comptage cohabitaient : les appels ordinaires etaient comptes avant l envoi, echecs compris, mais les envois de miniature, de sous-titre, de video et de couverture seulement apres un succes, et sans verifier le passage a minuit heure du Pacifique. Un envoi rate ne comptait pas, alors que Google le facture ; le premier envoi d une nouvelle journee s ajoutait aux compteurs de la veille puis disparaissait. Une seule regle desormais, chargeCall : compte avant l envoi, remise a zero verifiee d abord",
+  ]},
   { v: '1.27.17', date: '2026-09-24', items: [
     "CORRECTIF (#I1) — les couvertures de playlist personnalisees ne pouvaient jamais etre envoyees : l image choisie est lue via une URL blob:, que la politique de securite du contenu (img-src) n autorisait pas, et chaque tentative finissait sur Cette image n a pas pu etre lue. img-src accepte desormais blob:, qui ne designe que des fichiers choisis par l utilisateur. Trouve en ecrivant un test de quota ; les tests #I1 contournaient ce chemin",
   ]},
@@ -5345,6 +5348,21 @@ function chargeQuota(endpoint, method) {
   const { bucket, cost } = getQuotaCost(endpoint, method);
   APP.quota[bucket] += cost;
   return { bucket, cost };
+}
+
+// AUD-21 — the one charging rule. Every billed request, through ytApi() or a
+// direct upload, is charged once, BEFORE it is sent: Google bills a request
+// whether or not it succeeds, and a failed upload still spent its quota. The
+// Pacific-day reset is checked first, so the first call of a new day is not
+// added to yesterday's counters. Uploads used to charge only on success and to
+// skip the reset entirely.
+function chargeCall(endpoint, method) {
+  checkQuotaDailyReset();
+  const charged = chargeQuota(endpoint, method);
+  APP.apiCalls++;
+  saveQuotaState();
+  updateQuotaIndicator();
+  return charged;
 }
 
 // Daily quota persistence + Pacific Time reset (audit item #47)
@@ -7516,11 +7534,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
   // Quota accounting — happens ONCE regardless of retries.
   // Google charges full cost per logical request, including 304 responses.
   // ──────────────────────────────────────────────────────────────────────────
-  checkQuotaDailyReset();
-  const { bucket, cost } = chargeQuota(endpoint, method);
-  APP.apiCalls++;
-  saveQuotaState();
-  updateQuotaIndicator();
+  const { bucket, cost } = chargeCall(endpoint, method);
 
   try {
     // Retry loop (audit #48 429, #49 5xx, #50 exponential backoff with jitter).
@@ -9368,6 +9382,7 @@ async function uploadThumbnail() {
   try {
     showToast(t('studio_uploading'), 'info');
     const url = `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${videoId}&uploadType=media`;
+    chargeCall('thumbnails', 'POST');   // AUD-21 — billed before the request, like every ytApi() call
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -9380,10 +9395,6 @@ async function uploadThumbnail() {
       const err = await res.json().catch(() => ({}));
       throw new Error(err?.error?.message || `HTTP ${res.status}`);
     }
-    APP.apiCalls++;
-    chargeQuota('thumbnails', 'POST');
-    saveQuotaState();
-    updateQuotaIndicator();
     showToast(t('studio_thumb_uploaded'), 'success');
   } catch (err) {
     showToast(t('toast_error', { msg: err.message }), 'error');
@@ -9445,6 +9456,7 @@ async function uploadCaption() {
     formData.append('media', file);
 
     const url = 'https://www.googleapis.com/upload/youtube/v3/captions?part=snippet&uploadType=multipart';
+    chargeCall('captions', 'POST');   // AUD-21 — billed before the request
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${APP.accessToken}` },
@@ -9454,10 +9466,6 @@ async function uploadCaption() {
       const err = await res.json().catch(() => ({}));
       throw new Error(err?.error?.message || `HTTP ${res.status}`);
     }
-    APP.apiCalls++;
-    chargeQuota('captions', 'POST');
-    saveQuotaState();
-    updateQuotaIndicator();
     showToast(t('studio_caption_uploaded'), 'success');
     loadCaptionsList(); // refresh
   } catch (err) {
@@ -9550,6 +9558,7 @@ async function uploadVideo() {
     };
 
     // Resumable upload: init
+    chargeCall('videos', 'POST');   // AUD-21 — the resumable-session POST is the billed call
     const initRes = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status&uploadType=resumable', {
       method: 'POST',
       headers: {
@@ -9589,10 +9598,6 @@ async function uploadVideo() {
       xhr.send(file);
     });
 
-    APP.apiCalls++;
-    chargeQuota('videos', 'POST');
-    saveQuotaState();
-    updateQuotaIndicator();
     showToast(t('studio_video_uploaded'), 'success');
 
     // Reset form
@@ -10195,6 +10200,7 @@ async function uploadPlaylistCover(playlistId, file) {
   const part = buildCoverMultipart(boundary, metadata, blob.type);
   const url = `https://www.googleapis.com/upload/youtube/v3/playlistImages?part=snippet&uploadType=multipart`;
 
+  chargeCall('playlistImages', method);   // AUD-21 — billed before the request
   const res = await fetch(url, {
     method,
     headers: { 'Authorization': `Bearer ${APP.accessToken}`, 'Content-Type': part.contentType },
@@ -10206,10 +10212,6 @@ async function uploadPlaylistCover(playlistId, file) {
     // is wrong the API's own words are the only useful diagnosis.
     throw new Error(err?.error?.message || `HTTP ${res.status}`);
   }
-  APP.apiCalls++;
-  chargeQuota('playlistImages', method);
-  saveQuotaState();
-  updateQuotaIndicator();
 
   const body = await res.json().catch(() => null);
   playlistCovers[playlistId] = {

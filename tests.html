@@ -3456,6 +3456,52 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-21', title: 'One charging rule for every billed request', note: 'uploads were charged only on success and skipped the Pacific-day reset; ytApi charged every attempt',
+  cases: [
+    ['a failed cover upload is still charged, as Google bills it', async w => {
+      const snap = seedQuota(w, { pool: 0, search: 0, upload: 0, stats: 0 });
+      const realFetch = w.fetch;
+      try {
+        const c = w.document.createElement('canvas'); c.width = c.height = 4;
+        const png = await new Promise(r => c.toBlob(r, 'image/png'));
+        const file = new w.File([png], 'c.png', { type: 'image/png' });
+        w.fetch = async () => new w.Response(JSON.stringify({ error: { message: 'forbidden' } }), { status: 403 });
+        let threw = false;
+        try { await w.uploadPlaylistCover('PL_aud21', file); } catch (_) { threw = true; }
+        ok(threw, 'the failed upload did not report failure');
+        return eq(readQuota(w).pool, 50, 'pool after a failed 50-unit upload');
+      } finally { w.fetch = realFetch; unseedQuota(w, snap); }
+    }],
+
+    ['the first call of a new Pacific day lands in the new day', w => {
+      const snap = snapshot(w, ['quotaState', 'quotaUnits', 'quotaResetDate', 'apiCalls']);
+      try {
+        w.localStorage.setItem('quotaState', JSON.stringify({ pool: 500, search: 3, upload: 2, stats: 0 }));
+        w.localStorage.setItem('quotaResetDate', '2000-01-01');      // yesterday, as far as the app knows
+        w.loadQuotaState();
+        w.localStorage.setItem('quotaResetDate', '2000-01-01');      // loadQuotaState moved it to today
+        w.chargeCall('videos', 'POST');
+        return eq(readQuota(w), { pool: 0, search: 0, upload: 1 }, 'counters after the first upload of the day');
+      } finally { restore(w, snap); w.loadQuotaState(); }
+    }],
+
+    ['every billed request goes through chargeCall, before it is sent', async w => {
+      const src = await (await fetch('youtube-playlist-manager.html?aud21=' + Date.now())).text();
+      const direct = [...src.matchAll(/chargeQuota\(/g)].length;
+      eq(direct, 2, 'chargeQuota( should appear only in its definition and in chargeCall');
+      for (const fn of ['uploadThumbnail', 'uploadCaption', 'uploadVideo', 'uploadPlaylistCover']) {
+        const start = src.indexOf('function ' + fn + '(');
+        ok(start > 0, fn + ' not found');
+        const body = src.slice(start, src.indexOf('\n}\n', start));
+        const charge = body.indexOf('chargeCall(');
+        const send = body.search(/await fetch\(/);
+        ok(charge > 0 && charge < send, fn + ' charges after sending, or not at all');
+      }
+      return '4 uploads charge first';
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
