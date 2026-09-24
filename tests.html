@@ -279,9 +279,9 @@ async function runMerge(w, opts) {
   const snap = snapshot(w, ['autoCache']);
 
   const host = w.document.createElement('div');
+  const sources = opts.sources || ['PL_1', 'PL_2'];
   host.innerHTML =
-    '<input type="checkbox" class="merge-playlist-select" value="PL_1" checked>' +
-    '<input type="checkbox" class="merge-playlist-select" value="PL_2" checked>' +
+    sources.map(id => '<input type="checkbox" class="merge-playlist-select" value="' + id + '" checked>').join('') +
     '<select id="mergeDestPlaylist">' +
       '<option value="__new__">new</option>' +
       '<option value="PL_DUPE_A">Musique</option>' +
@@ -304,7 +304,10 @@ async function runMerge(w, opts) {
     if (opts.failInserts && endpoint === 'playlistItems' && method === 'POST') throw new Error('simulated insert failure');
     if (endpoint === 'playlistItems' && (!method || method === 'GET')) {
       const pid = params && params.playlistId;
-      return { items: (pid === 'PL_1' || pid === 'PL_2')
+      const item = vid => ({ id: 'ITEM_' + pid + '_' + vid, contentDetails: { videoId: vid },
+                             snippet: { title: vid, resourceId: { videoId: vid } } });
+      if (opts.contents && opts.contents[pid]) return { items: opts.contents[pid].map(item) };
+      return { items: sources.includes(pid)
         ? [{ id: 'ITEM_' + pid, contentDetails: { videoId: 'VID_' + pid },
              snippet: { title: pid, resourceId: { videoId: 'VID_' + pid } } }]
         : [] };
@@ -314,15 +317,14 @@ async function runMerge(w, opts) {
   w.loadAllPlaylists = async () => {};
   w.refreshMergeUI = () => {};
   w.checkBackupSafety = () => true;
-  w.checkQuotaBudget = () => true;
+  w.checkQuotaBudget = (name, action, count) => { if (opts.budget) opts.budget.push({ action, count }); return true; };
   w.showProgressBar = () => {};
   w.updateProgressBar = () => {};
   w.showToast = (msg, type) => { if (opts.toasts) opts.toasts.push({ msg, type }); };
 
   try {
-    // seed two source playlists with one video each
-    await w.loadPlaylistVideos('PL_1', { force: true });
-    await w.loadPlaylistVideos('PL_2', { force: true });
+    // seed the source playlists (unless the case is about never-loaded ones)
+    if (!opts.noSeed) for (const id of sources) await w.loadPlaylistVideos(id, { force: true });
     calls.length = 0;
     await w.performMerge();
     return calls;
@@ -3317,6 +3319,41 @@ const SUITES = [
     ['the toggle and its state are gone', w => {
       eq(typeof w.toggleMusicMode, 'undefined', 'toggleMusicMode still defined');
       return eq(typeof w.updateMusicModeBtn, 'undefined', 'updateMusicModeBtn still defined');
+    }],
+  ],
+},
+{
+  id: 'AUD-23', title: 'Merge copies each video once, from every source', note: 'a never-opened source contributed nothing, a video in two sources went in twice, and the estimate counted a delete merge never does',
+  cases: [
+    ['a source never opened is loaded and merged', async w => {
+      const calls = await runMerge(w, { dest: '__new__', name: 'Fusion', sources: ['PL_U1', 'PL_U2'], noSeed: true });
+      const ins = calls.filter(c => c.endpoint === 'playlistItems' && c.method === 'POST').map(c => c.body.snippet.resourceId.videoId);
+      return eq(ins.sort(), ['VID_PL_U1', 'VID_PL_U2'], 'inserted');
+    }],
+
+    ['a video present in two sources is inserted once', async w => {
+      const toasts = [];
+      const calls = await runMerge(w, { dest: '__new__', name: 'Fusion', sources: ['PL_O1', 'PL_O2'], toasts,
+        contents: { PL_O1: ['VA', 'VB'], PL_O2: ['VB', 'VC'] } });
+      const ins = calls.filter(c => c.endpoint === 'playlistItems' && c.method === 'POST').map(c => c.body.snippet.resourceId.videoId);
+      eq(ins, ['VA', 'VB', 'VC'], 'inserted');
+      return ok(toasts.some(x => x.type === 'info' && /\b1\b/.test(x.msg)), 'no note about the skipped duplicate');
+    }],
+
+    ['a video the destination already holds is not inserted again', async w => {
+      const calls = await runMerge(w, { dest: 'PL_DUPE_B', sources: ['PL_D1', 'PL_D2'],
+        contents: { PL_D1: ['VX'], PL_D2: ['VY'], PL_DUPE_B: ['VX'] } });
+      const ins = calls.filter(c => c.endpoint === 'playlistItems' && c.method === 'POST').map(c => c.body.snippet.resourceId.videoId);
+      return eq(ins, ['VY'], 'inserted');
+    }],
+
+    ['the estimate covers what is inserted, plus the playlist when one is created', async w => {
+      const budget = [];
+      await runMerge(w, { dest: '__new__', name: 'Fusion', sources: ['PL_E1', 'PL_E2'], budget,
+        contents: { PL_E1: ['VA', 'VB'], PL_E2: ['VB'] } });
+      eq(budget, [{ action: 'merge_new', count: 2 }], 'pre-flight');
+      eq(w.estimateQuotaCost('merge_new', 2), 150, 'new destination');
+      return eq(w.estimateQuotaCost('merge', 2), 100, 'existing destination — no phantom delete');
     }],
   ],
 },

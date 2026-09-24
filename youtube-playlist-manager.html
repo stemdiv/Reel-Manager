@@ -3372,6 +3372,7 @@ const I18N = {
     toast_moved: 'Vidéos déplacées',
     toast_moved_partial: '{moved} vidéo(s) déplacée(s), {stuck} copiée(s) sans être retirée(s) de la playlist source — réessayez sur celles-ci',
     toast_moved_aborted: 'Déplacement interrompu : {msg}. {moved} déplacée(s), {stuck} copiée(s) sans retrait de la source, {left} non traitée(s)',
+    toast_merge_skipped: '{dupes} vidéo(s) déjà présente(s) non recopiée(s)',
     toast_scanning_ghosts: 'Scan des vidéos fantômes... (peut prendre un moment)',
     toast_video_deleted: 'Vidéo supprimée',
     toast_all_ghosts_cleaned: 'Toutes les vidéos fantômes supprimées',
@@ -4153,6 +4154,7 @@ const I18N = {
     toast_moved: 'Videos moved',
     toast_moved_partial: '{moved} video(s) moved, {stuck} copied but not removed from the source playlist — retry those',
     toast_moved_aborted: 'Move stopped: {msg}. {moved} moved, {stuck} copied without leaving the source, {left} not processed',
+    toast_merge_skipped: '{dupes} video(s) already there, not copied again',
     toast_scanning_ghosts: 'Scanning ghost videos... (may take a moment)',
     toast_video_deleted: 'Video deleted',
     toast_all_ghosts_cleaned: 'All ghost videos removed',
@@ -4421,11 +4423,15 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.13'; // bump per release
+const APP_VERSION = '1.27.14'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.14', date: '2026-09-24', items: [
+    "FUSION (AUD-23) — une playlist jamais ouverte, un favori typiquement, n apportait aucune video a la fusion ; une video presente dans deux sources etait inseree deux fois. Chaque source est desormais chargee, chaque video n est inseree qu une fois et jamais si la destination l a deja, et un message dit combien de doublons ont ete ecartes",
+    "L estimation de quota compte ce qui sera vraiment insere, plus la creation de la playlist quand il y en a une ; elle comptait une suppression de playlist que la fusion ne fait pas. Les listes de fusion affichent le nombre de videos annonce par YouTube pour une playlist pas encore chargee, au lieu de 0",
+  ]},
   { v: '1.27.13', date: '2026-09-24', items: [
     "CORRECTIF (AUD-32) — le bouton Mode Musique en un clic (#J2) a ete remplace par la lentille de bibliotheque (#17), mais son etat enregistre restait actif : qui l avait allume ne pouvait plus l eteindre, et Reinitialiser remettait les filtres sur Musique au lieu de Tous. L etat et son bouton fantome sont retires, la cle reelMusicMode est effacee au demarrage",
   ]},
@@ -6231,7 +6237,8 @@ function estimateQuotaCost(action, count) {
 
   const costs = {
     'delete_playlists': count * DELETE_PLAYLIST,
-    'merge': count * INSERT + DELETE,                     // N inserts into target + 1 delete of source playlist
+    'merge': count * INSERT,                              // AUD-23 — N inserts; merge deletes nothing
+    'merge_new': count * INSERT + INSERT_PLAYLIST,        // … plus creating the destination
     'move': count * (INSERT + DELETE),                    // FIX (#58): move = delete from source + insert into target = 100/item
     'bulk_rename': count * UPDATE_PLAYLIST,
     'clean_ghosts': count * DELETE,
@@ -12276,7 +12283,7 @@ function refreshMergeUI() {
   const html = APP.playlists.map(pl => `
     <div class="form-checkbox">
       <input type="checkbox" value="${pl.id}" class="merge-playlist-select">
-      <span class="checkbox-label">${escapeHtml(pl.snippet.title)} (${APP.allVideos[pl.id]?.length || 0} vidéos)</span>
+      <span class="checkbox-label">${escapeHtml(pl.snippet.title)} (${APP.allVideos[pl.id]?.length ?? pl.contentDetails?.itemCount ?? 0} vidéos)</span>
     </div>
   `).join('');
 
@@ -12288,7 +12295,7 @@ function refreshMergeUI() {
   if (dest) {
     const previous = dest.value;
     dest.innerHTML = `<option value="__new__">${escapeHtml(t('merge_dest_new'))}</option>` +
-      APP.playlists.map(pl => `<option value="${escapeHtml(pl.id)}">${escapeHtml(pl.snippet.title)} (${APP.allVideos[pl.id]?.length || 0})</option>`).join('');
+      APP.playlists.map(pl => `<option value="${escapeHtml(pl.id)}">${escapeHtml(pl.snippet.title)} (${APP.allVideos[pl.id]?.length ?? pl.contentDetails?.itemCount ?? 0})</option>`).join('');
     if (previous && [...dest.options].some(o => o.value === previous)) dest.value = previous;
     onMergeDestChange();
   }
@@ -12320,8 +12327,32 @@ async function performMerge() {
     return;
   }
 
-  const totalVideos = selected.reduce((sum, id) => sum + (APP.allVideos[id]?.length || 0), 0);
-  if (!checkQuotaBudget('Fusion de playlists', 'merge', totalVideos)) return;
+  // AUD-23 — decide what will actually be inserted before estimating it. Every
+  // source goes through the loader: a playlist never opened (a bookmark,
+  // typically) used to contribute nothing at all. A video is inserted once,
+  // not once per source, and not at all if the destination already has it.
+  // Dead items are not guessed at here: the verdict is metadata-based (AUD-24),
+  // and a live video silently left out of a merge is worse than a failed insert.
+  const itemVideoId = v => v.contentDetails?.videoId || v.snippet?.resourceId?.videoId;
+  const toInsert = [];
+  let skippedDupes = 0;
+  try {
+    const seen = new Set();
+    if (!creatingNew) (await loadPlaylistVideos(destChoice)).forEach(v => seen.add(itemVideoId(v)));
+    for (const sourceId of selected) {
+      for (const v of await loadPlaylistVideos(sourceId)) {
+        const id = itemVideoId(v);
+        if (!id) continue;
+        if (seen.has(id)) { skippedDupes++; continue; }
+        seen.add(id);
+        toInsert.push(id);
+      }
+    }
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+    return;
+  }
+  if (!checkQuotaBudget('Fusion de playlists', creatingNew ? 'merge_new' : 'merge', toInsert.length)) return;
 
   try {
     // #G18: resolve the destination by id. The old code looked it up by title,
@@ -12340,26 +12371,23 @@ async function performMerge() {
       destId = destChoice;
     }
     let moved = 0, failed = 0;
-    const total = selected.reduce((sum, id) => sum + (APP.allVideos[id]?.length || 0), 0);
+    const total = toInsert.length;
 
     showProgressBar('mergeProgress', 0, total);
 
-    for (const sourceId of selected) {
-      const videos = APP.allVideos[sourceId] || [];
-      for (const video of videos) {
-        try {
-          await ytApi('playlistItems', { part: 'snippet' }, 'POST', {
-            snippet: {
-              playlistId: destId,
-              resourceId: { kind: 'youtube#video', videoId: video.contentDetails?.videoId }
-            }
-          });
-          moved++;
-          updateProgressBar('mergeProgress', moved, total);
-        } catch (err) {
-          failed++;
-          log('warn', 'action', 'merge: video not copied', { videoId: video.contentDetails?.videoId, msg: err.message });
-        }
+    for (const videoId of toInsert) {
+      try {
+        await ytApi('playlistItems', { part: 'snippet' }, 'POST', {
+          snippet: {
+            playlistId: destId,
+            resourceId: { kind: 'youtube#video', videoId }
+          }
+        });
+        moved++;
+        updateProgressBar('mergeProgress', moved, total);
+      } catch (err) {
+        failed++;
+        log('warn', 'action', 'merge: video not copied', { videoId, msg: err.message });
       }
     }
 
@@ -12370,6 +12398,7 @@ async function performMerge() {
     } else {
       showToast(t('toast_merged', { count: moved }), 'success');
     }
+    if (skippedDupes) showToast(t('toast_merge_skipped', { dupes: skippedDupes }), 'info');
   } catch (err) {
     showToast(t('toast_error', { msg: err.message }), 'error');
   }
