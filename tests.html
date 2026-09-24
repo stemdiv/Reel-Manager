@@ -4416,6 +4416,51 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-50', title: 'Reel Studio can be used with a keyboard and a screen reader', note: 'no aria, role or tabindex anywhere; the player buttons were named by their glyph',
+  cases: [
+    ['every button has a real name, not a glyph', async w => {
+      const f = await openStudio();
+      try {
+        const doc = f.contentDocument;
+        const bad = [...doc.querySelectorAll('button')].filter(b => {
+          const name = (b.getAttribute('aria-label') || b.textContent || '').trim();
+          return !/[A-Za-zÀ-ÿ]{3}/.test(name);
+        }).map(b => b.outerHTML.slice(0, 90));
+        eq(bad, [], 'buttons without a readable name');
+        return eq(doc.getElementById('sheetPlayBtn').getAttribute('aria-label'), f.contentWindow.document.documentElement.lang === 'en' ? 'Play' : 'Lecture', 'play button');
+      } finally { f.remove(); }
+    }],
+    ['the page has named landmarks and slider seek bars', async w => {
+      const f = await openStudio();
+      try {
+        const doc = f.contentDocument;
+        eq(doc.getElementById('app').tagName, 'MAIN', 'main content');
+        ok(doc.getElementById('dock').getAttribute('aria-label'), 'the view navigation has no name');
+        ok(doc.getElementById('palette').getAttribute('aria-label'), 'the palette has no name');
+        const sliders = [...doc.querySelectorAll('.track')];
+        return eq(sliders.map(t => [t.getAttribute('role'), t.tabIndex, !!t.getAttribute('aria-label'), !!t.getAttribute('onkeydown')]),
+                  [['slider', 0, true, true], ['slider', 0, true, true]], 'seek bars');
+      } finally { f.remove(); }
+    }],
+    ['library cards are reachable and open with Enter', async w => {
+      const r = await withStudioLibrary(w, async sw => {
+        sw.location.hash = '#/playlists';
+        await aud07Tick();
+        const card = [...sw.document.querySelectorAll('.pl-card')].find(c => c.getAttribute('onclick').includes('PL_aud07a'));
+        ok(card, 'no card');
+        const state = [card.tabIndex, card.getAttribute('role')];
+        card.focus();
+        card.dispatchEvent(new sw.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        await aud07Tick();
+        return { state, hash: sw.location.hash };
+      });
+      eq(r.state[0], 0, 'tab stop');
+      ok(['button', 'link'].includes(r.state[1]), 'role: ' + r.state[1]);
+      return eq(r.hash, '#/playlists/PL_aud07a', 'Enter opened the playlist');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {

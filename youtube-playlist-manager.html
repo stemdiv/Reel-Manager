@@ -4535,11 +4535,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.38'; // bump per release
+const APP_VERSION = '1.27.39'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.39', date: '2026-09-24', items: [
+    "ACCESSIBILITE (AUD-50) — Reel Studio 0.7.4 : aucun attribut d accessibilite ; les boutons du lecteur etaient annonces par leur symbole (⏮ ▶ ⏭) et les cartes ne s ouvraient qu a la souris. Chaque commande a desormais un nom (lecture ou pause selon l etat, aleatoire et repetition avec leur etat), les barres de progression se reglent aux fleches, les cartes s ouvrent au clavier, et la page a des reperes nommes",
+  ]},
   { v: '1.27.38', date: '2026-09-24', items: [
     "ACCESSIBILITE (AUD-49) — le reglage systeme Reduire les animations ne coupait que les transitions : les fondus de vues, de fenetres et de notifications, le clignotement d une carte et le defilement anime continuaient. Tout est desormais coupe ; la carte ciblee reste signalee par un contour fixe",
   ]},

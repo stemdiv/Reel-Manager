@@ -473,22 +473,22 @@
 
 <button class="palette-toggle" onclick="togglePalette()" id="paletteToggle">Palette</button>
 
-<aside class="palette" id="palette">
-  <button class="palette-close" onclick="togglePalette()">×</button>
-  <button class="pal-hex-toggle" id="palHexToggle" onclick="togglePaletteHex()" title="#hex">#</button>
+<aside class="palette" id="palette" data-a11y="palLabel">
+  <button class="palette-close" onclick="togglePalette()" data-a11y="palClose">×</button>
+  <button class="pal-hex-toggle" id="palHexToggle" onclick="togglePaletteHex()" data-a11y="palHex">#</button>
   <div class="pal-card" id="palCard"></div>
 </aside>
 
-<div class="cp-backdrop" id="cpBackdrop" onclick="closePicker()"></div>
+<div class="cp-backdrop" id="cpBackdrop" data-no-kbd onclick="closePicker()"></div>
 <div class="cp" id="cp">
   <div class="cp-sv" id="cpSv"><div class="cp-sv-white"></div><div class="cp-sv-black"></div><div class="cp-knob" id="cpSvKnob"></div></div>
   <div class="cp-hue" id="cpHue"><div class="cp-knob" id="cpHueKnob"></div></div>
   <div class="cp-preview" id="cpPreview"></div>
   <div class="cp-fields">
-    <div><label>HEX</label><input id="cpHex" spellcheck="false" onchange="cpFromHex(this.value)"></div>
-    <div><label>R</label><input id="cpR" onchange="cpFromRgb()"></div>
-    <div><label>G</label><input id="cpG" onchange="cpFromRgb()"></div>
-    <div><label>B</label><input id="cpB" onchange="cpFromRgb()"></div>
+    <div><label for="cpHex">HEX</label><input id="cpHex" spellcheck="false" onchange="cpFromHex(this.value)"></div>
+    <div><label for="cpR">R</label><input id="cpR" onchange="cpFromRgb()"></div>
+    <div><label for="cpG">G</label><input id="cpG" onchange="cpFromRgb()"></div>
+    <div><label for="cpB">B</label><input id="cpB" onchange="cpFromRgb()"></div>
   </div>
 </div>
 
@@ -500,47 +500,47 @@
   </div>
 </div>
 
-<div id="app"></div>
+<main id="app"></main>
 
 <div class="player-sheet" id="playerSheet">
   <div class="sheet-head">
     <div class="card-label" id="sheetLabel">—</div>
-    <button class="ctrl" style="margin-left:auto" onclick="collapsePlayer()" title="↓">↓</button>
+    <button class="ctrl" style="margin-left:auto" onclick="collapsePlayer()" data-a11y="ctlCollapse">↓</button>
   </div>
   <div class="sheet-video"><div id="ytHost"></div></div>
   <div class="sheet-title" id="sheetTitle">—</div>
   <div class="sheet-sub" id="sheetSub"></div>
   <div class="sheet-row">
-    <button class="ctrl" id="shuffleBtn" onclick="toggleShuffle()" title="shuffle">⤨</button>
-    <button class="ctrl" onclick="playPrev()" title="prev">⏮</button>
-    <button class="ctrl play" id="sheetPlayBtn" onclick="togglePlay()">▶</button>
-    <button class="ctrl" onclick="playNext()" title="next">⏭</button>
-    <button class="ctrl" id="repeatBtn" onclick="cycleRepeat()" title="repeat">↻</button>
+    <button class="ctrl" id="shuffleBtn" onclick="toggleShuffle()" data-a11y="ctlShuffle" aria-pressed="false">⤨</button>
+    <button class="ctrl" onclick="playPrev()" data-a11y="ctlPrev">⏮</button>
+    <button class="ctrl play" id="sheetPlayBtn" onclick="togglePlay()" data-a11y="ctlPlay">▶</button>
+    <button class="ctrl" onclick="playNext()" data-a11y="ctlNext">⏭</button>
+    <button class="ctrl" id="repeatBtn" onclick="cycleRepeat()" data-a11y="ctlRepeatOff">↻</button>
     <span class="pb-time" id="sheetTime">0:00</span>
-    <div class="track" onclick="seekFromEvent(event, this)"><div class="track-fill" id="sheetFill"></div></div>
+    <div class="track" role="slider" tabindex="0" data-a11y="ctlSeek" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" onclick="seekFromEvent(event, this)" onkeydown="seekFromKey(event)"><div class="track-fill" id="sheetFill"></div></div>
     <span class="pb-time" id="sheetDur">0:00</span>
   </div>
   <div class="sheet-queue"><div class="card-label" id="queueLabel">File</div><div id="queueList"></div></div>
 </div>
 
 <div class="player-bar" id="playerBar">
-  <span class="pb-thumb" id="barThumb" onclick="expandPlayer()"></span>
-  <span class="pb-meta" onclick="expandPlayer()">
+  <span class="pb-thumb" id="barThumb" data-no-kbd onclick="expandPlayer()"></span>
+  <span class="pb-meta" onclick="expandPlayer()" data-a11y="ctlExpand">
     <span class="pb-title" id="barTitle">—</span>
     <span class="pb-sub" id="barSub"></span>
   </span>
   <span class="pb-ctrl">
-    <button class="ctrl" onclick="playPrev()" title="prev">⏮</button>
-    <button class="ctrl play" id="barPlayBtn" onclick="togglePlay()">▶</button>
-    <button class="ctrl" onclick="playNext()" title="next">⏭</button>
+    <button class="ctrl" onclick="playPrev()" data-a11y="ctlPrev">⏮</button>
+    <button class="ctrl play" id="barPlayBtn" onclick="togglePlay()" data-a11y="ctlPlay">▶</button>
+    <button class="ctrl" onclick="playNext()" data-a11y="ctlNext">⏭</button>
   </span>
   <span class="pb-time" id="barTime">0:00</span>
-  <div class="track pb-track" onclick="seekFromEvent(event, this)"><div class="track-fill" id="barFill"></div></div>
+  <div class="track pb-track" role="slider" tabindex="0" data-a11y="ctlSeek" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" onclick="seekFromEvent(event, this)" onkeydown="seekFromKey(event)"><div class="track-fill" id="barFill"></div></div>
   <span class="pb-time" id="barDur">0:00</span>
-  <button class="ctrl" onclick="stopPlayer()" title="stop">×</button>
+  <button class="ctrl" onclick="stopPlayer()" data-a11y="ctlStop">×</button>
 </div>
 
-<nav class="dock" id="dock"></nav>
+<nav class="dock" id="dock" data-a11y="navLabel"></nav>
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════
@@ -549,7 +549,7 @@
 // Strictly read-only: no API calls, no writes to the app's data keys.
 // ═══════════════════════════════════════════════════════════════════════
 
-const STUDIO_VERSION = '0.7.3';
+const STUDIO_VERSION = '0.7.4';
 
 // ── i18n ───────────────────────────────────────────────────────────────
 const LANG = (localStorage.getItem('appLang') || 'fr') === 'en' ? 'en' : 'fr';
@@ -586,6 +586,12 @@ const S = {
     extBody: 'Reel Studio a ouvert une vidéo dans un onglet YouTube et cet onglet est toujours là. Le navigateur ne permet pas de mettre en pause un autre onglet — seulement de le fermer.',
     extClose: 'Fermer l’onglet et lire ici', extAnyway: 'Lire ici quand même', cancel: 'Annuler',
     secBi: '3A — Accent (noir fixe)', secTri: '3B — Trio', secDuo: '3C — Duo',
+    ctlPrev: 'Précédente', ctlNext: 'Suivante', ctlPlay: 'Lecture', ctlPause: 'Pause',
+    ctlShuffle: 'Lecture aléatoire', ctlRepeatOff: 'Répéter : non', ctlRepeatAll: 'Répéter : tout', ctlRepeatOne: 'Répéter : cette vidéo',
+    ctlCollapse: 'Réduire le lecteur', ctlExpand: 'Agrandir le lecteur', ctlStop: 'Arrêter et fermer le lecteur',
+    ctlSeek: 'Position dans la vidéo', palClose: 'Fermer la palette', palHex: 'Saisir une couleur hexadécimale',
+    navLabel: 'Vues', palLabel: 'Palette',
+    palCombo: 'Utiliser les couleurs {colours}', palSlot: 'Modifier l’accent {n} ({hex})', palSlotHex: 'Accent {n}, code hexadécimal',
   },
   en: {
     search: 'Search across {n} videos…', create: '+ Create',
@@ -619,6 +625,13 @@ const S = {
     extBody: 'Reel Studio opened a video in a YouTube tab and that tab is still there. Browsers cannot pause another tab — only close it.',
     extClose: 'Close the tab and play here', extAnyway: 'Play here anyway', cancel: 'Cancel',
     secBi: '3A — Accent (black locked)', secTri: '3B — Trio', secDuo: '3C — Duo',
+    // AUD-50 — names for the glyph-only controls and the landmarks
+    ctlPrev: 'Previous', ctlNext: 'Next', ctlPlay: 'Play', ctlPause: 'Pause',
+    ctlShuffle: 'Shuffle', ctlRepeatOff: 'Repeat: off', ctlRepeatAll: 'Repeat: all', ctlRepeatOne: 'Repeat: this video',
+    ctlCollapse: 'Collapse the player', ctlExpand: 'Expand the player', ctlStop: 'Stop and close the player',
+    ctlSeek: 'Position in the video', palClose: 'Close the palette', palHex: 'Enter a hex colour',
+    navLabel: 'Views', palLabel: 'Palette',
+    palCombo: 'Use the colours {colours}', palSlot: 'Change accent {n} ({hex})', palSlotHex: 'Accent {n}, hex code',
   },
 }[LANG];
 
@@ -877,15 +890,17 @@ function renderPalette() {
     const combos = theme.combos.map((combo, i) => `
       <button class="combo ${combo.length === 1 ? 'single' : 'multi'}${isActive && i === selectedCombo ? ' selected' : ''}"
               onclick="pickCombo('${id}', ${JSON.stringify(combo).replace(/"/g, '&quot;')})"
-              title="${combo.join(' · ')}">
+              title="${combo.join(' · ')}" aria-label="${esc(tr('palCombo', { colours: combo.join(', ') }))}"
+              aria-pressed="${isActive && i === selectedCombo}">
         ${combo.map(h => `<i style="background:${h}"></i>`).join('')}
       </button>`).join('');
 
     const slots = accents.map((hex, i) => `
       <div class="slot-row">
         <button class="slot-chip" style="background:${hex}" title="${hex}"
+                aria-label="${esc(tr('palSlot', { n: i + 1, hex }))}"
                 onclick="openPicker('${id}', ${i}, this)"></button>
-        <input class="slot-hex" value="${hex}" spellcheck="false"
+        <input class="slot-hex" value="${hex}" spellcheck="false" aria-label="${esc(tr('palSlotHex', { n: i + 1 }))}"
                onchange="onHexInput(this, '${id}', ${i})">
         <span class="slot-label">${theme.accents === 1 ? tr('perso') : 'C' + i}</span>
       </div>`).join('');
@@ -1657,6 +1672,11 @@ function startTimer() {
     const t = fmtClock(Math.floor(cur)), d = fmtClock(Math.floor(dur));
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     set('barTime', t); set('sheetTime', t); set('barDur', d); set('sheetDur', d);
+    document.querySelectorAll('.track[role="slider"]').forEach(el => {   // AUD-50
+      el.setAttribute('aria-valuemax', String(Math.floor(dur)));
+      el.setAttribute('aria-valuenow', String(Math.floor(cur)));
+      el.setAttribute('aria-valuetext', t + ' / ' + d);
+    });
   }, 500);
 }
 
@@ -1707,6 +1727,21 @@ function seekFromEvent(ev, track) {
   PLAY.yt.seekTo(frac * (PLAY.yt.getDuration() || 0), true);
 }
 
+// AUD-50 — the seek bars are sliders: arrows move 5 s, Page keys 30 s,
+// Home/End jump to the ends.
+function seekFromKey(ev) {
+  if (!PLAY.yt || !PLAY.yt.getDuration) return;
+  const dur = PLAY.yt.getDuration() || 0, cur = PLAY.yt.getCurrentTime() || 0;
+  const step = { ArrowRight: 5, ArrowUp: 5, ArrowLeft: -5, ArrowDown: -5, PageUp: 30, PageDown: -30 }[ev.key];
+  let to;
+  if (step !== undefined) to = cur + step;
+  else if (ev.key === 'Home') to = 0;
+  else if (ev.key === 'End') to = dur;
+  else return;
+  ev.preventDefault();
+  PLAY.yt.seekTo(Math.min(dur, Math.max(0, to)), true);
+}
+
 const expandPlayer = () => {
   document.getElementById('playerSheet').classList.add('open');
   document.body.classList.remove('player-docked');
@@ -1733,6 +1768,8 @@ function renderPlayer() {
   const icon = PLAY.playing ? '⏸' : '▶';
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   set('barPlayBtn', icon); set('sheetPlayBtn', icon);
+  // AUD-50 — the glyph changes, so does the name
+  ['barPlayBtn', 'sheetPlayBtn'].forEach(id => { const el = document.getElementById(id); if (el) el.setAttribute('aria-label', tr(PLAY.playing ? 'ctlPause' : 'ctlPlay')); });
   set('barTitle', cur.title); set('sheetTitle', cur.title);
   set('barSub', cur.channel || cur.channelTitle || '—');
   set('sheetSub', (cur.channel || cur.channelTitle || '—') + (cur.playlistTitle ? ' · ' + cur.playlistTitle : ''));
@@ -1740,9 +1777,14 @@ function renderPlayer() {
   set('queueLabel', tr('queueLabel') + ' · ' + PLAY.queue.length);
   const thumb = document.getElementById('barThumb');
   if (thumb) thumb.style.backgroundImage = cur.thumbnail ? `url('${cur.thumbnail}')` : '';
-  const sh = document.getElementById('shuffleBtn'); if (sh) sh.classList.toggle('on', PLAY.shuffle);
+  const sh = document.getElementById('shuffleBtn');
+  if (sh) { sh.classList.toggle('on', PLAY.shuffle); sh.setAttribute('aria-pressed', String(PLAY.shuffle)); }
   const rp = document.getElementById('repeatBtn');
-  if (rp) { rp.classList.toggle('on', PLAY.repeat !== 'none'); rp.textContent = PLAY.repeat === 'one' ? '↻¹' : '↻'; }
+  if (rp) {
+    rp.classList.toggle('on', PLAY.repeat !== 'none');
+    rp.textContent = PLAY.repeat === 'one' ? '↻¹' : '↻';
+    rp.setAttribute('aria-label', tr({ none: 'ctlRepeatOff', all: 'ctlRepeatAll', one: 'ctlRepeatOne' }[PLAY.repeat]));
+  }
 
   const list = document.getElementById('queueList');
   if (list) list.innerHTML = PLAY.queue.map((v, i) => `
@@ -1799,6 +1841,44 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 'Escape') document.getElementById('palette').classList.remove('open');
 });
+
+// ── AUD-50 — accessible names and keyboard access ─────────────────────
+// Glyph-only controls (⏮ ▶ ⏭ × #) were named by their glyph. data-a11y names
+// the string that labels them; landmarks get theirs the same way.
+function labelControls(root) {
+  (root || document).querySelectorAll('[data-a11y]').forEach(el => {
+    const name = tr(el.getAttribute('data-a11y'));
+    el.setAttribute('aria-label', name);
+    if (el.tagName === 'BUTTON') el.title = name;
+  });
+}
+
+// Same rule as the app (AUD-44): anything with an inline onclick that is not a
+// control gets a tab stop and a role — a link when it holds other controls —
+// and Enter (Space for a button) activates it.
+const NATIVE_CONTROL = 'a[href], button, input, select, textarea, summary, label, iframe, [contenteditable="true"]';
+function enhanceClickTargets(root) {
+  if (!root || root.nodeType !== 1) return;
+  const found = root.querySelectorAll('[onclick]');
+  for (const el of root.hasAttribute('onclick') ? [root, ...found] : found) {
+    if (el.matches(NATIVE_CONTROL) || el.hasAttribute('tabindex') || el.hasAttribute('data-no-kbd')) continue;
+    if (/^\s*(event\.stopPropagation\(\);?\s*)+$/.test(el.getAttribute('onclick'))) continue;
+    el.tabIndex = 0;
+    if (!el.hasAttribute('role')) el.setAttribute('role', el.querySelector(NATIVE_CONTROL + ', [onclick]') ? 'link' : 'button');
+  }
+}
+document.addEventListener('keydown', e => {
+  const el = e.target;
+  if (!(el instanceof HTMLElement) || el.matches(NATIVE_CONTROL) || !el.hasAttribute('onclick')) return;
+  const role = el.getAttribute('role');
+  if (role !== 'button' && role !== 'link') return;
+  if (e.key === 'Enter' || (e.key === ' ' && role === 'button')) { e.preventDefault(); el.click(); }
+});
+new MutationObserver(records => {
+  for (const r of records) r.addedNodes.forEach(enhanceClickTargets);
+}).observe(document.body, { childList: true, subtree: true });
+enhanceClickTargets(document.body);
+labelControls();
 
 // ── Boot ───────────────────────────────────────────────────────────────
 // The theme is applied before the await so the page never flashes the wrong
