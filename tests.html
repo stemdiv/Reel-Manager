@@ -3025,6 +3025,78 @@ const SUITES = [
     }],
   ],
 },
+// Keep this suite last: its final case leaves the page in the "about to reload"
+// state a real deletion ends in, where the log no longer persists.
+{
+  id: 'AUD-03', title: 'Delete my data deletes all of it', note: 'two hand-kept key lists had drifted apart and between them forgot seventeen keys',
+  cases: [
+    ['every key the app or Reel Studio writes is in the registry', async w => {
+      const [app, studio] = await Promise.all(['youtube-playlist-manager.html', 'reel-studio.html']
+        .map(f => fetch(f + '?aud03=' + Date.now()).then(r => r.text())));
+      const written = new Set(['diagnosticLog', 'autoCache', 'autoCacheTimestamp']);   // written through constants
+      for (const src of [app, studio]) {
+        for (const m of src.matchAll(/(?:local|session)Storage\.setItem\(\s*'([A-Za-z0-9_]+)'/g)) written.add(m[1]);
+      }
+      const known = new Set([...w.APP_STORAGE_KEYS, ...w.APP_SESSION_KEYS]);
+      eq([...written].filter(k => !known.has(k)).sort(), [], 'written but never purged');
+      return written.size + ' keys written, all registered';
+    }],
+
+    ['the purge empties every registered key and the cache database', async w => {
+      const lsSnap = snapshot(w, w.APP_STORAGE_KEYS);
+      const ssSnap = w.APP_SESSION_KEYS.map(k => [k, w.sessionStorage.getItem(k)]);
+      const idb = await idbSnapshot(w);
+      try {
+        w.APP_STORAGE_KEYS.forEach(k => w.localStorage.setItem(k, 'x'));
+        w.APP_SESSION_KEYS.forEach(k => w.sessionStorage.setItem(k, 'x'));
+        await w.cacheStore.writeAll(SAMPLE_CACHE());
+        await w.purgeLocalData();
+        eq(w.APP_STORAGE_KEYS.filter(k => w.localStorage.getItem(k) !== null), [], 'localStorage keys left');
+        eq(w.APP_SESSION_KEYS.filter(k => w.sessionStorage.getItem(k) !== null), [], 'sessionStorage keys left');
+        const cache = await w.cacheStore.readAll();
+        ok(!cache || !(cache.playlists || []).length, 'the cache database survived');
+        return w.APP_STORAGE_KEYS.length + ' + ' + w.APP_SESSION_KEYS.length + ' keys, database empty';
+      } finally {
+        restore(w, lsSnap);
+        ssSnap.forEach(([k, v]) => v === null ? w.sessionStorage.removeItem(k) : w.sessionStorage.setItem(k, v));
+        await idbRestore(w, idb);
+      }
+    }],
+
+    ['the 30-day auto-purge clears the same keys as Delete my data', async w => {
+      const lsSnap = snapshot(w, w.APP_STORAGE_KEYS);
+      const idb = await idbSnapshot(w);
+      try {
+        w.APP_STORAGE_KEYS.forEach(k => w.localStorage.setItem(k, 'x'));
+        w.localStorage.setItem('lastLoginTimestamp', new Date(Date.now() - 31 * 864e5).toISOString());
+        eq(await w.checkAutoPurge(), true, 'purged after 31 days');
+        return eq(w.APP_STORAGE_KEYS.filter(k => w.localStorage.getItem(k) !== null), [], 'keys left');
+      } finally { restore(w, lsSnap); await idbRestore(w, idb); }
+    }],
+
+    ['no purge before 30 days', async w => {
+      const lsSnap = snapshot(w, ['lastLoginTimestamp', 'playlistTags']);
+      try {
+        w.localStorage.setItem('lastLoginTimestamp', new Date(Date.now() - 29 * 864e5).toISOString());
+        w.localStorage.setItem('playlistTags', '{"PL_keep":["t"]}');
+        eq(await w.checkAutoPurge(), false, 'purged too early');
+        return eq(w.localStorage.getItem('playlistTags'), '{"PL_keep":["t"]}');
+      } finally { restore(w, lsSnap); }
+    }],
+
+    ['after a deletion, unloading the page writes nothing back', async w => {
+      const lsSnap = snapshot(w, w.APP_STORAGE_KEYS);
+      const idb = await idbSnapshot(w);
+      try {
+        await w.purgeLocalData({ final: true });
+        w.log('warn', 'app', 'logged after the purge');
+        w.dispatchEvent(new w.Event('beforeunload', { cancelable: true }));
+        w.persistLog();
+        return eq(w.localStorage.getItem('diagnosticLog'), null, 'the diagnostic log came back');
+      } finally { restore(w, lsSnap); await idbRestore(w, idb); }
+    }],
+  ],
+},
 ];
 
 // AUD-05 — no angle bracket needed: one double quote closes title="" and the

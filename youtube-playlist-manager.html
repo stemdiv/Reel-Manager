@@ -4411,11 +4411,16 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.5'; // bump per release
+const APP_VERSION = '1.27.6'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.6', date: '2026-09-24', items: [
+    "RGPD (AUD-03) — Supprimer mes donnees et la purge automatique a 30 jours tenaient chacune leur propre liste de cles, et les deux avaient derive : dix-sept cles survivaient, dont le journal de diagnostic, les playlists en favori, la langue, les compteurs de quota et les deux reglages de Reel Studio. Un registre unique, APP_STORAGE_KEYS, sert desormais aux deux chemins, sessionStorage compris",
+    "Apres une suppression, le journal ne se reecrit plus au dechargement de la page, et aucune invite de modifications non enregistrees n apparait",
+    "La purge automatique attend la fin du vidage de la base IndexedDB avant de continuer, puis recharge la page : l application gardait en memoire les tags, dossiers et favoris lus avant la purge et pouvait les reecrire",
+  ]},
   { v: '1.27.5', date: '2026-09-24', items: [
     "SECURITE (AUD-05) — le titre d une playlist entrait brut dans l attribut title des lignes du tableau de bord et des statistiques. Un guillemet suffisait a ajouter des attributs, onmouseover compris, sans chevron ; une playlist mise en favori porte le titre choisi par son proprietaire, pas par l utilisateur. Les titres sont desormais echappes dans le donut, la legende, les barres, la plus grande playlist, les statistiques, les doublons et les listes du Studio",
   ]},
@@ -4735,6 +4740,7 @@ function _logRedact(input) {
 
 /** Persist the last N entries to localStorage so logs survive a refresh/crash. */
 function persistLog() {
+  if (_storagePurged) return;   // AUD-03 — deleted means deleted, even on unload
   if (!APP || !Array.isArray(APP.log) || APP.log.length === 0) return;
   try {
     const tail = APP.log.slice(-LOG_CONFIG.persistTail);
@@ -5542,8 +5548,9 @@ async function init() {
   // writes to the shared localStorage.
   if (handleOAuthPopupReturn()) return;
 
-  // Auto-purge if no login for 30+ days
-  checkAutoPurge();
+  // Auto-purge if no login for 30+ days. APP already holds the purged values,
+  // read at parse time, so start again from an empty storage.
+  if (await checkAutoPurge()) { location.reload(); return; }
 
   // Capture deep-link bookmark ID BEFORE checkAuth() strips the URL query
   try {
@@ -6286,17 +6293,9 @@ async function deleteAllUserData() {
     }
   }
 
-  // Clear all localStorage keys used by this app
-  const appKeys = [
-    'youtubeClientId', 'appTheme', 'appSkin', 'appNamedTheme', 'themeAccents', 'customAccent', 'playlistTags', 'tagIcons', 'watchQueue',
-    'playlistFolders', 'folderAssignments', 'folderExpanded', 'deckColumns',
-    'lastBackup', 'lastBackupTimestamp', 'autoCache', 'autoCacheTimestamp',
-    'oauthScope', 'lastLoginTimestamp', 'recentSearches', 'userInfo'
-  ];
-  appKeys.forEach(k => localStorage.removeItem(k));
-  // #G11 — "delete my data" (CR5) has to reach the database, not just the keys.
-  // Awaited: reloading mid-clear would leave half a cache behind.
-  try { await cacheStore.clear(); } catch (_) {}
+  // AUD-03 — one registry for both purge paths, and nothing written back on the
+  // way out: the unload handler would otherwise persist the diagnostic log again.
+  await purgeLocalData({ final: true });
 
   showToast(t('toast_data_deleted'), 'success');
   setTimeout(() => location.reload(), 1500);
@@ -6306,24 +6305,61 @@ async function deleteAllUserData() {
 // AUTO-PURGE (f. données > 30 jours sans reconnexion)
 // ============================================================================
 
-function checkAutoPurge() {
+// Every key this origin writes, the app's and Reel Studio's alike (AUD-03). The
+// two purge paths each kept a list by hand; the lists had drifted apart and
+// between them forgot seventeen keys, the diagnostic log and the bookmarks among
+// them. A key the app starts writing goes here, or the registry test fails.
+var APP_STORAGE_KEYS = [   // var: read by tests.html, which cannot see a top-level const
+  // library, organisation, backups
+  'autoCache', 'autoCacheTimestamp', 'lastBackup', 'lastBackupTimestamp',
+  'playlistTags', 'tagIcons', 'playlistFolders', 'folderAssignments', 'folderExpanded',
+  'bookmarkedPlaylists', 'deckColumns', 'watchQueue', 'recentSearches',
+  'playlistViewMode', 'libraryLens', 'discoverFilters', 'trendingCategory',
+  'showPlaylistViews', 'reelMusicMode',
+  // identity and session
+  'youtubeClientId', 'userInfo', 'oauthScope', 'writeScopeAtLogin', 'lastLoginTimestamp',
+  // appearance and language
+  'appTheme', 'appSkin', 'appNamedTheme', 'themeAccents', 'customAccent', 'appLang',
+  'readOnlyMode',
+  // quota counters and the diagnostic log
+  'quotaState', 'quotaUnits', 'quotaResetDate', 'apiCalls', 'diagnosticLog',
+  // Reel Studio, same origin
+  'studioTheme', 'studioAccents',
+];
+var APP_SESSION_KEYS = ['loggedOut', 'pendingActionAfterOAuth', 'tokenExpiresAt'];
+
+// Set by a final purge: the page is about to reload, and persistLog() on
+// beforeunload must not write the log back into a storage just emptied.
+let _storagePurged = false;
+
+async function purgeLocalData(opts) {
+  if (opts?.final) {
+    _storagePurged = true;
+    APP.log.length = 0;
+    APP_DIRTY = false;     // nothing left to save — no "unsaved changes" prompt
+  }
+  APP_STORAGE_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
+  APP_SESSION_KEYS.forEach(k => { try { sessionStorage.removeItem(k); } catch (_) {} });
+  // #G11 — the cache is a database, not one of those keys. Awaited: a caller
+  // that reads the cache next must not find half of it.
+  try { await cacheStore.clear(); } catch (_) {}
+}
+
+// ============================================================================
+// AUTO-PURGE (f. données > 30 jours sans reconnexion)
+// ============================================================================
+
+// Resolves true when it purged. The caller reloads: APP was hydrated from the
+// old keys when the script was parsed, and any later save would write them back.
+async function checkAutoPurge() {
   const lastLogin = localStorage.getItem('lastLoginTimestamp');
-  if (!lastLogin) return;
+  if (!lastLogin) return false;
 
   const daysSinceLogin = (Date.now() - new Date(lastLogin).getTime()) / (1000 * 60 * 60 * 24);
-  if (daysSinceLogin > 30) {
-    // Purge all app data silently
-    const appKeys = [
-      'playlistTags', 'tagIcons', 'watchQueue', 'playlistFolders', 'folderAssignments',
-      'folderExpanded', 'deckColumns', 'lastBackup', 'lastBackupTimestamp',
-      'autoCache', 'autoCacheTimestamp', 'oauthScope', 'recentSearches', 'userInfo'
-    ];
-    appKeys.forEach(k => localStorage.removeItem(k));
-    localStorage.removeItem('lastLoginTimestamp');
-    // #G11 — the cache is no longer one of those keys.
-    cacheStore.clear().catch(() => {});
-    console.info('[Auto-purge] Données supprimées après 30 jours sans connexion');
-  }
+  if (!(daysSinceLogin > 30)) return false;
+  await purgeLocalData();
+  console.info('[Auto-purge] Données supprimées après 30 jours sans connexion');
+  return true;
 }
 
 async function runCacheDiagnostic() {
