@@ -4647,7 +4647,7 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.50'; // bump per release
+const APP_VERSION = '1.27.51'; // bump per release
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -15888,7 +15888,8 @@ if ((!APP.clientId && !APP.accessToken && !_hasCachedData) || sessionStorage.get
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js')
+    // AUD-30 — the worker names its cache after this release
+    navigator.serviceWorker.register('sw.js?v=' + encodeURIComponent(APP_VERSION))
       .then(reg => {
         console.log('[SW] registered, scope:', reg.scope);
         log('info', 'sw', 'service worker registered', { scope: reg.scope });

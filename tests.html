@@ -4830,6 +4830,39 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-30', title: 'The service worker installs reliably and works offline with a query string', note: 'a cross-origin pre-cache entry could fail the install, ?bookmark= missed the cache offline, and the cache name was bumped by hand',
+  cases: [
+    ['the install pre-caches same-origin files only, shared/core.js included, under a release-named cache', async w => {
+      const sw = await aud30Worker('1.2.3');
+      await sw.fire('install');
+      eq(sw.opened, ['reel-manager-1.2.3'], 'cache name');
+      ok(sw.added.every(u => !/^https?:/.test(u)), 'cross-origin entries: ' + sw.added.join(', '));
+      return ok(sw.added.includes('shared/core.js'), 'shared/core.js is not pre-cached');
+    }],
+    ['activate drops the caches of other releases', async w => {
+      const sw = await aud30Worker('1.2.3', { keys: ['reel-manager-v32', 'reel-manager-1.2.2', 'reel-manager-1.2.3'] });
+      await sw.fire('activate');
+      return eq(sw.deleted, ['reel-manager-v32', 'reel-manager-1.2.2'], 'deleted');
+    }],
+    ['offline, a navigation with a query string finds the cached page', async w => {
+      const sw = await aud30Worker('1.2.3', { offline: true });
+      const res = await sw.fetchEvent('http://app.test/youtube-playlist-manager.html?bookmark=PLabcdefghijk', 'navigate');
+      eq(sw.matched[0] && sw.matched[0].opts, { ignoreSearch: true }, 'match options');
+      return eq(res, 'CACHED', 'response');
+    }],
+    ['a same-origin script goes to the network first, the cache only offline', async w => {
+      const online = await aud30Worker('1.2.3');
+      eq(await online.fetchEvent('http://app.test/shared/core.js', 'no-cors', 'script'), 'NETWORK', 'online');
+      const offline = await aud30Worker('1.2.3', { offline: true });
+      return eq(await offline.fetchEvent('http://app.test/shared/core.js', 'no-cors', 'script'), 'CACHED', 'offline');
+    }],
+    ['the app registers the worker with its version', async w => {
+      const src = await fetch('youtube-playlist-manager.html?aud30=' + Date.now()).then(r => r.text());
+      return ok(/serviceWorker\.register\('sw\.js\?v=' \+ encodeURIComponent\(APP_VERSION\)\)/.test(src), 'registration without the release');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -5182,6 +5215,44 @@ async function aud08Csp(page) {
   const doc = new DOMParser().parseFromString(await fetch(page + '?aud08=' + Date.now()).then(r => r.text()), 'text/html');
   const meta = doc.querySelector('meta[http-equiv="Content-Security-Policy"]');
   return meta ? meta.getAttribute('content') : '';
+}
+
+// AUD-30 — run the real sw.js against a fake worker scope: `caches`, `fetch`
+// and the event objects are stand-ins that record what the worker asks for.
+async function aud30Worker(version, opts = {}) {
+  const src = await fetch('sw.js?aud30=' + Date.now()).then(r => r.text());
+  const listeners = {};
+  const rec = { opened: [], added: [], deleted: [], matched: [] };
+  const cache = { addAll: async list => { rec.added.push(...list); }, put: async () => {} };
+  const caches = {
+    open: async name => { rec.opened.push(name); return cache; },
+    keys: async () => opts.keys || [],
+    delete: async name => { rec.deleted.push(name); return true; },
+    match: async (req, o) => { rec.matched.push({ url: req.url, opts: o }); return 'CACHED'; },
+  };
+  const self = {
+    location: new URL('http://app.test/sw.js?v=' + version),
+    addEventListener: (type, fn) => { listeners[type] = fn; },
+    skipWaiting: async () => {}, clients: { claim: async () => {} },
+  };
+  const fakeFetch = async () => {
+    if (opts.offline) throw new TypeError('Failed to fetch');
+    return { status: 200, clone() { return this; }, tag: 'NETWORK' };
+  };
+  new Function('self', 'caches', 'fetch', src)(self, caches, fakeFetch);
+  return Object.assign(rec, {
+    async fire(type) {
+      let p = null;
+      listeners[type]({ waitUntil: x => { p = x; } });
+      await p;
+    },
+    async fetchEvent(url, mode, destination = '') {
+      let p = null;
+      listeners.fetch({ request: { url, mode, destination, method: 'GET' }, respondWith: x => { p = x; } });
+      const r = await p;
+      return r && r.tag ? r.tag : r;
+    },
+  });
 }
 
 // AUD-10 — run something that logs, persist the log and return the entries

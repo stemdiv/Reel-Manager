@@ -1,5 +1,15 @@
 [
  {
+  "v": "1.27.51",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "HORS LIGNE (AUD-30) — l’installation du mode hors ligne échouait dès que la feuille de style des polices Google ne pouvait pas être téléchargée ; hors ligne, un lien ?bookmark= ne trouvait pas la page en cache ; et le cache ne changeait de nom qu’à la main. Le cache porte désormais le numéro de version, ne précharge que des fichiers de l’app (dont shared/core.js, nécessaire au démarrage hors ligne), ignore les paramètres d’adresse hors ligne, et les scripts partagés sont toujours pris frais sur le réseau quand il est là",
+    "en": "OFFLINE (AUD-30) — installing offline mode failed whenever the Google Fonts stylesheet could not be downloaded; offline, a ?bookmark= link did not find the cached page; and the cache was only renamed by hand. The cache now carries the version number, pre-caches only the app’s own files (including shared/core.js, needed to start offline), ignores URL parameters when offline, and shared scripts are always fetched fresh from the network when it is available"
+   }
+  ]
+ },
+ {
   "v": "1.27.50",
   "date": "2026-09-24",
   "items": [
