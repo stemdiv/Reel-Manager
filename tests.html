@@ -3109,6 +3109,60 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-13', title: 'Big playlists load whole, or say they did not', note: 'the 20-page cap stopped at 1 000 items and the slice was cached, backed up and exported as if complete',
+  cases: [
+    ['a 3 000-item playlist loads all 60 pages', async w => {
+      const got = await withPagedPlaylist(w, 'PL_aud13_big', { pages: 60 }, async () => w.loadPlaylistVideos('PL_aud13_big', { force: true }));
+      eq(got.videos.length, 3000, 'items loaded');
+      eq(got.videos.complete, true, 'marked complete');
+      return eq(got.toasts.filter(x => x.type === 'warning').length, 0, 'warned on a complete load');
+    }],
+
+    ['a page that fails mid-way is reported, not passed off as the whole playlist', async w => {
+      const got = await withPagedPlaylist(w, 'PL_aud13_cut', { pages: 5, failAt: 3 }, async () => w.loadPlaylistVideos('PL_aud13_cut', { force: true }));
+      eq(got.videos.length, 100, 'kept the two good pages');
+      eq(got.videos.complete, false, 'marked complete');
+      return ok(got.toasts.some(x => x.type === 'warning'), 'no warning toast: ' + JSON.stringify(got.toasts));
+    }],
+
+    ['the backup warns while a playlist is incomplete, and stops once it reloads whole', async w => {
+      const toasts = [];
+      await withPagedPlaylist(w, 'PL_aud13_cut', { pages: 5, failAt: 3 }, async () => {
+        await w.loadPlaylistVideos('PL_aud13_cut', { force: true });
+        const realToast = w.showToast;
+        w.showToast = (m, type) => toasts.push({ m, type });
+        try { eq(w.warnIfBackupIncomplete(), 1, 'incomplete playlists counted'); } finally { w.showToast = realToast; }
+      });
+      ok(toasts.some(x => x.type === 'warning'), 'no warning toast');
+      await withPagedPlaylist(w, 'PL_aud13_cut', { pages: 2 }, async () => {
+        await w.loadPlaylistVideos('PL_aud13_cut', { force: true });
+        eq(w.warnIfBackupIncomplete(), 0, 'still counted after a complete reload');
+      });
+      return 'warned, then cleared';
+    }],
+
+    ['auto-save keeps the fuller cached list of an incomplete playlist', async w => {
+      const idb = await idbSnapshot(w);
+      try {
+        await w.cacheStore.writeAll({
+          timestamp: new Date(0).toISOString(),
+          playlists: [{ id: 'PL_aud13_cut', title: 'cut', videos: [1, 2, 3, 4, 5].map(i => ({ videoId: 'OLD' + i, title: 'old ' + i, thumbnail: 'u' })) }],
+          playlistObjects: [], tags: {}, tagIcons: {}, folders: [], folderAssignments: {},
+          deckColumns: [], watchQueue: [], bookmarkedPlaylists: [],
+        });
+        await withPagedPlaylist(w, 'PL_aud13_cut', { pages: 5, failAt: 2, perPage: 2 }, async () => {
+          const v = await w.loadPlaylistVideos('PL_aud13_cut', { force: true });
+          eq(v.length, 2, 'precondition: one page of two loaded');
+          await w.autoSaveToLocalStorage({ force: true });
+        });
+        const after = await w.cacheStore.readAll();
+        const pl = (after?.playlists || []).find(p => p.id === 'PL_aud13_cut');
+        return eq(pl && pl.videos.length, 5, 'the cached list was replaced by the truncated one');
+      } finally { await idbRestore(w, idb); }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -3223,6 +3277,41 @@ function openStudio(width, height) {
     f.addEventListener('load', () => { clearTimeout(t); setTimeout(() => resolve(f), 150); });
     document.body.appendChild(f);
   });
+}
+
+// AUD-13 — serve one playlist page by page through a stubbed ytApi: `pages`
+// pages of `perPage` items, page `failAt` (1-based) throwing if set. The
+// playlist is put into APP.playlists through the app's own loader and taken
+// out again afterwards.
+async function withPagedPlaylist(w, id, opts, body) {
+  const perPage = opts.perPage || 50;
+  const real = { ytApi: w.ytApi, showToast: w.showToast };
+  const toasts = [];
+  w.showToast = (m, type) => toasts.push({ m, type });
+  w.ytApi = async (endpoint, params) => {
+    if (endpoint === 'playlists') {
+      return { items: params && params.mine ? [{ id, snippet: { title: id }, contentDetails: { itemCount: opts.pages * perPage }, status: {} }] : [] };
+    }
+    if (endpoint === 'playlistItems' && params.playlistId === id) {
+      const n = params.pageToken ? parseInt(params.pageToken.slice(1), 10) : 1;
+      if (opts.failAt && n === opts.failAt) throw new Error('Server error (503) — please try again later');
+      const items = Array.from({ length: perPage }, (_, i) => {
+        const k = (n - 1) * perPage + i;
+        return { id: 'IT' + k, contentDetails: { videoId: 'V' + k }, snippet: { title: 'v' + k, resourceId: { videoId: 'V' + k }, thumbnails: { medium: { url: 'u' } } } };
+      });
+      return { items, nextPageToken: n < opts.pages ? 'p' + (n + 1) : undefined };
+    }
+    return { items: [] };
+  };
+  try {
+    await w.loadAllPlaylists();
+    const videos = await body();
+    return { videos, toasts };
+  } finally {
+    w.ytApi = async () => ({ items: [] });
+    try { await w.loadAllPlaylists(); } catch (_) {}
+    Object.assign(w, real);
+  }
 }
 
 // AUD-04 — the payload the old escaper let through: ' became \' but the \ in

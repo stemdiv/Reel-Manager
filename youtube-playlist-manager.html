@@ -3392,6 +3392,8 @@ const I18N = {
     toast_bulk_renamed: '{count} playlist(s) renommée(s)',
     toast_backup_json: 'Backup JSON créé : {playlists} playlists, {videos} vidéos',
     toast_backup_csv: 'Backup CSV créé : {playlists} playlists, {videos} lignes',
+    toast_playlist_incomplete: '« {title} » n\'a été chargée qu\'en partie ({count} vidéos) — rechargez-la avant de vous fier à une sauvegarde',
+    toast_backup_incomplete: 'Attention : {count} playlist(s) n\'ont été chargées qu\'en partie — cette sauvegarde ne les contient pas en entier',
     toast_select_file: 'Sélectionnez un fichier JSON ou CSV',
     toast_restore_info: 'Backup chargé : {count} playlists. Sélectionnez celles à restaurer.',
     toast_read_error: 'Erreur de lecture du fichier',
@@ -4170,6 +4172,8 @@ const I18N = {
     toast_bulk_renamed: '{count} playlist(s) renamed',
     toast_backup_json: 'JSON backup created: {playlists} playlists, {videos} videos',
     toast_backup_csv: 'CSV backup created: {playlists} playlists, {videos} rows',
+    toast_playlist_incomplete: '"{title}" only loaded partly ({count} videos) — reload it before relying on a backup',
+    toast_backup_incomplete: 'Warning: {count} playlist(s) only loaded partly — this backup does not hold them in full',
     toast_select_file: 'Select a JSON or CSV file',
     toast_restore_info: 'Backup loaded: {count} playlists. Select the ones to restore.',
     toast_read_error: 'File read error',
@@ -4385,6 +4389,9 @@ const APP = {
   userInfo: null,
   playlists: [],
   allVideos: {},
+  // AUD-13 — playlists whose last load stopped short (page cap or a failed
+  // page). Their in-memory list must not overwrite a fuller cached one.
+  incompletePlaylists: new Set(),
   theme: localStorage.getItem('appTheme') || 'dark',
   tags: JSON.parse(localStorage.getItem('playlistTags') || '{}'),
   tagIcons: JSON.parse(localStorage.getItem('tagIcons') || '{}'),
@@ -4412,11 +4419,15 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.8'; // bump per release
+const APP_VERSION = '1.27.9'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.9', date: '2026-09-24', items: [
+    "INTEGRITE DES DONNEES (AUD-13) — une playlist de plus de 1 000 videos etait tronquee sans un mot : la pagination s arretait a 20 pages de 50, et une page en echec rendait les pages deja lues comme si c etait tout. La tranche partait ensuite dans le cache, la sauvegarde JSON et les exports CSV. Les playlists se chargent desormais jusqu a 100 pages, soit les 5 000 elements que YouTube autorise",
+    "Un chargement incomplet est signale par un avertissement ; la sauvegarde automatique conserve alors la liste plus longue deja en cache au lieu de l ecraser, et la sauvegarde manuelle comme l export previennent qu une playlist n y figure pas en entier",
+  ]},
   { v: '1.27.8', date: '2026-09-24', items: [
     "SECURITE (#G13, rouvert par l audit) — au retour de Google, le jeton restait dans l adresse pendant tout le chargement du cache IndexedDB, avant que checkAuth ne l efface : le journal d erreurs lit l adresse de la page. Le fragment est desormais lu et efface en toute premiere instruction de init(), avant tout appel asynchrone ; le parametre ?bookmark= est conserve pour la suite du demarrage",
   ]},
@@ -7591,6 +7602,7 @@ async function fetchAllPages(endpoint, params = {}, itemsKey = 'items', maxPages
   let allItems = [];
   let nextPageToken = null;
   let pageCount = 0;
+  let failedMidway = false;
 
   do {
     const p = { ...params };
@@ -7610,6 +7622,7 @@ async function fetchAllPages(endpoint, params = {}, itemsKey = 'items', maxPages
       // worth keeping.
       if (pageCount === 0) throw err;
       console.error(`Pagination error after ${pageCount} page(s):`, err);
+      failedMidway = true;
       break;
     }
   } while (nextPageToken && pageCount < maxPages);
@@ -7618,6 +7631,11 @@ async function fetchAllPages(endpoint, params = {}, itemsKey = 'items', maxPages
     console.warn(`[fetchAllPages] Hit page cap (${maxPages}) for endpoint "${endpoint}" — more results exist but were not fetched. Pass a higher maxPages if needed.`);
   }
 
+  // AUD-13 — say whether this is everything. A capped or interrupted run used to
+  // come back looking exactly like a complete one, and a 1 000-item slice of a
+  // 3 000-item playlist went on to be cached, backed up and exported as whole.
+  // Non-enumerable: the array still serialises and spreads as a plain array.
+  Object.defineProperty(allItems, 'complete', { value: !nextPageToken && !failedMidway });
   return allItems;
 }
 
@@ -7773,13 +7791,27 @@ async function autoSaveCache(opts) {
       return;
     }
 
+    // AUD-13 — a playlist that loaded short keeps whatever fuller list the
+    // cache already holds, rather than trading it for the truncated one.
+    const onDiskVideos = {};
+    if (APP.incompletePlaylists.size) {
+      try {
+        const disk = await cacheStore.readAll();
+        for (const pl of (disk?.playlists || [])) {
+          if (APP.incompletePlaylists.has(pl.id)) onDiskVideos[pl.id] = pl.videos || [];
+        }
+      } catch (_) { /* unreadable cache: nothing to protect */ }
+    }
+
     const cache = {
       timestamp: new Date().toISOString(),
       playlists: APP.playlists.map(pl => ({
         id: pl.id,
         title: pl.snippet?.title || '',
         description: pl.snippet?.description || '',
-        videos: (APP.allVideos[pl.id] || []).map(v => {
+        videos: (onDiskVideos[pl.id]?.length > (APP.allVideos[pl.id] || []).length)
+          ? onDiskVideos[pl.id]
+          : (APP.allVideos[pl.id] || []).map(v => {
           const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
           const detail = videoDetailsCache[videoId];
           return {
@@ -7948,6 +7980,10 @@ async function loadAllPlaylists() {
   }
 }
 
+// AUD-13 — a YouTube playlist holds up to 5 000 items, 50 per page. The generic
+// 20-page cap of fetchAllPages stopped at 1 000 and nothing said so.
+const PLAYLIST_ITEMS_MAX_PAGES = 100;
+
 async function loadPlaylistVideos(playlistId, opts) {
   // Treat an empty cached array as "never loaded" — protects against cache
   // poisoning when a bookmarked playlist is restored from a backup that
@@ -7967,7 +8003,7 @@ async function loadPlaylistVideos(playlistId, opts) {
   };
   let videos;
   try {
-    videos = await fetchAllPages('playlistItems', params);
+    videos = await fetchAllPages('playlistItems', params, 'items', PLAYLIST_ITEMS_MAX_PAGES);
   } catch (err) {
     // A malformed fields= selector is a 400 on every page, and the library stops
     // loading entirely — that is exactly what a wrong field name cost in v1.11.0.
@@ -7976,7 +8012,15 @@ async function loadPlaylistVideos(playlistId, opts) {
     log('warn', 'api', 'playlistItems with fields= failed, retrying without it',
         { playlistId, msg: err.message });
     const { fields, ...noFields } = params;
-    videos = await fetchAllPages('playlistItems', noFields);
+    videos = await fetchAllPages('playlistItems', noFields, 'items', PLAYLIST_ITEMS_MAX_PAGES);
+  }
+  if (videos.complete === false) {
+    APP.incompletePlaylists.add(playlistId);
+    const title = APP.playlists.find(p => p.id === playlistId)?.snippet?.title || playlistId;
+    log('warn', 'api', 'playlist loaded incompletely', { playlistId, loaded: videos.length });
+    showToast(t('toast_playlist_incomplete', { title, count: videos.length }), 'warning');
+  } else {
+    APP.incompletePlaylists.delete(playlistId);
   }
   APP.allVideos[playlistId] = videos;
   return videos;
@@ -14494,8 +14538,17 @@ async function performBulkRename() {
 // BACKUP & RESTORE
 // ============================================================================
 
+// AUD-13 — a backup is the safety net for every destructive action (#3). One
+// built from a truncated playlist must say so instead of passing for complete.
+function warnIfBackupIncomplete() {
+  const n = APP.playlists.filter(pl => APP.incompletePlaylists.has(pl.id)).length;
+  if (n) showToast(t('toast_backup_incomplete', { count: n }), 'warning');
+  return n;
+}
+
 async function createBackup() {
   const format = document.getElementById('backupFormat')?.value || 'json';
+  warnIfBackupIncomplete();
 
   if (format === 'json' || format === 'both') {
     await createFullBackup();
@@ -15124,6 +15177,8 @@ function buildTransferCsv(playlists) {
 async function exportLibrary() {
   const format = document.getElementById('exportFormat').value;
   const selectedPlaylists = APP.playlists.filter(pl => exportSelection[pl.id]);
+  const partial = selectedPlaylists.filter(pl => APP.incompletePlaylists.has(pl.id)).length;
+  if (partial) showToast(t('toast_backup_incomplete', { count: partial }), 'warning');   // AUD-13
 
   if (selectedPlaylists.length === 0) {
     showToast(t('toast_select_playlist'), 'error');
