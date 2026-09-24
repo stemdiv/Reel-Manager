@@ -424,26 +424,27 @@
   .player-modal-overlay.active { display: flex; }
   .player-modal-overlay.docked {
     inset: auto 16px 16px auto;
-    width: 320px;
+    width: 356px;
     background: none;
     backdrop-filter: none;
     display: block;
     z-index: 450;
   }
   .player-modal-overlay.docked .player-modal {
-    width: 320px; max-width: 320px;
+    width: 356px; max-width: 356px;
     border: 1px solid var(--border);
     box-shadow: 0 12px 32px rgba(0,0,0,.45);
   }
-  /* 320×180 keeps the embed well above the 200 px minimum for its width and is
-     the size the spec recommends. */
-  .player-modal-overlay.docked .player-video-wrap { padding-bottom: 180px; }
+  /* The IFrame API requires a viewport of at least 200×200 — both sides, not
+     just the width. 320×180 fell 20 px short; 356×200 is 16:9 at the minimum
+     height (AUD-28). On a phone the dock is full-width, so still ≥ 200 wide. */
+  .player-modal-overlay.docked .player-video-wrap { padding-bottom: 200px; }
   .player-modal-overlay.docked .player-info { padding: 10px 12px 6px; gap: 2px; }
   .player-modal-overlay.docked .player-title { font-size: 12.5px; }
   .player-modal-overlay.docked .player-channel { font-size: 11px; }
   .player-modal-overlay.docked .player-controls { padding: 0 8px 8px; gap: 4px; }
   .player-modal-overlay.docked .player-controls button { padding: 5px 7px; }
-  /* Speed, position and like do not earn their space at 320 px wide. */
+  /* Speed, position and like do not earn their space at 356 px wide. */
   .player-modal-overlay.docked .player-controls select,
   .player-modal-overlay.docked .player-pos,
   .player-modal-overlay.docked #playerSubscribe { display: none; }
@@ -4411,11 +4412,16 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.6'; // bump per release
+const APP_VERSION = '1.27.7'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.7', date: '2026-09-24', items: [
+    "CGU YOUTUBE (AUD-28) — Reel Studio 0.7.2 : replier le lecteur le faisait glisser hors de l ecran pendant que le son continuait, soit une lecture audio seule. Replier l ancre desormais en bas a droite, video visible en 356 x 200 au-dessus de la barre de lecture ; la musique continue, l image aussi",
+    "Reel Studio met en pause quand l onglet est masque, qu un onglet YouTube soit ouvert ou non : la lecture en arriere-plan d un lecteur integre n est pas autorisee",
+    "Le lecteur ancre de l application passe de 320 x 180 a 356 x 200 : l API IFrame exige au moins 200 x 200, en hauteur comme en largeur",
+  ]},
   { v: '1.27.6', date: '2026-09-24', items: [
     "RGPD (AUD-03) — Supprimer mes donnees et la purge automatique a 30 jours tenaient chacune leur propre liste de cles, et les deux avaient derive : dix-sept cles survivaient, dont le journal de diagnostic, les playlists en favori, la langue, les compteurs de quota et les deux reglages de Reel Studio. Un registre unique, APP_STORAGE_KEYS, sert desormais aux deux chemins, sessionStorage compris",
     "Apres une suppression, le journal ne se reecrit plus au dechargement de la page, et aucune invite de modifications non enregistrees n apparait",

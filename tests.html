@@ -2388,8 +2388,8 @@ const SUITES = [
 
     ['the docked embed is sized by the stylesheet, not left to chance', w => {
       // The app iframe is display:none in this page, so geometry measures zero;
-      // assert the CSS contract instead. §5 forbids shrinking an embed below
-      // 200×200 and recommends 320×180.
+      // assert the CSS contract instead. The IFrame API requires a viewport of
+      // at least 200×200; the spec's 320×180 fell short on height (AUD-28).
       const rules = [];
       for (const sheet of w.document.styleSheets) {
         let list; try { list = sheet.cssRules; } catch (_) { continue; }
@@ -2397,10 +2397,10 @@ const SUITES = [
       }
       ok(rules.length > 0, 'no docked rules in the stylesheet');
       const widthRule = rules.find(r => r.selectorText.trim() === '.player-modal-overlay.docked');
-      ok(widthRule && widthRule.style.width === '320px', 'docked width: ' + (widthRule && widthRule.style.width));
+      ok(widthRule && widthRule.style.width === '356px', 'docked width: ' + (widthRule && widthRule.style.width));
       const wrapRule = rules.find(r => r.selectorText.includes('.player-video-wrap'));
-      ok(wrapRule && wrapRule.style.paddingBottom === '180px', 'docked embed height: ' + (wrapRule && wrapRule.style.paddingBottom));
-      return '320x180';
+      ok(wrapRule && wrapRule.style.paddingBottom === '200px', 'docked embed height (IFrame API minimum is 200): ' + (wrapRule && wrapRule.style.paddingBottom));
+      return '356x200';
     }],
 
     ['expanding and closing clear the dock', w => {
@@ -3025,6 +3025,57 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-28', title: 'Reel Studio never plays unseen', note: 'collapsing used to slide the video off-screen while the audio went on — audio-only playback',
+  cases: [
+    ['collapsing the player docks the video on screen, at least 200×200', async w => {
+      const f = await openStudio();
+      try {
+        const d = f.contentDocument;
+        d.body.classList.add('has-player');                   // something is loaded
+        d.querySelector('.pb-meta').click();                   // expandPlayer()
+        d.querySelector('.sheet-head .ctrl').click();          // collapsePlayer()
+        ok(d.body.classList.contains('player-docked'), 'collapse did not dock');
+        const r = d.querySelector('.sheet-video').getBoundingClientRect();
+        const vw = f.contentWindow.innerWidth, vh = f.contentWindow.innerHeight;
+        ok(r.width >= 200 && r.height >= 200, 'embed below 200×200: ' + Math.round(r.width) + '×' + Math.round(r.height));
+        ok(r.left >= 0 && r.top >= 0 && r.right <= vw && r.bottom <= vh, 'embed off-screen: ' + JSON.stringify([r.left, r.top, r.right, r.bottom]));
+        return Math.round(r.width) + '×' + Math.round(r.height) + ' on screen';
+      } finally { f.remove(); }
+    }],
+
+    ['a narrow phone still gets a 200×200 embed', async w => {
+      const f = await openStudio(320, 640);
+      try {
+        const d = f.contentDocument;
+        d.body.classList.add('has-player');
+        d.querySelector('.sheet-head .ctrl').click();
+        const r = d.querySelector('.sheet-video').getBoundingClientRect();
+        ok(r.width >= 200 && r.height >= 200, 'embed below 200×200: ' + Math.round(r.width) + '×' + Math.round(r.height));
+        return ok(r.right <= f.contentWindow.innerWidth && r.left >= 0, 'embed overflows a 320 px screen');
+      } finally { f.remove(); }
+    }],
+
+    ['with nothing loaded, collapsing does not dock', async w => {
+      const f = await openStudio();
+      try {
+        const d = f.contentDocument;
+        d.querySelector('.sheet-head .ctrl').click();
+        return ok(!d.body.classList.contains('player-docked'), 'docked an empty player');
+      } finally { f.remove(); }
+    }],
+
+    ['hiding the tab pauses whether or not a YouTube tab is open', async w => {
+      // document.hidden cannot be faked from here; assert the handler has no
+      // other condition, which is exactly what the bug was.
+      const src = await (await fetch('reel-studio.html?aud28=' + Date.now())).text();
+      const m = src.match(/addEventListener\('visibilitychange',\s*\(\)\s*=>\s*\{([^}]*)\}/);
+      ok(m, 'no visibilitychange handler');
+      ok(!/externalTabAlive/.test(m[1]), 'pause still depends on an external tab: ' + m[1].trim());
+      return ok(/document\.hidden\)\s*pauseEmbedded\(\)/.test(m[1]), 'hidden does not pause: ' + m[1].trim());
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -3125,6 +3176,20 @@ async function renderWithPlaylistTitle(w, title, render) {
     try { await w.loadAllPlaylists(); } catch (_) {}
     Object.assign(w, real);
   }
+}
+
+// AUD-28 — Reel Studio in a real, laid-out frame. This page hides iframes, so
+// this one is placed off-screen instead, at a size where geometry is real.
+function openStudio(width, height) {
+  return new Promise((resolve, reject) => {
+    const f = document.createElement('iframe');
+    f.style.cssText = 'display:block;position:absolute;left:-12000px;top:0;border:0;' +
+                      'width:' + (width || 1024) + 'px;height:' + (height || 768) + 'px;';
+    f.src = 'reel-studio.html?aud28=' + Date.now();
+    const t = setTimeout(() => reject(new Error('Reel Studio did not load')), 15000);
+    f.addEventListener('load', () => { clearTimeout(t); setTimeout(() => resolve(f), 150); });
+    document.body.appendChild(f);
+  });
 }
 
 // AUD-04 — the payload the old escaper let through: ' became \' but the \ in
