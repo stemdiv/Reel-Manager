@@ -38,10 +38,17 @@
     --border2: #353b45;
     --text: #ededec;
     --text2: #b9bbc0;
-    --text3: #7a7d85;
-    --text4: #4f535b;
+    /* AUD-42 — text3/text4 reach 4.5:1 on every surface, surface3 included
+       (they were 4.0 and 2.3); --border-input is 3:1 for field edges (AUD-43) */
+    --text3: #9a9da5;
+    --text4: #868991;
+    --border-input: #70767f;
     /* Accent — electric coral */
     --accent: oklch(0.72 0.18 28);
+    /* AUD-42/43 — the accent used as text. Any accent (skin, custom picker,
+       Studio preset) is clamped to a lightness that reads at 4.5:1 or more on
+       this theme's surfaces; the light theme clamps the other way. */
+    --accent-text: oklch(from var(--accent) max(l, 0.70) c h);
     --accent-soft: oklch(0.72 0.18 28 / 0.14);
     --accent-line: oklch(0.72 0.18 28 / 0.4);
     /* Legacy aliases for JS-generated HTML */
@@ -94,8 +101,18 @@
     --border2: #b8bcc4;
     --text: #1a1c20;
     --text2: #4a4d55;
-    --text3: #7a7d85;
-    --text4: #a0a3ab;
+    --text3: #595c64;
+    --text4: #62656d;
+    --border-input: #7a7f88;
+    /* AUD-42 — on white, the dark theme's L 0.72 accents and semantic colours
+       fell to 1.7–2.6:1. Same hues, darkened to L 0.48: 4.9:1 or more. */
+    --accent-text: oklch(from var(--accent) min(l, 0.48) c h);
+    --green: oklch(0.48 0.14 155);
+    --blue: oklch(0.48 0.12 230);
+    --yellow: oklch(0.48 0.14 80);
+    --orange: oklch(0.48 0.16 55);
+    --purple: oklch(0.48 0.13 295);
+    --danger: oklch(0.48 0.20 25);
     /* AUD-46 — the accent is ~2.3:1 on this background; the ring uses the text colour */
     --focus-ring: var(--text);
   }
@@ -154,11 +171,14 @@
     border: 1px solid transparent;
     white-space: nowrap;
   }
-  .btn-primary { background: var(--accent); color: #1a0a06; font-weight: 600; }
+  /* AUD-43 — the text stays dark, so the fill never goes darker than L 0.70:
+     a dark custom accent no longer gives dark-on-dark (6:1 or more for any hue) */
+  .btn-primary { background: var(--accent); background: oklch(from var(--accent) max(l, 0.70) c h); color: #1a0a06; font-weight: 600; }
   .btn-primary:hover { filter: brightness(1.08); }
   .btn-secondary { color: var(--text2); border-color: var(--border); background: var(--surface2); }
   .btn-secondary:hover { color: var(--text); border-color: var(--border2); background: var(--surface3); }
   .btn-success { background: var(--green); color: #1a0a06; font-weight: 600; }
+  body.light-theme .btn-success { color: #fff; }   /* AUD-42 — the light green is dark */
   .btn-success:hover { filter: brightness(1.08); }
   .btn-danger { color: var(--danger); border-color: color-mix(in oklch, var(--danger), transparent 70%); background: color-mix(in oklch, var(--danger), transparent 90%); }
   .btn-danger:hover { background: color-mix(in oklch, var(--danger), transparent 80%); }
@@ -207,7 +227,7 @@
   .cp-hue .cp-knob { top: 50%; }
   .cp-fields { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 6px; align-items: end; }
   .cp-fields input {
-    width: 100%; min-width: 0; background: var(--surface2); border: 1px solid var(--border);
+    width: 100%; min-width: 0; background: var(--surface2); border: 1px solid var(--border-input);
     border-radius: 8px; padding: 6px 7px; font-family: var(--font-mono); font-size: 11.5px; text-align: center; color: var(--text);
   }
   .cp-fields input:focus { border-color: var(--accent); }
@@ -236,12 +256,12 @@
   .studio-switch {
     display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px;
     border: 1px solid var(--accent-line); border-radius: var(--pill);
-    color: var(--accent); font-size: 12px; font-weight: 600; text-decoration: none;
+    color: var(--accent-text); font-size: 12px; font-weight: 600; text-decoration: none;
     transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
   }
   .studio-switch:hover { background: var(--accent-soft); border-color: var(--accent); }
   .studio-switch-nav { text-decoration: none; }
-  .studio-switch-nav .icon { color: var(--accent); }
+  .studio-switch-nav .icon { color: var(--accent-text); }
   .theme-accent-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
   .theme-accent-slot {
     width: 22px; height: 22px; padding: 0; border: none; border-radius: 50%;
@@ -299,7 +319,7 @@
     gap: 24px;
   }
   .login-screen h1 { font-size: 42px; font-weight: 600; letter-spacing: -0.03em; color: var(--text); font-family: var(--font-display); }
-  .login-screen h1 .accent { color: var(--accent); }
+  .login-screen h1 .accent { color: var(--accent-text); }
   .login-screen p { color: var(--text2); max-width: 600px; line-height: 1.6; font-size: 15px; }
   .setup-guide { max-width: 700px; text-align: left; background: var(--surface); border: 1px solid var(--border); padding: 30px; border-radius: var(--r-lg); }
   .setup-guide h2 { font-size: 16px; font-weight: 600; margin-bottom: 15px; color: var(--text); }
@@ -307,7 +327,7 @@
   .setup-guide li { margin: 8px 0; line-height: 1.6; font-size: 13px; }
   .setup-guide code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 12px; }
   .client-id-input { display: flex; gap: 8px; margin-top: 20px; }
-  .client-id-input input { flex: 1; padding: 10px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--text); font-size: 13px; font-family: inherit; transition: border-color .15s; }
+  .client-id-input input { flex: 1; padding: 10px 12px; background: var(--surface2); border: 1px solid var(--border-input); border-radius: var(--r-sm); color: var(--text); font-size: 13px; font-family: inherit; transition: border-color .15s; }
   .client-id-input input:focus { border-color: var(--accent-line); }
   .login-btn { padding: 10px 24px; background: var(--accent); color: #1a0a06; border: none; border-radius: var(--r-sm); font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
   .login-btn:hover { filter: brightness(1.08); }
@@ -349,7 +369,7 @@
   .sidebar-item:hover { background: var(--surface2); color: var(--text); }
   .sidebar-item.active {
     background: var(--accent-soft);
-    color: var(--accent);
+    color: var(--accent-text);
   }
   .sidebar-item.active::before {
     content: '';
@@ -363,7 +383,7 @@
     margin-left: auto;
   }
   .sidebar-item .nav-badge.alert {
-    color: var(--accent);
+    color: var(--accent-text);
     background: var(--accent-soft);
     padding: 1px 6px;
     border-radius: 100px;
@@ -410,7 +430,7 @@
     border-radius: 100px;
   }
   .beta-status.testing { color: var(--warning, #f59e0b); background: color-mix(in srgb, var(--warning, #f59e0b) 12%, transparent); }
-  .beta-status.dev { color: var(--accent); background: var(--accent-soft); }
+  .beta-status.dev { color: var(--accent-text); background: var(--accent-soft); }
   .beta-status.ready { color: var(--success, #22c55e); background: color-mix(in srgb, var(--success, #22c55e) 12%, transparent); }
 
   .studio-card { border: 1px solid var(--border); border-radius: var(--r-lg); margin-bottom: 10px; overflow: hidden; background: var(--surface); }
@@ -498,7 +518,7 @@
     transition: border-color 0.2s, background 0.2s;
   }
   .player-controls button:hover { border-color: var(--accent); background: var(--accent-soft); }
-  .player-controls button.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .player-controls button.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
   .player-controls button svg { width: 14px; height: 14px; }
   .player-controls .player-pos {
     font-family: var(--font-mono); font-size: 11px; color: var(--text3); margin-left: auto;
@@ -578,7 +598,7 @@
     font-size: 12px; cursor: pointer; border-radius: 4px; transition: background 0.15s;
   }
   .player-queue-item:hover { background: var(--bg2); }
-  .player-queue-item.active { color: var(--accent); font-weight: 600; }
+  .player-queue-item.active { color: var(--accent-text); font-weight: 600; }
   .player-queue-item img { width: 48px; height: 27px; border-radius: 3px; object-fit: cover; flex-shrink: 0; }
   .player-queue-item .pq-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -659,7 +679,7 @@
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.08em;
-    color: var(--accent);
+    color: var(--accent-text);
     background: var(--accent-soft);
     border: 1px solid var(--accent-line);
     padding: 3px 8px;
@@ -733,7 +753,7 @@
   /* Music badge — same treatment as the Shorts badge, and equally a deduction. */
   .music-badge {
     font-size: 10px; font-weight: 700; letter-spacing: .04em;
-    color: var(--accent);
+    color: var(--accent-text);
     border: 1px solid var(--accent-line, rgba(255,45,85,.35));
     background: var(--accent-soft, rgba(255,45,85,.1));
     padding: 0 6px; border-radius: 999px; white-space: nowrap; cursor: help;
@@ -872,7 +892,7 @@
     background: var(--accent-soft); color: var(--text);
     font-size: 13px;
   }
-  .bookmark-readonly-banner svg { width: 16px; height: 16px; color: var(--accent); flex-shrink: 0; }
+  .bookmark-readonly-banner svg { width: 16px; height: 16px; color: var(--accent-text); flex-shrink: 0; }
   /* Flash highlight when dashboard legend drills down to a playlist card */
   @keyframes plCardFlash {
     0%   { box-shadow: 0 0 0 1px var(--accent-soft); border-color: var(--accent); }
@@ -888,7 +908,7 @@
   .tag {
     display: inline-flex; align-items: center; gap: 4px;
     background: var(--accent-soft); border: 1px solid var(--accent-line);
-    color: var(--accent); padding: 2px 8px; border-radius: 100px; font-size: 10px; font-weight: 500;
+    color: var(--accent-text); padding: 2px 8px; border-radius: 100px; font-size: 10px; font-weight: 500;
   }
   .playlist-actions { display: flex; gap: 4px; padding: 8px 0 0; border-top: 1px solid var(--border); padding-top: 8px; }
   .playlist-actions button { flex: 1; padding: 6px; font-size: 11px; }
@@ -933,7 +953,7 @@
     width: 100%;
     padding: 9px 12px;
     background: var(--surface2);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-input);   /* AUD-43 — 3:1 edge */
     border-radius: var(--r-sm);
     color: var(--text);
     font-size: 13px;
@@ -1193,7 +1213,7 @@
     cursor: pointer;
   }
   .pill:hover { border-color: var(--border2); color: var(--text); }
-  .pill-accent { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+  .pill-accent { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-text); }
 
   /* Scrollbars */
   ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -1203,7 +1223,7 @@
 
   .search-results { margin-top: 24px; }
   .search-result-group { background: var(--surface); padding: 16px; border-radius: var(--r-lg); border: 1px solid var(--border); margin-bottom: 12px; }
-  .search-result-group-title { font-weight: 600; font-size: 13px; margin-bottom: 8px; color: var(--accent); }
+  .search-result-group-title { font-weight: 600; font-size: 13px; margin-bottom: 8px; color: var(--accent-text); }
 
   /* Recent searches dropdown */
   .recent-searches-dropdown {
@@ -1215,7 +1235,7 @@
     display: flex; align-items: center; justify-content: space-between;
     padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 11px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
   }
-  .recent-searches-dropdown .recent-search-clear { cursor: pointer; color: var(--accent); font-weight: 500; text-transform: none; letter-spacing: 0; }
+  .recent-searches-dropdown .recent-search-clear { cursor: pointer; color: var(--accent-text); font-weight: 500; text-transform: none; letter-spacing: 0; }
   .recent-searches-dropdown .recent-search-clear:hover { text-decoration: underline; }
   .recent-searches-dropdown .recent-search-item {
     display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; font-size: 13px; color: var(--text1); transition: background 0.1s;
@@ -1383,7 +1403,7 @@
     </div>
     <div style="margin-top: 8px;">
       <a href="#" onclick="showVersionInfo(); return false;" id="loginVersionLink"
-         style="font-family: var(--font-mono); font-size: 10px; color: var(--accent); text-decoration: none;">v—</a>
+         style="font-family: var(--font-mono); font-size: 10px; color: var(--accent-text); text-decoration: none;">v—</a>
     </div>
   </div>
 </div>
@@ -1586,7 +1606,7 @@
         </div>
         <div style="margin-top: 6px;">
           <a href="#" onclick="showVersionInfo(); return false;" class="mono" id="sidebarVersionLink"
-             style="font-size: 10px; color: var(--accent); text-decoration: none;">v—</a>
+             style="font-size: 10px; color: var(--accent-text); text-decoration: none;">v—</a>
         </div>
         <div class="mono" style="margin-top: 6px; font-size: 9px; opacity: 0.5;" data-i18n="nav_powered">YouTube Data API v3</div>
       </div>
@@ -2518,97 +2538,97 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px;">
 
           <div class="stat-card" style="cursor: pointer;" onclick="switchView('dashboard')">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);">Dashboard</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">Overview of your library: playlist counts, video totals, public/private breakdown, top playlists, and quick actions.</p>
           </div>
 
           <div class="stat-card" style="cursor: pointer;" onclick="switchView('search')">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);">Search</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">Search across ALL playlists at once. Type a title and get instant results with source playlist info.</p>
           </div>
 
           <div class="stat-card" style="cursor: pointer;" onclick="switchView('discover')">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);">Discover</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">Search YouTube by topic and create a playlist from the top results. Costs ~100 quota units per search.</p>
           </div>
 
           <div class="stat-card" style="cursor: pointer;" onclick="switchView('merge')">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6 12 2l4 4"/><path d="M12 2v10"/><path d="M4 18h6a4 4 0 0 0 4-4"/><path d="M20 18h-6"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6 12 2l4 4"/><path d="M12 2v10"/><path d="M4 18h6a4 4 0 0 0 4-4"/><path d="M20 18h-6"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);">Merge</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">Combine multiple playlists into one. Select sources, name the destination, and consolidate.</p>
           </div>
 
           <div class="stat-card" style="cursor: pointer;" onclick="switchView('move')">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9 2 12l3 3"/><path d="M9 5l3-3 3 3"/><path d="M15 19l-3 3-3-3"/><path d="M19 9l3 3-3 3"/><path d="M2 12h20"/><path d="M12 2v20"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9 2 12l3 3"/><path d="M9 5l3-3 3 3"/><path d="M15 19l-3 3-3-3"/><path d="M19 9l3 3-3 3"/><path d="M2 12h20"/><path d="M12 2v20"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);">Move videos</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">Copy or move videos between playlists. Pick a source, select videos, choose a destination.</p>
           </div>
 
           <div class="stat-card" style="cursor: pointer;" onclick="switchView('ghosts')">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 10h.01"/><path d="M15 10h.01"/><path d="M12 2a8 8 0 0 0-8 8v12l3-3 3 3 2-2 2 2 3-3 3 3V10a8 8 0 0 0-8-8z"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 10h.01"/><path d="M15 10h.01"/><path d="M12 2a8 8 0 0 0-8 8v12l3-3 3 3 2-2 2 2 3-3 3 3V10a8 8 0 0 0-8-8z"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);">Ghost videos</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">Detect and remove deleted, private, or unavailable videos from your playlists.</p>
           </div>
 
           <div class="stat-card" style="cursor: pointer;" onclick="switchView('duplicates')">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);">Duplicates</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">Find videos that appear in multiple playlists. Great for deduplication and cleanup.</p>
           </div>
 
           <div class="stat-card" style="cursor: pointer;" onclick="switchView('statistics')">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-6"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-6"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);">Statistics</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">Advanced charts and data about your YouTube library: trends, distribution, detailed analytics.</p>
           </div>
 
           <div class="stat-card" style="cursor: pointer;" onclick="switchView('tags')">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.5"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.5"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);">Tags</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">Categorize playlists with custom tags. Use auto-categorization for fast organization.</p>
           </div>
 
           <div class="stat-card" style="cursor: pointer;" onclick="switchView('folders')">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);">Folders</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">Organize playlists in nested folders. Create hierarchies like Tech > Frontend > React.</p>
           </div>
 
           <div class="stat-card" style="cursor: pointer;" onclick="switchView('deck')">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="6" height="18" rx="1"/><rect x="9" y="3" width="6" height="18" rx="1"/><rect x="16" y="3" width="6" height="18" rx="1"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="6" height="18" rx="1"/><rect x="9" y="3" width="6" height="18" rx="1"/><rect x="16" y="3" width="6" height="18" rx="1"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);">Deck</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">Multi-column view. Display multiple playlists side by side with horizontal scroll.</p>
           </div>
 
           <div class="stat-card" style="cursor: pointer;" onclick="switchView('watch')">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 3 14 9-14 9V3z"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 3 14 9-14 9V3z"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);">Watch Plan</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">Build a custom watch session with selected videos. Shows total duration and launches a viewing queue.</p>
           </div>
 
           <div class="stat-card" style="cursor: pointer;" onclick="switchView('diff')">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h12"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h12"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);">Playlist Diff</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">Compare two playlists: shared videos, unique to each, and comparative stats.</p>
           </div>
 
           <div class="stat-card" style="cursor: pointer;" onclick="switchView('bulkrename')">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);">Bulk Rename</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">Mass-rename playlist titles. Add prefixes, suffixes, or find-and-replace across playlists.</p>
           </div>
 
           <div class="stat-card" style="cursor: pointer;" onclick="switchView('backup')">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);">Backup / Restore</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">Save your playlist structure as JSON and restore it anytime to protect your content.</p>
           </div>
 
           <div class="stat-card" style="cursor: pointer;" onclick="switchView('export')">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);">Export</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">Download your full library in CSV or JSON for external analysis or backup.</p>
           </div>
@@ -2628,13 +2648,13 @@
           </div>
 
           <div class="stat-card" style="cursor: default; border-color: var(--accent-line);">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);" data-i18n="help_ytmusic_title">YouTube Music</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;" data-i18n="help_ytmusic_desc">YouTube Music shares the same playlist library as YouTube. All changes made here will be reflected in YouTube Music and vice-versa.</p>
           </div>
 
           <div class="stat-card" style="cursor: default; border-color: var(--accent-line);">
-            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+            <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--accent-soft); color: var(--accent-text); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
             <div style="font-size: 13px; font-weight: 600; color: var(--text);" data-i18n="help_system_playlists_title">System playlists</div>
             <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;" data-i18n="help_system_playlists_desc">YouTube's built-in playlists — Liked Videos, Watch Later, History — are not exposed by the YouTube Data API. They are never displayed here and cannot be modified by backup, restore, or any other action in this app. Your private system playlists are safe.</p>
           </div>
@@ -3373,7 +3393,7 @@ const I18N = {
       <p>Vous pouvez supprimer toutes vos données locales et révoquer l'accès OAuth à tout moment via le bouton "Supprimer mes données" disponible dans la barre latérale et sur l'écran de connexion.</p>
       <p>Les données sont automatiquement purgées si vous ne vous reconnectez pas pendant 30 jours.</p>
       <h3 style="margin-top: 20px;">7. YouTube API Services</h3>
-      <p>Cette application utilise les services de l'API YouTube. En l'utilisant, vous acceptez les <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener" style="color: var(--accent);">Conditions d'utilisation de YouTube</a> et la <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" style="color: var(--accent);">Politique de confidentialité de Google</a>.</p>
+      <p>Cette application utilise les services de l'API YouTube. En l'utilisant, vous acceptez les <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener" style="color: var(--accent-text);">Conditions d'utilisation de YouTube</a> et la <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" style="color: var(--accent-text);">Politique de confidentialité de Google</a>.</p>
       <h3 style="margin-top: 20px;">8. Contact</h3>
       <p>Pour toute question relative à cette politique de confidentialité, contactez le développeur via les liens de la page d'aide.</p>`,
     modal_create: 'Créer',
@@ -4185,7 +4205,7 @@ const I18N = {
       <p>You can delete all your local data and revoke OAuth access at any time with the "Delete my data" button in the sidebar and on the sign-in screen.</p>
       <p>Data is purged automatically if you do not sign in again for 30 days.</p>
       <h3 style="margin-top: 20px;">7. YouTube API Services</h3>
-      <p>This application uses YouTube API Services. By using it, you agree to the <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener" style="color: var(--accent);">YouTube Terms of Service</a> and the <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" style="color: var(--accent);">Google Privacy Policy</a>.</p>
+      <p>This application uses YouTube API Services. By using it, you agree to the <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener" style="color: var(--accent-text);">YouTube Terms of Service</a> and the <a href="https://policies.google.com/privacy" target="_blank" rel="noopener" style="color: var(--accent-text);">Google Privacy Policy</a>.</p>
       <h3 style="margin-top: 20px;">8. Contact</h3>
       <p>For any question about this privacy policy, contact the developer through the links on the help page.</p>`,
     modal_create: 'Create',
@@ -4503,11 +4523,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.35'; // bump per release
+const APP_VERSION = '1.27.36'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.36', date: '2026-09-24', items: [
+    "ACCESSIBILITE (AUD-42/43) — plusieurs textes etaient trop pales pour etre lus confortablement : en theme clair, la couleur d accent et les couleurs d etat (dont le compteur de quota) tombaient a 1,7-2,6:1, et les textes secondaires echouaient partout. Tous atteignent desormais 4,5:1, quel que soit le theme, le coloris ou l accent personnalise ; les boutons principaux restent lisibles avec un accent sombre, et le contour des champs de saisie est nettement visible. Reel Studio suit les memes regles",
+  ]},
   { v: '1.27.35', date: '2026-09-24', items: [
     "ACCESSIBILITE (AUD-45) — les fenetres de dialogue n etaient pas annoncees comme telles, le focus restait derriere elles et la page du dessous restait accessible au clavier ; le lecteur plein ecran ignorait Echap. Une fenetre ouverte prend desormais le focus, porte le nom de son titre, rend la page du dessous inactive et rend le focus a l element qui l a ouverte ; Echap ancre le lecteur, comme son bouton",
   ]},
@@ -7218,7 +7241,7 @@ function showVersionInfo() {
       <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px;">
         <span class="mono" style="font-weight: 600; color: ${i === 0 ? 'var(--accent)' : 'var(--text2)'};">v${rel.v}</span>
         <span class="mono" style="font-size: 11px; color: var(--text3);">${rel.date}</span>
-        ${i === 0 ? `<span style="font-size: 10px; background: var(--accent-soft); color: var(--accent); border-radius: var(--pill); padding: 2px 8px;">${t('version_current')}</span>` : ''}
+        ${i === 0 ? `<span style="font-size: 10px; background: var(--accent-soft); color: var(--accent-text); border-radius: var(--pill); padding: 2px 8px;">${t('version_current')}</span>` : ''}
       </div>
       ${rel.items.map(it => `<div style="font-size: 12px; color: var(--text2); line-height: 1.6;">· ${it}</div>`).join('')}
     </div>`).join('');
@@ -7229,7 +7252,7 @@ function showVersionInfo() {
       <div style="display: flex; gap: 24px; flex-wrap: wrap;">
         <div>
           <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--text3);">Reel Manager</div>
-          <div class="mono" style="font-size: 22px; font-weight: 600; color: var(--accent);">v${APP_VERSION}</div>
+          <div class="mono" style="font-size: 22px; font-weight: 600; color: var(--accent-text);">v${APP_VERSION}</div>
         </div>
         <div>
           <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--text3);">${t('version_theme')}</div>
@@ -7239,7 +7262,7 @@ function showVersionInfo() {
       <p style="font-size: 12px; color: var(--text3); margin: 12px 0 2px;">${t('version_hint')}</p>
       ${rows}
       <div style="padding-top: 12px; border-top: 1px solid var(--border);">
-        <a href="reel-studio.html" style="color: var(--accent); font-size: 12px; text-decoration: none;">${t('version_studio')} →</a>
+        <a href="reel-studio.html" style="color: var(--accent-text); font-size: 12px; text-decoration: none;">${t('version_studio')} →</a>
       </div>
     </div>
     <div class="modal-footer">
@@ -11066,7 +11089,7 @@ function renderFilteredVideos(videos) {
     const safeThumb = escapeJsAttr(v.thumbnail);
     const playlistItemId = v.id || '';
     let genreBadge = '';
-    try { const _cls = classifyVideoType(v); if (_cls.genre) genreBadge = `<span style="font-size:10px;color:var(--accent);border:1px solid var(--accent-line,rgba(255,45,85,.35));padding:0 6px;border-radius:999px;white-space:nowrap;">${escapeHtml(_cls.genre)}</span>`; } catch (e) {}
+    try { const _cls = classifyVideoType(v); if (_cls.genre) genreBadge = `<span style="font-size:10px;color:var(--accent-text);border:1px solid var(--accent-line,rgba(255,45,85,.35));padding:0 6px;border-radius:999px;white-space:nowrap;">${escapeHtml(_cls.genre)}</span>`; } catch (e) {}
 
     let catBadge = '';
     try { if (v.categoryId) { const _cn = getCategoryName(v.categoryId); if (_cn) catBadge = `<span style="font-size:10px;color:var(--text2);border:1px solid var(--border,#333);padding:0 6px;border-radius:999px;white-space:nowrap;">${escapeHtml(_cn)}</span>`; } } catch (e) {}
@@ -11084,7 +11107,7 @@ function renderFilteredVideos(videos) {
         </div>
         <div class="video-info" ${clickPlay} style="${isReorder ? '' : 'cursor:pointer;'}">
           <div class="video-title">${escapeHtml(v.title)}</div>
-          <div class="video-meta">${escapeHtml(v.channelTitle)} <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-size:10px;">YT&nearr;</a></div>
+          <div class="video-meta">${escapeHtml(v.channelTitle)} <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent-text);text-decoration:none;font-size:10px;">YT&nearr;</a></div>
           <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
             <span style="font-size: 11px; color: var(--text2);">${dateStr}</span>
             <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${shortBadge}${catBadge}${genreBadge}${statusBadge}</span>
@@ -11651,7 +11674,7 @@ async function performGlobalSearch() {
             </div>
             <div class="video-info" onclick="playVideo('${videoId}','${safeTitle}','${safeChannel}','${safeThumb}')">
               <div class="video-title">${escapeHtml(v.snippet?.title || t('untitled'))}</div>
-              <div class="video-meta">${escapeHtml(channel)}${videoId ? ` · <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);font-size:11px;">YouTube ↗</a>` : ''}</div>
+              <div class="video-meta">${escapeHtml(channel)}${videoId ? ` · <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent-text);font-size:11px;">YouTube ↗</a>` : ''}</div>
             </div>
           </div>`;
         }).join('')}
@@ -11936,7 +11959,7 @@ function renderDiscoverEntities(type) {
           <div class="mono" style="font-size:11px;color:var(--text3);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
             ${isPlaylist ? `<span>${escapeHtml(e.channelTitle)}</span>` : ''}
             ${isPlaylist ? `<span>${e.itemCount === null ? t('discover_count_unknown') : t('discover_count', { count: e.itemCount })}</span>` : ''}
-            <a href="${link}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">YouTube &nearr;</a>
+            <a href="${link}" target="_blank" rel="noopener" style="color:var(--accent-text);text-decoration:none;">YouTube &nearr;</a>
           </div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:wrap;">${action}</div>
@@ -12477,7 +12500,7 @@ function renderDiscoverResults(query) {
           <span title="Comments">${v.comments} ${t('comments_label')}</span>
           <span>${v.publishedAt}</span>
           <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener"
-            onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-size:10px;">YouTube &nearr;</a>
+            onclick="event.stopPropagation()" style="color:var(--accent-text);text-decoration:none;font-size:10px;">YouTube &nearr;</a>
         </div>
         ${escapedDesc ? `<div style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${escapedDesc}</div>` : ''}
       </div>
@@ -13190,7 +13213,7 @@ async function scanDuplicates() {
       return `<span class="tag" style="font-size:11px;display:inline-flex;align-items:center;gap:4px;">
         ${escapeHtml(plName)}
         <button onclick="removeDuplicateFromPlaylist('${inst.itemId}', '${inst.playlistId}', this)" title="${t('duplicate_remove_tooltip')}"
-          style="background:none;border:none;color:var(--accent);cursor:pointer;padding:0;line-height:1;font-size:14px;font-weight:600;">&times;</button>
+          style="background:none;border:none;color:var(--accent-text);cursor:pointer;padding:0;line-height:1;font-size:14px;font-weight:600;">&times;</button>
       </span>`;
     }).join(' ');
 
@@ -14061,7 +14084,7 @@ function renderDeckVideoItem(video) {
       </div>
       <div class="deck-video-info" style="cursor:pointer;" onclick="event.stopPropagation();playVideo('${videoId}','${escapedTitle}','${escapedChannel}','${escapedThumb}')">
         <div class="deck-video-title">${escapeHtml(title)}</div>
-        <div class="deck-video-meta">${shortBadge}${escapeHtml(channel)} <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent);text-decoration:none;font-size:9px;">YT&nearr;</a></div>
+        <div class="deck-video-meta">${shortBadge}${escapeHtml(channel)} <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--accent-text);text-decoration:none;font-size:9px;">YT&nearr;</a></div>
       </div>
     </div>
   `;

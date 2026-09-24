@@ -4228,6 +4228,77 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-42/43', title: 'Text and field edges meet WCAG AA contrast in every theme and accent', note: 'light theme accent and status colours fell to 1.7–2.6:1, --text4 failed everywhere, and a custom accent had no guard',
+  cases: [
+    ['secondary text reaches 4.5:1 on every surface, dark and light', w => aud42Themes(w, (theme, c) => {
+      const bad = [];
+      for (const tok of ['--text3', '--text4']) for (const bg of AUD42_SURFACES) {
+        const r = c.ratio('var(' + tok + ')', 'var(' + bg + ')');
+        if (r < 4.5) bad.push(theme + ' ' + tok + ' on ' + bg + ': ' + r.toFixed(2));
+      }
+      return bad;
+    })],
+    ['the accent as text reaches 4.5:1 for every skin, a custom accent and each Studio preset', w => aud42Themes(w, (theme, c) => {
+      const bad = [];
+      const accents = AUD42_SKINS.map(id => ['skin ' + id, () => w.setSkinVars(id)])
+        .concat(['#1f2a6b', '#e8e8e8', '#f5e642', '#2fd07f'].map(hex => ['custom ' + hex, () => w.setAccentVars(hex)]));
+      for (const [name, apply] of accents) {
+        apply();
+        for (const bg of AUD42_SURFACES) {
+          // A real accent-coloured heading (search result groups), not the token alone
+          const r = c.against('<div class="search-result-group-title">x</div>', 'color', 'var(' + bg + ')');
+          if (r < 4.5) bad.push(theme + ' ' + name + ' on ' + bg + ': ' + r.toFixed(2));
+        }
+      }
+      return bad;
+    })],
+    ['status colours used as text reach 4.5:1', w => aud42Themes(w, (theme, c) => {
+      const bad = [];
+      for (const tok of ['--green', '--yellow', '--orange', '--blue', '--danger']) for (const bg of ['--bg', '--surface', '--surface2']) {
+        const r = c.ratio('var(' + tok + ')', 'var(' + bg + ')');
+        if (r < 4.5) bad.push(theme + ' ' + tok + ' on ' + bg + ': ' + r.toFixed(2));
+      }
+      return bad;
+    })],
+    ['primary and success buttons keep 4.5:1 text, whatever the accent (AUD-43)', w => aud42Themes(w, (theme, c) => {
+      const bad = [];
+      for (const hex of ['#1f2a6b', '#000000', '#e8604c', '#ffffff', '#3fd0ff']) {
+        w.setAccentVars(hex);
+        const r = c.element('<button class="btn btn-primary">x</button>');
+        if (r < 4.5) bad.push(theme + ' primary on ' + hex + ': ' + r.toFixed(2));
+      }
+      const r = c.element('<button class="btn btn-success">x</button>');
+      if (r < 4.5) bad.push(theme + ' success: ' + r.toFixed(2));
+      return bad;
+    })],
+    ['a text field edge reaches 3:1 against the field and the page (AUD-43)', w => aud42Themes(w, (theme, c) => {
+      const bad = [];
+      for (const bg of ['--bg', '--surface', '--surface2']) {
+        const r = c.against('<input class="form-control">', 'borderTopColor', 'var(' + bg + ')');
+        if (r < 3) bad.push(theme + ' on ' + bg + ': ' + r.toFixed(2));
+      }
+      return bad;
+    })],
+    ['Reel Studio: secondary text and a dark custom accent read at 4.5:1', async w => {
+      const f = await openStudio();
+      try {
+        const sw = f.contentWindow;
+        sw.document.documentElement.style.setProperty('--accent', '#1f2a6b');
+        const c = aud42Meter(sw);
+        const bad = [];
+        for (const bg of ['--bg', '--surface', '--surface2', '--surface3']) {
+          const r = c.ratio('var(--text3)', 'var(' + bg + ')');
+          if (r < 4.5) bad.push('--text3 on ' + bg + ': ' + r.toFixed(2));
+          // an active player control is drawn in the accent
+          const a = c.against('<button class="ctrl on">x</button>', 'color', 'var(' + bg + ')');
+          if (a < 4.5) bad.push('accent text on ' + bg + ': ' + a.toFixed(2));
+        }
+        return eq(bad, [], 'below AA');
+      } finally { f.remove(); }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -4466,6 +4537,71 @@ async function runRetry(w, method, script) {
     catch (e) { threw = true; message = e.message; }
     return { fetches, threw, message, toasts };
   } finally { Object.assign(w, real); }
+}
+
+// AUD-42/43 — contrast measured on the real computed colours. A canvas turns
+// any CSS colour the page computes (oklch, relative colours) into sRGB.
+const AUD42_SKINS = ['coral', 'amber', 'lime', 'teal', 'ocean', 'indigo', 'violet', 'rose', 'mono', 'gold'];
+const AUD42_SURFACES = ['--bg', '--surface', '--surface2', '--surface3'];
+function aud42Meter(w) {
+  const doc = w.document;
+  const cv = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+  const rgb = css => {
+    cv.clearRect(0, 0, 1, 1);
+    cv.fillStyle = '#000'; cv.fillStyle = css;
+    cv.fillRect(0, 0, 1, 1);
+    return [...cv.getImageData(0, 0, 1, 1).data].slice(0, 3);
+  };
+  const lum = ([r, g, b]) => [r, g, b].map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+    .reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const computed = css => {
+    const probe = doc.createElement('span');
+    probe.style.color = css;
+    doc.body.appendChild(probe);
+    const v = w.getComputedStyle(probe).color;
+    probe.remove();
+    return rgb(v);
+  };
+  return {
+    ratio: (fg, bg) => contrast(computed(fg), computed(bg)),
+    // A property of a real element, against a background token
+    against: (html, prop, bg) => {
+      const host = doc.createElement('div');
+      host.innerHTML = html;
+      doc.body.appendChild(host);
+      const v = w.getComputedStyle(host.firstChild)[prop];
+      host.remove();
+      return contrast(rgb(v), computed(bg));
+    },
+    element: html => {
+      const host = doc.createElement('div');
+      host.innerHTML = html;
+      doc.body.appendChild(host);
+      const cs = w.getComputedStyle(host.firstChild);
+      const r = contrast(rgb(cs.color), rgb(cs.backgroundColor));
+      host.remove();
+      return r;
+    },
+  };
+}
+// Run a check in the dark and the light theme, then put the page's theme and
+// accent back. The check returns a list of failures.
+function aud42Themes(w, check) {
+  const root = w.document.documentElement, body = w.document.body;
+  const rootStyle = root.getAttribute('style'), light = body.classList.contains('light-theme');
+  const bad = [];
+  try {
+    for (const theme of ['dark', 'light']) {
+      body.classList.toggle('light-theme', theme === 'light');
+      bad.push(...check(theme, aud42Meter(w)));
+      if (rootStyle === null) root.removeAttribute('style'); else root.setAttribute('style', rootStyle);
+    }
+  } finally {
+    body.classList.toggle('light-theme', light);
+    if (rootStyle === null) root.removeAttribute('style'); else root.setAttribute('style', rootStyle);
+  }
+  return eq(bad, [], 'below AA');
 }
 
 // AUD-48 — show one real toast under a fake clock: setTimeout calls are
