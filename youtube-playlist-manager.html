@@ -9,8 +9,12 @@
      file through URL.createObjectURL; without it every cover upload failed. blob: URLs
      are minted by this page from files the user picked — no remote origin is opened.
      'unsafe-inline' is required for now (single-file app with inline handlers); tightening
-     it needs the event-delegation refactor tracked in the backlog. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.ytimg.com https://*.ggpht.com https://*.googleusercontent.com; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'">
+     it needs the event-delegation refactor tracked in the backlog.
+     form-action 'none' (AUD-08): the app has no form, and form-action does not fall back to
+     default-src, so an injected <form action="https://…"> could otherwise post page data out.
+     frame-ancestors (clickjacking) is ignored in a <meta> CSP: it needs an HTTP header from
+     the host. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.ytimg.com https://*.ggpht.com https://*.googleusercontent.com; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="description" content="Manage, organize and analyze your YouTube playlists with advanced tools">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -4432,11 +4436,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.28'; // bump per release
+const APP_VERSION = '1.27.29'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.29', date: '2026-09-24', items: [
+    "SECURITE (AUD-08) — la politique de securite (CSP) n interdisait pas l envoi de formulaires vers un autre site : un formulaire injecte aurait pu y poster des donnees de la page. C est desormais interdit dans l app et dans Reel Studio. Les pages Comment ca marche et Estimateur de quota, sur la meme origine, recoivent leur propre CSP ; l estimateur n autorise que son script, par empreinte. La protection contre l inclusion dans un cadre (clickjacking) demande un en-tete HTTP de l hebergeur : a configurer lors du deploiement",
+  ]},
   { v: '1.27.28', date: '2026-09-24', items: [
     "SECURITE (AUD-09) — l estimateur de quota chargeait Chart.js depuis un CDN sans empreinte d integrite ; une reponse alteree du CDN se serait executee avec acces a la bibliotheque, aux tags et au journal de l app, qui partagent la meme origine. Chart.js 4.4.1 est desormais servi avec l application, avec une empreinte verifiee par le navigateur",
   ]},

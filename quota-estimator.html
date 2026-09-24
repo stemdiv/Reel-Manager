@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Reel — Quota &amp; Revenue Estimator</title>
+<!-- AUD-08 — this page shares the app's origin, so it gets a CSP of its own. The one inline
+     script is allowed by its hash, not by 'unsafe-inline': after editing it, update the hash
+     (tests.html, AUD-08, prints the expected value). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-i/zIQ7LqRiHy0Nc7OFSLRbxuycWtfVGJRaJ0+GmS8F0='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <!-- AUD-09 — Chart.js is served from this origin, not a CDN: a CDN response runs with this origin's
      access to the app's IndexedDB and localStorage. npm chart.js@4.4.1, dist/chart.umd.js, unmodified. -->
 <script src="vendor/chart.umd-4.4.1.js" integrity="sha384-dug+JxfBvklEQdJ4AYuBBAIScUz0bVN73xpy273gcAwHjb3qI0fXmuYNaNfdyYJG"></script>

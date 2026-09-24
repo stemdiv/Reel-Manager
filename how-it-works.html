@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Reel — How it works | YouTube Playlist Manager</title>
 <meta name="description" content="Organize, tag and manage your YouTube playlists in one clean app. Sign in with Google — no setup, no coding. Free to start.">
+<!-- AUD-08 — same origin as the app, so a CSP of its own. 'unsafe-inline' stays for the
+     language and theme onclick handlers; nothing here renders user or API data. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
