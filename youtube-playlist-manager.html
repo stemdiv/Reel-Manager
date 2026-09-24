@@ -2609,8 +2609,10 @@
 
           <div class="stat-card" style="cursor: default;">
             <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--surface2); color: var(--text2); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15 1.65 1.65 0 0 0 3.09 14H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6 1.65 1.65 0 0 0 10.09 3.09V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
-            <div style="font-size: 13px; font-weight: 600; color: var(--text);">API Quota</div>
-            <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">YouTube API is limited to <strong style="color: var(--text);">10,000 units/day</strong>. Reads cost 1 unit, writes cost 50. Check the quota counter in the header.</p>
+            <div style="font-size: 13px; font-weight: 600; color: var(--text);" data-i18n="help_quota_title">API Quota</div>
+            <!-- AUD-22 — was hard-coded English describing the single 10 000-unit pool
+                 that #76 retired; the translated three-bucket text existed, unused. -->
+            <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;" data-i18n="help_quota_text"></p>
           </div>
 
           <div class="stat-card" style="cursor: default; border-color: var(--accent-line);">
@@ -4423,11 +4425,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.15'; // bump per release
+const APP_VERSION = '1.27.16'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.16', date: '2026-09-24', items: [
+    "QUOTA (AUD-22) — trois copies codees en dur du modele de quota contredisaient le vrai : la carte Quota de l aide, en anglais seulement, decrivait encore le pool unique de 10 000 unites retire par #76 (le texte traduit a trois buckets existait sans etre utilise) ; le diagnostic du cache affichait / 10,000 et passait au rouge des 500 unites, soit 5 % ; la restauration et la creation de playlist depuis Decouvrir calculaient leur cout avec des 50 litteraux. Tout est desormais tire de QUOTA_LIMITS et de la table des couts",
+  ]},
   { v: '1.27.15', date: '2026-09-24', items: [
     "QUOTA (AUD-15) — six actions verifiaient le quota avec une cle absente de la table des couts, et une cle inconnue valait 1 unite : l envoi d un sous-titre (400 unites) etait estime a 1, la mise a jour d une video, d une miniature, de la chaine et le reordonnancement a 1 au lieu de 50. Les six cles sont ajoutees ; une cle inconnue compte desormais 50 par element et le journal le signale",
     "L envoi de video verifie le bucket des envois (100 appels par jour) au lieu du pool ; l ajout d un titre tendance a une playlist est compte 50 et non 100",
@@ -6621,7 +6626,7 @@ async function runCacheDiagnostic() {
     <div><b>Thumbnails in autoCache:</b>
       <span style="${cacheThumbCount > 0 ? green : red}">${cacheThumbCount} videos with thumbnail URL</span>
     </div>
-    <div><b>API quota used:</b> <span style="${quota > 500 ? red : quota > 100 ? yellow : green}">${quota} / 10,000 units</span></div>
+    <div><b>API quota used:</b> <span style="${quota >= QUOTA_LIMITS.pool * 0.9 ? red : quota >= QUOTA_LIMITS.pool * 0.75 ? yellow : green}">${quota} / ${QUOTA_LIMITS.pool} units</span></div>
     <div style="margin-top:8px;"><b>Cache-first status:</b>
       ${memPlaylists > 0 && memVideos > 0 ? `<span style="${green}">ACTIVE</span> — startup uses 0 API calls` : `<span style="${red}">INACTIVE</span> — startup will fetch from API`}
     </div>
@@ -12183,8 +12188,8 @@ function toggleDiscoverSelectAll() {
 function updateDiscoverQuota() {
   const count = discoverResults.filter(v => v.selected).length;
   const note = document.getElementById('discoverQuotaNote');
-  // Creating playlist = 50 quota, each insert = 50 quota
-  const cost = count > 0 ? 50 + (count * 50) : 0;
+  // AUD-22 — creating the playlist plus one insert per video, from the cost table.
+  const cost = count > 0 ? estimateQuotaCost('discover_create', count) : 0;
   const remaining = QUOTA_LIMITS.pool - APP.quota.pool;
   const pctAfter = (APP.quota.pool + cost) / QUOTA_LIMITS.pool * 100;
 
@@ -12210,7 +12215,7 @@ async function createPlaylistFromDiscover() {
   if (!selected.length) { showToast(t('discover_select_video'), 'error'); return; }
 
   const visibility = document.getElementById('discoverPlaylistVisibility').value;
-  const totalCost = 50 + (selected.length * 50);
+  const totalCost = estimateQuotaCost('discover_create', selected.length);   // AUD-22
   const remaining = QUOTA_LIMITS.pool - APP.quota.pool;
   const pctAfter = ((APP.quota.pool + totalCost) / QUOTA_LIMITS.pool * 100).toFixed(0);
 
@@ -14949,12 +14954,17 @@ function restoreToggleAll(state) {
   renderRestorePanel();
 }
 
+// AUD-22 — one place computes what a restore costs, from the cost table, for
+// both the live estimate and the confirmation. They each had their own literal 50s.
+function restoreQuotaCost(selected) {
+  const videos = selected.reduce((sum, pl) => sum + pl.videos.length, 0);
+  return selected.length * YT_QUOTA_COSTS['playlists.POST'] + videos * YT_QUOTA_COSTS['playlistItems.POST'];
+}
+
 function updateRestoreQuota() {
   const bar = document.getElementById('restoreQuotaBar');
   const selected = restoreData.playlists.filter(pl => pl.selected);
-  const playlistCost = selected.length * 50; // playlists.insert = 50 each
-  const videoCost = selected.reduce((sum, pl) => sum + pl.videos.length * 50, 0); // playlistItems.insert = 50 each
-  const totalCost = playlistCost + videoCost;
+  const totalCost = restoreQuotaCost(selected);
   const remaining = QUOTA_LIMITS.pool - APP.quota.pool;
   const isOk = totalCost <= remaining;
   const totalVideos = selected.reduce((sum, pl) => sum + pl.videos.length, 0);
@@ -14992,7 +15002,7 @@ async function executeRestore() {
   if (selected.length === 0) return;
 
   const totalVideos = selected.reduce((sum, pl) => sum + pl.videos.length, 0);
-  const totalCost = selected.length * 50 + totalVideos * 50;
+  const totalCost = restoreQuotaCost(selected);
   const remaining = QUOTA_LIMITS.pool - APP.quota.pool;
   const warning = totalCost > remaining
     ? '⚠️ ' + t('restore_quota_warning')

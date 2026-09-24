@@ -3405,6 +3405,44 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-22', title: 'One quota model, not three copies of an old one', note: 'the help card, the cache diagnostic and restore each hard-coded 10 000 or 50',
+  cases: [
+    ['the help card follows the language and names the separate quotas', w => {
+      const snap = snapshot(w, ['appLang']);
+      try {
+        const card = w.document.querySelector('[data-i18n="help_quota_text"]');
+        ok(card, 'the quota help card is not translated');
+        w.applyLanguage('fr');
+        eq(card.textContent, w.t('help_quota_text'), 'French text');
+        ok(/100 recherches/.test(card.textContent), 'the search bucket is not mentioned');
+        w.applyLanguage('en');
+        return eq(card.textContent, w.t('help_quota_text'), 'English text');
+      } finally { restoreLang(w, snap); }
+    }],
+
+    ['the cache diagnostic reads the limit and colours by share of it', async w => {
+      const snap = seedQuota(w, { pool: 600, search: 0, upload: 0, stats: 0 });
+      try {
+        await w.runCacheDiagnostic();
+        const box = w.document.getElementById('cacheDiagContent');
+        const line = [...box.querySelectorAll('div')].find(d => /API quota used/.test(d.textContent));
+        ok(line, 'no quota line');
+        ok(line.textContent.includes('600 / ' + 10000), 'limit not read from QUOTA_LIMITS: ' + line.textContent);
+        // 600 of 10 000 is 6 %: the old thresholds painted it red from 500.
+        return eq(line.querySelector('span').getAttribute('style'), 'color:var(--green)', 'colour at 6 %');
+      } finally { unseedQuota(w, snap); }
+    }],
+
+    ['restore cost comes from the cost table, once', async w => {
+      eq(w.restoreQuotaCost([{ videos: [1, 2, 3] }, { videos: [4] }]), 2 * 50 + 4 * 50, 'two playlists, four videos');
+      const src = await (await fetch('youtube-playlist-manager.html?aud22=' + Date.now())).text();
+      // Restore and Discover's create-playlist both computed "n × 50" by hand.
+      ok(!/selected\.length \* 50/.test(src), 'a literal restore / Discover cost is still in the source');
+      return ok(!/50 \+ \(count \* 50\)/.test(src), 'the Discover quota note still computes its cost by hand');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
