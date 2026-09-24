@@ -3373,6 +3373,7 @@ const I18N = {
     toast_ghosts_cleaned_partial: '{removed} fantôme(s) supprimé(s), {failed} en échec',
     toast_moved: 'Vidéos déplacées',
     toast_moved_partial: '{moved} vidéo(s) déplacée(s), {stuck} copiée(s) sans être retirée(s) de la playlist source — réessayez sur celles-ci',
+    toast_moved_aborted: 'Déplacement interrompu : {msg}. {moved} déplacée(s), {stuck} copiée(s) sans retrait de la source, {left} non traitée(s)',
     toast_scanning_ghosts: 'Scan des vidéos fantômes... (peut prendre un moment)',
     toast_video_deleted: 'Vidéo supprimée',
     toast_all_ghosts_cleaned: 'Toutes les vidéos fantômes supprimées',
@@ -4155,6 +4156,7 @@ const I18N = {
     toast_ghosts_cleaned_partial: '{removed} ghost(s) removed, {failed} failed',
     toast_moved: 'Videos moved',
     toast_moved_partial: '{moved} video(s) moved, {stuck} copied but not removed from the source playlist — retry those',
+    toast_moved_aborted: 'Move stopped: {msg}. {moved} moved, {stuck} copied without leaving the source, {left} not processed',
     toast_scanning_ghosts: 'Scanning ghost videos... (may take a moment)',
     toast_video_deleted: 'Video deleted',
     toast_all_ghosts_cleaned: 'All ghost videos removed',
@@ -4423,11 +4425,14 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.11'; // bump per release
+const APP_VERSION = '1.27.12'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.12', date: '2026-09-24', items: [
+    "DEPLACER (AUD-16) — la premiere insertion en echec (quota, session, limite de debit) interrompait tout sur un simple message d erreur : ni la playlist source ni la destination n etaient rafraichies, et rien ne disait combien de videos avaient deja ete deplacees. Le deplacement s arrete toujours au premier echec, puisque les suivants echoueraient de meme en consommant du quota, mais il dit desormais combien de videos sont deplacees, copiees sans retrait et non traitees, et recharge les deux playlists dans tous les cas",
+  ]},
   { v: '1.27.11', date: '2026-09-24', items: [
     "FANTOMES (AUD-24) — le nettoyage parcourait aussi les playlists mises en favori, qui appartiennent a quelqu un d autre : chaque suppression y echouait en 403 apres avoir consomme 50 unites. Seules vos playlists sont desormais analysees et nettoyees",
     "Avant une suppression en masse, les videos candidates sont verifiees aupres de YouTube (1 unite pour 50 videos) : une video encore disponible est conservee, et si la verification echoue rien n est supprime",
@@ -12562,6 +12567,10 @@ async function performMove() {
   }
   if (!checkQuotaBudget('Déplacement de vidéos', 'move', selected.length)) return;
 
+  // AUD-16 — the counters live outside the try: whatever stops the loop, the
+  // report and the cache refresh below still know how far it got.
+  const stuck = [];   // inserted into the destination but still in the source
+  let moved = 0, attempted = 0, abortMsg = null;
   try {
     // #G7: this used to insert into the destination and stop, so "Move" was a
     // copy — the video stayed in the source too. The quota estimate has always
@@ -12569,19 +12578,27 @@ async function performMove() {
     // AUD-14 — through the loader, not straight from APP.allVideos: a list
     // rebuilt from an older cache has no item ids and is refetched first.
     const sourceItems = await loadPlaylistVideos(sourceId);
-    const stuck = [];   // inserted into the destination but still in the source
-    let moved = 0;
 
     for (const videoId of selected) {
       const sourceItem = sourceItems.find(v =>
         (v.contentDetails?.videoId || v.snippet?.resourceId?.videoId) === videoId);
 
-      await ytApi('playlistItems', { part: 'snippet' }, 'POST', {
-        snippet: {
-          playlistId: destId,
-          resourceId: { kind: 'youtube#video', videoId }
-        }
-      });
+      // A failed insert stops the run: quota, session and rate limits fail the
+      // same way for every item after it, and each attempt is charged.
+      attempted++;
+      try {
+        await ytApi('playlistItems', { part: 'snippet' }, 'POST', {
+          snippet: {
+            playlistId: destId,
+            resourceId: { kind: 'youtube#video', videoId }
+          }
+        });
+      } catch (insErr) {
+        attempted--;
+        abortMsg = insErr.message;
+        log('warn', 'action', 'move: insert failed — stopping', { videoId, msg: insErr.message });
+        break;
+      }
 
       if (!sourceItem?.id) {
         // No playlistItem id to delete with — report rather than pretend.
@@ -12597,18 +12614,22 @@ async function performMove() {
         stuck.push(videoId);
       }
     }
-
-    delete APP.allVideos[destId];   // evict stale destination cache
-    delete APP.allVideos[sourceId]; // the source lost items too
-    await loadAllPlaylists();
-
-    if (stuck.length) {
-      showToast(t('toast_moved_partial', { moved, stuck: stuck.length }), 'warning');
-    } else {
-      showToast(t('toast_moved'), 'success');
-    }
   } catch (err) {
-    showToast(t('toast_error', { msg: err.message }), 'error');
+    abortMsg = err.message;   // the source could not even be loaded
+  } finally {
+    // AUD-16 — both playlists may have changed even when the run stopped
+    // half-way; showing either from memory would show the wrong content.
+    delete APP.allVideos[destId];
+    delete APP.allVideos[sourceId];
+    try { await loadAllPlaylists(); } catch (_) {}
+  }
+
+  if (abortMsg !== null) {
+    showToast(t('toast_moved_aborted', { moved, stuck: stuck.length, left: selected.length - attempted, msg: abortMsg }), 'error');
+  } else if (stuck.length) {
+    showToast(t('toast_moved_partial', { moved, stuck: stuck.length }), 'warning');
+  } else {
+    showToast(t('toast_moved'), 'success');
   }
 }
 

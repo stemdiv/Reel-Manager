@@ -206,20 +206,25 @@ async function runMove(w, opts) {
   const snap = snapshot(w, ['autoCache']);
 
   const host = w.document.createElement('div');
+  const vids = opts.videos || ['VID_A'];
+  const srcItems = vids.map(v => v === 'VID_A' ? SRC_ITEM
+    : { id: 'ITEM_' + v, contentDetails: { videoId: v }, snippet: { title: v, resourceId: { videoId: v } } });
   host.innerHTML = '<select id="moveSourcePlaylist"><option value="PL_SRC" selected>s</option></select>' +
                    '<select id="moveDestPlaylist"><option value="PL_DEST" selected>d</option></select>' +
-                   '<input type="checkbox" class="move-video-select" value="VID_A" checked>';
+                   vids.map(v => '<input type="checkbox" class="move-video-select" value="' + v + '" checked>').join('');
   const oldSrc = w.document.getElementById('moveSourcePlaylist');
   const oldDst = w.document.getElementById('moveDestPlaylist');
   if (oldSrc) oldSrc.id = '__moveSrcParked';
   if (oldDst) oldDst.id = '__moveDstParked';
   w.document.body.appendChild(host);
 
+  let inserts = 0;
   w.ytApi = async (endpoint, params, method, body) => {
     calls.push({ endpoint, params: params || {}, method: method || 'GET', body });
     if (opts.failDelete && method === 'DELETE') throw new Error('simulated delete failure');
+    if (method === 'POST' && ++inserts === opts.failInsertAt) throw new Error('The request cannot be completed because you have exceeded your quota.');
     if (endpoint === 'playlistItems' && (!method || method === 'GET')) {
-      return { items: (params && params.playlistId === 'PL_SRC') ? [SRC_ITEM] : [] };
+      return { items: (params && params.playlistId === 'PL_SRC') ? srcItems : [] };
     }
     return { items: [] };
   };
@@ -3270,6 +3275,27 @@ const SUITES = [
         Object.assign(w, real);
         await idbRestore(w, idb);
       }
+    }],
+  ],
+},
+{
+  id: 'AUD-16', title: 'A move that stops half-way says how far it got', note: 'the first failed insert jumped to a bare error toast; caches were never refreshed and nobody knew what had moved',
+  cases: [
+    ['a failed second insert stops the run after one full move', async w => {
+      const toasts = [];
+      const calls = await runMove(w, { videos: ['VID_A', 'VID_B', 'VID_C'], failInsertAt: 2, toasts });
+      const posts = calls.filter(c => c.method === 'POST').map(c => c.body.snippet.resourceId.videoId);
+      const dels = calls.filter(c => c.method === 'DELETE').map(c => c.params.id);
+      eq(posts, ['VID_A', 'VID_B'], 'inserts attempted — VID_C must not be tried');
+      eq(dels, ['ITEM_A'], 'the first video is fully moved');
+      const t = toasts.find(x => x.type === 'error');
+      ok(t, 'no error toast');
+      return ok(/\b1\b/.test(t.msg) && /\b2\b/.test(t.msg), 'counts missing from: ' + t.msg);
+    }],
+
+    ['both playlists are refreshed even when the run stops', async w => {
+      const calls = await runMove(w, { videos: ['VID_A', 'VID_B'], failInsertAt: 1, probeRefetch: true });
+      return ok(calls.refetched, 'the source was served from memory after an aborted move');
     }],
   ],
 },
