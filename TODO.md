@@ -18,8 +18,8 @@ Details for each finding: `08-remediation.md` in the audit report, kept outside 
 - [x] "HORS LIGNE — CACHE LOCAL" after switching between Reel Studio and Reel Manager, or any reload: the token lived
   in memory only. Fixed in 1.27.55: kept in `sessionStorage` for the tab, restored while valid. The log now records
   how each page was opened (`navigation`) and the last control clicked before leaving ("page left").
-- [ ] The app used day to day is **GitHub Pages** (`stemdiv.github.io/Reel-Manager/`), which serves `main` (v1.27.3):
-  none of the fixes reach it until the PRs are merged. Until then, use `LANCER-APP.bat` (localhost) to test them.
+- [x] The app used day to day is **GitHub Pages** (`stemdiv.github.io/Reel-Manager/`), which serves `main`:
+  it now runs v1.27.55 with all the fixes (checked 2026-09-26). `LANCER-APP.bat` (localhost) remains the way to test before pushing.
 - [ ] Music detection v1.27.52: check the Ableton playlist with the Type filter; send any tutorial titles still read as music (to add as tests).
   Option: make auto-categorize tag mostly-tutorial playlists "Tutorials" instead of the YouTube category.
 
