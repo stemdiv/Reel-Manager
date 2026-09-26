@@ -9,8 +9,12 @@
      file through URL.createObjectURL; without it every cover upload failed. blob: URLs
      are minted by this page from files the user picked — no remote origin is opened.
      'unsafe-inline' is required for now (single-file app with inline handlers); tightening
-     it needs the event-delegation refactor tracked in the backlog. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.ytimg.com https://*.ggpht.com https://*.googleusercontent.com; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'">
+     it needs the event-delegation refactor tracked in the backlog.
+     form-action 'none' (AUD-08): the app has no form, and form-action does not fall back to
+     default-src, so an injected <form action="https://…"> could otherwise post page data out.
+     frame-ancestors (clickjacking) is ignored in a <meta> CSP: it needs an HTTP header from
+     the host. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.ytimg.com https://*.ggpht.com https://*.googleusercontent.com; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="description" content="Manage, organize and analyze your YouTube playlists with advanced tools">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2797,6 +2801,7 @@ const I18N = {
     toast_import_success: '✅ Backup importé — {count} playlists chargées',
     toast_import_error: 'Impossible de lire le fichier de backup',
     toast_import_invalid: 'Ce fichier n\'est pas un backup JSON valide',
+    toast_oauth_state_mismatch: 'Connexion refusée : elle n\'a pas été lancée depuis cet onglet. Reconnectez-vous.',
     dashboard_drill_to_library: 'Voir dans Mes playlists',
     dashboard_drill_to_detail: 'Ouvrir la playlist',
     // Diagnostic log (#66)
@@ -3580,6 +3585,7 @@ const I18N = {
     toast_import_success: '✅ Backup imported — {count} playlists loaded',
     toast_import_error: 'Could not read the backup file',
     toast_import_invalid: 'This file is not a valid JSON backup',
+    toast_oauth_state_mismatch: 'Sign-in refused: it was not started from this tab. Please sign in again.',
     dashboard_drill_to_library: 'View in My Playlists',
     dashboard_drill_to_detail: 'Open playlist',
     // Diagnostic log (#66)
@@ -4430,11 +4436,35 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.23'; // bump per release
+const APP_VERSION = '1.27.31'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.31', date: '2026-09-24', items: [
+    "RESTAURATION CSV (AUD-12) — une playlist nommee __proto__ faisait echouer toute la restauration, et un titre sur plusieurs lignes, exporte correctement, etait coupe en deux a la relecture. Le fichier est desormais lu comme un vrai CSV (retours a la ligne entre guillemets compris) et les playlists sont regroupees sans risque sur leur nom",
+  ]},
+  { v: '1.27.30', date: '2026-09-24', items: [
+    "LIENS (AUD-11) — un lien ?bookmark= transmettait sa valeur telle quelle a la fenetre d ajout de favori, seuls les guillemets etant echappes. Seul un identifiant de playlist valide (ou une adresse YouTube qui en contient un) est desormais retenu ; toute autre valeur est ignoree",
+  ]},
+  { v: '1.27.29', date: '2026-09-24', items: [
+    "SECURITE (AUD-08) — la politique de securite (CSP) n interdisait pas l envoi de formulaires vers un autre site : un formulaire injecte aurait pu y poster des donnees de la page. C est desormais interdit dans l app et dans Reel Studio. Les pages Comment ca marche et Estimateur de quota, sur la meme origine, recoivent leur propre CSP ; l estimateur n autorise que son script, par empreinte. La protection contre l inclusion dans un cadre (clickjacking) demande un en-tete HTTP de l hebergeur : a configurer lors du deploiement",
+  ]},
+  { v: '1.27.28', date: '2026-09-24', items: [
+    "SECURITE (AUD-09) — l estimateur de quota chargeait Chart.js depuis un CDN sans empreinte d integrite ; une reponse alteree du CDN se serait executee avec acces a la bibliotheque, aux tags et au journal de l app, qui partagent la meme origine. Chart.js 4.4.1 est desormais servi avec l application, avec une empreinte verifiee par le navigateur",
+  ]},
+  { v: '1.27.27', date: '2026-09-24', items: [
+    "JOURNAL (AUD-10) — le masquage des jetons ne reconnaissait qu une valeur entiere ; un jeton au milieu d une adresse, d un message d erreur ou d une pile passait tel quel, et le message lui-meme n etait jamais filtre. Les jetons sont desormais masques ou qu ils soient, message compris, et le journal ne garde plus de titres de playlists",
+  ]},
+  { v: '1.27.26', date: '2026-09-24', items: [
+    "SECURITE (#G6) — l app acceptait n importe quel jeton present dans l adresse : un lien piege pouvait connecter la victime au compte YouTube d un attaquant, ou atterriraient ensuite ses playlists et ses envois. Chaque connexion envoie desormais une valeur aleatoire (state) ; un jeton n est accepte que s il la renvoie, une seule fois, dans l onglet qui a lance la connexion. Le PKCE, qui demande un serveur, reste prevu en phase 4",
+  ]},
+  { v: '1.27.25', date: '2026-09-24', items: [
+    "SECURITE (AUD-07) — Reel Studio 0.7.3 : un nom de tag ou un identifiant de playlist place dans un gestionnaire de clic etait echappe pour le HTML, echappement que le navigateur defait avant d executer le code ; un nom comme a';alert(1);' s executait au clic. Ces valeurs sont desormais echappees pour le JavaScript, avec les memes regles que l application",
+  ]},
+  { v: '1.27.24', date: '2026-09-24', items: [
+    "SECURITE (AUD-06) — un fichier de sauvegarde partage (forum, bibliotheque de depart) pouvait executer du code a chaque ouverture de l app : l import et la restauration ne verifiaient que la presence d une liste de playlists. Chaque sauvegarde est desormais reconstruite a partir des seuls champs connus : identifiants au format YouTube, images limitees aux serveurs Google, textes bornes, le reste ecarte. Noms et icones de dossiers et de tags s affichent comme du texte. Les sauvegardes portent un numero de format ; un fichier d une version plus recente est refuse",
+  ]},
   { v: '1.27.23', date: '2026-09-24', items: [
     "API (AUD-20) — l API YouTube signale aussi une limite de debit par une erreur 403 (rateLimitExceeded, userRateLimitExceeded). Elle etait traduite en session expiree, avec une invite a se reconnecter qui ne servait a rien. Ces 403 sont desormais traites comme un 429 : attente puis nouvel essai, et en dernier recours le message de limite de debit",
   ]},
@@ -4742,7 +4772,7 @@ function log(level, category, msg, data) {
       ts: new Date().toISOString(),
       level,
       category,
-      msg: String(msg || ''),
+      msg: _logRedactString(String(msg || '')),   // AUD-10
     };
     if (data !== undefined && data !== null) {
       entry.data = _logRedact(data);
@@ -4779,22 +4809,28 @@ function log(level, category, msg, data) {
  * Strip known sensitive values from a data payload before persisting/exporting.
  * Defensive copy — does not mutate the input.
  */
+// AUD-10 — the patterns were anchored to the whole string, so a token inside
+// a URL, an error message or a stack went through untouched. They now match
+// anywhere, and log() runs them over the message as well as the data.
+function _logRedactString(v) {
+  return v
+    // Bearer tokens
+    .replace(/\bBearer\s+[^\s"',;]+/gi, 'Bearer …')
+    // Google OAuth access tokens
+    .replace(/\bya29\.[A-Za-z0-9_.\-]+/g, 'ya29.…')
+    // A token as a URL parameter or fragment: #access_token=…, ?token=… (revoke)
+    .replace(/([?#&](?:access_token|id_token|refresh_token|token)=)[^&#\s"']+/gi, '$1…')
+    // Google OAuth client IDs: keep the first 8 characters so devs can
+    // correlate without exposing the full ID
+    .replace(/\b([A-Za-z0-9_\-]{8})[A-Za-z0-9_\-]+(-[A-Za-z0-9_\-]+\.apps\.googleusercontent\.com)\b/g, '$1…$2');
+}
+
 function _logRedact(input) {
   try {
     const seen = new WeakSet();
     const redact = (v) => {
       if (v === null || v === undefined) return v;
-      if (typeof v === 'string') {
-        // Bearer tokens
-        if (/^Bearer\s+\S+/i.test(v)) return 'Bearer …';
-        // Raw OAuth-looking tokens (long alphanumeric with dots/dashes)
-        if (/^ya29\.[A-Za-z0-9_\-\.]+$/.test(v)) return 'ya29.…';
-        // Google OAuth client IDs (xxxxxxxxxxxx-yyyy.apps.googleusercontent.com)
-        // Keep first 8 chars so devs can correlate without exposing the full ID
-        const cidMatch = v.match(/^([A-Za-z0-9_\-]{8})[A-Za-z0-9_\-]+(-[A-Za-z0-9_\-]+\.apps\.googleusercontent\.com)$/);
-        if (cidMatch) return cidMatch[1] + '…' + cidMatch[2];
-        return v;
-      }
+      if (typeof v === 'string') return _logRedactString(v);
       if (typeof v !== 'object') return v;
       if (seen.has(v)) return '[circular]';
       seen.add(v);
@@ -4802,7 +4838,7 @@ function _logRedact(input) {
       const out = {};
       for (const k of Object.keys(v)) {
         // Block-list: known token/secret keys
-        if (/^(accessToken|access_token|refreshToken|refresh_token|token|password|secret|authorization)$/i.test(k)) {
+        if (/^(accessToken|access_token|refreshToken|refresh_token|idToken|id_token|token|password|secret|authorization)$/i.test(k)) {
           out[k] = '[redacted]';
         } else {
           out[k] = redact(v[k]);
@@ -4990,6 +5026,21 @@ function setReadOnlyMode(enabled) {
 // 32+ chars but we stay permissive to handle future YouTube formats.
 const BOOKMARK_ID_REGEX = /^(PL|LL|FL|UU|RD|OL|WL|PU|LP)[A-Za-z0-9_-]{10,}$/;
 
+/**
+ * AUD-11 — the `?bookmark=` deep link, reduced to a playlist id or null. Only a
+ * value that extractPlaylistId() accepts is kept, so nothing else from a link
+ * someone sent reaches the page.
+ */
+function readBookmarkDeepLink(search) {
+  let raw = null;
+  try { raw = new URLSearchParams(search || '').get('bookmark'); } catch (_) {}
+  if (!raw) return null;
+  const id = extractPlaylistId(raw);
+  if (id) log('info', 'action', 'deep-link bookmark detected', { id: id.substring(0, 8) + '…' });
+  else log('warn', 'action', 'deep-link bookmark ignored: not a playlist id');
+  return id;
+}
+
 /** Extract a playlist ID from any of: raw ID, full URL, share URL. */
 function extractPlaylistId(input) {
   if (!input || typeof input !== 'string') return null;
@@ -5068,7 +5119,7 @@ async function addBookmark(rawInput) {
     APP.playlists.sort((a, b) => (a.snippet?.title || '').localeCompare(b.snippet?.title || ''));
   }
 
-  log('info', 'action', 'bookmark added', { id, title: meta.snippet?.title });
+  log('info', 'action', 'bookmark added', { id });   // AUD-10 — no titles in the log
   return meta;
 }
 
@@ -5125,11 +5176,14 @@ function removeBookmark(playlistId) {
 
 /** Open a small modal to enter a playlist URL/ID and bookmark it. */
 function showAddBookmarkModal(prefilledId = '') {
+  // AUD-11 — prefill only a real playlist id; the old quote-only escape was
+  // enough for this attribute, but a value from a link is checked, not patched.
+  const prefill = extractPlaylistId(prefilledId) || '';
   const content = `
     <div style="max-width: 480px; padding: 24px;">
       <h2 style="margin: 0 0 6px 0; font-size: 17px;">${t('bookmark_modal_title')}</h2>
       <p style="margin: 0 0 14px 0; color: var(--text2); font-size: 12px; line-height: 1.5;">${t('bookmark_modal_hint')}</p>
-      <input type="text" id="bookmarkInput" value="${prefilledId.replace(/"/g, '&quot;')}" placeholder="${t('bookmark_input_placeholder')}"
+      <input type="text" id="bookmarkInput" value="${escapeHtml(prefill)}" placeholder="${t('bookmark_input_placeholder')}"
         style="width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface2); color: var(--text); font-family: inherit; font-size: 13px; margin-bottom: 6px;"
         onkeydown="if(event.key==='Enter'){event.preventDefault();submitAddBookmark();}">
       <div id="bookmarkError" style="display: none; color: var(--danger); font-size: 12px; margin-bottom: 6px;"></div>
@@ -5660,14 +5714,7 @@ async function init() {
   if (await checkAutoPurge()) { location.reload(); return; }
 
   // Capture deep-link bookmark ID BEFORE checkAuth() strips the URL query
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const bm = params.get('bookmark');
-    if (bm) {
-      _pendingBookmark = bm;
-      log('info', 'action', 'deep-link bookmark detected', { id: bm.substring(0, 8) + '…' });
-    }
-  } catch (_) {}
+  _pendingBookmark = readBookmarkDeepLink(window.location.search);
 
   APP.theme = localStorage.getItem('appTheme') || 'dark';
   if (APP.theme === 'light') {
@@ -5989,6 +6036,149 @@ var cacheStore = (() => {
            _legacyRead: legacyRead };
 })();
 
+/* ── AUD-06 — backup schema ─────────────────────────────────────────────────
+ * A backup file is untrusted input: it may come from a forum post, a "starter
+ * library" or a support thread. Before, its fields went verbatim into state,
+ * localStorage and HTML, so a crafted file ran script on every load.
+ * sanitizeBackup() rebuilds a backup from the known fields only: ids must match
+ * the YouTube charset, thumbnails must be Google image hosts (the CSP img-src),
+ * strings are capped, everything else is dropped. It is the one gate used by
+ * login-screen import, the startup auto-load and the Backup-view restore.
+ * Version 1 is the first versioned shape; files without a version are the same
+ * shape and read as 1. A file from a newer version is refused.
+ */
+const BACKUP_SCHEMA_VERSION = 1;
+const BACKUP_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const BACKUP_ITEM_ID_RE = /^[A-Za-z0-9_=-]{1,128}$/;
+const BACKUP_VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+const BACKUP_THUMB_RE = /^https:\/\/([a-z0-9-]+\.)*(ytimg\.com|ggpht\.com|googleusercontent\.com)\/[^\s"'<>\\`]*$/i;
+const BACKUP_PRIVACY = ['public', 'unlisted', 'private'];
+
+function sanitizeBackup(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const version = raw.schemaVersion === undefined ? 1 : raw.schemaVersion;
+  if (!Number.isInteger(version) || version < 1 || version > BACKUP_SCHEMA_VERSION) return null;
+  if (!Array.isArray(raw.playlists)) return null;
+
+  const isObj = o => !!o && typeof o === 'object' && !Array.isArray(o);
+  // "__proto__" and friends match the id charset, and assigning one as a key
+  // would swap an object's prototype instead of adding an entry.
+  const key = k => !['__proto__', 'constructor', 'prototype'].includes(k);
+  const str = (s, max) => typeof s === 'string' ? s.slice(0, max) : '';
+  const optStr = (s, max) => typeof s === 'string' && s ? s.slice(0, max) : undefined;
+  const id = s => typeof s === 'string' && BACKUP_ID_RE.test(s) ? s : null;
+  const thumb = s => typeof s === 'string' && BACKUP_THUMB_RE.test(s) ? s : undefined;
+  const iso = s => typeof s === 'string' && s.length <= 40 && !isNaN(Date.parse(s)) ? s : undefined;
+  const count = n => Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+  const thumbSet = th => {
+    if (!isObj(th)) return undefined;
+    const out = {};
+    for (const k of ['default', 'medium', 'high', 'standard', 'maxres', 'fhd', 'qhd']) {
+      const url = isObj(th[k]) ? thumb(th[k].url) : undefined;
+      if (url) out[k] = { url };
+    }
+    return Object.keys(out).length ? out : undefined;
+  };
+
+  const video = v => {
+    if (!isObj(v) || typeof v.videoId !== 'string' || !BACKUP_VIDEO_ID_RE.test(v.videoId)) return null;
+    return {
+      videoId: v.videoId,
+      itemId: typeof v.itemId === 'string' && BACKUP_ITEM_ID_RE.test(v.itemId) ? v.itemId : undefined,
+      videoPublishedAt: iso(v.videoPublishedAt),
+      privacy: BACKUP_PRIVACY.includes(v.privacy) ? v.privacy : undefined,
+      title: str(v.title, 300),
+      position: Number.isInteger(v.position) && v.position >= 0 ? v.position : undefined,
+      thumbnail: thumb(v.thumbnail),
+      thumbHd: thumb(v.thumbHd),
+      isShort: v.isShort === true ? true : undefined,
+      channel: str(v.channel, 200),
+      duration: typeof v.duration === 'string' && /^P[0-9DTHMS.]{0,20}$/.test(v.duration) ? v.duration : '',
+      addedAt: iso(v.addedAt) || ''
+    };
+  };
+
+  const playlists = [];
+  for (const pl of raw.playlists) {
+    if (!isObj(pl) || !id(pl.id) || !key(pl.id)) continue;
+    playlists.push({
+      id: pl.id,
+      title: str(pl.title, 300),
+      description: str(pl.description, 5000),
+      videos: Array.isArray(pl.videos) ? pl.videos.map(video).filter(Boolean) : []
+    });
+  }
+
+  const out = { schemaVersion: BACKUP_SCHEMA_VERSION, timestamp: iso(raw.timestamp), playlists };
+
+  if (Array.isArray(raw.playlistObjects)) {
+    out.playlistObjects = raw.playlistObjects.filter(p => isObj(p) && id(p.id) && key(p.id)).map(p => {
+      const s = isObj(p.snippet) ? p.snippet : {};
+      const o = {
+        id: p.id,
+        snippet: {
+          title: str(s.title, 300),
+          description: str(s.description, 5000),
+          channelTitle: optStr(s.channelTitle, 200),
+          channelId: id(s.channelId) || undefined,
+          publishedAt: iso(s.publishedAt),
+          thumbnails: thumbSet(s.thumbnails)
+        },
+        contentDetails: { itemCount: count(p.contentDetails?.itemCount) },
+        status: BACKUP_PRIVACY.includes(p.status?.privacyStatus) ? { privacyStatus: p.status.privacyStatus } : {}
+      };
+      if (p._isBookmark === true) o._isBookmark = true;
+      return o;
+    });
+  }
+
+  // Local metadata: keyed maps keep only valid entries.
+  const tagName = s => typeof s === 'string' && s.trim() && key(s.trim()) ? s.trim().slice(0, 60) : null;
+  if (isObj(raw.tags)) {
+    out.tags = {};
+    for (const [k, v] of Object.entries(raw.tags)) {
+      if (!id(k) || !key(k) || !Array.isArray(v)) continue;
+      const names = [...new Set(v.map(tagName).filter(Boolean))].slice(0, 50);
+      if (names.length) out.tags[k] = names;
+    }
+  }
+  if (isObj(raw.tagIcons)) {
+    out.tagIcons = {};
+    for (const [k, v] of Object.entries(raw.tagIcons)) {
+      const name = tagName(k);
+      if (name && name === k && typeof v === 'string' && v) out.tagIcons[k] = v.slice(0, 16);
+    }
+  }
+  if (Array.isArray(raw.folders)) {
+    const folders = raw.folders.filter(f => isObj(f) && id(f.id) && tagName(f.name)).slice(0, 500)
+      .map(f => ({ id: f.id, name: f.name.trim().slice(0, 100), icon: str(f.icon, 16), parentId: id(f.parentId) }));
+    const known = new Set(folders.map(f => f.id));
+    folders.forEach(f => { if (f.parentId && (!known.has(f.parentId) || f.parentId === f.id)) f.parentId = null; });
+    out.folders = folders;
+  }
+  if (isObj(raw.folderAssignments)) {
+    out.folderAssignments = {};
+    for (const [k, v] of Object.entries(raw.folderAssignments)) {
+      if (id(k) && key(k) && id(v)) out.folderAssignments[k] = v;
+    }
+  }
+  if (Array.isArray(raw.deckColumns)) {
+    out.deckColumns = raw.deckColumns.filter(isObj).slice(0, 20).map(c =>
+      c.type === 'folder' ? { type: 'folder', folderId: id(c.folderId) }
+                          : { type: 'playlist', playlistId: id(c.playlistId) });
+  }
+  if (Array.isArray(raw.watchQueue)) {
+    out.watchQueue = raw.watchQueue.filter(q => isObj(q) && typeof q.videoId === 'string' && BACKUP_VIDEO_ID_RE.test(q.videoId))
+      .slice(0, 1000)
+      .map(q => ({ videoId: q.videoId, title: str(q.title, 300), channelTitle: str(q.channelTitle, 200), thumbnail: thumb(q.thumbnail) || '' }));
+  }
+  if (Array.isArray(raw.bookmarkedPlaylists)) {
+    out.bookmarkedPlaylists = raw.bookmarkedPlaylists.filter(b => isObj(b) && typeof b.id === 'string' && BOOKMARK_ID_REGEX.test(b.id))
+      .map(b => ({ id: b.id, addedAt: iso(b.addedAt) || '' }));
+  }
+  return out;
+}
+
 /**
  * Pick between the manual backup (localStorage, small, required by the export
  * gate) and the auto-cache (IndexedDB since #G11). Split out because the choice
@@ -6025,12 +6215,9 @@ async function loadBackupFromStorage() {
     const source = pickBackupSource(manualTs, cacheTs, !!manualRaw, hasCache);
     if (!source) return;
 
-    let backup;
-    if (source === 'lastBackup') {
-      backup = JSON.parse(manualRaw);
-    } else {
-      backup = cacheBlob;
-    }
+    // AUD-06 — a login-screen import lands in lastBackup, so what is stored
+    // is only as trusted as the file it came from; check it on every load.
+    const backup = sanitizeBackup(source === 'lastBackup' ? JSON.parse(manualRaw) : cacheBlob);
 
     console.log(`[Backup auto-load] Using source: ${source}`);
     if (!backup || !backup.playlists || !Array.isArray(backup.playlists)) return;
@@ -6161,10 +6348,9 @@ function importBackupFromLoginScreen(input) {
   reader.onload = (e) => {
     try {
       const text = e.target.result;
-      const backup = JSON.parse(text);
-
-      // Minimum validation: must have a playlists array
-      if (!backup || !backup.playlists || !Array.isArray(backup.playlists) || backup.playlists.length === 0) {
+      // AUD-06 — store the checked copy, never the file as given
+      const backup = sanitizeBackup(JSON.parse(text));
+      if (!backup || backup.playlists.length === 0) {
         showToast(t('toast_import_invalid'), 'error');
         input.value = '';
         return;
@@ -6455,7 +6641,7 @@ var APP_STORAGE_KEYS = [   // var: read by tests.html, which cannot see a top-le
   // Reel Studio, same origin
   'studioTheme', 'studioAccents',
 ];
-var APP_SESSION_KEYS = ['loggedOut', 'pendingActionAfterOAuth', 'tokenExpiresAt'];
+var APP_SESSION_KEYS = ['loggedOut', 'pendingActionAfterOAuth', 'tokenExpiresAt', 'oauthState'];
 
 // Set by a final purge: the page is about to reload, and persistLog() on
 // beforeunload must not write the log back into a storage just emptied.
@@ -6753,21 +6939,39 @@ function handleLogin() {
   startOAuth(scope);
 }
 
-function buildAuthUrl(scope) {
+// #G6 — the implicit flow hands a token to whoever opens our URL with one in
+// the fragment. Without a check, a link carrying an attacker's token signs the
+// victim into the attacker's account, and what they then upload lands there.
+// Every sign-in now sends a fresh random `state`, and a returning token is
+// accepted only if it brings the same value back. Single use: the stored copy
+// is removed on the first return, accepted or not. (PKCE needs a backend and
+// stays in Phase 4.)
+const OAUTH_STATE_KEY = 'oauthState';
+
+function newOAuthState() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function buildAuthUrl(scope, state) {
   const s = scope || currentScope;
   return `https://accounts.google.com/o/oauth2/v2/auth?` +
     `client_id=${encodeURIComponent(APP.clientId)}&` +
     `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
     `response_type=token&` +
-    `scope=${encodeURIComponent(s)}`;
+    `scope=${encodeURIComponent(s)}` +
+    (state ? `&state=${encodeURIComponent(state)}` : '');
 }
 
 function startOAuth(scope) {
   const s = scope || currentScope;
+  const state = newOAuthState();
+  try { sessionStorage.setItem(OAUTH_STATE_KEY, state); } catch (_) {}
   log('info', 'oauth', 'redirecting to Google OAuth', { scope: s });
   // Persist the in-memory log before redirecting away — we'd lose it otherwise
   try { persistLog(); } catch (_) {}
-  window.location.href = buildAuthUrl(s);
+  window.location.href = buildAuthUrl(s, state);
 }
 
 // ── #G14 — scope upgrade in a popup ─────────────────────────────────────────
@@ -6797,6 +7001,7 @@ function handleOAuthPopupReturn() {
       token,
       expiresIn: parseInt(params.get('expires_in') || '', 10) || 0,
       scope: params.get('scope') || '',
+      state: params.get('state') || '',   // #G6 — checked by the opener
     }, window.location.origin);
   } catch (_) { /* opener gone — the user will be told the popup was closed */ }
   // #G13 — never leave a token sitting in a URL, not even for the instant
@@ -6807,11 +7012,13 @@ function handleOAuthPopupReturn() {
 }
 
 // Validate a message before believing a word of it. Exported for the tests
-// because this is the security boundary of the whole flow.
-function isValidOAuthMessage(event, expectedOrigin) {
+// because this is the security boundary of the whole flow. With expectedState
+// (#G6), the message must also carry the state this popup was opened with.
+function isValidOAuthMessage(event, expectedOrigin, expectedState) {
   if (!event || event.origin !== (expectedOrigin || window.location.origin)) return false;
   const d = event.data;
-  return !!(d && d.type === OAUTH_POPUP_MESSAGE && typeof d.token === 'string' && d.token);
+  if (!(d && d.type === OAUTH_POPUP_MESSAGE && typeof d.token === 'string' && d.token)) return false;
+  return expectedState === undefined || d.state === expectedState;
 }
 
 /**
@@ -6820,7 +7027,9 @@ function isValidOAuthMessage(event, expectedOrigin) {
  * or when the user closes it without granting.
  */
 function openOAuthPopup(scope) {
-  const url = buildAuthUrl(scope);
+  // #G6 — held in this closure, never stored: only this wait can match it.
+  const state = newOAuthState();
+  const url = buildAuthUrl(scope, state);
   const w = 500, h = 600;
   const left = Math.max(0, (window.screen.width - w) / 2);
   const top = Math.max(0, (window.screen.height - h) / 2);
@@ -6840,7 +7049,7 @@ function openOAuthPopup(scope) {
       resolve(result);
     };
     const onMessage = event => {
-      if (!isValidOAuthMessage(event)) return;
+      if (!isValidOAuthMessage(event, undefined, state)) return;
       finish({ blocked: false, token: event.data.token, expiresIn: event.data.expiresIn });
     };
     window.addEventListener('message', onMessage);
@@ -6869,6 +7078,16 @@ function checkAuth() {
   _oauthHash = '';
   if (hash) {
     const params = new URLSearchParams(hash.substring(1));
+    if (!params.get('access_token')) return;
+    // #G6 — a token is accepted only as the answer to a sign-in this tab started
+    let expected = null;
+    try { expected = sessionStorage.getItem(OAUTH_STATE_KEY); sessionStorage.removeItem(OAUTH_STATE_KEY); } catch (_) {}
+    if (!expected || params.get('state') !== expected) {
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+      log('warn', 'oauth', 'token refused: state missing or not ours', { stateSent: !!params.get('state'), stateExpected: !!expected });
+      showToast(t('toast_oauth_state_mismatch'), 'error');
+      return;
+    }
     setAccessToken(params.get('access_token'));
     if (APP.accessToken) {
       // #B14 — expires_in is the only thing the implicit flow tells us about
@@ -7907,6 +8126,7 @@ async function autoSaveCache(opts) {
     }
 
     const cache = {
+      schemaVersion: BACKUP_SCHEMA_VERSION,   // AUD-06
       timestamp: new Date().toISOString(),
       playlists: APP.playlists.map(pl => ({
         id: pl.id,
@@ -8056,7 +8276,7 @@ function renderUserInfo(info) {
   const name = info.name || info.email || 'Utilisateur';
   const pic = info.picture || '';
   document.getElementById('userInfo').innerHTML = `
-    ${pic ? `<img src="${pic}" class="user-avatar" alt="">` : ''}
+    ${pic ? `<img src="${escapeHtml(pic)}" class="user-avatar" alt="">` : ''}
     <span>${escapeHtml(name)}</span>
   `;
 }
@@ -8401,7 +8621,7 @@ function renderTrendingTile() {
       <div class="trending-row">
         <span class="trending-num mono">${i + 1}</span>
         <span class="trending-art" onclick="playVideo('${v.videoId}','${escapeJsAttr(v.title)}','${escapeJsAttr(v.channelTitle)}','${escapeJsAttr(v.thumbnail)}',null,'${v.channelId}')">
-          ${v.thumbnail ? `<img src="${v.thumbnail}" alt="" loading="lazy">` : ''}
+          ${v.thumbnail ? `<img src="${escapeHtml(v.thumbnail)}" alt="" loading="lazy">` : ''}
         </span>
         <span class="trending-main" onclick="playVideo('${v.videoId}','${escapeJsAttr(v.title)}','${escapeJsAttr(v.channelTitle)}','${escapeJsAttr(v.thumbnail)}',null,'${v.channelId}')">
           <span class="trending-title">${escapeHtml(v.title)}</span>
@@ -9006,7 +9226,7 @@ function renderQueueList() {
   }
   list.innerHTML = PLAYER.queue.map((item, i) => `
     <div class="player-queue-item ${i === PLAYER.currentIndex ? 'active' : ''}" onclick="jumpToQueueIndex(${i})">
-      <img src="${item.thumbnail || ''}" alt="" onerror="this.style.display='none'">
+      <img src="${escapeHtml(item.thumbnail || '')}" alt="" onerror="this.style.display='none'">
       <span class="pq-title">${escapeHtml(item.title)}</span>
       <button onclick="event.stopPropagation();removeFromQueue(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;" title="${t('player_remove')}">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -9303,7 +9523,7 @@ function renderStudioThumbGrid(panel) {
 
     const selected = videoId === currentVal ? ' selected' : '';
     html += `<div class="studio-thumb-item${selected}" onclick="selectStudioThumbVideo('${panel}','${videoId}')" title="${escapeHtml(title)}">
-      <img src="${thumbUrl || placeholder}" alt="" onerror="this.src='${placeholder}'">
+      <img src="${escapeHtml(thumbUrl || placeholder)}" alt="" onerror="this.src='${placeholder}'">
       <div class="studio-thumb-title">${escapeHtml(title.substring(0, 40))}</div>
     </div>`;
   }
@@ -9388,7 +9608,7 @@ async function onThumbVideoSelect() {
   const detail = videoDetailsCache[videoId];
   const thumbUrl = pickThumb(detail?.snippet?.thumbnails);
   preview.innerHTML = thumbUrl
-    ? `<img src="${thumbUrl}" style="max-width:200px;border-radius:var(--r-sm);border:1px solid var(--border);" alt="Current thumbnail">`
+    ? `<img src="${escapeHtml(thumbUrl)}" style="max-width:200px;border-radius:var(--r-sm);border:1px solid var(--border);" alt="Current thumbnail">`
     : `<span class="text-muted" style="font-size:12px;">${t('studio_no_thumb')}</span>`;
   form.style.display = '';
 }
@@ -9459,7 +9679,7 @@ async function loadCaptionsList() {
     }
     uploadForm.style.display = '';
   } catch (err) {
-    listDiv.innerHTML = `<p style="color:var(--error);font-size:12px;">${err.message}</p>`;
+    listDiv.innerHTML = `<p style="color:var(--error);font-size:12px;">${escapeHtml(err.message)}</p>`;
     uploadForm.style.display = '';
   }
 }
@@ -9798,7 +10018,7 @@ function refreshPlaylistsList() {
     return `
       <div class="playlist-card${isBookmark ? ' is-bookmark' : ''}" data-playlist-id="${pl.id}" onclick="openPlaylistDetail('${pl.id}')">
         ${bookmarkBadge}
-        <img src="${playlistCovers[pl.id]?.url || pickThumb(pl.snippet.thumbnails) || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22226%22 height=%22226%22%3E%3Crect fill=%22%23303030%22 width=%22226%22 height=%22226%22/%3E%3C/svg%3E'}" class="playlist-thumbnail" alt="${escapeHtml(pl.snippet.title)}">
+        <img src="${escapeHtml(playlistCovers[pl.id]?.url || pickThumb(pl.snippet.thumbnails) || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22226%22 height=%22226%22%3E%3Crect fill=%22%23303030%22 width=%22226%22 height=%22226%22/%3E%3C/svg%3E')}" class="playlist-thumbnail" alt="${escapeHtml(pl.snippet.title)}">
         <div class="playlist-info">
           <div class="playlist-title" title="${escapeHtml(pl.snippet.title)}">${escapeHtml(pl.snippet.title)}</div>
           <div class="playlist-stats">${videoCount} ${t('stats_videos_word')}${playlistViewsLabel(pl.id)}</div>
@@ -10779,7 +10999,7 @@ function renderFilteredVideos(videos) {
       <div class="video-card" ${cardDrag} title="${escapeHtml(v.title)}">
         <div class="drag-handle"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg></div>
         <div style="position: relative;" ${clickPlay}>
-          <img src="${v.thumbnail}" class="video-thumbnail" alt="${escapeHtml(v.title)}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%2290%22%3E%3Crect fill=%22%23303030%22 width=%22120%22 height=%2290%22/%3E%3C/svg%3E'">
+          <img src="${escapeHtml(v.thumbnail)}" class="video-thumbnail" alt="${escapeHtml(v.title)}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%2290%22%3E%3Crect fill=%22%23303030%22 width=%22120%22 height=%2290%22/%3E%3C/svg%3E'">
           ${isReorder ? '' : '<div class="play-overlay"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>'}
           <span style="position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,0.8); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 3px; z-index: 1;">${v.durationFormatted}</span>
         </div>
@@ -10817,7 +11037,7 @@ function renderMusicRows(videos) {
       <div class="track-row${ghost ? ' is-ghost' : ''}" title="${escapeHtml(v.title)}">
         <span class="track-num mono">${idx + 1}</span>
         <span class="track-art" onclick="${play}">${v.thumbnail
-          ? `<img src="${v.thumbnail}" alt="" loading="lazy">`
+          ? `<img src="${escapeHtml(v.thumbnail)}" alt="" loading="lazy">`
           : '<span class="track-art-empty"></span>'}
           <span class="track-play"><svg viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
         </span>
@@ -11068,7 +11288,7 @@ async function createPlaylist() {
     refreshPlaylistsList();
     closeModal();
     showToast(t('toast_playlist_created'), 'success');
-    log('info', 'action', 'playlist created', { id: res.id, title: name });
+    log('info', 'action', 'playlist created', { id: res.id });   // AUD-10 — no titles in the log
   } catch (err) {
     showToast(t('toast_error', { msg: err.message }), 'error');
   }
@@ -11344,7 +11564,7 @@ async function performGlobalSearch() {
           <div class="video-card" data-video-id="${videoId}" data-playlist-id="${playlistId}" style="cursor:pointer;">
             <div style="position:relative;" onclick="playVideo('${videoId}','${safeTitle}','${safeChannel}','${safeThumb}')">
               ${thumbUrl
-                ? `<img src="${thumbUrl}" class="video-thumbnail" alt="${escapeHtml(v.snippet?.title)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                ? `<img src="${escapeHtml(thumbUrl)}" class="video-thumbnail" alt="${escapeHtml(v.snippet?.title)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
                    <div class="video-thumbnail" style="display:none;align-items:center;justify-content:center;background:var(--surface3);color:var(--text3);font-size:11px;">${t('no_thumbnail')}</div>`
                 : `<div class="video-thumbnail" style="display:flex;align-items:center;justify-content:center;background:var(--surface3);color:var(--text3);font-size:11px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.4"><rect x="2" y="4" width="20" height="16" rx="2"/><polygon points="10,8 16,12 10,16"/></svg></div>`
               }
@@ -11629,7 +11849,7 @@ function renderDiscoverEntities(type) {
       <div class="discover-item" style="display:flex;gap:12px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;align-items:center;">
         <div style="flex-shrink:0;width:${isPlaylist ? '120px' : '56px'};">
           ${e.thumbnail
-            ? `<img src="${e.thumbnail}" style="width:100%;${isPlaylist ? 'aspect-ratio:16/9' : 'aspect-ratio:1;border-radius:50%'};object-fit:cover;border-radius:${isPlaylist ? 'var(--r-sm)' : '50%'};display:block;" alt="" loading="lazy" referrerpolicy="no-referrer">`
+            ? `<img src="${escapeHtml(e.thumbnail)}" style="width:100%;${isPlaylist ? 'aspect-ratio:16/9' : 'aspect-ratio:1;border-radius:50%'};object-fit:cover;border-radius:${isPlaylist ? 'var(--r-sm)' : '50%'};display:block;" alt="" loading="lazy" referrerpolicy="no-referrer">`
             : `<div style="width:100%;aspect-ratio:${isPlaylist ? '16/9' : '1'};background:var(--surface3);border-radius:${isPlaylist ? 'var(--r-sm)' : '50%'};"></div>`}
         </div>
         <div style="flex:1;min-width:0;">
@@ -12156,7 +12376,7 @@ function renderDiscoverResults(query) {
       <div style="flex-shrink:0;position:relative;display:block;width:160px;cursor:pointer;"
         onclick="event.stopPropagation();playVideo('${escapeJsAttr(v.videoId)}','${escapeJsAttr(v.title)}','${escapeJsAttr(v.channel)}','${escapeJsAttr(v.thumbnail)}')">
         ${v.thumbnail
-          ? `<img src="${v.thumbnail}" style="width:160px;aspect-ratio:16/9;object-fit:cover;border-radius:var(--r-sm);display:block;">`
+          ? `<img src="${escapeHtml(v.thumbnail)}" style="width:160px;aspect-ratio:16/9;object-fit:cover;border-radius:var(--r-sm);display:block;">`
           : `<div style="width:160px;aspect-ratio:16/9;background:var(--surface3);border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--text4);font-size:10px;">No thumb</div>`
         }
         <div style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,0.8);color:#fff;font-size:10px;padding:1px 4px;border-radius:3px;font-family:var(--font-mono);">${v.duration}</div>
@@ -12514,7 +12734,7 @@ function renderMoveVideos() {
             style="position:absolute;top:8px;left:8px;z-index:2;width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
           <div style="position:relative;">
             ${thumbUrl
-              ? `<img src="${thumbUrl}" class="video-thumbnail" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+              ? `<img src="${escapeHtml(thumbUrl)}" class="video-thumbnail" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
                  <div class="video-thumbnail" style="display:none;align-items:center;justify-content:center;background:var(--surface3);color:var(--text3);font-size:11px;">${t('no_thumbnail')}</div>`
               : `<div class="video-thumbnail" style="display:flex;align-items:center;justify-content:center;background:var(--surface3);color:var(--text3);font-size:11px;">No thumbnail</div>`
             }
@@ -12898,7 +13118,7 @@ async function scanDuplicates() {
     return `<div class="dupe-card" data-video-id="${videoId}" style="background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);margin-bottom:12px;display:flex;gap:14px;padding:14px;align-items:flex-start;">
       <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" style="flex-shrink:0;position:relative;display:block;width:120px;" title="${t('view_on_youtube')}">
         ${thumbUrl
-          ? `<img src="${thumbUrl}" class="dupe-thumb" style="width:120px;aspect-ratio:16/9;object-fit:cover;border-radius:var(--r-sm);display:block;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+          ? `<img src="${escapeHtml(thumbUrl)}" class="dupe-thumb" style="width:120px;aspect-ratio:16/9;object-fit:cover;border-radius:var(--r-sm);display:block;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
              <div class="dupe-thumb" style="display:none;width:120px;aspect-ratio:16/9;background:var(--surface3);border-radius:var(--r-sm);align-items:center;justify-content:center;color:var(--text4);font-size:10px;">No thumb</div>`
           : `<div class="dupe-thumb" style="display:flex;width:120px;aspect-ratio:16/9;background:var(--surface3);border-radius:var(--r-sm);align-items:center;justify-content:center;color:var(--text4);font-size:10px;">No thumb</div>`
         }
@@ -13107,14 +13327,14 @@ const TAG_EMOJI_PALETTE = [
 
 function renderTagWithIcon(tagName) {
   const icon = APP.tagIcons[tagName] || '';
-  return `<span class="tag">${icon ? icon + ' ' : ''}${tagName}</span>`;
+  return `<span class="tag">${icon ? escapeHtml(icon) + ' ' : ''}${escapeHtml(tagName)}</span>`;
 }
 
 function getEmojiPickerHtml(selectedEmoji, inputId) {
   return `
     <div style="display: flex; flex-wrap: wrap; gap: 4px; max-width: 300px; margin-top: 4px;">
-      <span class="emoji-pick${!selectedEmoji ? ' selected' : ''}" onclick="pickEmoji('', '${inputId}')" style="cursor:pointer; padding: 4px 6px; border-radius: 4px; border: 2px solid ${!selectedEmoji ? 'var(--red)' : 'transparent'}; font-size: 11px; color: var(--text2);">aucun</span>
-      ${TAG_EMOJI_PALETTE.map(e => `<span class="emoji-pick${selectedEmoji === e ? ' selected' : ''}" onclick="pickEmoji('${e}', '${inputId}')" style="cursor:pointer; padding: 4px 6px; border-radius: 4px; border: 2px solid ${selectedEmoji === e ? 'var(--red)' : 'transparent'}; font-size: 18px;">${e}</span>`).join('')}
+      <span class="emoji-pick${!selectedEmoji ? ' selected' : ''}" onclick="pickEmoji('', '${escapeJsAttr(inputId)}')" style="cursor:pointer; padding: 4px 6px; border-radius: 4px; border: 2px solid ${!selectedEmoji ? 'var(--red)' : 'transparent'}; font-size: 11px; color: var(--text2);">aucun</span>
+      ${TAG_EMOJI_PALETTE.map(e => `<span class="emoji-pick${selectedEmoji === e ? ' selected' : ''}" onclick="pickEmoji('${e}', '${escapeJsAttr(inputId)}')" style="cursor:pointer; padding: 4px 6px; border-radius: 4px; border: 2px solid ${selectedEmoji === e ? 'var(--red)' : 'transparent'}; font-size: 18px;">${e}</span>`).join('')}
     </div>
   `;
 }
@@ -13156,9 +13376,9 @@ function editPlaylistTags(playlistId) {
     const currentIcon = APP.tagIcons[t] || '';
     return `
       <div style="margin-bottom: 12px; padding: 8px; background: var(--surface2); border-radius: var(--radius);">
-        <div style="font-weight: 500; margin-bottom: 4px;">${currentIcon ? currentIcon + ' ' : ''}${t}</div>
+        <div style="font-weight: 500; margin-bottom: 4px;">${currentIcon ? escapeHtml(currentIcon) + ' ' : ''}${escapeHtml(t)}</div>
         <div class="form-group" style="margin: 0;">
-          <input type="hidden" id="tagIcon_${CSS.escape(t)}" value="${currentIcon}">
+          <input type="hidden" id="tagIcon_${escapeHtml(CSS.escape(t))}" value="${escapeHtml(currentIcon)}">
           ${getEmojiPickerHtml(currentIcon, 'tagIcon_' + CSS.escape(t))}
         </div>
       </div>
@@ -13172,7 +13392,7 @@ function editPlaylistTags(playlistId) {
     <div class="modal-body">
       <div class="form-group">
         <label class="form-label">Tags (séparés par des virgules)</label>
-        <input type="text" class="form-control" id="tagsInput" value="${currentTags.join(', ')}">
+        <input type="text" class="form-control" id="tagsInput" value="${escapeHtml(currentTags.join(', '))}">
       </div>
       <div class="form-group" style="margin-top: 16px;">
         <label class="form-label">Icônes par tag</label>
@@ -13353,8 +13573,8 @@ function renderFolderNode(folder) {
     <div class="folder-node">
       <div class="folder-header" onclick="toggleFolder('${folder.id}')">
         ${toggleSvg}
-        <span class="folder-icon">${folder.icon || '📁'}</span>
-        <span class="folder-name">${folder.name}</span>
+        <span class="folder-icon">${escapeHtml(folder.icon || '📁')}</span>
+        <span class="folder-name">${escapeHtml(folder.name)}</span>
         <span class="folder-count">${totalCount}</span>
         <div class="folder-actions">
           <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); showEditFolderModal('${folder.id}')" title="Edit"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></button>
@@ -13398,7 +13618,7 @@ function collapseAllFolders() {
 function showCreateFolderModal(parentId = null) {
   const parentOptions = APP.folders.map(f => {
     const path = getFolderPath(f.id).map(p => p.name).join(' / ');
-    return `<option value="${f.id}" ${f.id === parentId ? 'selected' : ''}>${path}</option>`;
+    return `<option value="${f.id}" ${f.id === parentId ? 'selected' : ''}>${escapeHtml(path)}</option>`;
   }).join('');
 
   openModal(`
@@ -13476,17 +13696,17 @@ function showEditFolderModal(folderId) {
     .filter(f => f.id !== folderId && !isDescendant(f.id, folderId))
     .map(f => {
       const path = getFolderPath(f.id).map(p => p.name).join(' / ');
-      return `<option value="${f.id}" ${f.id === folder.parentId ? 'selected' : ''}>${path}</option>`;
+      return `<option value="${f.id}" ${f.id === folder.parentId ? 'selected' : ''}>${escapeHtml(path)}</option>`;
     }).join('');
 
   openModal(`
     <div class="modal-header">
-      <div class="modal-title">${folder.icon || '📁'} ${folder.name}</div>
+      <div class="modal-title">${escapeHtml(folder.icon || '📁')} ${escapeHtml(folder.name)}</div>
     </div>
     <div class="modal-body">
       <div class="form-group">
         <label class="form-label">${t('folders_name')}</label>
-        <input type="text" class="form-control" id="folderNameInput" value="${folder.name}">
+        <input type="text" class="form-control" id="folderNameInput" value="${escapeHtml(folder.name)}">
       </div>
       <div class="form-group">
         <label class="form-label">${t('folders_parent')}</label>
@@ -13497,7 +13717,7 @@ function showEditFolderModal(folderId) {
       </div>
       <div class="form-group">
         <label class="form-label">${t('folders_icon')}</label>
-        <input type="hidden" id="folderIconInput" value="${folder.icon || ''}">
+        <input type="hidden" id="folderIconInput" value="${escapeHtml(folder.icon || '')}">
         ${getEmojiPickerHtml(folder.icon || '', 'folderIconInput')}
       </div>
       <div class="form-group">
@@ -13670,8 +13890,8 @@ function renderDeckFolderContent(folderId, colIdx) {
       <div class="deck-folder-section">
         <div class="deck-folder-header" onclick="toggleDeckSubfolder(${colIdx}, '${child.id}')">
           <svg class="deck-folder-toggle ${!isExpanded ? 'collapsed' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
-          <span>${child.icon || '📁'}</span>
-          <span style="flex:1;">${child.name}</span>
+          <span>${escapeHtml(child.icon || '📁')}</span>
+          <span style="flex:1;">${escapeHtml(child.name)}</span>
           <span style="font-size:10px; color:var(--text4); font-family:var(--font-mono);">${childVideoCount}</span>
         </div>
         <div class="deck-folder-children ${!isExpanded ? 'collapsed' : ''}">
@@ -13727,7 +13947,7 @@ function renderDeckSourceSelector(colIdx) {
   const folderOptions = APP.folders.length ? APP.folders.map(f => {
     const path = getFolderPath(f.id).map(p => p.name).join(' / ');
     const count = getFolderPlaylistCount(f.id);
-    return `<option value="f_${f.id}">${f.icon || '📁'} ${path} (${count})</option>`;
+    return `<option value="f_${f.id}">${escapeHtml(f.icon || '📁')} ${escapeHtml(path)} (${count})</option>`;
   }).join('') : '';
 
   return `
@@ -13754,7 +13974,7 @@ function renderDeckVideoItem(video) {
   return `
     <div class="deck-video-item" style="position:relative;">
       <div style="position:relative;flex-shrink:0;cursor:pointer;" onclick="event.stopPropagation();playVideo('${videoId}','${escapedTitle}','${escapedChannel}','${escapedThumb}')">
-        ${thumb ? `<img class="deck-video-thumb" src="${thumb}" alt="" loading="lazy">` : '<div class="deck-video-thumb"></div>'}
+        ${thumb ? `<img class="deck-video-thumb" src="${escapeHtml(thumb)}" alt="" loading="lazy">` : '<div class="deck-video-thumb"></div>'}
         <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;background:rgba(0,0,0,0.45);border-radius:4px;"
           onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0'">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -14020,8 +14240,8 @@ async function showAutoCategorizerModal() {
         <div style="display: flex; gap: 12px; align-items: center; padding: 10px; background: var(--surface2); border-radius: var(--radius); margin-bottom: 8px;">
           <input type="checkbox" data-pl-id="${plId}" class="categorizer-checkbox" checked>
           <div style="flex: 1;">
-            <div style="font-weight: 500; font-size: 14px;">${info.title}</div>
-            <div style="font-size: 12px; color: var(--text2);">Suggéré: <strong>${info.suggested}</strong></div>
+            <div style="font-weight: 500; font-size: 14px;">${escapeHtml(info.title)}</div>
+            <div style="font-size: 12px; color: var(--text2);">Suggéré: <strong>${escapeHtml(info.suggested)}</strong></div>
           </div>
         </div>
       `;
@@ -14154,7 +14374,7 @@ function renderWatchVideoSelector(videos) {
 
       return `<div class="watch-thumb-card" data-idx="${i}" onclick="toggleWatchThumbSelect(this)">
         <input type="checkbox" class="watch-thumb-check watch-video-select" value="${videoId}|${escapeHtml(title)}|${escapeHtml(channel)}|${thumb}" onclick="event.stopPropagation();" onchange="toggleWatchThumbSelect(this.closest('.watch-thumb-card'), this.checked)">
-        ${thumb ? `<img src="${thumb}" alt="" loading="lazy">` : `<div style="width:100%;aspect-ratio:16/9;background:var(--surface3);"></div>`}
+        ${thumb ? `<img src="${escapeHtml(thumb)}" alt="" loading="lazy">` : `<div style="width:100%;aspect-ratio:16/9;background:var(--surface3);"></div>`}
         ${durStr ? `<div style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.8);color:#fff;font-size:9px;padding:1px 4px;border-radius:3px;font-family:var(--font-mono);pointer-events:none;">${durStr}</div>` : ''}
         <div class="watch-thumb-play" onclick="event.stopPropagation();playVideo('${videoId}','${escapedTitle}','${escapedChannel}','${escapedThumb}')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -14181,7 +14401,7 @@ function renderWatchVideoSelector(videos) {
       return `<div class="watch-list-item">
         <input type="checkbox" class="watch-video-select" value="${videoId}|${escapeHtml(title)}|${escapeHtml(channel)}|${thumb}" style="accent-color:var(--accent);width:14px;height:14px;flex-shrink:0;">
         <div style="position:relative;flex-shrink:0;width:48px;height:27px;cursor:pointer;border-radius:3px;overflow:hidden;" onclick="event.stopPropagation();playVideo('${videoId}','${escapedTitle}','${escapedChannel}','${escapedThumb}')">
-          ${thumb ? `<img src="${thumb}" style="width:100%;height:100%;object-fit:cover;">` : `<div style="width:100%;height:100%;background:var(--surface3);"></div>`}
+          ${thumb ? `<img src="${escapeHtml(thumb)}" style="width:100%;height:100%;object-fit:cover;">` : `<div style="width:100%;height:100%;background:var(--surface3);"></div>`}
           <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;background:rgba(0,0,0,0.45);"
             onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0'">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -14265,7 +14485,7 @@ function refreshWatchQueue() {
     <div style="background: var(--surface); border-radius: var(--radius); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; padding: 8px 10px;">
       <span class="mono" style="font-size:10px;color:var(--text4);width:18px;text-align:center;flex-shrink:0;">${idx + 1}</span>
       ${item.thumbnail ? `<div style="position:relative;flex-shrink:0;width:48px;height:27px;cursor:pointer;border-radius:3px;overflow:hidden;" onclick="playVideo('${item.videoId}','${escapedTitle}','${escapedChannel}','${escapedThumb}')">
-        <img src="${item.thumbnail}" style="width:100%;height:100%;object-fit:cover;">
+        <img src="${escapeHtml(item.thumbnail)}" style="width:100%;height:100%;object-fit:cover;">
         <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;background:rgba(0,0,0,0.45);"
           onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0'">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -14401,7 +14621,7 @@ function renderSubscriptions() {
 
     return `
       <div class="sub-card">
-        <img src="${thumb}" class="sub-avatar" alt="${escapeHtml(sub.snippet?.title)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22%3E%3Crect fill=%22%23303030%22 width=%2248%22 height=%2248%22/%3E%3C/svg%3E';">
+        <img src="${escapeHtml(thumb)}" class="sub-avatar" alt="${escapeHtml(sub.snippet?.title)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2248%22 height=%2248%22%3E%3Crect fill=%22%23303030%22 width=%2248%22 height=%2248%22/%3E%3C/svg%3E';">
         <div class="sub-info">
           <div class="sub-title">${escapeHtml(sub.snippet?.title)}</div>
           <div class="sub-desc">${desc}</div>
@@ -14719,6 +14939,7 @@ async function createBackup() {
 
 async function createFullBackup() {
   const backup = {
+    schemaVersion: BACKUP_SCHEMA_VERSION,   // AUD-06
     timestamp: new Date().toISOString(),
     playlists: APP.playlists.map(pl => ({
       id: pl.id,
@@ -14894,8 +15115,8 @@ function parseRestoreFile(input) {
 }
 
 function parseJSONForRestore(text) {
-  const backup = JSON.parse(text);
-  if (!backup.playlists || !Array.isArray(backup.playlists)) return null;
+  const backup = sanitizeBackup(JSON.parse(text));   // AUD-06
+  if (!backup) return null;
 
   return {
     playlists: backup.playlists.map(pl => ({
@@ -14920,56 +15141,62 @@ function parseJSONForRestore(text) {
 
 function parseCSVForRestore(text) {
   // CSV format: Playlist, Playlist ID, Titre vidéo, URL YouTube, Chaîne, Durée, Statut, Date ajout, Position, Tags
-  const lines = text.replace(/^﻿/, '').split('\n'); // strip BOM
-  if (lines.length < 2) return null;
+  const rows = parseCSV(text.replace(/^\uFEFF/, '')); // strip BOM
+  if (rows.length < 2) return null;
 
-  const playlistMap = {};
-  for (let i = 1; i < lines.length; i++) {
-    const row = parseCSVLine(lines[i]);
-    if (!row || row.length < 4) continue;
+  // AUD-12 — a Map, not an object keyed by title: a playlist named
+  // "__proto__" resolved to Object.prototype and the whole import threw.
+  const playlistMap = new Map();
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (row.length < 4) continue;
 
-    const plTitle = csvUnescapeCell(row[0]?.trim());
+    const plTitle = csvUnescapeCell(row[0].trim());
     if (!plTitle) continue;
 
-    if (!playlistMap[plTitle]) {
-      playlistMap[plTitle] = { title: plTitle, description: '', videos: [], selected: true };
+    if (!playlistMap.has(plTitle)) {
+      playlistMap.set(plTitle, { title: plTitle, description: '', videos: [], selected: true });
     }
 
     // Extract videoId from URL (column 3) or from column 1 (Playlist ID is not videoId)
-    const url = row[3]?.trim() || '';
+    const url = row[3].trim();
     const videoIdMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
     const videoId = videoIdMatch ? videoIdMatch[1] : null;
-    const videoTitle = csvUnescapeCell(row[2]?.trim() || '');
-    const status = row[6]?.trim() || '';
+    const videoTitle = csvUnescapeCell((row[2] || '').trim());
+    const status = (row[6] || '').trim();
 
     if (videoId && videoTitle && !status.includes('Supprim') && !status.includes('Deleted')) {
-      playlistMap[plTitle].videos.push({ videoId, title: videoTitle });
+      playlistMap.get(plTitle).videos.push({ videoId, title: videoTitle });
     }
   }
 
-  const playlists = Object.values(playlistMap);
+  const playlists = [...playlistMap.values()];
   return playlists.length > 0 ? { playlists } : null;
 }
 
-function parseCSVLine(line) {
-  if (!line || !line.trim()) return null;
-  const result = [];
-  let current = '';
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
+// AUD-12 — RFC 4180 reader over the whole text. A quoted cell may hold commas,
+// doubled quotes and line breaks; csvCell() quotes every cell, so a title or
+// channel name with a newline is exported intact, and splitting the text on
+// '\n' before parsing cut such a row in two. Rows end on LF or CRLF.
+function parseCSV(text) {
+  const rows = [];
+  let row = [], cell = '', inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
     if (inQuotes) {
-      if (ch === '"' && line[i + 1] === '"') { current += '"'; i++; }
+      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
       else if (ch === '"') inQuotes = false;
-      else current += ch;
-    } else {
-      if (ch === '"') inQuotes = true;
-      else if (ch === ',') { result.push(current); current = ''; }
-      else current += ch;
-    }
+      else cell += ch;
+    } else if (ch === '"') inQuotes = true;
+    else if (ch === ',') { row.push(cell); cell = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(cell); rows.push(row);
+      row = []; cell = '';
+    } else cell += ch;
   }
-  result.push(current);
-  return result;
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows;
 }
 
 function renderRestorePanel() {
