@@ -4747,6 +4747,68 @@ const SUITES = [
   ],
 },
 {
+  id: 'tab-token', title: 'The sign-in survives a page load in the same tab', note: 'the token lived in memory only: every switch between Reel Studio and Reel Manager is a page load, and each one showed "HORS LIGNE — CACHE LOCAL"',
+  cases: [
+    ['setAccessToken keeps the token for this tab and forgets it on sign-out', w => {
+      const keys = ['accessToken', 'tokenExpiresAt'];
+      const saved = keys.map(k => w.sessionStorage.getItem(k));
+      try {
+        w.setAccessToken('tok-tab-1');
+        eq(w.sessionStorage.getItem('accessToken'), 'tok-tab-1', 'stored');
+        w.sessionStorage.setItem('tokenExpiresAt', String(Date.now() + 3600e3));
+        w.setAccessToken('');
+        return eq(keys.map(k => w.sessionStorage.getItem(k)), [null, null], 'cleared');
+      } finally {
+        w.setAccessToken('');   // the test page never holds a real token
+        keys.forEach((k, i) => saved[i] === null ? w.sessionStorage.removeItem(k) : w.sessionStorage.setItem(k, saved[i]));
+      }
+    }],
+    ['a page load restores a valid token, not an expired or undated one', w => {
+      const keys = ['accessToken', 'tokenExpiresAt'];
+      const saved = keys.map(k => w.sessionStorage.getItem(k));
+      const realShow = w.showApp;
+      let shown = 0;
+      w.showApp = () => { shown++; };
+      const put = (tok, exp) => { w.sessionStorage.setItem('accessToken', tok); if (exp == null) w.sessionStorage.removeItem('tokenExpiresAt'); else w.sessionStorage.setItem('tokenExpiresAt', String(exp)); };
+      try {
+        put('tok-valid', Date.now() + 30 * 60e3);
+        eq(w.restoreSessionToken(), true, 'valid: restored');
+        ok(/^token present, expires in 30 min$/.test(w.tokenStateText()), 'state: ' + w.tokenStateText());
+        eq([shown, w.document.body.classList.contains('offline-cache')], [1, false], 'app shown, no offline pill');
+        w.setAccessToken('');
+        put('tok-old', Date.now() - 1000);
+        eq([w.restoreSessionToken(), w.tokenStateText(), w.sessionStorage.getItem('accessToken')], [false, 'no token — showing local cache', null], 'expired: dropped');
+        put('tok-edge', Date.now() + 30e3);
+        eq(w.restoreSessionToken(), false, 'less than a minute left');
+        put('tok-undated', null);
+        eq(w.restoreSessionToken(), false, 'no known expiry');
+        return eq(shown, 1, 'the app was shown once');
+      } finally {
+        w.showApp = realShow;
+        w.setAccessToken('');
+        keys.forEach((k, i) => saved[i] === null ? w.sessionStorage.removeItem(k) : w.sessionStorage.setItem(k, saved[i]));
+      }
+    }],
+    ['the purge registry covers the stored token', w => ok(w.APP_SESSION_KEYS.includes('accessToken'), 'accessToken missing from APP_SESSION_KEYS')],
+    ['leaving the page logs the last control clicked, without its text', w => {
+      const btn = w.document.createElement('button');
+      btn.id = 'tabTokenProbe';
+      btn.textContent = 'Private playlist title';
+      w.document.body.appendChild(btn);
+      try {
+        const entries = aud10Logged(w, 'page left', () => {
+          btn.click();
+          w.dispatchEvent(new w.Event('beforeunload'));
+        });
+        const last = entries[entries.length - 1];
+        ok(last, 'no "page left" entry');
+        eq(last.data.lastClick, 'tabTokenProbe', 'control');
+        return ok(!JSON.stringify(last).includes('Private playlist title'), 'the button text was logged');
+      } finally { btn.remove(); }
+    }],
+  ],
+},
+{
   id: 'music-tuto', title: 'Music-production tutorials are not music videos', note: 'the title word list missed plurals, French, "How I make…" and DAW names, and a tutorial filed under Music counted as music',
   cases: [
     ['tutorial titles filed under Music are tutorials, not music', w => {

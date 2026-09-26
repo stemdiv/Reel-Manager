@@ -1,5 +1,15 @@
 [
  {
+  "v": "1.27.55",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "Connexion : passer de Reel Studio à Reel Manager, ou recharger la page, ne déconnecte plus. Le jeton est gardé pour cet onglet seulement, jusqu'à son expiration (1 h) ou la fermeture de l'onglet. Le journal de diagnostic note aussi comment la page a été ouverte et le dernier bouton cliqué avant de la quitter.",
+    "en": "Sign-in: switching from Reel Studio to Reel Manager, or reloading the page, no longer signs you out. The token is kept for this tab only, until it expires (1 h) or the tab closes. The diagnostic log also records how the page was opened and the last control clicked before leaving it."
+   }
+  ]
+ },
+ {
   "v": "1.27.54",
   "date": "2026-09-24",
   "items": [

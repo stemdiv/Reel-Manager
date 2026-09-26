@@ -4647,7 +4647,7 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.54'; // bump per release
+const APP_VERSION = '1.27.55'; // bump per release
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -4928,11 +4928,46 @@ function applyReadOnlyMode() {
 // #B14 — showAppFromCache() rendered the header as "connected" whatever the
 // token situation, because the token only ever lives in the URL hash and a
 // reload drops it. Say so instead, and offer the way back.
+//
+// Kept for this tab in sessionStorage too: Reel Studio and Reel Manager are
+// separate pages, so every switch between them is a page load, and a token held
+// in memory only was gone after each one ("HORS LIGNE — CACHE LOCAL" seconds
+// after signing in). sessionStorage is per tab and cleared when the tab closes;
+// restoreSessionToken() only brings it back while it is still valid.
+const SESSION_TOKEN_KEY = 'accessToken';
 function setAccessToken(token) {
   APP.accessToken = token || '';
   if (!APP.accessToken) APP.tokenExpiresAt = 0;
+  try {
+    if (APP.accessToken) sessionStorage.setItem(SESSION_TOKEN_KEY, APP.accessToken);
+    else { sessionStorage.removeItem(SESSION_TOKEN_KEY); sessionStorage.removeItem('tokenExpiresAt'); }
+  } catch (e) { swallow('setAccessToken:storage', e); }
   applyOfflineCacheState();
   return APP.accessToken;
+}
+
+/**
+ * After a page load with no token in the URL: take this tab's token back if it
+ * still has more than TOKEN_RESTORE_MARGIN_MS to live. A token with no known
+ * expiry is not restored — nothing says it is still good.
+ */
+function restoreSessionToken() {
+  let token = '', exp = NaN;
+  try {
+    token = sessionStorage.getItem(SESSION_TOKEN_KEY) || '';
+    exp = parseInt(sessionStorage.getItem('tokenExpiresAt') || '', 10);
+  } catch (e) { swallow('restoreSessionToken:storage', e); return false; }
+  if (!token) return false;
+  if (!Number.isFinite(exp) || exp - Date.now() < CONFIG.TOKEN_RESTORE_MARGIN_MS) {
+    setAccessToken('');
+    log('info', 'oauth', 'stored token not restored: expired or expiry unknown');
+    return false;
+  }
+  setAccessToken(token);
+  APP.tokenExpiresAt = exp;
+  log('info', 'oauth', 'token restored for this tab', { expiresInMin: Math.round((exp - Date.now()) / 60000) });
+  showApp();
+  return true;
 }
 
 function applyOfflineCacheState() {
@@ -5335,6 +5370,7 @@ var CONFIG = Object.freeze({
   OAUTH_RESUME_WINDOW_MS: 10 * 60 * 1000,   // "action pending" notice after a scope redirect
   TOAST_MS: 3000,
   TOAST_ACTION_MS: 10000,            // a toast you are meant to click must outlast a glance
+  TOKEN_RESTORE_MARGIN_MS: 60 * 1000,  // a stored token this close to expiry is not restored
   DESCRIPTION_KEEP_CHARS: 1500,      // video description kept in the details cache (tutorial detection)
 });
 
@@ -5690,7 +5726,7 @@ async function init() {
   }
   // Diagnostic log (#66) — load persisted tail from previous session first
   loadPersistedLog();
-  log('info', 'app', `init() — v${APP_VERSION}, theme=${APP.theme}, lang pending`);
+  log('info', 'app', `init() — v${APP_VERSION}, theme=${APP.theme}, lang pending`, { navigation: navigationType() });
   // Read-only mode (#43) — apply body class so the pill + write-action hiding take effect
   applyReadOnlyMode();
   // #G11 — move any pre-IndexedDB blob across before reading, so a cache
@@ -6596,7 +6632,7 @@ var APP_STORAGE_KEYS = [   // var: read by tests.html, which cannot see a top-le
   // Reel Studio, same origin
   'studioTheme', 'studioAccents',
 ];
-var APP_SESSION_KEYS = ['loggedOut', 'pendingActionAfterOAuth', 'tokenExpiresAt', 'oauthState'];
+var APP_SESSION_KEYS = ['loggedOut', 'pendingActionAfterOAuth', 'tokenExpiresAt', 'oauthState', 'accessToken'];
 
 // Set by a final purge: the page is about to reload, and persistLog() on
 // beforeunload must not write the log back into a storage just emptied.
@@ -7082,6 +7118,7 @@ function checkAuth() {
       return;
     }
   }
+  if (!hash) restoreSessionToken();
 }
 
 function handleLogout() {
@@ -16033,8 +16070,34 @@ window.addEventListener('unhandledrejection', (e) => {
   } catch (_) { /* ignore: the logger reporting on itself */ }
 });
 
+// Why did the page go away? A reload, a link to Reel Studio, a sign-in… The
+// log showed page loads nobody could explain, so the last control clicked is
+// kept (its id or handler name, never its text or a full URL) and logged on the
+// way out, and init() logs how the page was reached.
+let _lastClick = null;
+document.addEventListener('click', e => {
+  try {
+    const el = e.target && e.target.closest ? e.target.closest('a,button,[onclick]') : null;
+    if (!el) return;
+    const handler = (el.getAttribute('onclick') || '').match(/^\s*([A-Za-z_$][\w$]*)/);
+    const href = el.tagName === 'A' ? (el.getAttribute('href') || '').split(/[?#]/)[0] : '';
+    _lastClick = { control: el.id || (handler && handler[1]) || el.getAttribute('data-i18n') || el.tagName.toLowerCase(),
+                   href: href || undefined, at: Date.now() };
+  } catch (_) { /* ignore: diagnostics only */ }
+}, true);
+
+function navigationType() {
+  try { const nav = performance.getEntriesByType('navigation')[0]; return nav ? nav.type : 'unknown'; }
+  catch (_) { return 'unknown'; }
+}
+
 // Persist the last N entries on unload so logs survive a refresh/crash
 window.addEventListener('beforeunload', () => {
+  try {
+    log('info', 'app', 'page left', _lastClick
+      ? { lastClick: _lastClick.control, href: _lastClick.href, secondsAgo: Math.round((Date.now() - _lastClick.at) / 1000) }
+      : { lastClick: 'none' });
+  } catch (_) { /* ignore: the logger reporting on itself */ }
   try { persistLog(); } catch (_) { /* ignore: the logger reporting on itself */ }
 });
 </script>

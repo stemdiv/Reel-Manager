@@ -1,6 +1,6 @@
 # TODO — after the September 2026 audit
 
-State as of 2026-09-24: app v1.27.54, Reel Studio 0.7.6, 458 tests passing, i18n 785/785.
+State as of 2026-09-24: app v1.27.55, Reel Studio 0.7.6, 462 tests passing, i18n 785/785.
 Details for each finding: `audit/2026-09/08-remediation.md` (on branch `audit/2026-09`).
 
 ## Merges
@@ -9,15 +9,14 @@ Details for each finding: `audit/2026-09/08-remediation.md` (on branch `audit/20
   After each merge, bring `main` into the next branch. No CI in the repo: run `tests.html` locally.
 - [ ] Merge #9 (backlogs v6.6) after #8. Open the `.docx` files in Word first: they were not checked visually.
 - [ ] **Do not merge** #2 (audit).
-- [ ] Open a PR for `claude/youthful-fermi-b0e5wy` (on top of #9): tutorial detection (1.27.52), local server and offline page (1.27.53).
+- [ ] Open a PR for `claude/youthful-fermi-b0e5wy` (on top of #9): tutorial detection (1.27.52), local server and offline page (1.27.53), AUD-54 (1.27.54), sign-in kept across page loads (1.27.55).
 
 ## To investigate
 
 - [x] AUD-54: page error `Cannot set properties of null (setting 'textContent')`: the storage estimate beat the IndexedDB read in the cache diagnostic. Fixed in 1.27.54.
-- [ ] "HORS LIGNE — CACHE LOCAL" after switching between Reel Studio and Reel Manager. **Diagnosed** (log of 2026-09-26):
-  the two are separate pages, so each switch is a page load, and the token lives only in memory. The Music/Video
-  button is not involved (no "music view" entry in the log). Fix to decide: keep the token in `sessionStorage`
-  (this tab only, until it expires or the tab closes) so it survives the switch.
+- [x] "HORS LIGNE — CACHE LOCAL" after switching between Reel Studio and Reel Manager, or any reload: the token lived
+  in memory only. Fixed in 1.27.55: kept in `sessionStorage` for the tab, restored while valid. The log now records
+  how each page was opened (`navigation`) and the last control clicked before leaving ("page left").
 - [ ] The app used day to day is **GitHub Pages** (`stemdiv.github.io/Reel-Manager/`), which serves `main` (v1.27.3):
   none of the fixes reach it until the PRs are merged. Until then, use `LANCER-APP.bat` (localhost) to test them.
 - [ ] Music detection v1.27.52: check the Ableton playlist with the Type filter; send any tutorial titles still read as music (to add as tests).
