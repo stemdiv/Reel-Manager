@@ -523,7 +523,13 @@ async function runAutoSave(w, opts) {
 // known library and an answer for every endpoint it touches. videos answers the
 // shape getVideoDetails really returns — a map keyed by video id — because
 // iterating it as an array is the bug these cases exist for.
+// Video ids are new on every call: fetched details now stay in the app's
+// memory (and its cache) for the rest of the session, so a case reusing an
+// earlier case's ids would read that case's categories instead of its own.
+let categorizerRun = 0;
 async function runCategorizer(w, videosAnswer, playlists) {
+  const run = ++categorizerRun;
+  const idb = await idbSnapshot(w);
   const real = { ytApi: w.ytApi, showToast: w.showToast };
   w.showToast = () => {};
   w.ytApi = async (endpoint, params) => {
@@ -531,26 +537,22 @@ async function runCategorizer(w, videosAnswer, playlists) {
       { id: 'PL_cat_a', snippet: { title: 'Techno set' }, contentDetails: { itemCount: 1 }, status: {} },
       { id: 'PL_cat_b', snippet: { title: 'Cours de maths' }, contentDetails: { itemCount: 1 }, status: {} },
     ] };
-    if (endpoint === 'videoCategories') return { items: [
-      { id: '10', snippet: { title: 'Musique' } },
-      { id: '26', snippet: { title: 'Howto & Style' } },
-      { id: '27', snippet: { title: 'Education' } },
-      { id: '28', snippet: { title: 'Science & Technology' } },
-    ] };
     if (endpoint === 'playlistItems') {
       const pl = (playlists || []).find(p => p.id === params.playlistId);
       const n = pl ? (pl.contentDetails?.itemCount || 1) : 1;
       return { items: Array.from({ length: n }, (_, i) => ({
-        id: 'i' + i, contentDetails: { videoId: params.playlistId + '_v' + i },
-        snippet: { title: 'v', resourceId: { videoId: params.playlistId + '_v' + i } },
+        id: 'i' + i, contentDetails: { videoId: params.playlistId + '_v' + i + '_r' + run },
+        snippet: { title: 'v', resourceId: { videoId: params.playlistId + '_v' + i + '_r' + run } },
       })) };
     }
     if (endpoint === 'videos') return videosAnswer(params);
     return { items: [] };
   };
   await w.loadAllPlaylists();
+  // The item lists too: a playlist id an earlier case loaded is still in memory.
+  for (const p of (playlists || [{ id: 'PL_cat_a' }, { id: 'PL_cat_b' }])) await w.loadPlaylistVideos(p.id, { force: true });
   await w.showAutoCategorizerModal();
-  return () => { Object.assign(w, real); };
+  return async () => { Object.assign(w, real); await idbRestore(w, idb); };
 }
 
 function categorizerRows(w) {
@@ -588,9 +590,9 @@ const SUITES = [
         const rows = categorizerRows(w);
         eq(rows.length, 2, 'both playlists should have a suggestion');
         // Musique, not Tech: the detection ran instead of guessing at the title.
-        ok(rows.find(r => r.id === 'PL_cat_a').text.includes('Musique'), 'Techno set: ' + rows[0].text);
-        return ok(rows.find(r => r.id === 'PL_cat_b').text.includes('Education'), 'Cours de maths: ' + rows[1].text);
-      } finally { w.closeModal(); done(); restore(w, snapLs); }
+        ok(rows.find(r => r.id === 'PL_cat_a').text.includes(w.getCategoryName('10')), 'Techno set: ' + rows[0].text);
+        return ok(rows.find(r => r.id === 'PL_cat_b').text.includes(w.getCategoryName('27')), 'Cours de maths: ' + rows[1].text);
+      } finally { w.closeModal(); await done(); restore(w, snapLs); }
     }],
 
     ['apply writes the tags and the list shows them', async w => {
@@ -605,11 +607,11 @@ const SUITES = [
       try {
         w.document.getElementById('categorizerApplyBtn').click();
         const stored = JSON.parse(w.localStorage.getItem('playlistTags') || '{}');
-        eq(stored['PL_cat_a'], ['Musique'], 'the tag was not persisted');
-        eq(stored['PL_cat_b'], ['Musique'], 'the second playlist was skipped');
+        eq(stored['PL_cat_a'], [w.getCategoryName('10')], 'the tag was not persisted');
+        eq(stored['PL_cat_b'], [w.getCategoryName('10')], 'the second playlist was skipped');
         w.refreshTagsList();
-        return ok(w.document.getElementById('tagsList').innerText.includes('Musique'), 'the list does not show the tag');
-      } finally { done(); restore(w, snapLs); }
+        return ok(w.document.getElementById('tagsList').innerText.includes(w.getCategoryName('10')), 'the list does not show the tag');
+      } finally { await done(); restore(w, snapLs); }
     }],
 
     ['nothing to apply says so instead of offering a dead button', async w => {
@@ -626,7 +628,7 @@ const SUITES = [
         // "apply is broken" — the click had nothing to do and said nothing.
         eq(w.getComputedStyle(btn).display, 'none', 'Apply is still offered');
         return ok(w.document.getElementById('categorizerResults').innerText.trim().length > 0, 'the empty result says nothing');
-      } finally { w.closeModal(); done(); restore(w, snapLs); }
+      } finally { w.closeModal(); await done(); restore(w, snapLs); }
     }],
 
     ['a title no keyword can reach is still categorized from its videos', async w => {
@@ -647,11 +649,11 @@ const SUITES = [
         const rows = categorizerRows(w);
         eq(rows.length, 1, 'no suggestion at all — the silent skip is back');
         // The majority of the videos, not the first one.
-        ok(rows[0].text.includes('Science & Technology'), rows[0].text);
+        ok(rows[0].text.includes(w.getCategoryName('28')), rows[0].text);
         w.document.getElementById('categorizerApplyBtn').click();
         const stored = JSON.parse(w.localStorage.getItem('playlistTags') || '{}');
-        return eq(stored['PL_3p'], ['Science & Technology'], 'apply did not persist it');
-      } finally { done(); restore(w, snapLs); }
+        return eq(stored['PL_3p'], [w.getCategoryName('28')], 'apply did not persist it');
+      } finally { await done(); restore(w, snapLs); }
     }],
   ],
 },
@@ -1306,59 +1308,8 @@ const SUITES = [
   ],
 },
 {
-  id: 'videoCategories', title: 'Category names follow the UI language', note: 'regionCode/hl were pinned to FR/fr while every other label followed currentLang',
+  id: 'videoCategories', title: 'Category names follow the UI language', note: 'regionCode/hl were pinned to FR/fr while every other label followed currentLang; the names now come from the local table, the videoCategories call is gone',
   cases: [
-    ['an English UI asks YouTube for US/en', async w => {
-      const real = w.ytApi;
-      let seen = null;
-      try {
-        w.ytApi = async (endpoint, params) => { seen = { endpoint, params }; return { items: [] }; };
-        await w.loadVideoCategories('en');
-        eq(seen.endpoint, 'videoCategories', 'endpoint');
-        return eq([seen.params.regionCode, seen.params.hl], ['US', 'en']);
-      } finally { w.ytApi = real; }
-    }],
-
-    ['a French UI asks for FR/fr', async w => {
-      const real = w.ytApi;
-      let seen = null;
-      try {
-        w.ytApi = async (endpoint, params) => { seen = params; return { items: [] }; };
-        await w.loadVideoCategories('fr');
-        return eq([seen.regionCode, seen.hl], ['FR', 'fr']);
-      } finally { w.ytApi = real; }
-    }],
-
-    ['with no argument it follows currentLang, not a hard-coded FR', async w => {
-      const real = w.ytApi;
-      const langSnap = snapshot(w, ['appLang']);
-      let seen = null;
-      try {
-        w.applyLanguage('en');
-        w.ytApi = async (endpoint, params) => { seen = params; return { items: [] }; };
-        await w.loadVideoCategories();
-        return eq([seen.regionCode, seen.hl], ['US', 'en']);
-      } finally { w.ytApi = real; restoreLang(w, langSnap); }
-    }],
-
-    ['the two languages are distinct cache entries', async w => {
-      // The cache key is the full request URL, so hl=fr and hl=en cannot collide.
-      const real = w.ytApi;
-      const urls = [];
-      try {
-        w.ytApi = async (endpoint, params) => {
-          const u = new URL('https://www.googleapis.com/youtube/v3/' + endpoint);
-          Object.keys(params).forEach(k => u.searchParams.append(k, params[k]));
-          urls.push(u.toString());
-          return { items: [] };
-        };
-        await w.loadVideoCategories('fr');
-        await w.loadVideoCategories('en');
-        ok(urls[0] !== urls[1], 'same cache key for both languages: ' + urls[0]);
-        return 'distinct keys';
-      } finally { w.ytApi = real; }
-    }],
-
     ['category labels in the app already follow the UI language', w => {
       return eq([w.getCategoryName('10', 'fr'), w.getCategoryName('10', 'en')], ['Musique', 'Music']);
     }],
@@ -5032,8 +4983,8 @@ const SUITES = [
         ok(row && row.text.includes(genre), 'suggestion: ' + (row && row.text));
         w.document.getElementById('categorizerApplyBtn').click();
         const stored = JSON.parse(w.localStorage.getItem('playlistTags') || '{}');
-        return eq(stored['PL_j3'], ['Musique', genre], 'tags written');
-      } finally { done(); restore(w, snapLs); }
+        return eq(stored['PL_j3'], [w.getCategoryName('10'), genre], 'tags written');
+      } finally { await done(); restore(w, snapLs); }
     }],
   ],
 },
@@ -5373,6 +5324,84 @@ const SUITES = [
       return eq(r.deletes, 0, 'nothing deleted');
     }],
   ],
+},
+{
+  id: 'category-cache', title: 'Categories come from the backup before the API', note: 'backups kept no category or topics, so auto-categorise, the Type and Category filters and the genre re-bought videos.list after every reload; ytApi is stubbed',
+  cases: (() => {
+    const V = ['CATvid00001', 'CATvid00002', 'CATvid00003'];
+    // A cache the way the app writes it: PL_CA holds music with its topics,
+    // PL_CB one education video — or, with opts.bare, a video with neither.
+    function cache(opts) {
+      const vid = (id, extra) => Object.assign({ videoId: id, itemId: 'IT_' + id, title: 'song ' + id, channel: 'c', duration: 'PT3M' }, extra);
+      return {
+        timestamp: '2999-01-01T00:00:00.000Z',
+        playlists: [
+          { id: 'PL_CA', title: 'Alpha', description: '', videos: [
+            vid(V[0], { category: '10', topics: ['Electronic_music', 'Music'] }),
+            vid(V[1], { category: '10', topics: ['Electronic_music', 'Music'] }) ] },
+          { id: 'PL_CB', title: 'Beta', description: '', videos: [ opts && opts.bare ? vid('CATvid00009', {}) : vid(V[2], { category: '27' }) ] },
+        ],
+        playlistObjects: [
+          { id: 'PL_CA', snippet: { title: 'Alpha' }, contentDetails: { itemCount: 2 }, status: {} },
+          { id: 'PL_CB', snippet: { title: 'Beta' }, contentDetails: { itemCount: 1 }, status: {} },
+        ],
+        tags: {}, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [], bookmarkedPlaylists: [],
+      };
+    }
+    async function categorise(w, opts) {
+      const idb = await idbSnapshot(w);
+      const snap = snapshot(w, ['lastBackup', 'lastBackupTimestamp', 'playlistTags']);
+      const real = { ytApi: w.ytApi };
+      const calls = [];
+      w.ytApi = async (endpoint, params) => {
+        calls.push({ endpoint, params });
+        if (endpoint === 'videos') return { items: (params.id || '').split(',').map(id => ({ id, snippet: { title: 'x', categoryId: '27' }, contentDetails: { duration: 'PT3M' } })) };
+        return { items: [] };
+      };
+      try {
+        w.localStorage.removeItem('lastBackup'); w.localStorage.removeItem('lastBackupTimestamp');
+        await w.cacheStore.writeAll(cache(opts));
+        await w.loadBackupFromStorage();
+        calls.length = 0;
+        await w.showAutoCategorizerModal();
+        const text = w.document.getElementById('categorizerResults').textContent;
+        w.closeModal();
+        return { text, calls: calls.filter(c => c.endpoint === 'videos' || c.endpoint === 'videoCategories') };
+      } finally { Object.assign(w, real); restore(w, snap); await idbRestore(w, idb); }
+    }
+    return [
+      ['category and topics are written compactly and survive the import check', w => {
+        const f = w.detailCategoryFields({ snippet: { categoryId: 10 }, topicDetails: { topicCategories: ['https://en.wikipedia.org/wiki/Electronic_music', 'http://evil.example/x'] } });
+        eq(f, { category: '10', topics: ['Electronic_music'] }, 'fields');
+        const out = w.sanitizeBackup({ playlists: [{ id: 'PL_CA', title: 'A', videos: [
+          { videoId: V[0], title: 'a', category: '10', topics: ['Electronic_music', 'bad name', '<x>'] },
+          { videoId: V[1], title: 'b', category: 'ten', topics: 'Music' } ] }] });
+        eq([out.playlists[0].videos[0].category, out.playlists[0].videos[0].topics], ['10', ['Electronic_music']], 'kept, bad topics dropped');
+        return eq([out.playlists[0].videos[1].category, out.playlists[0].videos[1].topics], [undefined, undefined], 'malformed values dropped');
+      }],
+      ['a reload restores them into the details the classifiers read', async w => {
+        const idb = await idbSnapshot(w);
+        const snap = snapshot(w, ['lastBackup', 'lastBackupTimestamp']);
+        try {
+          w.localStorage.removeItem('lastBackup'); w.localStorage.removeItem('lastBackupTimestamp');
+          await w.cacheStore.writeAll(cache());
+          await w.loadBackupFromStorage();
+          const c = w.gsClassifyObj({ contentDetails: { videoId: V[0] }, snippet: { title: 'song' } });
+          return eq([c.categoryId, c.topicCategories], ['10', ['https://en.wikipedia.org/wiki/Electronic_music', 'https://en.wikipedia.org/wiki/Music']]);
+        } finally { restore(w, snap); await idbRestore(w, idb); }
+      }],
+      ['auto-categorise from a full backup makes no videos or videoCategories call', async w => {
+        const r = await categorise(w);
+        eq(r.calls.map(c => c.endpoint), [], 'API calls');
+        return ok(/Musique|Music/.test(r.text) && /Éducation|Education/.test(r.text), 'suggestions: ' + r.text.slice(0, 160));
+      }],
+      ['only the videos the backup does not know are fetched', async w => {
+        const r = await categorise(w, { bare: true });
+        eq(r.calls.map(c => c.endpoint), ['videos'], 'one details call');
+        return eq(r.calls[0].params.id, 'CATvid00009', 'only the unknown video');
+      }],
+    ];
+  })(),
 },
 ];
 

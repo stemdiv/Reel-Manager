@@ -1,5 +1,15 @@
 [
  {
+  "v": "1.27.58",
+  "date": "2026-09-26",
+  "items": [
+   {
+    "fr": "Quota : la catégorie YouTube et les thèmes de chaque vidéo sont désormais gardés dans la sauvegarde et le cache local. Après un rechargement, la catégorisation automatique des playlists, les filtres Type et Catégorie et la détection du genre ne rachètent plus ces informations : seules les vidéos encore inconnues sont demandées à YouTube. La catégorisation n'appelle plus non plus la liste des catégories (les noms sont connus de l'application).",
+    "en": "Quota: each video's YouTube category and topics are now kept in the backup and the local cache. After a reload, playlist auto-categorisation, the Type and Category filters and genre detection no longer buy them again: only videos still unknown are asked from YouTube. Auto-categorisation also no longer calls the categories list (the app knows the names)."
+   }
+  ]
+ },
+ {
   "v": "1.27.57",
   "date": "2026-09-26",
   "items": [
