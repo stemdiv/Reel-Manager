@@ -340,6 +340,66 @@ async function runMerge(w, opts) {
 }
 
 
+// Global search actions, driven through the real UI: playlists and their items
+// come from a stubbed ytApi, the search runs, everything is selected, and the
+// real performSearchAction does the rest. opts.lists: { PL: [[videoId, title]] }.
+async function runSearchAction(w, opts) {
+  const calls = [], toasts = [];
+  const real = { ytApi: w.ytApi, showToast: w.showToast, checkBackupSafety: w.checkBackupSafety,
+                 checkQuotaBudget: w.checkQuotaBudget, confirm: w.confirm,
+                 fetchBookmarkedMetadata: w.fetchBookmarkedMetadata, isBookmarkPlaylist: w.isBookmarkPlaylist };
+  const snap = snapshot(w, ['autoCache', 'recentSearches']);
+  const lists = opts.lists;
+  w.ytApi = async (endpoint, params, method, body) => {
+    method = method || 'GET';
+    calls.push({ endpoint, params: params || {}, method, body });
+    if (endpoint === 'playlists' && method === 'GET') {
+      return { items: Object.keys(lists).map(id => ({ id, snippet: { title: 'T_' + id }, contentDetails: { itemCount: lists[id].length }, status: {} })) };
+    }
+    if (endpoint === 'playlists' && method === 'POST') return { id: 'PL_NEW', snippet: body.snippet };
+    if (endpoint === 'playlistItems' && method === 'GET') {
+      const pid = params.playlistId;
+      return { items: (lists[pid] || []).map(([vid, title]) => ({ id: 'IT_' + pid + '_' + vid,
+        contentDetails: { videoId: vid }, snippet: { title, resourceId: { videoId: vid } } })) };
+    }
+    return {};
+  };
+  w.fetchBookmarkedMetadata = async () => [];
+  w.showToast = (msg, type) => toasts.push({ msg, type });
+  w.checkBackupSafety = () => true;
+  w.checkQuotaBudget = () => true;
+  w.confirm = () => true;
+  if (opts.bookmarks) w.isBookmarkPlaylist = id => opts.bookmarks.includes(id);
+  const d = w.document;
+  try {
+    await w.loadAllPlaylists();
+    for (const id of Object.keys(lists)) await w.loadPlaylistVideos(id, { force: true });
+    d.getElementById('globalSearchInput').value = opts.query;
+    d.getElementById('gsAdvanced').checked = !!opts.advanced;
+    await w.performGlobalSearch();
+    const shown = d.querySelectorAll('#globalSearchResults .gs-select').length;
+    w.gsSelectAll(true);
+    d.getElementById('gsDest').value = opts.dest;
+    if (opts.newName) d.getElementById('gsNewName').value = opts.newName;
+    calls.length = 0;
+    await w.performSearchAction(opts.mode);
+    const posts = calls.filter(c => c.endpoint === 'playlistItems' && c.method === 'POST');
+    return {
+      shown, toasts,
+      created: calls.filter(c => c.endpoint === 'playlists' && c.method === 'POST'),
+      inserts: posts.map(c => c.body.snippet.playlistId + ':' + c.body.snippet.resourceId.videoId),
+      deletes: calls.filter(c => c.method === 'DELETE').map(c => c.params.id),
+    };
+  } finally {
+    Object.assign(w, real);
+    d.getElementById('globalSearchInput').value = '';
+    d.getElementById('gsAdvanced').checked = false;
+    d.getElementById('gsNewName').value = '';
+    w.clearGlobalSearchResults();
+    restore(w, snap);
+  }
+}
+
 // #76 — exercise autoSaveToLocalStorage against a cache seeded on disk. APP is a
 // const, so the in-memory side is seeded through loadPlaylistVideos with a
 // stubbed ytApi, exactly as the move and merge harnesses do.
@@ -3374,7 +3434,7 @@ const SUITES = [
         add_to_playlist: 50, video_update: 50, thumbnail_set: 50, caption_insert: 400, channel_update: 50,
         video_insert: 1, cover_set: 50, reorder_video: 50, rename_playlists: 50, delete_playlists: 50,
         discover_search_pages: 1, move: 100, clean_ghosts: 50, bulk_rename: 50, merge: 50, merge_new: 100,
-        channel_playlists_pages: 1,
+        channel_playlists_pages: 1, playlist_writes: 50,
       };
       const unknown = keys.filter(k => !(k in expected));
       eq(unknown, [], 'pre-flight keys this case does not know — add them to `expected`');
@@ -5098,6 +5158,97 @@ const SUITES = [
         w.persistLog();
         return eq(w.localStorage.getItem('diagnosticLog'), null, 'the diagnostic log came back');
       } finally { restore(w, lsSnap); await idbRestore(w, idb); }
+    }],
+  ],
+},
+{
+  id: 'search-actions', title: 'Global search results can be copied, moved or made into a playlist', note: 'the search found videos across every playlist but offered no action on them; ytApi is stubbed',
+  cases: [
+    ['advanced keywords: all words, -exclude, a|b, "phrase", accents ignored', w => {
+      const m = q => w.makeTitleMatcher(q, true);
+      eq(m('live paris')('Paris — Live 2019'), true, 'both words, any order');
+      eq(m('live paris')('Live in Lyon'), false, 'a missing word');
+      eq(m('live -remix')('Live (Remix)'), false, 'excluded word');
+      eq(m('concert|live')('Concert complet'), true, 'either word');
+      eq(m('"live at"')('Live at Wembley'), true, 'exact phrase');
+      eq(m('"live at"')('At the live show'), false, 'phrase keeps its order');
+      eq(m('-remix')('Original mix'), true, 'exclusion alone keeps the rest');
+      return eq(m('demo')('Démo Serum'), true, 'accents ignored');
+    }],
+    ['plain mode is unchanged: the query is one substring', w => {
+      const m = q => w.makeTitleMatcher(q, false);
+      eq(m('live paris')('Live Paris 2019'), true, 'substring');
+      return eq(m('live paris')('Paris live'), false, 'no reordering in plain mode');
+    }],
+    ['a mixed batch of writes is priced at 50 per call', w => eq(w.estimateQuotaCost('playlist_writes', 3), 150)],
+    ['move: each video leaves its own playlist, duplicates are not re-added', async w => {
+      const r = await runSearchAction(w, {
+        lists: { PL_SA: [['V1', 'zqx one'], ['V2', 'zqx two'], ['V9', 'other']], PL_SB: [['V3', 'zqx three']], PL_SD: [['V2', 'zqx two']] },
+        query: 'zqx', mode: 'move', dest: 'PL_SD',
+      });
+      eq(r.shown, 4, 'results on screen (PL_SD holds one too)');
+      eq(r.inserts, ['PL_SD:V1', 'PL_SD:V3'], 'inserts — V2 is already in the destination');
+      eq(r.deletes.sort(), ['IT_PL_SA_V1', 'IT_PL_SA_V2', 'IT_PL_SB_V3'], 'each removed from its own source, the destination untouched');
+      return ok(!r.toasts.some(x => x.type === 'error' || x.type === 'warning'), JSON.stringify(r.toasts));
+    }],
+    ['copy never deletes', async w => {
+      const r = await runSearchAction(w, {
+        lists: { PL_SA: [['V1', 'zqx one']], PL_SB: [['V3', 'zqx three']], PL_SD: [] },
+        query: 'zqx', mode: 'copy', dest: 'PL_SD',
+      });
+      eq(r.inserts, ['PL_SD:V1', 'PL_SD:V3'], 'inserts');
+      return eq(r.deletes, [], 'deletes');
+    }],
+    ['a new playlist is created first, then filled; advanced keywords pick the videos', async w => {
+      const r = await runSearchAction(w, {
+        lists: { PL_SA: [['V1', 'zqx live'], ['V2', 'zqx remix'], ['V4', 'zqx studio']] },
+        query: 'zqx -remix', advanced: true, mode: 'move', dest: '__new__', newName: 'Sorted',
+      });
+      eq(r.shown, 2, 'the excluded word removed one result');
+      eq(r.created.length, 1, 'one playlist created');
+      eq(r.created[0].body.snippet.title, 'Sorted', 'its name');
+      eq(r.created[0].body.status.privacyStatus, 'private', 'created private');
+      eq(r.inserts, ['PL_NEW:V1', 'PL_NEW:V4'], 'inserted into the new playlist');
+      return eq(r.deletes, ['IT_PL_SA_V1', 'IT_PL_SA_V4'], 'removed from the source');
+    }],
+    ['a bookmarked source is copied from, never deleted from', async w => {
+      const r = await runSearchAction(w, {
+        lists: { PL_SA: [['V1', 'zqx one']], PL_BM: [['V5', 'zqx five']], PL_SD: [] },
+        bookmarks: ['PL_BM'], query: 'zqx', mode: 'move', dest: 'PL_SD',
+      });
+      eq(r.inserts, ['PL_SD:V1', 'PL_SD:V5'], 'both inserted');
+      eq(r.deletes, ['IT_PL_SA_V1'], 'only the own playlist is deleted from');
+      return ok(r.toasts.some(x => x.type === 'warning'), 'the bookmark case is not reported');
+    }],
+    ['the Move view filters: only the videos shown and ticked are moved', async w => {
+      const d = w.document;
+      const real = { ytApi: w.ytApi };
+      const snap = snapshot(w, ['autoCache']);
+      w.ytApi = async (endpoint, params, method) => (endpoint === 'playlistItems' && (!method || method === 'GET') && params.playlistId === 'PL_MV')
+        ? { items: [['V1', 'zqx live'], ['V2', 'zqx remix']].map(([vid, title]) => ({ id: 'IT_' + vid, contentDetails: { videoId: vid }, snippet: { title, resourceId: { videoId: vid } } })) }
+        : { items: [] };
+      const src = d.getElementById('moveSourcePlaylist');
+      try {
+        await w.loadPlaylistVideos('PL_MV', { force: true });
+        src.insertAdjacentHTML('beforeend', '<option value="PL_MV">mv</option>');
+        src.value = 'PL_MV';
+        await w.loadPlaylistVideosForMove();
+        w.moveSelectVisible(true);                                   // both ticked
+        d.getElementById('moveKeywords').value = '-remix';
+        w.renderMoveVideos();
+        const shown = [...d.querySelectorAll('#moveVideosList .move-video-select:checked')].map(cb => cb.value);
+        eq(shown, ['V1'], 'ticked and visible after the filter');
+        d.getElementById('moveKeywords').value = '';
+        w.renderMoveVideos();
+        return eq([...d.querySelectorAll('#moveVideosList .move-video-select:checked')].map(cb => cb.value), ['V1', 'V2'], 'hidden ticks come back with the filter off');
+      } finally {
+        d.getElementById('moveKeywords').value = '';
+        src.querySelector('option[value="PL_MV"]')?.remove();
+        src.value = '';
+        await w.loadPlaylistVideosForMove();
+        Object.assign(w, real);
+        restore(w, snap);
+      }
     }],
   ],
 },

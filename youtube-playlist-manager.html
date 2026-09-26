@@ -1736,7 +1736,18 @@
             <span data-i18n="btn_load_thumbnails">Load thumbnails</span>
           </button>
         </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;">
+          <label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer;color:var(--text2);">
+            <input type="checkbox" id="gsAdvanced" onchange="onGsAdvancedChange()" style="accent-color:var(--accent);">
+            <span data-i18n="search_advanced">Recherche avancée</span>
+          </label>
+          <span id="gsAdvancedHint" class="text-muted" style="display:none;font-size:12px;" data-i18n="search_advanced_hint">Plusieurs mots : tous requis · -mot : exclure · a|b : l'un ou l'autre · "expression exacte"</span>
+        </div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin:14px 0;padding:12px;background:var(--surface2);border-radius:var(--radius);">
+          <div><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="search_tag">Tag</label>
+            <select class="form-control" id="gsTag" style="padding:6px 10px;font-size:13px;" onfocus="gsRefreshTagOptions()" onchange="performGlobalSearch()">
+              <option value="all" data-i18n="search_tag_all">Tous les tags</option>
+            </select></div>
           <div><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="detail_duration">Durée</label>
             <select class="form-control" id="gsDuration" style="padding:6px 10px;font-size:13px;" onchange="performGlobalSearch()">
               <option value="all" data-i18n="detail_duration_all">Toutes</option>
@@ -1780,7 +1791,20 @@
               <option value="category" data-i18n="detail_sort_category">Catégorie</option>
             </select></div>
         </div>
+        <div id="gsSelectBar" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;font-size:13px;">
+          <button class="btn btn-secondary btn-sm" onclick="gsSelectAll(true)" data-i18n="search_select_all">Tout sélectionner</button>
+          <button class="btn btn-secondary btn-sm" onclick="gsSelectAll(false)" data-i18n="search_select_none">Tout désélectionner</button>
+          <span id="gsResultCount" class="text-muted"></span>
+        </div>
         <div id="globalSearchResults"></div>
+        <div id="gsActionBar" role="region" aria-label="Actions" style="display:none;position:sticky;bottom:0;z-index:5;margin-top:16px;padding:12px;gap:10px;align-items:center;flex-wrap:wrap;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 -4px 16px rgba(0,0,0,.18);">
+          <strong id="gsSelCount" aria-live="polite" style="font-size:13px;"></strong>
+          <select class="form-control" id="gsDest" onchange="gsUpdateActionBar()" style="max-width:260px;padding:6px 10px;font-size:13px;" aria-label="Destination"></select>
+          <input type="text" class="form-control" id="gsNewName" data-i18n-placeholder="merge_dest_name" placeholder="Nom de la nouvelle playlist" oninput="gsUpdateActionBar()" style="display:none;max-width:240px;padding:6px 10px;font-size:13px;">
+          <button class="btn btn-secondary btn-sm" id="gsCopyBtn" onclick="performSearchAction('copy')" data-i18n="search_action_copy">Copier</button>
+          <button class="btn btn-primary btn-sm" id="gsMoveBtn" onclick="performSearchAction('move')" data-i18n="search_action_move">Déplacer</button>
+          <span id="gsCostNote" class="text-muted" style="font-size:12px;"></span>
+        </div>
       </div>
 
       <!-- SUBSCRIPTIONS VIEW -->
@@ -1967,13 +1991,57 @@
               </button>
             </div>
           </div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;padding:12px;background:var(--surface2);border-radius:var(--radius);">
+            <div style="flex:1;min-width:200px;"><label for="moveKeywords" style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="move_keywords">Mots-clés</label>
+              <input type="text" class="form-control" id="moveKeywords" data-i18n-placeholder="move_keywords_placeholder" placeholder="live paris -remix a|b" oninput="renderMoveVideos()" autocomplete="off" style="padding:6px 10px;font-size:13px;"></div>
+            <div><label for="moveDuration" style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="detail_duration">Durée</label>
+              <select class="form-control" id="moveDuration" style="padding:6px 10px;font-size:13px;" onchange="onMoveFilterChange()">
+                <option value="all" data-i18n="detail_duration_all">Toutes</option>
+                <option value="short" data-i18n="detail_duration_short">Court (&lt; 4 min)</option>
+                <option value="medium" data-i18n="detail_duration_medium">Moyen (4-20 min)</option>
+                <option value="long" data-i18n="detail_duration_long">Long (&gt; 20 min)</option>
+                <option value="30_60" data-i18n="search_dur_30_60">Entre 30 et 60 min</option>
+                <option value="gte_1h" data-i18n="search_dur_1h">1 heure et plus</option>
+                <option value="gte_2h" data-i18n="search_dur_2h">2 heures et plus</option>
+                <option value="gt_3h" data-i18n="search_dur_3h">Plus de 3 h</option>
+              </select></div>
+            <div><label for="moveStatus" style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="detail_status">Statut</label>
+              <select class="form-control" id="moveStatus" style="padding:6px 10px;font-size:13px;" onchange="onMoveFilterChange()">
+                <option value="all" data-i18n="detail_status_all">Tous</option>
+                <option value="available" data-i18n="detail_status_available">Disponible</option>
+                <option value="deleted" data-i18n="detail_status_deleted">Supprimée</option>
+                <option value="private" data-i18n="detail_status_private">Privée</option>
+              </select></div>
+            <div><label for="moveType" style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="detail_type">Type de contenu</label>
+              <select class="form-control" id="moveType" style="padding:6px 10px;font-size:13px;" onchange="onMoveFilterChange()">
+                <option value="all" data-i18n="detail_type_all">Tous les types</option>
+                <option value="music" data-i18n="detail_type_music">Musique seulement</option>
+                <option value="nonmusic" data-i18n="detail_type_nonmusic">Exclure musique</option>
+                <option value="notuto" data-i18n="detail_type_notuto">Exclure tutos/démos</option>
+                <option value="short" data-i18n="detail_type_short">Shorts seulement</option>
+                <option value="notshort" data-i18n="detail_type_notshort">Exclure les Shorts</option>
+              </select></div>
+            <div><label for="moveSort" style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="detail_sort">Tri</label>
+              <select class="form-control" id="moveSort" style="padding:6px 10px;font-size:13px;" onchange="onMoveFilterChange()">
+                <option value="relevance" data-i18n="move_sort_playlist">Ordre de la playlist</option>
+                <option value="title_asc" data-i18n="detail_sort_title_asc">Titre A-Z</option>
+                <option value="title_desc" data-i18n="detail_sort_title_desc">Titre Z-A</option>
+                <option value="date_newest" data-i18n="detail_sort_date_new">Ajout récent</option>
+                <option value="date_oldest" data-i18n="detail_sort_date_old">Ajout ancien</option>
+                <option value="duration_asc" data-i18n="detail_sort_dur_asc">Durée croissante</option>
+                <option value="duration_desc" data-i18n="detail_sort_dur_desc">Durée décroissante</option>
+              </select></div>
+          </div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="moveSelectVisible(true)" data-i18n="search_select_all">Tout sélectionner</button>
+            <button class="btn btn-secondary btn-sm" onclick="moveSelectVisible(false)" data-i18n="search_select_none">Tout désélectionner</button>
+            <span id="moveSelCount" class="text-muted" aria-live="polite" style="font-size:12px;margin-right:8px;"></span>
             <label class="form-label" style="margin:0;font-size:12px;color:var(--text2);" data-i18n="move_select_by_category">Sélectionner par catégorie</label>
             <select class="form-control" id="moveCategoryFilter" onchange="onMoveCategorySelect()" style="max-width:280px;padding:6px 10px;font-size:13px;">
               <option value="">— Catégorie —</option>
             </select>
           </div>
-          <div id="moveVideosList"></div>
+          <div id="moveVideosList" onchange="updateMoveSelCount()"></div>
         </div>
         <button class="btn btn-primary" onclick="performMove()">Deplacer</button>
       </div>
@@ -3017,6 +3085,40 @@ const I18N = {
     search_no_result: 'Aucun résultat',
     search_recent: 'Recherches récentes',
     search_clear_all: 'Tout effacer',
+    search_advanced: 'Recherche avancée',
+    search_advanced_hint: 'Plusieurs mots : tous requis · -mot : exclure · a|b : l\'un ou l\'autre · "expression exacte"',
+    search_tag: 'Tag',
+    search_tag_all: 'Tous les tags',
+    search_select_all: 'Tout sélectionner',
+    search_select_none: 'Tout désélectionner',
+    search_select_group: 'Sélectionner les résultats de {title}',
+    search_select_video: 'Sélectionner {title}',
+    search_result_count: '{count} résultat(s)',
+    search_selected_count: '{count} sélectionnée(s)',
+    search_actions_label: 'Actions sur la sélection',
+    search_action_dest: 'Destination…',
+    search_action_copy: 'Copier',
+    search_action_move: 'Déplacer',
+    search_cost_note: 'Coût max : copier {copy} · déplacer {move} unités (les doublons sont ignorés)',
+    search_action_incomplete: 'Choisissez une destination (et un nom pour une nouvelle playlist)',
+    search_action_nothing: 'Rien à faire : la destination contient déjà ces vidéos',
+    search_action_description: 'Créée depuis la recherche globale',
+    search_confirm_move: 'Déplacer {count} vidéo(s) vers « {dest} » ?',
+    search_confirm_copy: 'Copier {count} vidéo(s) vers « {dest} » ?',
+    search_confirm_new: 'Une playlist privée « {name} » sera créée.',
+    search_confirm_calls: '{inserts} ajout(s), {deletes} retrait(s) : {cost} unités de quota',
+    search_confirm_dupes: '{count} déjà présente(s) dans la destination : pas ajoutée(s) à nouveau',
+    search_confirm_bookmarks: '{count} provien(nen)t de playlists en favoris : copiée(s), pas retirée(s) (YouTube le refuse)',
+    search_progress: '{current} / {total}…',
+    search_toast_moved: '{count} vidéo(s) déplacée(s) vers « {dest} »',
+    search_toast_copied: '{count} vidéo(s) copiée(s) vers « {dest} »',
+    search_toast_copy_aborted: 'Copie interrompue : {msg}. {count} copiée(s), {left} non traitée(s)',
+    search_toast_bookmarks: '{count} vidéo(s) de playlists en favoris copiée(s) sans retrait',
+    action_copy: 'Copie de vidéos',
+    move_keywords: 'Mots-clés',
+    move_keywords_placeholder: 'live paris -remix a|b "expression"',
+    move_sort_playlist: 'Ordre de la playlist',
+    move_sel_count: '{selected} cochée(s) · {shown} affichée(s) sur {total}',
 
     // Subscriptions
     subs_title: 'Abonnements',
@@ -3917,6 +4019,40 @@ const I18N = {
     search_no_result: 'No results',
     search_recent: 'Recent searches',
     search_clear_all: 'Clear all',
+    search_advanced: 'Advanced search',
+    search_advanced_hint: 'Several words: all required · -word: exclude · a|b: either · "exact phrase"',
+    search_tag: 'Tag',
+    search_tag_all: 'All tags',
+    search_select_all: 'Select all',
+    search_select_none: 'Clear selection',
+    search_select_group: 'Select the results from {title}',
+    search_select_video: 'Select {title}',
+    search_result_count: '{count} result(s)',
+    search_selected_count: '{count} selected',
+    search_actions_label: 'Actions on the selection',
+    search_action_dest: 'Destination…',
+    search_action_copy: 'Copy',
+    search_action_move: 'Move',
+    search_cost_note: 'Max cost: copy {copy} · move {move} units (duplicates are skipped)',
+    search_action_incomplete: 'Choose a destination (and a name for a new playlist)',
+    search_action_nothing: 'Nothing to do: the destination already holds these videos',
+    search_action_description: 'Created from the global search',
+    search_confirm_move: 'Move {count} video(s) to "{dest}"?',
+    search_confirm_copy: 'Copy {count} video(s) to "{dest}"?',
+    search_confirm_new: 'A private playlist "{name}" will be created.',
+    search_confirm_calls: '{inserts} insert(s), {deletes} removal(s): {cost} quota units',
+    search_confirm_dupes: '{count} already in the destination: not added again',
+    search_confirm_bookmarks: '{count} come(s) from bookmarked playlists: copied, not removed (YouTube refuses it)',
+    search_progress: '{current} / {total}…',
+    search_toast_moved: '{count} video(s) moved to "{dest}"',
+    search_toast_copied: '{count} video(s) copied to "{dest}"',
+    search_toast_copy_aborted: 'Copy stopped: {msg}. {count} copied, {left} not processed',
+    search_toast_bookmarks: '{count} video(s) from bookmarked playlists copied without removal',
+    action_copy: 'Video copy',
+    move_keywords: 'Keywords',
+    move_keywords_placeholder: 'live paris -remix a|b "phrase"',
+    move_sort_playlist: 'Playlist order',
+    move_sel_count: '{selected} ticked · {shown} shown of {total}',
 
     // Subscriptions
     subs_title: 'Subscriptions',
@@ -4647,7 +4783,7 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.55'; // bump per release
+const APP_VERSION = '1.27.56'; // bump per release
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -6490,6 +6626,7 @@ function estimateQuotaCost(action, count) {
     // an unknown key used to fall back to `count`: a 400-unit caption upload was
     // pre-flighted at 1, and every other Studio write at 1 instead of 50.
     'add_to_playlist': count * INSERT,                    // one item into an existing playlist
+    'playlist_writes': count * INSERT,                    // mixed inserts, deletes and a creation — all 50 each (search actions)
     'video_update': count * YT_QUOTA_COSTS['videos.PUT'],
     'thumbnail_set': count * YT_QUOTA_COSTS['thumbnails.POST'],
     'channel_update': count * YT_QUOTA_COSTS['channels.PUT'],
@@ -11466,6 +11603,57 @@ async function deletePlaylist(playlistId) {
 
 let lastSearchVideoIds = []; // Track video IDs from last search for thumbnail loading
 
+// Advanced keyword syntax, shared by the global search and the Move filter:
+// words are all required, -word excludes, a|b accepts either, "exact phrase".
+// Case and accents are ignored, so "demo" also finds "démo".
+function normalizeSearchText(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+function parseSearchQuery(raw) {
+  const groups = [], exclude = [];
+  for (const m of normalizeSearchText(raw).matchAll(/(-?)(?:"([^"]*)"|(\S+))/g)) {
+    const alts = (m[2] !== undefined ? [m[2]] : m[3].replace(/"/g, '').split('|'))
+      .map(s => s.trim()).filter(Boolean);
+    if (!alts.length) continue;
+    if (m[1] === '-') exclude.push(...alts); else groups.push(alts);
+  }
+  return { groups, exclude };
+}
+function matchesSearchQuery(text, parsed) {
+  const s = normalizeSearchText(text);
+  return parsed.groups.every(alts => alts.some(a => s.includes(a))) && !parsed.exclude.some(x => s.includes(x));
+}
+// Plain mode keeps the original behaviour: the whole query as one substring.
+function makeTitleMatcher(raw, advanced) {
+  const q = String(raw || '').toLowerCase().trim();
+  if (!q) return () => true;
+  if (!advanced) return title => String(title || '').toLowerCase().includes(q);
+  const parsed = parseSearchQuery(raw);
+  return title => matchesSearchQuery(title, parsed);
+}
+function gsTitleMatcher() {
+  const input = document.getElementById('globalSearchInput');
+  const adv = document.getElementById('gsAdvanced');
+  return makeTitleMatcher(input ? input.value : '', !!(adv && adv.checked));
+}
+function onGsAdvancedChange() {
+  const adv = document.getElementById('gsAdvanced');
+  const hint = document.getElementById('gsAdvancedHint');
+  if (hint) hint.style.display = adv && adv.checked ? '' : 'none';
+  performGlobalSearch();
+}
+function gsRefreshTagOptions() {
+  const sel = document.getElementById('gsTag'); if (!sel) return;
+  const tags = [...new Set(Object.values(APP.tags || {}).flat().filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const cur = sel.value;
+  sel.innerHTML = '<option value="all">' + escapeHtml(t('search_tag_all')) + '</option>' +
+    tags.map(tag => '<option value="' + escapeHtml(tag) + '">' + escapeHtml(tag) + '</option>').join('');
+  sel.value = tags.includes(cur) ? cur : 'all';
+}
+function gsTagPasses(playlistId, tag) {
+  return tag === 'all' || (APP.tags[playlistId] || []).includes(tag);
+}
+
 function gsVideoId(v) { return (v.contentDetails && v.contentDetails.videoId) || (v.snippet && v.snippet.resourceId && v.snippet.resourceId.videoId) || ''; }
 function gsClassifyObj(v) { const id = gsVideoId(v); const d = videoDetailsCache[id]; return { videoId: id, title: (v.snippet && v.snippet.title) || '', channelTitle: (v.snippet && (v.snippet.videoOwnerChannelTitle || v.snippet.channelTitle)) || '', categoryId: d && d.snippet ? d.snippet.categoryId : undefined, topicCategories: d && d.topicDetails ? d.topicDetails.topicCategories : undefined }; }
 function gsPasses(v, dur, stat, type, cat) {
@@ -11500,7 +11688,8 @@ function gsRefreshCategoryOptions() {
   const sel = document.getElementById('gsCategory'); if (!sel) return;
   const query = (document.getElementById('globalSearchInput') && document.getElementById('globalSearchInput').value.toLowerCase().trim()) || '';
   const counts = {};
-  if (query) { for (const [pid, videos] of Object.entries(APP.allVideos)) { for (const v of videos) { if (((v.snippet && v.snippet.title) || '').toLowerCase().includes(query)) { const d = videoDetailsCache[gsVideoId(v)]; const c = d && d.snippet ? d.snippet.categoryId : undefined; if (c != null) counts[String(c)] = (counts[String(c)] || 0) + 1; } } } }
+  const matches = gsTitleMatcher();
+  if (query) { for (const [pid, videos] of Object.entries(APP.allVideos)) { for (const v of videos) { if (matches((v.snippet && v.snippet.title) || '')) { const d = videoDetailsCache[gsVideoId(v)]; const c = d && d.snippet ? d.snippet.categoryId : undefined; if (c != null) counts[String(c)] = (counts[String(c)] || 0) + 1; } } } }
   const ids = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
   const cur = sel.value; const lbl = t('detail_all_categories');
   let html = '<option value="all">' + lbl + '</option>';
@@ -11512,39 +11701,58 @@ async function onGlobalClassChange() {
   const query = (document.getElementById('globalSearchInput').value || '').toLowerCase().trim();
   if (!query) { performGlobalSearch(); return; }
   const ids = new Set();
-  for (const [pid, videos] of Object.entries(APP.allVideos)) { for (const v of videos) { if (((v.snippet && v.snippet.title) || '').toLowerCase().includes(query)) { const id = gsVideoId(v); if (id) ids.add(id); } } }
+  const matches = gsTitleMatcher();
+  for (const [pid, videos] of Object.entries(APP.allVideos)) { for (const v of videos) { if (matches((v.snippet && v.snippet.title) || '')) { const id = gsVideoId(v); if (id) ids.add(id); } } }
   const need = [...ids].filter(id => { const d = videoDetailsCache[id]; const hasCat = d && d.snippet && d.snippet.categoryId != null; const hasTop = d && d.topicDetails; return !hasCat && !hasTop; });
   if (need.length) { try { showToast(t('toast_analysing_count', { count: need.length }), 'info'); const det = await getVideoDetails(need); Object.assign(videoDetailsCache, det); } catch (e) { console.warn('onGlobalClassChange', e); } }
   gsRefreshCategoryOptions();
   performGlobalSearch();
 }
 
+// Selection in the global search results. Keyed by playlist + item, so the same
+// video found in two playlists is two separate choices (moving it empties both).
+const gsSelected = new Map();   // key -> { sourceId, videoId, itemId }
+let gsResultIndex = new Map();  // key -> { sourceId, videoId, itemId } for what is on screen
+
+function gsItemKey(playlistId, v) { return playlistId + '|' + (v.id || gsVideoId(v)); }
+
+function clearGlobalSearchResults() {
+  document.getElementById('globalSearchResults').innerHTML = '';
+  lastSearchVideoIds = [];
+  gsResultIndex = new Map();
+  gsSelected.clear();
+  const thumbBtn = document.getElementById('loadThumbsBtn');
+  if (thumbBtn) thumbBtn.style.display = 'none';
+  gsUpdateActionBar();
+}
+
 async function performGlobalSearch() {
   const query = document.getElementById('globalSearchInput').value.toLowerCase().trim();
   const thumbBtn = document.getElementById('loadThumbsBtn');
-  if (!query) {
-    document.getElementById('globalSearchResults').innerHTML = '';
-    lastSearchVideoIds = [];
-    if (thumbBtn) thumbBtn.style.display = 'none';
+  const gsTag = document.getElementById('gsTag') ? document.getElementById('gsTag').value : 'all';
+  if (!query && gsTag === 'all') {
+    clearGlobalSearchResults();
     showRecentSearches(); // show full list when input is cleared
     return;
   }
   // Update dropdown filter while typing
-  showRecentSearches();
+  if (query) showRecentSearches();
 
   const gsDur = document.getElementById('gsDuration') ? document.getElementById('gsDuration').value : 'all';
   const gsStat = document.getElementById('gsStatus') ? document.getElementById('gsStatus').value : 'all';
   const gsType = document.getElementById('gsType') ? document.getElementById('gsType').value : 'all';
   const gsCat = document.getElementById('gsCategory') ? document.getElementById('gsCategory').value : 'all';
   const gsSort = document.getElementById('gsSort') ? document.getElementById('gsSort').value : 'relevance';
+  const titleMatches = gsTitleMatcher();
 
   const resultsByPlaylist = {};
 
   for (const [playlistId, videos] of Object.entries(APP.allVideos)) {
     const playlist = APP.playlists.find(p => p.id === playlistId);
     if (!playlist) continue;
+    if (!gsTagPasses(playlistId, gsTag)) continue;
 
-    let matches = videos.filter(v => ((v.snippet && v.snippet.title) || '').toLowerCase().includes(query));
+    let matches = videos.filter(v => titleMatches((v.snippet && v.snippet.title) || ''));
     matches = matches.filter(v => gsPasses(v, gsDur, gsStat, gsType, gsCat));
     matches = gsSortMatches(matches, gsSort);
 
@@ -11554,28 +11762,37 @@ async function performGlobalSearch() {
   }
 
   if (Object.keys(resultsByPlaylist).length === 0) {
+    clearGlobalSearchResults();
     document.getElementById('globalSearchResults').innerHTML = `<p class="text-muted">${t('search_no_result')}</p>`;
-    lastSearchVideoIds = [];
-    if (thumbBtn) thumbBtn.style.display = 'none';
     return;
   }
 
   // Collect all video IDs for thumbnail loading
   lastSearchVideoIds = [];
+  gsResultIndex = new Map();
   const html = Object.entries(resultsByPlaylist).map(([playlistId, { playlist, matches }]) => `
     <div class="search-result-group">
-      <div class="search-result-group-title">${escapeHtml(playlist.snippet.title)} (${matches.length})</div>
+      <div class="search-result-group-title" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" class="gs-group-select" data-playlist-id="${escapeHtml(playlistId)}" onchange="gsToggleGroup(this)"
+          aria-label="${escapeHtml(t('search_select_group', { title: playlist.snippet.title }))}" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;">
+        <span>${escapeHtml(playlist.snippet.title)} (${matches.length})</span>
+      </div>
       <div class="video-grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
         ${matches.map(v => {
           const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
           if (videoId) lastSearchVideoIds.push(videoId);
+          const key = gsItemKey(playlistId, v);
+          if (videoId) gsResultIndex.set(key, { sourceId: playlistId, videoId, itemId: v.id || null });
           const thumbUrl = pickThumb(v.snippet?.thumbnails);
           const channel = v.snippet?.videoOwnerChannelTitle || v.snippet?.channelTitle || '';
           const safeTitle = escapeJsAttr(v.snippet?.title);
           const safeChannel = escapeJsAttr(channel);
           const safeThumb = escapeJsAttr(thumbUrl);
           return `
-          <div class="video-card" data-video-id="${videoId}" data-playlist-id="${playlistId}" style="cursor:pointer;">
+          <div class="video-card" data-video-id="${videoId}" data-playlist-id="${playlistId}" style="cursor:pointer;position:relative;">
+            ${videoId ? `<input type="checkbox" class="gs-select" data-key="${escapeHtml(key)}" onchange="gsToggle(this)"
+              aria-label="${escapeHtml(t('search_select_video', { title: v.snippet?.title || '' }))}"
+              style="position:absolute;top:8px;left:8px;z-index:3;width:18px;height:18px;accent-color:var(--accent);cursor:pointer;">` : ''}
             <div style="position:relative;" onclick="playVideo('${videoId}','${safeTitle}','${safeChannel}','${safeThumb}')">
               ${thumbUrl
                 ? `<img src="${escapeHtml(thumbUrl)}" class="video-thumbnail" alt="${escapeHtml(v.snippet?.title)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
@@ -11597,8 +11814,13 @@ async function performGlobalSearch() {
   document.getElementById('globalSearchResults').innerHTML = html;
   try { gsRefreshCategoryOptions(); } catch (e) { swallow('performGlobalSearch:redraw', e, 'warn'); }
 
+  // Only what is on screen can be acted on: a selection the new filters hide is dropped.
+  for (const key of [...gsSelected.keys()]) if (!gsResultIndex.has(key)) gsSelected.delete(key);
+  document.querySelectorAll('#globalSearchResults .gs-select').forEach(cb => { cb.checked = gsSelected.has(cb.dataset.key); });
+  gsUpdateActionBar();
+
   // Save successful search to recent list and hide dropdown
-  saveRecentSearch(document.getElementById('globalSearchInput').value.trim());
+  if (query) saveRecentSearch(document.getElementById('globalSearchInput').value.trim());
   hideRecentSearches();
 
   // Show the "Load thumbnails" button only if some results lack thumbnails
@@ -11607,6 +11829,163 @@ async function performGlobalSearch() {
       document.querySelectorAll('#globalSearchResults .video-card img.video-thumbnail').length;
     thumbBtn.style.display = (lastSearchVideoIds.length > 0 && hasMissing) ? 'inline-flex' : 'none';
   }
+}
+
+function gsToggle(cb) {
+  const it = gsResultIndex.get(cb.dataset.key);
+  if (cb.checked && it) gsSelected.set(cb.dataset.key, it); else gsSelected.delete(cb.dataset.key);
+  gsUpdateActionBar();
+}
+function gsToggleGroup(groupBox) {
+  groupBox.closest('.search-result-group').querySelectorAll('.gs-select').forEach(cb => {
+    cb.checked = groupBox.checked;
+    const it = gsResultIndex.get(cb.dataset.key);
+    if (cb.checked && it) gsSelected.set(cb.dataset.key, it); else gsSelected.delete(cb.dataset.key);
+  });
+  gsUpdateActionBar();
+}
+function gsSelectAll(on) {
+  document.querySelectorAll('#globalSearchResults .gs-select').forEach(cb => {
+    cb.checked = on;
+    const it = gsResultIndex.get(cb.dataset.key);
+    if (on && it) gsSelected.set(cb.dataset.key, it); else gsSelected.delete(cb.dataset.key);
+  });
+  gsUpdateActionBar();
+}
+
+// Upper bounds for the bar: every item inserted, every removable source item
+// deleted. The confirmation gives the exact figure once duplicates are known.
+function gsEstimateCosts(items, creatingNew) {
+  const write = YT_QUOTA_COSTS['playlistItems.POST'];
+  const removable = items.filter(i => !isBookmarkPlaylist(i.sourceId)).length;
+  const copy = (items.length + (creatingNew ? 1 : 0)) * write;
+  return { copy, move: copy + removable * YT_QUOTA_COSTS['playlistItems.DELETE'] };
+}
+
+function gsUpdateActionBar() {
+  const results = document.getElementById('globalSearchResults');
+  document.querySelectorAll('#globalSearchResults .gs-group-select').forEach(g => {
+    const boxes = [...g.closest('.search-result-group').querySelectorAll('.gs-select')];
+    const on = boxes.filter(b => b.checked).length;
+    g.checked = boxes.length > 0 && on === boxes.length;
+    g.indeterminate = on > 0 && on < boxes.length;
+  });
+  const selBar = document.getElementById('gsSelectBar');
+  if (selBar) selBar.style.display = gsResultIndex.size && results && results.children.length ? 'flex' : 'none';
+  const rc = document.getElementById('gsResultCount');
+  if (rc) rc.textContent = t('search_result_count', { count: gsResultIndex.size });
+
+  const bar = document.getElementById('gsActionBar');
+  if (!bar) return;
+  const n = gsSelected.size;
+  bar.style.display = n ? 'flex' : 'none';
+  if (!n) return;
+  bar.setAttribute('aria-label', t('search_actions_label'));
+  document.getElementById('gsSelCount').textContent = t('search_selected_count', { count: n });
+
+  // Own playlists only: YouTube refuses writes to a bookmarked playlist.
+  const dest = document.getElementById('gsDest');
+  const prev = dest.value;
+  dest.setAttribute('aria-label', t('merge_dest_label'));
+  dest.innerHTML = '<option value="">' + escapeHtml(t('search_action_dest')) + '</option>' +
+    '<option value="__new__">' + escapeHtml(t('merge_dest_new')) + '</option>' +
+    APP.playlists.filter(p => !p._isBookmark)
+      .map(pl => '<option value="' + escapeHtml(pl.id) + '">' + escapeHtml(pl.snippet?.title || pl.id) + '</option>').join('');
+  dest.value = [...dest.options].some(o => o.value === prev) ? prev : '';
+
+  const creatingNew = dest.value === '__new__';
+  const nameInput = document.getElementById('gsNewName');
+  nameInput.style.display = creatingNew ? '' : 'none';
+  const ready = !!dest.value && (!creatingNew || !!nameInput.value.trim());
+  document.getElementById('gsCopyBtn').disabled = !ready;
+  document.getElementById('gsMoveBtn').disabled = !ready;
+  const cost = gsEstimateCosts([...gsSelected.values()], creatingNew);
+  document.getElementById('gsCostNote').textContent = t('search_cost_note', { copy: cost.copy, move: cost.move });
+}
+
+// Copy or move the selected results to one of the user's playlists, or to a new
+// one. Each video leaves its own source playlist; bookmarked sources can only
+// be copied from, and a video the destination already holds is not re-added.
+async function performSearchAction(mode) {
+  const items = [...gsSelected.values()];
+  const destSel = document.getElementById('gsDest').value;
+  const creatingNew = destSel === '__new__';
+  const newName = (document.getElementById('gsNewName').value || '').trim();
+  if (!items.length || !destSel || (creatingNew && !newName)) {
+    showToast(t('search_action_incomplete'), 'error');
+    return;
+  }
+  const remove = mode === 'move';
+  const actionName = t(remove ? 'action_move' : 'action_copy');
+  if (!checkBackupSafety(actionName)) return;
+
+  let plan;
+  try {
+    plan = await planTransfer(items, creatingNew ? null : destSel, { remove });
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+    return;
+  }
+  const writes = plan.inserts + plan.deletes + (creatingNew ? 1 : 0);
+  if (!writes) { showToast(t('search_action_nothing'), 'info'); return; }
+
+  const destTitle = creatingNew ? newName : (APP.playlists.find(p => p.id === destSel)?.snippet?.title || destSel);
+  const lines = [t(remove ? 'search_confirm_move' : 'search_confirm_copy', { count: items.length, dest: destTitle })];
+  if (creatingNew) lines.push(t('search_confirm_new', { name: newName }));
+  lines.push(t('search_confirm_calls', { inserts: plan.inserts, deletes: plan.deletes, cost: estimateQuotaCost('playlist_writes', writes) }));
+  if (plan.skippedDupes) lines.push(t('search_confirm_dupes', { count: plan.skippedDupes }));
+  if (plan.keptInBookmarks) lines.push(t('search_confirm_bookmarks', { count: plan.keptInBookmarks }));
+  lines.push(t('discover_confirm_usage', { current: APP.quota.pool, limit: QUOTA_LIMITS.pool }));
+  if (!confirm(lines.join('\n') + '\n\n' + t('discover_confirm_proceed'))) {
+    showToast(t('toast_cancelled'), 'warning');
+    return;
+  }
+  if (!checkQuotaBudget(actionName, 'playlist_writes', writes)) return;
+
+  const buttons = ['gsCopyBtn', 'gsMoveBtn'].map(id => document.getElementById(id));
+  buttons.forEach(b => { if (b) b.disabled = true; });
+  const note = document.getElementById('gsCostNote');
+  let destId = destSel, res;
+  try {
+    if (creatingNew) {
+      const created = await ytApi('playlists', { part: 'snippet,status' }, 'POST', {
+        snippet: { title: newName, description: t('search_action_description') },
+        status: { privacyStatus: 'private' }
+      });
+      if (!created || !created.id) throw new Error(t('err_playlist_no_id'));
+      destId = created.id;
+      APP.allVideos[destId] = [];
+    }
+    res = await runTransfer(plan, destId, (n, total) => { if (note) note.textContent = t('search_progress', { current: n, total }); });
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+    buttons.forEach(b => { if (b) b.disabled = false; });
+    return;
+  }
+
+  const left = plan.steps.length - res.attempted;
+  if (remove) {
+    const stuck = res.stuck.length;
+    if (res.abortMsg !== null) showToast(t('toast_moved_aborted', { moved: res.done, stuck, left, msg: res.abortMsg }), 'error');
+    else if (stuck) showToast(t('toast_moved_partial', { moved: res.done, stuck }), 'warning');
+    else showToast(t('search_toast_moved', { count: res.done, dest: destTitle }), 'success');
+    if (plan.keptInBookmarks) showToast(t('search_toast_bookmarks', { count: plan.keptInBookmarks }), 'warning');
+  } else if (res.abortMsg !== null) {
+    showToast(t('search_toast_copy_aborted', { count: res.inserted, left, msg: res.abortMsg }), 'error');
+  } else {
+    showToast(t('search_toast_copied', { count: res.inserted, dest: destTitle }), 'success');
+  }
+  if (plan.skippedDupes) showToast(t('toast_merge_skipped', { dupes: plan.skippedDupes }), 'info');
+
+  // runTransfer dropped the touched lists; reload them so the results show the new state.
+  gsSelected.clear();
+  const touched = new Set([destId, ...plan.steps.filter(s => s.remove).map(s => s.sourceId)]);
+  for (const id of touched) {
+    try { await loadPlaylistVideos(id, { force: true }); } catch (e) { swallow('performSearchAction:reload', e, 'warn'); }
+  }
+  if (creatingNew) { document.getElementById('gsNewName').value = ''; document.getElementById('gsDest').value = ''; }
+  buttons.forEach(b => { if (b) b.disabled = false; });
+  performGlobalSearch();
 }
 
 async function loadSearchThumbnails() {
@@ -12708,6 +13087,125 @@ async function performMerge() {
 
 let moveViewMode = 'list'; // 'list' or 'grid'
 let moveVideosCache = []; // cache for current move playlist videos
+const moveSelected = new Set(); // videoIds ticked, kept while filters hide them
+
+function isBookmarkPlaylist(id) { return !!APP.playlists.find(p => p.id === id)?._isBookmark; }
+
+// Shared by Move and the global search actions. items: [{ sourceId, videoId, itemId? }].
+// Decides, from the live lists, what each item needs: an insert unless the
+// destination already has the video (or an earlier item added it), and — when
+// removing — a delete of that exact source item. Bookmarked sources belong to
+// someone else and cannot be deleted from (403): they are copied only.
+// destId null means a playlist about to be created, which holds nothing yet.
+async function planTransfer(items, destId, opts) {
+  const remove = !!(opts && opts.remove);
+  const itemVideoId = v => v.contentDetails?.videoId || v.snippet?.resourceId?.videoId;
+  const inDest = new Set();
+  if (destId) (await loadPlaylistVideos(destId)).forEach(v => inDest.add(itemVideoId(v)));
+  const sourceLists = {};
+  const usedItems = new Set();
+  const plan = { steps: [], inserts: 0, deletes: 0, skippedDupes: 0, keptInBookmarks: 0 };
+  for (const it of items) {
+    const step = { sourceId: it.sourceId, videoId: it.videoId, insert: false, remove: false, keep: false, itemId: null };
+    if (inDest.has(it.videoId)) plan.skippedDupes++;
+    else { step.insert = true; inDest.add(it.videoId); plan.inserts++; }
+    if (remove && it.sourceId !== destId) {
+      if (isBookmarkPlaylist(it.sourceId)) { step.keep = true; plan.keptInBookmarks++; }
+      else {
+        // AUD-14 — through the loader: a list rebuilt from an older cache has no item ids.
+        if (!sourceLists[it.sourceId]) sourceLists[it.sourceId] = await loadPlaylistVideos(it.sourceId);
+        const list = sourceLists[it.sourceId];
+        const hit = (it.itemId && list.find(v => v.id === it.itemId && !usedItems.has(v.id)))
+          || list.find(v => v.id && itemVideoId(v) === it.videoId && !usedItems.has(v.id));
+        step.remove = true;
+        plan.deletes++;
+        if (hit) { step.itemId = hit.id; usedItems.add(hit.id); }
+      }
+    }
+    plan.steps.push(step);
+  }
+  return plan;
+}
+
+// Carries out a plan. A failed insert stops the run: quota, session and rate
+// limits fail the same way for every item after it, and each attempt is charged.
+// AUD-16 — the counters survive the stop, and every touched list is dropped
+// from memory whatever happened, so nothing is shown from a stale copy.
+async function runTransfer(plan, destId, onProgress) {
+  const res = { done: 0, inserted: 0, removed: 0, kept: 0, stuck: [], attempted: 0, abortMsg: null };
+  const touched = new Set([destId, ...plan.steps.filter(s => s.remove).map(s => s.sourceId)]);
+  try {
+    for (const step of plan.steps) {
+      res.attempted++;
+      if (step.insert) {
+        try {
+          await ytApi('playlistItems', { part: 'snippet' }, 'POST', {
+            snippet: { playlistId: destId, resourceId: { kind: 'youtube#video', videoId: step.videoId } }
+          });
+          res.inserted++;
+        } catch (insErr) {
+          res.attempted--;
+          res.abortMsg = insErr.message;
+          log('warn', 'action', 'transfer: insert failed — stopping', { videoId: step.videoId, msg: insErr.message });
+          break;
+        }
+      }
+      if (step.keep) res.kept++;
+      else if (!step.remove) res.done++;
+      else if (!step.itemId) res.stuck.push(step.videoId);   // no playlistItem id to delete with — report, never pretend
+      else {
+        try {
+          await ytApi('playlistItems', { id: step.itemId }, 'DELETE');
+          res.removed++;
+          res.done++;
+        } catch (delErr) {
+          // The copy landed; removing the original failed. Never claim success.
+          log('warn', 'action', 'transfer: source item not removed', { videoId: step.videoId, msg: delErr.message });
+          res.stuck.push(step.videoId);
+        }
+      }
+      if (onProgress) onProgress(res.attempted, plan.steps.length);
+    }
+  } finally {
+    touched.forEach(id => { delete APP.allVideos[id]; });
+    try { await loadAllPlaylists(); } catch (e) { swallow('runTransfer:redraw', e, 'warn'); }
+  }
+  return res;
+}
+
+function moveFilteredVideos() {
+  const val = id => (document.getElementById(id) || {}).value || 'all';
+  const matches = makeTitleMatcher((document.getElementById('moveKeywords') || {}).value || '', true);
+  const list = moveVideosCache.filter(v => gsVideoId(v) && matches((v.snippet && v.snippet.title) || '')
+    && gsPasses(v, val('moveDuration'), val('moveStatus'), val('moveType'), 'all'));
+  return gsSortMatches(list, val('moveSort'));
+}
+
+// Duration, type and duration sorts read videos.list details: fetch the missing
+// ones (1 unit per 50 videos) before filtering, as the category selector does.
+async function onMoveFilterChange() {
+  const val = id => (document.getElementById(id) || {}).value || 'all';
+  const needsDetails = val('moveDuration') !== 'all' || val('moveType') !== 'all' || val('moveSort').startsWith('duration');
+  if (needsDetails && await ensureMoveCategories()) populateMoveCategoryOptions();
+  renderMoveVideos();
+}
+
+function moveSelectVisible(on) {
+  document.querySelectorAll('#moveVideosList .move-video-select').forEach(cb => {
+    cb.checked = on;
+    if (on) moveSelected.add(cb.value); else moveSelected.delete(cb.value);
+  });
+  updateMoveSelCount();
+}
+
+function updateMoveSelCount() {
+  const boxes = [...document.querySelectorAll('#moveVideosList .move-video-select')];
+  boxes.forEach(cb => { if (cb.checked) moveSelected.add(cb.value); else moveSelected.delete(cb.value); });
+  const el = document.getElementById('moveSelCount');
+  if (el) el.textContent = moveVideosCache.length
+    ? t('move_sel_count', { selected: boxes.filter(cb => cb.checked).length, shown: boxes.length, total: moveVideosCache.length })
+    : '';
+}
 
 function setMoveView(mode) {
   moveViewMode = mode;
@@ -12720,24 +13218,33 @@ function setMoveView(mode) {
 
 function renderMoveVideos() {
   const container = document.getElementById('moveVideosList');
+  // Keep the ticks of what is on screen before redrawing; hidden ones stay in the set.
+  updateMoveSelCount();
   if (!moveVideosCache.length) {
     container.innerHTML = `<p class="text-muted">${t('no_video')}</p>`;
+    updateMoveSelCount();
+    return;
+  }
+  const videos = moveFilteredVideos();
+  if (!videos.length) {
+    container.innerHTML = `<p class="text-muted">${t('search_no_result')}</p>`;
+    updateMoveSelCount();
     return;
   }
 
   if (moveViewMode === 'list') {
-    container.innerHTML = moveVideosCache.map(v => `
+    container.innerHTML = videos.map(v => `
       <div class="form-checkbox">
-        <input type="checkbox" value="${v.contentDetails?.videoId}" class="move-video-select">
+        <input type="checkbox" value="${gsVideoId(v)}" class="move-video-select" ${moveSelected.has(gsVideoId(v)) ? 'checked' : ''}>
         <span class="checkbox-label">${escapeHtml(v.snippet?.title)}</span>
       </div>
     `).join('');
   } else {
     container.innerHTML = `<div class="video-grid" style="grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));">
-      ${moveVideosCache.map(v => {
+      ${videos.map(v => {
         const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
         const thumbUrl = pickThumb(v.snippet?.thumbnails);
-        const checked = document.querySelector(`.move-video-select[value="${videoId}"]`)?.checked ? 'checked' : '';
+        const checked = moveSelected.has(videoId) ? 'checked' : '';
         const ytLink = videoId ? `https://www.youtube.com/watch?v=${videoId}` : '#';
         return `<div class="video-card" data-video-id="${videoId}" style="position:relative;">
           <input type="checkbox" value="${videoId}" class="move-video-select" ${checked}
@@ -12762,13 +13269,17 @@ function renderMoveVideos() {
       }).join('')}
     </div>`;
   }
+  updateMoveSelCount();
 }
 
 async function loadPlaylistVideosForMove() {
   const playlistId = document.getElementById('moveSourcePlaylist').value;
+  // A new source starts with nothing ticked.
+  moveSelected.clear();
+  document.getElementById('moveVideosList').innerHTML = '';
   if (!playlistId) {
     moveVideosCache = [];
-    document.getElementById('moveVideosList').innerHTML = '';
+    updateMoveSelCount();
     const thumbBtn = document.getElementById('moveLoadThumbsBtn');
     if (thumbBtn) thumbBtn.style.display = 'none';
     return;
@@ -12865,6 +13376,7 @@ async function onMoveCategorySelect() {
     cb.checked = !!match; if (match) n++;
   });
   sel.disabled = false;
+  updateMoveSelCount();
   try { showToast(t('toast_category_selected', { count: n, category: getCategoryName(val) }), 'success'); } catch (e) { swallow('onMoveCategorySelect:toast', e); }
 }
 
@@ -12880,62 +13392,25 @@ async function performMove() {
   }
   if (!checkQuotaBudget(t('action_move'), 'move', selected.length)) return;
 
-  // AUD-16 — the counters live outside the try: whatever stops the loop, the
-  // report and the cache refresh below still know how far it got.
-  const stuck = [];   // inserted into the destination but still in the source
-  let moved = 0, attempted = 0, abortMsg = null;
+  // #G7: Move once inserted and stopped, so it was a copy. planTransfer/runTransfer
+  // insert, then delete the exact source item, and skip the insert when the
+  // destination already holds the video. A bookmarked source cannot be deleted
+  // from: those items count as stuck (copied, still in the source).
+  let stuck = [], moved = 0, attempted = 0, abortMsg = null;
   try {
-    // #G7: this used to insert into the destination and stop, so "Move" was a
-    // copy — the video stayed in the source too. The quota estimate has always
-    // charged insert + delete per item, so the delete was intended all along.
-    // AUD-14 — through the loader, not straight from APP.allVideos: a list
-    // rebuilt from an older cache has no item ids and is refetched first.
-    const sourceItems = await loadPlaylistVideos(sourceId);
-
-    for (const videoId of selected) {
-      const sourceItem = sourceItems.find(v =>
-        (v.contentDetails?.videoId || v.snippet?.resourceId?.videoId) === videoId);
-
-      // A failed insert stops the run: quota, session and rate limits fail the
-      // same way for every item after it, and each attempt is charged.
-      attempted++;
-      try {
-        await ytApi('playlistItems', { part: 'snippet' }, 'POST', {
-          snippet: {
-            playlistId: destId,
-            resourceId: { kind: 'youtube#video', videoId }
-          }
-        });
-      } catch (insErr) {
-        attempted--;
-        abortMsg = insErr.message;
-        log('warn', 'action', 'move: insert failed — stopping', { videoId, msg: insErr.message });
-        break;
-      }
-
-      if (!sourceItem?.id) {
-        // No playlistItem id to delete with — report rather than pretend.
-        stuck.push(videoId);
-        continue;
-      }
-      try {
-        await ytApi('playlistItems', { id: sourceItem.id }, 'DELETE');
-        moved++;
-      } catch (delErr) {
-        // The copy landed; removing the original failed. Never claim success.
-        log('warn', 'action', 'move: source item not removed', { videoId, msg: delErr.message });
-        stuck.push(videoId);
-      }
-    }
+    const plan = await planTransfer(selected.map(videoId => ({ sourceId, videoId })), destId, { remove: true });
+    const res = await runTransfer(plan, destId);
+    moved = res.done;
+    attempted = res.attempted;
+    abortMsg = res.abortMsg;
+    stuck = res.stuck.concat(plan.steps.filter(s => s.keep).slice(0, res.kept).map(s => s.videoId));
   } catch (err) {
-    abortMsg = err.message;   // the source could not even be loaded
-  } finally {
-    // AUD-16 — both playlists may have changed even when the run stopped
-    // half-way; showing either from memory would show the wrong content.
+    abortMsg = err.message;   // a list could not even be loaded
     delete APP.allVideos[destId];
     delete APP.allVideos[sourceId];
     try { await loadAllPlaylists(); } catch (e) { swallow('performMove:redraw', e, 'warn'); }
   }
+  moveSelected.clear();
 
   if (abortMsg !== null) {
     showToast(t('toast_moved_aborted', { moved, stuck: stuck.length, left: selected.length - attempted, msg: abortMsg }), 'error');

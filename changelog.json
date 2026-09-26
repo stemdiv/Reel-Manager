@@ -1,5 +1,23 @@
 [
  {
+  "v": "1.27.56",
+  "date": "2026-09-26",
+  "items": [
+   {
+    "fr": "Recherche globale : les résultats se sélectionnent (une vidéo, une playlist ou tout), puis se copient ou se déplacent vers une de vos playlists ou vers une nouvelle playlist. Chaque vidéo quitte sa propre playlist d'origine ; celles qui viennent de playlists en favoris sont copiées sans retrait. Le coût en quota s'affiche avant de confirmer, et une vidéo déjà présente dans la destination n'est pas ajoutée une deuxième fois.",
+    "en": "Global search: results can be selected (one video, one playlist or all), then copied or moved to one of your playlists or to a new one. Each video leaves its own source playlist; those from bookmarked playlists are copied without removal. The quota cost is shown before you confirm, and a video the destination already holds is not added twice."
+   },
+   {
+    "fr": "Recherche globale : recherche avancée en option (plusieurs mots tous requis, -mot pour exclure, a|b pour l'un ou l'autre, \"expression exacte\", sans tenir compte des accents) et filtre par tag de playlist.",
+    "en": "Global search: optional advanced search (several words all required, -word to exclude, a|b for either, \"exact phrase\", accents ignored) and a filter by playlist tag."
+   },
+   {
+    "fr": "Déplacer des vidéos : filtres par mots-clés, durée, statut et type, tri, boutons « Tout sélectionner » / « Tout désélectionner » et compteur. Seules les vidéos affichées et cochées sont déplacées, et une vidéo déjà dans la destination n'y est plus ajoutée une seconde fois.",
+    "en": "Move videos: filters by keywords, duration, status and type, sorting, Select all / Clear selection buttons and a counter. Only the videos shown and ticked are moved, and a video already in the destination is no longer added a second time."
+   }
+  ]
+ },
+ {
   "v": "1.27.55",
   "date": "2026-09-24",
   "items": [
