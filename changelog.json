@@ -1,5 +1,45 @@
 [
  {
+  "v": "1.27.55",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "Connexion : passer de Reel Studio à Reel Manager, ou recharger la page, ne déconnecte plus. Le jeton est gardé pour cet onglet seulement, jusqu'à son expiration (1 h) ou la fermeture de l'onglet. Le journal de diagnostic note aussi comment la page a été ouverte et le dernier bouton cliqué avant de la quitter.",
+    "en": "Sign-in: switching from Reel Studio to Reel Manager, or reloading the page, no longer signs you out. The token is kept for this tab only, until it expires (1 h) or the tab closes. The diagnostic log also records how the page was opened and the last control clicked before leaving it."
+   }
+  ]
+ },
+ {
+  "v": "1.27.54",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "Diagnostic du cache : l'erreur « Cannot set properties of null (setting 'textContent') » ne se produit plus quand l'estimation de stockage arrive avant la fin de la lecture du cache (AUD-54).",
+    "en": "Cache diagnostic: the \"Cannot set properties of null (setting 'textContent')\" error no longer occurs when the storage estimate arrives before the cache read ends (AUD-54)."
+   }
+  ]
+ },
+ {
+  "v": "1.27.53",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "Serveur local : LANCER-APP.bat ne s'arrête plus quand le navigateur interrompt une requête, et une page claire remplace « ERR_FAILED » quand le serveur ne répond pas. Reel Studio est aussi disponible hors ligne.",
+    "en": "Local server: LANCER-APP.bat no longer stops when the browser cancels a request, and a clear page replaces \"ERR_FAILED\" when the server is not answering. Reel Studio is also available offline."
+   }
+  ]
+ },
+ {
+  "v": "1.27.52",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "Détection des tutos : les tutoriels de production musicale (pluriels, titres en français, « How I make… », noms de DAW) ne sont plus classés comme musique. Le tri lit aussi les tags, la description et la catégorie (Éducation, Tutoriels, Science) de la vidéo, dans la même requête, sans quota supplémentaire.",
+    "en": "Tutorial detection: music-production tutorials (plurals, French titles, \"How I make…\", DAW names) are no longer classed as music. The check also reads the video's tags, description and category (Education, Howto, Science), from the same request, at no extra quota."
+   }
+  ]
+ },
+ {
   "v": "1.27.51",
   "date": "2026-09-24",
   "items": [

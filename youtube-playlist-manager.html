@@ -4647,7 +4647,7 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.51'; // bump per release
+const APP_VERSION = '1.27.55'; // bump per release
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -4928,11 +4928,46 @@ function applyReadOnlyMode() {
 // #B14 — showAppFromCache() rendered the header as "connected" whatever the
 // token situation, because the token only ever lives in the URL hash and a
 // reload drops it. Say so instead, and offer the way back.
+//
+// Kept for this tab in sessionStorage too: Reel Studio and Reel Manager are
+// separate pages, so every switch between them is a page load, and a token held
+// in memory only was gone after each one ("HORS LIGNE — CACHE LOCAL" seconds
+// after signing in). sessionStorage is per tab and cleared when the tab closes;
+// restoreSessionToken() only brings it back while it is still valid.
+const SESSION_TOKEN_KEY = 'accessToken';
 function setAccessToken(token) {
   APP.accessToken = token || '';
   if (!APP.accessToken) APP.tokenExpiresAt = 0;
+  try {
+    if (APP.accessToken) sessionStorage.setItem(SESSION_TOKEN_KEY, APP.accessToken);
+    else { sessionStorage.removeItem(SESSION_TOKEN_KEY); sessionStorage.removeItem('tokenExpiresAt'); }
+  } catch (e) { swallow('setAccessToken:storage', e); }
   applyOfflineCacheState();
   return APP.accessToken;
+}
+
+/**
+ * After a page load with no token in the URL: take this tab's token back if it
+ * still has more than TOKEN_RESTORE_MARGIN_MS to live. A token with no known
+ * expiry is not restored — nothing says it is still good.
+ */
+function restoreSessionToken() {
+  let token = '', exp = NaN;
+  try {
+    token = sessionStorage.getItem(SESSION_TOKEN_KEY) || '';
+    exp = parseInt(sessionStorage.getItem('tokenExpiresAt') || '', 10);
+  } catch (e) { swallow('restoreSessionToken:storage', e); return false; }
+  if (!token) return false;
+  if (!Number.isFinite(exp) || exp - Date.now() < CONFIG.TOKEN_RESTORE_MARGIN_MS) {
+    setAccessToken('');
+    log('info', 'oauth', 'stored token not restored: expired or expiry unknown');
+    return false;
+  }
+  setAccessToken(token);
+  APP.tokenExpiresAt = exp;
+  log('info', 'oauth', 'token restored for this tab', { expiresInMin: Math.round((exp - Date.now()) / 60000) });
+  showApp();
+  return true;
 }
 
 function applyOfflineCacheState() {
@@ -5335,6 +5370,8 @@ var CONFIG = Object.freeze({
   OAUTH_RESUME_WINDOW_MS: 10 * 60 * 1000,   // "action pending" notice after a scope redirect
   TOAST_MS: 3000,
   TOAST_ACTION_MS: 10000,            // a toast you are meant to click must outlast a glance
+  TOKEN_RESTORE_MARGIN_MS: 60 * 1000,  // a stored token this close to expiry is not restored
+  DESCRIPTION_KEEP_CHARS: 1500,      // video description kept in the details cache (tutorial detection)
 });
 
 // A zeroed set of counters, derived from QUOTA_LIMITS so a new bucket does not
@@ -5689,7 +5726,7 @@ async function init() {
   }
   // Diagnostic log (#66) — load persisted tail from previous session first
   loadPersistedLog();
-  log('info', 'app', `init() — v${APP_VERSION}, theme=${APP.theme}, lang pending`);
+  log('info', 'app', `init() — v${APP_VERSION}, theme=${APP.theme}, lang pending`, { navigation: navigationType() });
   // Read-only mode (#43) — apply body class so the pill + write-action hiding take effect
   applyReadOnlyMode();
   // #G11 — move any pre-IndexedDB blob across before reading, so a cache
@@ -6595,7 +6632,7 @@ var APP_STORAGE_KEYS = [   // var: read by tests.html, which cannot see a top-le
   // Reel Studio, same origin
   'studioTheme', 'studioAccents',
 ];
-var APP_SESSION_KEYS = ['loggedOut', 'pendingActionAfterOAuth', 'tokenExpiresAt', 'oauthState'];
+var APP_SESSION_KEYS = ['loggedOut', 'pendingActionAfterOAuth', 'tokenExpiresAt', 'oauthState', 'accessToken'];
 
 // Set by a final purge: the page is about to reload, and persistLog() on
 // beforeunload must not write the log back into a storage just emptied.
@@ -6654,16 +6691,12 @@ async function runCacheDiagnostic() {
   const backupKB = (backupBytes / 1024).toFixed(1);
   const cacheKB = (cacheBytes / 1024).toFixed(1);
 
-  // Estimate storage limit
-  let storageStatus = '?';
-  if (navigator.storage && navigator.storage.estimate) {
-    navigator.storage.estimate().then(est => {
-      const usedMB = (est.usage / (1024 * 1024)).toFixed(1);
-      const quotaMB = (est.quota / (1024 * 1024)).toFixed(0);
-      const pctUsed = ((est.usage / est.quota) * 100).toFixed(1);
-      document.getElementById('cacheDiagStorage').textContent = `${usedMB} MB / ${quotaMB} MB (${pctUsed}%)`;
-    });
-  }
+  // Estimate storage limit. AUD-54 — started here, written only once the
+  // panel below exists: the IndexedDB reads in between outlast the estimate on
+  // a real library, and writing into the not-yet-rendered span threw.
+  const storageEstimate = (navigator.storage && navigator.storage.estimate)
+    ? navigator.storage.estimate().catch(e => { swallow('runCacheDiagnostic:estimate', e); return null; })
+    : null;
 
   // Manual backup data
   const manualRaw = localStorage.getItem('lastBackup');
@@ -6825,6 +6858,16 @@ async function runCacheDiagnostic() {
     <div><b>Source used at startup:</b> ${manualRaw || cacheRaw ? `<span style="${green}">${manualRaw && (!cacheRaw || new Date(manualTs) >= new Date(cacheTs)) ? 'lastBackup (manual)' : 'autoCache (auto)'}</span>` : `<span style="${red}">none</span>`}</div>
     <div><b>Token:</b> ${APP.accessToken ? `<span style="${green}">present</span> (${APP.accessToken.substring(0, 8)}...)` : `<span style="${red}">absent</span>`}</div>
   `;
+
+  const est = storageEstimate ? await storageEstimate : null;
+  // The view may have been left, or re-run, while the estimate was pending.
+  const span = document.getElementById('cacheDiagStorage');
+  if (!span) return;
+  if (!est || !est.quota) { span.textContent = '?'; return; }
+  const usedMB = (est.usage / (1024 * 1024)).toFixed(1);
+  const quotaMB = (est.quota / (1024 * 1024)).toFixed(0);
+  const pctUsed = ((est.usage / est.quota) * 100).toFixed(1);
+  span.textContent = `${usedMB} MB / ${quotaMB} MB (${pctUsed}%)`;
 }
 
 function updateBackupIndicator() {
@@ -7075,6 +7118,7 @@ function checkAuth() {
       return;
     }
   }
+  if (!hash) restoreSessionToken();
 }
 
 function handleLogout() {
@@ -8277,11 +8321,18 @@ async function getVideoDetails(videoIds) {
         part: 'contentDetails,snippet,topicDetails,player',
         id: batch.join(','),
         maxHeight: 8192,
-        fields: 'items(id,contentDetails(duration),snippet(title,channelTitle,thumbnails(medium(url),high(url),default(url),fhd(url),qhd(url)),categoryId),topicDetails(topicCategories),player(embedHeight,embedWidth))',
+        // tags and description feed the tutorial detection (classifyVideoType):
+        // same request, same quota cost.
+        fields: 'items(id,contentDetails(duration),snippet(title,channelTitle,description,tags,thumbnails(medium(url),high(url),default(url),fhd(url),qhd(url)),categoryId),topicDetails(topicCategories),player(embedHeight,embedWidth))',
       });
       data.items?.forEach(item => {
         item._isShort = detectShort(item.player?.embedWidth, item.player?.embedHeight,
                                     parseDuration(item.contentDetails?.duration || ''));
+        // Descriptions run to 5 000 characters and the cache can hold thousands
+        // of videos; the phrases the classifier looks for sit near the top.
+        if (item.snippet && typeof item.snippet.description === 'string') {
+          item.snippet.description = item.snippet.description.slice(0, CONFIG.DESCRIPTION_KEEP_CHARS);
+        }
         details[item.id] = item;
       });
     } catch (err) {
@@ -10637,6 +10688,76 @@ function withFeat(artist, feat) {
   return a ? `${a} feat. ${feat}` : `feat. ${feat}`;
 }
 
+// ── Tutorial detection ──────────────────────────────────────────────────────
+// Music-production tutorials look like music to every music signal: category
+// 10, a genre topic, 2–7 minutes, "Artist - Title". The title word list alone
+// let most of them through (plurals, French, "How I make…", DAW names), so the
+// verdict is now a score over what the details request already returns: title,
+// tags, description and category. 1 or more is a tutorial. A strong title word
+// still decides alone, unless the description reads like a release.
+//
+// \b is ASCII-only in JS ("leçon" has no word boundary after "le"), hence the
+// Unicode letter/number lookarounds.
+function wordsRe(alternation) {
+  return new RegExp(`(?<![\\p{L}\\p{N}])(?:${alternation})(?![\\p{L}\\p{N}])`, 'iu');
+}
+const TUTORIAL_STRONG_RE = wordsRe([
+  'tutos?', 'tutorials?', 'tutoriels?', 'how ?to', 'howto',
+  'how i (?:make|made|produce|produced|mix|mixed|write|wrote|play|played|use|used)',
+  'reviews?', 'tests?', 'unboxing', 'reactions?', 'r\u00e9actions?', 'vlogs?', 'explained', 'explications?',
+  'cours', 'lessons?', 'le\u00e7ons?', 'guides?', 'setup', 'walkthrough', 'gameplay', 'podcasts?', 'interviews?',
+  'demos?', 'd\u00e9mos?', 'previews?', 'astuces?', 'tips', 'mixing', 'mastering', 'mixdown',
+  'courses?', 'beginners?', 'd\u00e9butants?', 'workflow', 'masterclass(?:es)?',
+  'learn (?:how|to (?:play|make|produce|mix)|ableton|fl studio|logic|piano|guitar|drums|bass|music production)',
+  'apprendre (?:\u00e0|a) (?:jouer|faire|mixer|produire|composer|utiliser)', 'comment (?:faire|jouer|cr\u00e9er|produire|mixer|composer)',
+  'sound design', '(?:track|song) breakdown', 'breakdown of', 'from scratch', 'the making of',
+  'making (?:a|an|my|the) (?:\\S+ ){0,2}(?:beats?|tracks?|songs?|tunes?|remix|melod(?:y|ies)|basslines?|leads?|kicks?)',
+].join('|'));
+// Tools, not lessons: a sign, not a verdict ("Ableton live set" is music).
+const TUTORIAL_WEAK_RE = wordsRe('ableton|fl studio|logic pro|bitwig|cubase|pro tools|presets?|plugins?|vsts?|daw|sample packs?');
+const TUTORIAL_DESC_RE = wordsRe([
+  'in this (?:video|tutorial|lesson|course|episode)', 'dans (?:cette|ce) (?:vid\u00e9o|tuto|tutoriel|cours)',
+  'project files?', 'fichiers? (?:du )?projet', 'download (?:the )?(?:project|presets?|samples?)',
+  'sample packs?', 'preset packs?', 'free presets?', 'masterclass', 'online course', 'formation',
+].join('|'));
+const RELEASE_DESC_RE = wordsRe([
+  'provided to youtube by', 'directed by', 'r\u00e9alis\u00e9 par', 'music video by', 'out now',
+  '(?:stream|listen)(?: to)?(?: it| the (?:album|track|song|ep|single))? (?:on|now|here)',
+  'lyrics ?:', 'paroles ?:', 'disponible (?:sur|partout)',
+].join('|'));
+const HOWTO_CATEGORIES = ['26', '27', '28'];   // Howto & Style, Education, Science & Technology
+const TUTORIAL_SIGNALS = {
+  titleStrong: 1.0,
+  titleWeak: 0.6,
+  tagsStrong: 0.6,
+  tagsManyStrong: 1.0,
+  tagsWeak: 0.3,
+  description: 0.5,
+  howtoCategory: 0.5,
+  releaseDescription: -0.5,
+};
+const TUTORIAL_THRESHOLD = 1;
+
+/** ≥ TUTORIAL_THRESHOLD reads as a tutorial. Inputs: title, tags[], description, categoryId. */
+function tutorialScore(v) {
+  v = v || {};
+  const title = String(v.title || '');
+  const tags = Array.isArray(v.tags) ? v.tags.map(String) : [];
+  const desc = String(v.description || '');
+  let score = 0;
+  if (TUTORIAL_STRONG_RE.test(title)) score += TUTORIAL_SIGNALS.titleStrong;
+  else if (TUTORIAL_WEAK_RE.test(title)) score += TUTORIAL_SIGNALS.titleWeak;
+  // One stray tag proves little; tutorials tag themselves several times over.
+  const strongTags = tags.filter(tg => TUTORIAL_STRONG_RE.test(tg)).length;
+  if (strongTags >= 2) score += TUTORIAL_SIGNALS.tagsManyStrong;
+  else if (strongTags === 1) score += TUTORIAL_SIGNALS.tagsStrong;
+  else if (tags.some(tg => TUTORIAL_WEAK_RE.test(tg))) score += TUTORIAL_SIGNALS.tagsWeak;
+  if (TUTORIAL_DESC_RE.test(desc)) score += TUTORIAL_SIGNALS.description;
+  if (HOWTO_CATEGORIES.includes(String(v.categoryId))) score += TUTORIAL_SIGNALS.howtoCategory;
+  if (RELEASE_DESC_RE.test(desc) || desc.includes('℗')) score += TUTORIAL_SIGNALS.releaseDescription;
+  return Math.round(score * 100) / 100;
+}
+
 function classifyVideoType(v) {
   try {
     v = v || {};
@@ -10656,10 +10777,20 @@ function classifyVideoType(v) {
     topics = Array.isArray(topics) ? topics : [];
     const topicSegs = topics.map(u => String(u).split('/').pop());
     const topicIsMusic = topicSegs.some(s => /music/i.test(s) || /^(Jazz|Reggae|Blues|Soul|Country)$/i.test(s));
-    const excludeRe = /\b(tuto|tutorial|tutoriel|how ?to|howto|review|test|unboxing|reaction|r\u00e9action|vlog|explained|explication|cours|lesson|guide|setup|walkthrough|gameplay|podcast|interview|demo|d\u00e9mo|preview|astuce|tips|mixing|mastering|course|beginner|workflow)\b/;
+    const cachedSnippet = (() => {
+      try { const d = v.videoId && typeof videoDetailsCache !== 'undefined' ? videoDetailsCache[v.videoId] : null; return (d && d.snippet) || {}; }
+      catch (e) { return {}; }
+    })();
+    const tutScore = tutorialScore({
+      title: v.title,
+      tags: v.tags || cachedSnippet.tags,
+      description: v.description != null ? v.description : cachedSnippet.description,
+      categoryId,
+    });
+    const isTutorial = tutScore >= TUTORIAL_THRESHOLD;
+    const howtoCategory = HOWTO_CATEGORIES.includes(String(categoryId));
     const includeRe = /\b(official (video|music video|audio)|clip officiel|lyric[s]? video|concert|full album|album complet|mix|dj ?set|remix|audio|feat\.?|ft\.?|prod\.?|cover|acoustic|bande originale|ost|soundtrack)\b/;
     const liveRe = /\blive\s*(at|@|in|from|au|aux|à)\b|\(live\)|\[live\]|\blive (session|set|concert|show|performance)\b|\bboiler room\b|\bunplugged\b|\btiny desk\b/;
-    const excludeMatched = excludeRe.test(title);
     const includeMatched = includeRe.test(title) || liveRe.test(title);
     // AUD-25 — the #17 score is one of the signals (Topic channel, category 10,
     // track length, "Artist - Title", long-form penalty), with the category
@@ -10667,20 +10798,22 @@ function classifyVideoType(v) {
     // Tutorials, reviews, podcasts… are not music, whatever else matched —
     // except on an auto-generated "- Topic" channel, which only holds tracks
     // (a song titled "Demo" or "Interlude (Live Review)" is still a song).
-    const excluded = excludeMatched && !isTopicChannel(v.channelTitle || v.videoOwnerChannelTitle || '');
+    const excluded = isTutorial && !isTopicChannel(v.channelTitle || v.videoOwnerChannelTitle || '');
     const isTrack = !excluded && musicScore({ ...v, categoryId }) >= MUSIC_SCORE_THRESHOLD;
-    const isMusic = isTrack || (!excluded && (topicIsMusic || String(categoryId) === '10' || includeMatched));
+    // "mix", "audio", "remix" in an Education or Howto upload is a lesson about
+    // them, not one of them.
+    const isMusic = isTrack || (!excluded && (topicIsMusic || String(categoryId) === '10' || (includeMatched && !howtoCategory)));
     let type;
     if (isMusic && (liveRe.test(title) || /\bconcert\b/.test(title))) type = 'live';
     else if (isMusic) type = 'music';
-    else if (excludeMatched) type = 'tutorial';
+    else if (isTutorial) type = 'tutorial';
     else type = 'other';
     let genre = null;
     if (isMusic) {
       const gseg = topicSegs.find(s => /music/i.test(s) && !/^Music$/i.test(s)) || topicSegs.find(s => /^(Jazz|Reggae|Blues)$/i.test(s));
       if (gseg) genre = GENRE_LABELS[gseg] ? GENRE_LABELS[gseg][currentLang === 'en' ? 1 : 0] : gseg.replace(/_/g, ' ');
     }
-    return { isMusic: isMusic, isTrack: isTrack, type: type, genre: genre };
+    return { isMusic: isMusic, isTrack: isTrack, type: type, genre: genre, tutorialScore: tutScore };
   } catch (e) {
     return { isMusic: false, isTrack: false, type: 'other' };
   }
@@ -15937,8 +16070,34 @@ window.addEventListener('unhandledrejection', (e) => {
   } catch (_) { /* ignore: the logger reporting on itself */ }
 });
 
+// Why did the page go away? A reload, a link to Reel Studio, a sign-in… The
+// log showed page loads nobody could explain, so the last control clicked is
+// kept (its id or handler name, never its text or a full URL) and logged on the
+// way out, and init() logs how the page was reached.
+let _lastClick = null;
+document.addEventListener('click', e => {
+  try {
+    const el = e.target && e.target.closest ? e.target.closest('a,button,[onclick]') : null;
+    if (!el) return;
+    const handler = (el.getAttribute('onclick') || '').match(/^\s*([A-Za-z_$][\w$]*)/);
+    const href = el.tagName === 'A' ? (el.getAttribute('href') || '').split(/[?#]/)[0] : '';
+    _lastClick = { control: el.id || (handler && handler[1]) || el.getAttribute('data-i18n') || el.tagName.toLowerCase(),
+                   href: href || undefined, at: Date.now() };
+  } catch (_) { /* ignore: diagnostics only */ }
+}, true);
+
+function navigationType() {
+  try { const nav = performance.getEntriesByType('navigation')[0]; return nav ? nav.type : 'unknown'; }
+  catch (_) { return 'unknown'; }
+}
+
 // Persist the last N entries on unload so logs survive a refresh/crash
 window.addEventListener('beforeunload', () => {
+  try {
+    log('info', 'app', 'page left', _lastClick
+      ? { lastClick: _lastClick.control, href: _lastClick.href, secondsAgo: Math.round((Date.now() - _lastClick.at) / 1000) }
+      : { lastClick: 'none' });
+  } catch (_) { /* ignore: the logger reporting on itself */ }
   try { persistLog(); } catch (_) { /* ignore: the logger reporting on itself */ }
 });
 </script>

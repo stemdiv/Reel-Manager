@@ -3442,6 +3442,28 @@ const SUITES = [
       } finally { unseedQuota(w, snap); }
     }],
 
+    ['AUD-54 — a storage estimate that beats the IndexedDB read no longer throws', async w => {
+      // The estimate resolves at once; the cache read takes a while, as on a
+      // 2 700-video library. The span it writes into did not exist yet.
+      const storage = w.navigator.storage;
+      const realRead = w.cacheStore.readAll;
+      const errors = [];
+      const onRejection = e => errors.push(String(e.reason && e.reason.message || e.reason));
+      w.addEventListener('unhandledrejection', onRejection);
+      Object.defineProperty(storage, 'estimate', { configurable: true, value: async () => ({ usage: 50 * 1048576, quota: 1000 * 1048576 }) });
+      w.cacheStore.readAll = async () => { await new Promise(r => setTimeout(r, 150)); return realRead.call(w.cacheStore); };
+      try {
+        await w.runCacheDiagnostic();
+        await new Promise(r => setTimeout(r, 50));
+        eq(errors, [], 'unhandled rejections');
+        return eq(w.document.getElementById('cacheDiagStorage').textContent, '50.0 MB / 1000 MB (5.0%)', 'estimate shown');
+      } finally {
+        delete storage.estimate;
+        w.cacheStore.readAll = realRead;
+        w.removeEventListener('unhandledrejection', onRejection);
+      }
+    }],
+
     ['restore cost comes from the cost table, once', async w => {
       eq(w.restoreQuotaCost([{ videos: [1, 2, 3] }, { videos: [4] }]), 2 * 50 + 4 * 50, 'two playlists, four videos');
       const src = await (await fetch('youtube-playlist-manager.html?aud22=' + Date.now())).text();
@@ -4725,6 +4747,136 @@ const SUITES = [
   ],
 },
 {
+  id: 'tab-token', title: 'The sign-in survives a page load in the same tab', note: 'the token lived in memory only: every switch between Reel Studio and Reel Manager is a page load, and each one showed "HORS LIGNE — CACHE LOCAL"',
+  cases: [
+    ['setAccessToken keeps the token for this tab and forgets it on sign-out', w => {
+      const keys = ['accessToken', 'tokenExpiresAt'];
+      const saved = keys.map(k => w.sessionStorage.getItem(k));
+      try {
+        w.setAccessToken('tok-tab-1');
+        eq(w.sessionStorage.getItem('accessToken'), 'tok-tab-1', 'stored');
+        w.sessionStorage.setItem('tokenExpiresAt', String(Date.now() + 3600e3));
+        w.setAccessToken('');
+        return eq(keys.map(k => w.sessionStorage.getItem(k)), [null, null], 'cleared');
+      } finally {
+        w.setAccessToken('');   // the test page never holds a real token
+        keys.forEach((k, i) => saved[i] === null ? w.sessionStorage.removeItem(k) : w.sessionStorage.setItem(k, saved[i]));
+      }
+    }],
+    ['a page load restores a valid token, not an expired or undated one', w => {
+      const keys = ['accessToken', 'tokenExpiresAt'];
+      const saved = keys.map(k => w.sessionStorage.getItem(k));
+      const realShow = w.showApp;
+      let shown = 0;
+      w.showApp = () => { shown++; };
+      const put = (tok, exp) => { w.sessionStorage.setItem('accessToken', tok); if (exp == null) w.sessionStorage.removeItem('tokenExpiresAt'); else w.sessionStorage.setItem('tokenExpiresAt', String(exp)); };
+      try {
+        put('tok-valid', Date.now() + 30 * 60e3);
+        eq(w.restoreSessionToken(), true, 'valid: restored');
+        ok(/^token present, expires in 30 min$/.test(w.tokenStateText()), 'state: ' + w.tokenStateText());
+        eq([shown, w.document.body.classList.contains('offline-cache')], [1, false], 'app shown, no offline pill');
+        w.setAccessToken('');
+        put('tok-old', Date.now() - 1000);
+        eq([w.restoreSessionToken(), w.tokenStateText(), w.sessionStorage.getItem('accessToken')], [false, 'no token — showing local cache', null], 'expired: dropped');
+        put('tok-edge', Date.now() + 30e3);
+        eq(w.restoreSessionToken(), false, 'less than a minute left');
+        put('tok-undated', null);
+        eq(w.restoreSessionToken(), false, 'no known expiry');
+        return eq(shown, 1, 'the app was shown once');
+      } finally {
+        w.showApp = realShow;
+        w.setAccessToken('');
+        keys.forEach((k, i) => saved[i] === null ? w.sessionStorage.removeItem(k) : w.sessionStorage.setItem(k, saved[i]));
+      }
+    }],
+    ['the purge registry covers the stored token', w => ok(w.APP_SESSION_KEYS.includes('accessToken'), 'accessToken missing from APP_SESSION_KEYS')],
+    ['leaving the page logs the last control clicked, without its text', w => {
+      const btn = w.document.createElement('button');
+      btn.id = 'tabTokenProbe';
+      btn.textContent = 'Private playlist title';
+      w.document.body.appendChild(btn);
+      try {
+        const entries = aud10Logged(w, 'page left', () => {
+          btn.click();
+          w.dispatchEvent(new w.Event('beforeunload'));
+        });
+        const last = entries[entries.length - 1];
+        ok(last, 'no "page left" entry');
+        eq(last.data.lastClick, 'tabTokenProbe', 'control');
+        return ok(!JSON.stringify(last).includes('Private playlist title'), 'the button text was logged');
+      } finally { btn.remove(); }
+    }],
+  ],
+},
+{
+  id: 'music-tuto', title: 'Music-production tutorials are not music videos', note: 'the title word list missed plurals, French, "How I make…" and DAW names, and a tutorial filed under Music counted as music',
+  cases: [
+    ['tutorial titles filed under Music are tutorials, not music', w => {
+      const titles = ['Psytrance tutorials part 2', '5 Tutos Ableton', 'Piano lessons for beginners', 'How I make psytrance leads',
+        'Making a Psytrance track in Ableton Live 12', 'Serum sound design: Rolling bass', 'Leçon de guitare - Wonderwall',
+        'Comment faire un kick psytrance', 'Masterclass: Full-On Psytrance', 'Track breakdown: Astrix - Deep Jungle Walk',
+        'FL Studio beat from scratch', 'Learn Ableton in 20 minutes', 'Mixdown in 10 minutes', 'Apprendre \u00e0 mixer en 10 minutes'];
+      const wrong = titles.filter(title => {
+        const c = w.classifyVideoType({ title, categoryId: '10', durationSeconds: 300 });
+        return c.isMusic || c.type !== 'tutorial';
+      });
+      return eq(wrong, [], 'still read as music');
+    }],
+    ['song titles that brush against the word list stay music', w => {
+      const titles = ['Foo Fighters - Learn To Fly (Official HD Video)', 'Foo Fighters - Making A Fire', 'Astrix - Deep Jungle Walk',
+        'Muse - Plug In Baby', 'Stromae - Formidable', 'Beyonc\u00e9 - Formation (Official Video)', 'Coldplay - The Scientist', 'Ableton Live Set - Techno Improvisation'];
+      const wrong = titles.filter(title => !w.classifyVideoType({ title, categoryId: '10', durationSeconds: 240 }).isMusic);
+      return eq(wrong, [], 'lost as music');
+    }],
+    ['tags: one tutorial tag is a hint, two decide', w => {
+      const v = tags => ({ title: 'Rolling Bass', categoryId: '10', durationSeconds: 300, tags });
+      eq(w.classifyVideoType(v(['psytrance tutorial', 'goa'])).isMusic, true, 'one tag');
+      eq(w.classifyVideoType(v(['psytrance tutorial', 'how to make psytrance'])).type, 'tutorial', 'two tags');
+      return eq(w.classifyVideoType({ ...v(['psytrance tutorial']), categoryId: '27' }).type, 'tutorial', 'one tag plus Education');
+    }],
+    ['description: lesson phrases count, a release description counts against', w => {
+      const lesson = 'In this video I show my bass chain.\nDownload the project file below.';
+      eq(w.classifyVideoType({ title: 'Rolling Bass in Ableton', categoryId: '10', durationSeconds: 300, description: lesson }).type, 'tutorial', 'DAW + lesson description');
+      eq(w.classifyVideoType({ title: 'Rolling Bass', categoryId: '10', durationSeconds: 300, description: lesson }).isMusic, true, 'description alone is a hint');
+      const release = 'Provided to YouTube by Label\n\nTest Drive · Artist\n℗ 2020 Label';
+      return eq(w.classifyVideoType({ title: 'Artist - Test Drive', categoryId: '10', durationSeconds: 240, description: release }).isMusic, true, 'a release named "Test Drive"');
+    }],
+    ['Education, Howto and Science categories count against music', w => {
+      eq(w.classifyVideoType({ title: 'Rolling Bass in Ableton', categoryId: '27', durationSeconds: 300 }).type, 'tutorial', 'DAW + Education');
+      eq(w.classifyVideoType({ title: 'Kick and bass audio', categoryId: '26', durationSeconds: 300 }).isMusic, false, '"audio" in a Howto upload');
+      return eq(w.classifyVideoType({ title: 'Kick and bass audio', durationSeconds: 300 }).isMusic, true, '"audio" with no category, as before');
+    }],
+    ['a "- Topic" channel still wins', w => {
+      const c = w.classifyVideoType({ title: 'Tutorial', channelTitle: 'Band - Topic', durationSeconds: 200, tags: ['tutorial', 'lesson'] });
+      return eq([c.isMusic, c.isTrack], [true, true]);
+    }],
+    ['tags and description are read from the details cache', async w => {
+      // Filled the way the app fills it: ensureClassificationData() fetches the
+      // details of what it has not seen, then the classifier gets only an id.
+      const real = w.ytApi;
+      const id = 'musictuto01';
+      try {
+        w.ytApi = async () => ({ items: [{ id, contentDetails: { duration: 'PT5M' },
+          snippet: { title: 'Rolling Bass', categoryId: '10', tags: ['ableton tutorial', 'psytrance tutorial'], description: '' } }] });
+        await w.ensureClassificationData([{ videoId: id, title: 'Rolling Bass' }]);
+      } finally { w.ytApi = real; }
+      return eq(w.classifyVideoType({ videoId: id, title: 'Rolling Bass', durationSeconds: 300 }).type, 'tutorial');
+    }],
+    ['getVideoDetails asks for tags and description, and trims the description', async w => {
+      const real = w.ytApi;
+      let seen = null;
+      try {
+        w.ytApi = async (endpoint, params) => { seen = params; return { items: [
+          { id: 'D1', contentDetails: { duration: 'PT3M' }, snippet: { title: 't', description: 'x'.repeat(5000), tags: ['a'] } }] }; };
+        const d = await w.getVideoDetails(['D1']);
+        ok(/snippet\([^)]*\bdescription\b/.test(seen.fields) && /snippet\([^)]*\btags\b/.test(seen.fields), 'fields=: ' + seen.fields);
+        eq(d.D1.snippet.description.length, w.CONFIG.DESCRIPTION_KEEP_CHARS, 'kept characters');
+        return eq(w.getQuotaCost('videos', 'GET'), { bucket: 'pool', cost: 1 }, 'still one unit');
+      } finally { w.ytApi = real; }
+    }],
+  ],
+},
+{
   id: '#J3', title: 'A playlist\'s shared genre becomes a tag', note: 'the genre from topicDetails was shown as a badge and never written into the tags',
   cases: [
     ['dominantGenre needs two music videos and at least half of them', w => {
@@ -4856,6 +5008,20 @@ const SUITES = [
       eq(await online.fetchEvent('http://app.test/shared/core.js', 'no-cors', 'script'), 'NETWORK', 'online');
       const offline = await aud30Worker('1.2.3', { offline: true });
       return eq(await offline.fetchEvent('http://app.test/shared/core.js', 'no-cors', 'script'), 'CACHED', 'offline');
+    }],
+    ['Reel Studio is pre-cached too', async w => {
+      const sw = await aud30Worker('1.2.3');
+      await sw.fire('install');
+      return ok(sw.added.includes('reel-studio.html'), 'pre-cached: ' + sw.added.join(', '));
+    }],
+    ['server down and nothing cached: a page that says so, not a bare ERR_FAILED', async w => {
+      const sw = await aud30Worker('1.2.3', { offline: true, miss: true });
+      const page = await sw.fetchEvent('http://app.test/reel-studio.html?v=1.2.3', 'navigate');
+      ok(page instanceof Response, 'navigation got: ' + page);
+      eq(page.status, 503, 'status');
+      ok((await page.text()).includes('LANCER-APP.bat'), 'the page does not say what to do');
+      const script = await sw.fetchEvent('http://app.test/shared/core.js', 'no-cors', 'script');
+      return eq([script instanceof Response, script && script.type], [true, 'error'], 'a script gets a network error');
     }],
     ['the app registers the worker with its version', async w => {
       const src = await fetch('youtube-playlist-manager.html?aud30=' + Date.now()).then(r => r.text());
@@ -5228,7 +5394,7 @@ async function aud30Worker(version, opts = {}) {
     open: async name => { rec.opened.push(name); return cache; },
     keys: async () => opts.keys || [],
     delete: async name => { rec.deleted.push(name); return true; },
-    match: async (req, o) => { rec.matched.push({ url: req.url, opts: o }); return 'CACHED'; },
+    match: async (req, o) => { rec.matched.push({ url: req.url, opts: o }); return opts.miss ? undefined : 'CACHED'; },
   };
   const self = {
     location: new URL('http://app.test/sw.js?v=' + version),
