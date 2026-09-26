@@ -424,26 +424,27 @@
   .player-modal-overlay.active { display: flex; }
   .player-modal-overlay.docked {
     inset: auto 16px 16px auto;
-    width: 320px;
+    width: 356px;
     background: none;
     backdrop-filter: none;
     display: block;
     z-index: 450;
   }
   .player-modal-overlay.docked .player-modal {
-    width: 320px; max-width: 320px;
+    width: 356px; max-width: 356px;
     border: 1px solid var(--border);
     box-shadow: 0 12px 32px rgba(0,0,0,.45);
   }
-  /* 320×180 keeps the embed well above the 200 px minimum for its width and is
-     the size the spec recommends. */
-  .player-modal-overlay.docked .player-video-wrap { padding-bottom: 180px; }
+  /* The IFrame API requires a viewport of at least 200×200 — both sides, not
+     just the width. 320×180 fell 20 px short; 356×200 is 16:9 at the minimum
+     height (AUD-28). On a phone the dock is full-width, so still ≥ 200 wide. */
+  .player-modal-overlay.docked .player-video-wrap { padding-bottom: 200px; }
   .player-modal-overlay.docked .player-info { padding: 10px 12px 6px; gap: 2px; }
   .player-modal-overlay.docked .player-title { font-size: 12.5px; }
   .player-modal-overlay.docked .player-channel { font-size: 11px; }
   .player-modal-overlay.docked .player-controls { padding: 0 8px 8px; gap: 4px; }
   .player-modal-overlay.docked .player-controls button { padding: 5px 7px; }
-  /* Speed, position and like do not earn their space at 320 px wide. */
+  /* Speed, position and like do not earn their space at 356 px wide. */
   .player-modal-overlay.docked .player-controls select,
   .player-modal-overlay.docked .player-pos,
   .player-modal-overlay.docked #playerSubscribe { display: none; }
@@ -4411,11 +4412,31 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.3'; // bump per release
+const APP_VERSION = '1.27.8'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.8', date: '2026-09-24', items: [
+    "SECURITE (#G13, rouvert par l audit) — au retour de Google, le jeton restait dans l adresse pendant tout le chargement du cache IndexedDB, avant que checkAuth ne l efface : le journal d erreurs lit l adresse de la page. Le fragment est desormais lu et efface en toute premiere instruction de init(), avant tout appel asynchrone ; le parametre ?bookmark= est conserve pour la suite du demarrage",
+  ]},
+  { v: '1.27.7', date: '2026-09-24', items: [
+    "CGU YOUTUBE (AUD-28) — Reel Studio 0.7.2 : replier le lecteur le faisait glisser hors de l ecran pendant que le son continuait, soit une lecture audio seule. Replier l ancre desormais en bas a droite, video visible en 356 x 200 au-dessus de la barre de lecture ; la musique continue, l image aussi",
+    "Reel Studio met en pause quand l onglet est masque, qu un onglet YouTube soit ouvert ou non : la lecture en arriere-plan d un lecteur integre n est pas autorisee",
+    "Le lecteur ancre de l application passe de 320 x 180 a 356 x 200 : l API IFrame exige au moins 200 x 200, en hauteur comme en largeur",
+  ]},
+  { v: '1.27.6', date: '2026-09-24', items: [
+    "RGPD (AUD-03) — Supprimer mes donnees et la purge automatique a 30 jours tenaient chacune leur propre liste de cles, et les deux avaient derive : dix-sept cles survivaient, dont le journal de diagnostic, les playlists en favori, la langue, les compteurs de quota et les deux reglages de Reel Studio. Un registre unique, APP_STORAGE_KEYS, sert desormais aux deux chemins, sessionStorage compris",
+    "Apres une suppression, le journal ne se reecrit plus au dechargement de la page, et aucune invite de modifications non enregistrees n apparait",
+    "La purge automatique attend la fin du vidage de la base IndexedDB avant de continuer, puis recharge la page : l application gardait en memoire les tags, dossiers et favoris lus avant la purge et pouvait les reecrire",
+  ]},
+  { v: '1.27.5', date: '2026-09-24', items: [
+    "SECURITE (AUD-05) — le titre d une playlist entrait brut dans l attribut title des lignes du tableau de bord et des statistiques. Un guillemet suffisait a ajouter des attributs, onmouseover compris, sans chevron ; une playlist mise en favori porte le titre choisi par son proprietaire, pas par l utilisateur. Les titres sont desormais echappes dans le donut, la legende, les barres, la plus grande playlist, les statistiques, les doublons et les listes du Studio",
+  ]},
+  { v: '1.27.4', date: '2026-09-24', items: [
+    "SECURITE (AUD-04) — sept gestionnaires onclick echappaient l apostrophe d un titre mais pas la barre oblique inverse : un titre finissant par \\ annulait son propre echappement et le reste du titre s executait comme du code, avec le jeton de l utilisateur. Decouvrir (miniature et titre), Deck, Plan de visionnage (grille et liste), file d attente et recherches recentes passent desormais tous par escapeJsAttr, qui double la barre oblique avant de proteger l apostrophe",
+    "Les recherches recentes affichaient aussi la saisie brute dans le HTML ; elle est maintenant echappee",
+  ]},
   { v: '1.27.3', date: '2026-09-16', items: [
     "CORRECTIF — Gestion des tags, Categorisation auto : le scan tournait, consommait du quota, puis Appliquer ne changeait rien. getVideoDetails renvoie un dictionnaire indexe par identifiant de video, pas un tableau ; le forEach echouait des la premiere playlist, le catch avalait l erreur sans un mot dans la console et tout retombait sur la liste de mots-cles. La detection par categorie n avait donc jamais fonctionne",
     "Les mots-cles sont desormais compares mot a mot : tech est contenu dans Techno, ce qui classait une playlist de psytrance en programmation, et son est contenu dans poisson",
@@ -4728,6 +4749,7 @@ function _logRedact(input) {
 
 /** Persist the last N entries to localStorage so logs survive a refresh/crash. */
 function persistLog() {
+  if (_storagePurged) return;   // AUD-03 — deleted means deleted, even on unload
   if (!APP || !Array.isArray(APP.log) || APP.log.length === 0) return;
   try {
     const tail = APP.log.slice(-LOG_CONFIG.persistTail);
@@ -5534,9 +5556,14 @@ async function init() {
   // to the opener and close. Nothing else must run, least of all anything that
   // writes to the shared localStorage.
   if (handleOAuthPopupReturn()) return;
+  // #G13 — take the token out of the URL before the first await. Everything
+  // below until checkAuth() is asynchronous IndexedDB work, and for all of it
+  // the token used to sit in location.href, where the error logger reads it.
+  _oauthHash = takeOAuthHash();
 
-  // Auto-purge if no login for 30+ days
-  checkAutoPurge();
+  // Auto-purge if no login for 30+ days. APP already holds the purged values,
+  // read at parse time, so start again from an empty storage.
+  if (await checkAutoPurge()) { location.reload(); return; }
 
   // Capture deep-link bookmark ID BEFORE checkAuth() strips the URL query
   try {
@@ -6279,17 +6306,9 @@ async function deleteAllUserData() {
     }
   }
 
-  // Clear all localStorage keys used by this app
-  const appKeys = [
-    'youtubeClientId', 'appTheme', 'appSkin', 'appNamedTheme', 'themeAccents', 'customAccent', 'playlistTags', 'tagIcons', 'watchQueue',
-    'playlistFolders', 'folderAssignments', 'folderExpanded', 'deckColumns',
-    'lastBackup', 'lastBackupTimestamp', 'autoCache', 'autoCacheTimestamp',
-    'oauthScope', 'lastLoginTimestamp', 'recentSearches', 'userInfo'
-  ];
-  appKeys.forEach(k => localStorage.removeItem(k));
-  // #G11 — "delete my data" (CR5) has to reach the database, not just the keys.
-  // Awaited: reloading mid-clear would leave half a cache behind.
-  try { await cacheStore.clear(); } catch (_) {}
+  // AUD-03 — one registry for both purge paths, and nothing written back on the
+  // way out: the unload handler would otherwise persist the diagnostic log again.
+  await purgeLocalData({ final: true });
 
   showToast(t('toast_data_deleted'), 'success');
   setTimeout(() => location.reload(), 1500);
@@ -6299,24 +6318,61 @@ async function deleteAllUserData() {
 // AUTO-PURGE (f. données > 30 jours sans reconnexion)
 // ============================================================================
 
-function checkAutoPurge() {
+// Every key this origin writes, the app's and Reel Studio's alike (AUD-03). The
+// two purge paths each kept a list by hand; the lists had drifted apart and
+// between them forgot seventeen keys, the diagnostic log and the bookmarks among
+// them. A key the app starts writing goes here, or the registry test fails.
+var APP_STORAGE_KEYS = [   // var: read by tests.html, which cannot see a top-level const
+  // library, organisation, backups
+  'autoCache', 'autoCacheTimestamp', 'lastBackup', 'lastBackupTimestamp',
+  'playlistTags', 'tagIcons', 'playlistFolders', 'folderAssignments', 'folderExpanded',
+  'bookmarkedPlaylists', 'deckColumns', 'watchQueue', 'recentSearches',
+  'playlistViewMode', 'libraryLens', 'discoverFilters', 'trendingCategory',
+  'showPlaylistViews', 'reelMusicMode',
+  // identity and session
+  'youtubeClientId', 'userInfo', 'oauthScope', 'writeScopeAtLogin', 'lastLoginTimestamp',
+  // appearance and language
+  'appTheme', 'appSkin', 'appNamedTheme', 'themeAccents', 'customAccent', 'appLang',
+  'readOnlyMode',
+  // quota counters and the diagnostic log
+  'quotaState', 'quotaUnits', 'quotaResetDate', 'apiCalls', 'diagnosticLog',
+  // Reel Studio, same origin
+  'studioTheme', 'studioAccents',
+];
+var APP_SESSION_KEYS = ['loggedOut', 'pendingActionAfterOAuth', 'tokenExpiresAt'];
+
+// Set by a final purge: the page is about to reload, and persistLog() on
+// beforeunload must not write the log back into a storage just emptied.
+let _storagePurged = false;
+
+async function purgeLocalData(opts) {
+  if (opts?.final) {
+    _storagePurged = true;
+    APP.log.length = 0;
+    APP_DIRTY = false;     // nothing left to save — no "unsaved changes" prompt
+  }
+  APP_STORAGE_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch (_) {} });
+  APP_SESSION_KEYS.forEach(k => { try { sessionStorage.removeItem(k); } catch (_) {} });
+  // #G11 — the cache is a database, not one of those keys. Awaited: a caller
+  // that reads the cache next must not find half of it.
+  try { await cacheStore.clear(); } catch (_) {}
+}
+
+// ============================================================================
+// AUTO-PURGE (f. données > 30 jours sans reconnexion)
+// ============================================================================
+
+// Resolves true when it purged. The caller reloads: APP was hydrated from the
+// old keys when the script was parsed, and any later save would write them back.
+async function checkAutoPurge() {
   const lastLogin = localStorage.getItem('lastLoginTimestamp');
-  if (!lastLogin) return;
+  if (!lastLogin) return false;
 
   const daysSinceLogin = (Date.now() - new Date(lastLogin).getTime()) / (1000 * 60 * 60 * 24);
-  if (daysSinceLogin > 30) {
-    // Purge all app data silently
-    const appKeys = [
-      'playlistTags', 'tagIcons', 'watchQueue', 'playlistFolders', 'folderAssignments',
-      'folderExpanded', 'deckColumns', 'lastBackup', 'lastBackupTimestamp',
-      'autoCache', 'autoCacheTimestamp', 'oauthScope', 'recentSearches', 'userInfo'
-    ];
-    appKeys.forEach(k => localStorage.removeItem(k));
-    localStorage.removeItem('lastLoginTimestamp');
-    // #G11 — the cache is no longer one of those keys.
-    cacheStore.clear().catch(() => {});
-    console.info('[Auto-purge] Données supprimées après 30 jours sans connexion');
-  }
+  if (!(daysSinceLogin > 30)) return false;
+  await purgeLocalData();
+  console.info('[Auto-purge] Données supprimées après 30 jours sans connexion');
+  return true;
 }
 
 async function runCacheDiagnostic() {
@@ -6679,8 +6735,22 @@ function openOAuthPopup(scope) {
   });
 }
 
+// #G13 — the fragment of an OAuth return, captured and wiped by init() before
+// anything asynchronous runs, then handed to checkAuth().
+let _oauthHash = '';
+
+// Reads the implicit-flow fragment and removes it from the address bar at once.
+// The query string stays: init() still has to read ?bookmark= after this.
+function takeOAuthHash() {
+  const hash = window.location.hash || '';
+  if (!hash.includes('access_token=')) return '';
+  try { window.history.replaceState({}, document.title, window.location.pathname + window.location.search); } catch (_) {}
+  return hash;
+}
+
 function checkAuth() {
-  const hash = window.location.hash;
+  const hash = _oauthHash || window.location.hash;
+  _oauthHash = '';
   if (hash) {
     const params = new URLSearchParams(hash.substring(1));
     setAccessToken(params.get('access_token'));
@@ -8026,7 +8096,7 @@ async function refreshDashboard() {
         <div class="stat-card-value">${totalVideos.toLocaleString().replace(/,/g, ' ')}</div>
         <div class="stat-card-unit">items</div>
       </div>
-      <div class="stat-card-sub">largest: ${largestName.length > 18 ? largestName.slice(0, 18) + '...' : largestName} (${largestCount})</div>
+      <div class="stat-card-sub">largest: ${escapeHtml(largestName.length > 18 ? largestName.slice(0, 18) + '...' : largestName)} (${largestCount})</div>
       <div class="stat-card-visual" style="display:flex;flex-direction:column;gap:3px;">
         ${miniBarsHtml}
       </div>
@@ -8273,7 +8343,7 @@ function generateDashboardCharts() {
       stroke="${rainbowColor(i)}" stroke-width="14"
       stroke-dasharray="${len} ${C}" stroke-dashoffset="${-offset}"
       transform="rotate(-90 ${donutSize/2} ${donutSize/2})">
-      <title>${p.name}: ${p.value} videos</title>
+      <title>${escapeHtml(p.name)}: ${p.value} videos</title>
     </circle>`;
     offset += len;
     return seg;
@@ -8293,9 +8363,9 @@ function generateDashboardCharts() {
   const othersVideos = sortedPl.slice(legendMax).reduce((s, p) => s + p.value, 0);
 
   let legendHtml = legendEntries.map((p, i) =>
-    `<div class="dash-pl-row" data-playlist-id="${p.id}" title="${p.name} — ${t('dashboard_drill_to_library')}" onclick="event.stopPropagation(); drillFromDashboard('${p.id}', 'library')" style="display:flex;align-items:center;gap:8px;font-size:12px;">
+    `<div class="dash-pl-row" data-playlist-id="${p.id}" title="${escapeHtml(p.name)} — ${t('dashboard_drill_to_library')}" onclick="event.stopPropagation(); drillFromDashboard('${p.id}', 'library')" style="display:flex;align-items:center;gap:8px;font-size:12px;">
       <div style="width:10px;height:10px;border-radius:2px;background:${rainbowColor(i)};flex-shrink:0;"></div>
-      <span style="color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.name}</span>
+      <span style="color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.name)}</span>
       <span class="mono" style="font-size:11px;font-weight:500;">${p.value}</span>
     </div>`
   ).join('');
@@ -8312,9 +8382,9 @@ function generateDashboardCharts() {
   const barsMax = sortedPl.length;
   const maxVal = sortedPl.length ? sortedPl[0].value : 1;
   const barsHtml = sortedPl.map((p, i) =>
-    `<div class="dash-pl-row" data-playlist-id="${p.id}" title="${p.name} — ${t('dashboard_drill_to_detail')}" onclick="event.stopPropagation(); drillFromDashboard('${p.id}', 'detail')" style="display:grid;grid-template-columns:1fr 50px;gap:12px;align-items:center;">
+    `<div class="dash-pl-row" data-playlist-id="${p.id}" title="${escapeHtml(p.name)} — ${t('dashboard_drill_to_detail')}" onclick="event.stopPropagation(); drillFromDashboard('${p.id}', 'detail')" style="display:grid;grid-template-columns:1fr 50px;gap:12px;align-items:center;">
       <div style="display:flex;flex-direction:column;gap:4px;">
-        <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;">${p.name}</div>
+        <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;">${escapeHtml(p.name)}</div>
         <div style="height:6px;background:var(--surface3);border-radius:3px;overflow:hidden;">
           <div style="height:100%;width:${Math.max((p.value / maxVal) * 100, 2)}%;background:${rainbowColor(i)};border-radius:3px;"></div>
         </div>
@@ -9002,7 +9072,7 @@ function populateStudioVideoSelects() {
 
   const options = Array.from(allVids.entries())
     .sort((a, b) => a[1].localeCompare(b[1]))
-    .map(([id, title]) => `<option value="${id}">${title.substring(0, 80)}</option>`)
+    .map(([id, title]) => `<option value="${escapeHtml(id)}">${escapeHtml(title.substring(0, 80))}</option>`)
     .join('');
 
   const defaultOpt = `<option value="">-- ${t('studio_select_video')} --</option>`;
@@ -9077,7 +9147,7 @@ function renderStudioThumbGrid(panel) {
     const selected = videoId === currentVal ? ' selected' : '';
     html += `<div class="studio-thumb-item${selected}" onclick="selectStudioThumbVideo('${panel}','${videoId}')" title="${escapeHtml(title)}">
       <img src="${thumbUrl || placeholder}" alt="" onerror="this.src='${placeholder}'">
-      <div class="studio-thumb-title">${title.substring(0, 40)}</div>
+      <div class="studio-thumb-title">${escapeHtml(title.substring(0, 40))}</div>
     </div>`;
   }
   grid.innerHTML = html || '<p class="text-muted" style="font-size:12px;">No videos</p>';
@@ -11300,8 +11370,8 @@ function showRecentSearches() {
     ${filtered.map(s => `
       <div class="recent-search-item" onclick="selectRecentSearch('${escapeJsAttr(s)}')">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
-        <span>${s}</span>
-        <span class="recent-search-remove" onclick="event.stopPropagation();removeRecentSearch('${s.replace(/'/g, "\\'")}')">
+        <span>${escapeHtml(s)}</span>
+        <span class="recent-search-remove" onclick="event.stopPropagation();removeRecentSearch('${escapeJsAttr(s)}')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </span>
       </div>
@@ -11945,7 +12015,7 @@ function renderDiscoverResults(query) {
         onchange="discoverResults[${i}].selected=this.checked;updateDiscoverQuota()"
         style="margin-top:4px;accent-color:var(--accent);width:16px;height:16px;flex-shrink:0;cursor:pointer;">
       <div style="flex-shrink:0;position:relative;display:block;width:160px;cursor:pointer;"
-        onclick="event.stopPropagation();playVideo('${v.videoId}','${(v.title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.channel||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.thumbnail||'').replace(/'/g,"\\'")}')">
+        onclick="event.stopPropagation();playVideo('${escapeJsAttr(v.videoId)}','${escapeJsAttr(v.title)}','${escapeJsAttr(v.channel)}','${escapeJsAttr(v.thumbnail)}')">
         ${v.thumbnail
           ? `<img src="${v.thumbnail}" style="width:160px;aspect-ratio:16/9;object-fit:cover;border-radius:var(--r-sm);display:block;">`
           : `<div style="width:160px;aspect-ratio:16/9;background:var(--surface3);border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--text4);font-size:10px;">No thumb</div>`
@@ -11958,7 +12028,7 @@ function renderDiscoverResults(query) {
       </div>
       <div style="flex:1;min-width:0;">
         <div style="font-weight:600;font-size:13px;color:var(--text);cursor:pointer;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;"
-          onclick="event.stopPropagation();playVideo('${v.videoId}','${(v.title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.channel||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}','${(v.thumbnail||'').replace(/'/g,"\\'")}')">
+          onclick="event.stopPropagation();playVideo('${escapeJsAttr(v.videoId)}','${escapeJsAttr(v.title)}','${escapeJsAttr(v.channel)}','${escapeJsAttr(v.thumbnail)}')">
           ${escapeHtml(v.title)}</div>
         <div style="font-size:11px;color:var(--text2);margin-top:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           ${v.isShort ? shortBadgeHTML() : ''}<span>${escapeHtml(v.channel)}</span>${subscribeButtonHTML(v.channelId, v.channel)}
@@ -12616,7 +12686,7 @@ async function scanDuplicates() {
     const playlistPills = instances.map(inst => {
       const plName = APP.playlists.find(p => p.id === inst.playlistId)?.snippet?.title || 'Unknown';
       return `<span class="tag" style="font-size:11px;display:inline-flex;align-items:center;gap:4px;">
-        ${plName}
+        ${escapeHtml(plName)}
         <button onclick="removeDuplicateFromPlaylist('${inst.itemId}', '${inst.playlistId}', this)" title="${t('duplicate_remove_tooltip')}"
           style="background:none;border:none;color:var(--accent);cursor:pointer;padding:0;line-height:1;font-size:14px;font-weight:600;">&times;</button>
       </span>`;
@@ -12634,7 +12704,7 @@ async function scanDuplicates() {
         </div>
       </a>
       <div style="flex:1;min-width:0;">
-        <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" style="font-weight:600;font-size:13px;margin-bottom:4px;display:block;color:var(--text);text-decoration:none;" title="${t('view_on_youtube')}">${instances[0].title || t('untitled')}</a>
+        <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener" style="font-weight:600;font-size:13px;margin-bottom:4px;display:block;color:var(--text);text-decoration:none;" title="${t('view_on_youtube')}">${escapeHtml(instances[0].title || t('untitled'))}</a>
         <div class="mono" style="font-size:11px;color:var(--text3);margin-bottom:8px;">Apparaît dans ${instances.length} playlists</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;">${playlistPills}</div>
       </div>
@@ -12717,7 +12787,7 @@ function generateStatisticsCharts() {
   const legendHtml = catEntries.map(([label, value], i) =>
     `<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0;">
       <div style="width:10px;height:10px;border-radius:2px;background:${colors[i % colors.length]};flex-shrink:0;"></div>
-      <span style="color:var(--text2);flex:1;">${label}</span>
+      <span style="color:var(--text2);flex:1;">${escapeHtml(label)}</span>
       <span class="mono" style="font-size:11px;font-weight:500;">${value}</span>
     </div>`
   ).join('');
@@ -12727,7 +12797,7 @@ function generateStatisticsCharts() {
   const barsHtml = topPlaylists.map((p, i) =>
     `<div style="display:grid;grid-template-columns:1fr 50px;align-items:center;gap:12px;">
       <div style="display:flex;flex-direction:column;gap:4px;">
-        <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;" title="${p.name}">${p.name}</div>
+        <div style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
         <div style="height:6px;background:var(--surface3);border-radius:3px;overflow:hidden;">
           <div style="height:100%;width:${Math.max((p.value / maxVal) * 100, 2)}%;background:${colors[i % colors.length]};border-radius:3px;transition:width 0.5s;"></div>
         </div>
@@ -13474,9 +13544,9 @@ function renderDeckVideoItem(video) {
   const channel = video.snippet?.videoOwnerChannelTitle || '';
   const videoId = video.snippet?.resourceId?.videoId || video.contentDetails?.videoId || '';
   const shortBadge = isShortVideo(videoId) ? shortBadgeHTML() : '';
-  const escapedTitle = title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-  const escapedChannel = channel.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-  const escapedThumb = thumb.replace(/'/g, "\\'");
+  const escapedTitle = escapeJsAttr(title);
+  const escapedChannel = escapeJsAttr(channel);
+  const escapedThumb = escapeJsAttr(thumb);
 
   return `
     <div class="deck-video-item" style="position:relative;">
@@ -13875,9 +13945,9 @@ function renderWatchVideoSelector(videos) {
       const thumb = pickThumb(v.snippet?.thumbnails);
       const dur = v.contentDetails?.duration || videoDetailsCache[videoId]?.duration || '';
       const durStr = dur ? formatIsoDuration(dur) : '';
-      const escapedTitle = title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-      const escapedChannel = channel.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-      const escapedThumb = thumb.replace(/'/g, "\\'");
+      const escapedTitle = escapeJsAttr(title);
+      const escapedChannel = escapeJsAttr(channel);
+      const escapedThumb = escapeJsAttr(thumb);
 
       return `<div class="watch-thumb-card" data-idx="${i}" onclick="toggleWatchThumbSelect(this)">
         <input type="checkbox" class="watch-thumb-check watch-video-select" value="${videoId}|${escapeHtml(title)}|${escapeHtml(channel)}|${thumb}" onclick="event.stopPropagation();" onchange="toggleWatchThumbSelect(this.closest('.watch-thumb-card'), this.checked)">
@@ -13901,9 +13971,9 @@ function renderWatchVideoSelector(videos) {
       const thumb = pickThumb(v.snippet?.thumbnails);
       const dur = v.contentDetails?.duration || videoDetailsCache[videoId]?.duration || '';
       const durStr = dur ? formatIsoDuration(dur) : '';
-      const escapedTitle = title.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-      const escapedChannel = channel.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-      const escapedThumb = thumb.replace(/'/g, "\\'");
+      const escapedTitle = escapeJsAttr(title);
+      const escapedChannel = escapeJsAttr(channel);
+      const escapedThumb = escapeJsAttr(thumb);
 
       return `<div class="watch-list-item">
         <input type="checkbox" class="watch-video-select" value="${videoId}|${escapeHtml(title)}|${escapeHtml(channel)}|${thumb}" style="accent-color:var(--accent);width:14px;height:14px;flex-shrink:0;">
@@ -13985,9 +14055,9 @@ function addToWatchQueue() {
 
 function refreshWatchQueue() {
   const html = APP.watchQueue.length ? APP.watchQueue.map((item, idx) => {
-    const escapedTitle = (item.title||'').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-    const escapedChannel = (item.channelTitle||'').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-    const escapedThumb = (item.thumbnail||'').replace(/'/g, "\\'");
+    const escapedTitle = escapeJsAttr(item.title);
+    const escapedChannel = escapeJsAttr(item.channelTitle);
+    const escapedThumb = escapeJsAttr(item.thumbnail);
     return `
     <div style="background: var(--surface); border-radius: var(--radius); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; padding: 8px 10px;">
       <span class="mono" style="font-size:10px;color:var(--text4);width:18px;text-align:center;flex-shrink:0;">${idx + 1}</span>

@@ -2388,8 +2388,8 @@ const SUITES = [
 
     ['the docked embed is sized by the stylesheet, not left to chance', w => {
       // The app iframe is display:none in this page, so geometry measures zero;
-      // assert the CSS contract instead. §5 forbids shrinking an embed below
-      // 200×200 and recommends 320×180.
+      // assert the CSS contract instead. The IFrame API requires a viewport of
+      // at least 200×200; the spec's 320×180 fell short on height (AUD-28).
       const rules = [];
       for (const sheet of w.document.styleSheets) {
         let list; try { list = sheet.cssRules; } catch (_) { continue; }
@@ -2397,10 +2397,10 @@ const SUITES = [
       }
       ok(rules.length > 0, 'no docked rules in the stylesheet');
       const widthRule = rules.find(r => r.selectorText.trim() === '.player-modal-overlay.docked');
-      ok(widthRule && widthRule.style.width === '320px', 'docked width: ' + (widthRule && widthRule.style.width));
+      ok(widthRule && widthRule.style.width === '356px', 'docked width: ' + (widthRule && widthRule.style.width));
       const wrapRule = rules.find(r => r.selectorText.includes('.player-video-wrap'));
-      ok(wrapRule && wrapRule.style.paddingBottom === '180px', 'docked embed height: ' + (wrapRule && wrapRule.style.paddingBottom));
-      return '320x180';
+      ok(wrapRule && wrapRule.style.paddingBottom === '200px', 'docked embed height (IFrame API minimum is 200): ' + (wrapRule && wrapRule.style.paddingBottom));
+      return '356x200';
     }],
 
     ['expanding and closing clear the dock', w => {
@@ -2933,7 +2933,342 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-04', title: 'Titles cannot break out of an inline handler', note: 'the hand-rolled escaper turned \' into \\\' and left \\ alone, so a title ending in a backslash ate its own escape',
+  cases: [
+    ['escapeJsAttr round-trips through a real inline handler', w => {
+      const host = w.document.createElement('div');
+      w.document.body.appendChild(host);
+      try {
+        const inputs = ["O'Brien", 'a\\', "\\'", 'He said "hi"', '&quot;', '</span><b>x</b>', HOSTILE_TITLE];
+        for (const s of inputs) {
+          host.innerHTML = `<span onclick="window.__got='${w.escapeJsAttr(s)}'">x</span>`;
+          w.__got = undefined;
+          host.firstChild.click();
+          eq(w.__got, s, 'round-trip of ' + JSON.stringify(s));
+        }
+        return inputs.length + ' strings';
+      } finally { host.remove(); delete w.__got; }
+    }],
+
+    ['a hostile Discover title reaches playVideo intact and runs nothing', async w => {
+      const got = await runDiscoverWithTitle(w, HOSTILE_TITLE, 'Chan\\');
+      ok(got.handlers >= 2, 'expected the thumbnail and the title handlers, found ' + got.handlers);
+      ok(w.__pwn === undefined, 'the title executed as code');
+      got.calls.forEach(c => { eq(c[1], HOSTILE_TITLE, 'title'); eq(c[2], 'Chan\\', 'channel'); });
+      return got.calls.length + ' clicks, title intact';
+    }],
+
+    ['an ordinary apostrophe still plays the right title', async w => {
+      const got = await runDiscoverWithTitle(w, "Don't Stop Me Now", "Queen - Topic");
+      ok(got.calls.length >= 2, 'no playVideo call');
+      return eq(got.calls[0].slice(1, 3), ["Don't Stop Me Now", 'Queen - Topic']);
+    }],
+
+    ['a hostile title in a Deck row reaches playVideo intact', w => {
+      const host = w.document.createElement('div');
+      w.document.body.appendChild(host);
+      const real = w.playVideo;
+      const calls = [];
+      try {
+        w.playVideo = (...a) => { calls.push(a); };
+        host.innerHTML = w.renderDeckVideoItem({ snippet: {
+          title: HOSTILE_TITLE, videoOwnerChannelTitle: 'a\\',
+          resourceId: { videoId: 'VIDdeck0001' }, thumbnails: { medium: { url: 'https://i.ytimg.com/x.jpg' } },
+        } });
+        host.querySelectorAll('[onclick*="playVideo"]').forEach(el => el.click());
+        ok(w.__pwn === undefined, 'the title executed as code');
+        ok(calls.length === 2, 'expected 2 playVideo calls, got ' + calls.length);
+        calls.forEach(c => { eq(c[1], HOSTILE_TITLE, 'title'); eq(c[2], 'a\\', 'channel'); });
+        return 'thumbnail + title';
+      } finally { w.playVideo = real; host.remove(); delete w.__pwn; }
+    }],
+
+    ['no quote-only escaper is left in the app source', async w => {
+      // The bug was a pattern, not a line: seven call sites each carried their own
+      // copy. Any single-quote escape must double backslashes first, which is what
+      // escapeJsAttr() does — the only chain allowed to start a line with it.
+      const src = await (await fetch('youtube-playlist-manager.html?aud04=' + Date.now())).text();
+      const bad = src.split('\n').map((l, i) => [i + 1, l])
+        .filter(([, l]) => l.includes("replace(/'/g"))
+        .filter(([, l]) => !l.trim().startsWith(".replace(/'/g"))       // inside escapeJsAttr's chain
+        .filter(([, l]) => !l.includes('replace(/\\\\/g'));              // backslashes doubled first
+      return eq(bad.map(([n]) => n), [], 'quote-only escapes at lines');
+    }],
+  ],
+},
+{
+  id: 'AUD-05', title: 'Playlist titles cannot add attributes', note: 'a bookmarked playlist is titled by its owner, not by the user — a " in it opened the title="" attribute',
+  cases: [
+    ['the dashboard legend keeps a hostile title inside title=""', async w => {
+      const box = await renderWithPlaylistTitle(w, HOSTILE_ATTR, () => { w.generateDashboardCharts(); return 'dashboardCharts'; });
+      ok(!box.querySelector('[data-pwned]'), 'the title injected an attribute');
+      const rows = [...box.querySelectorAll('[data-playlist-id="PL_aud05"]')];
+      ok(rows.length === 2, 'expected a legend row and a bar row, got ' + rows.length);
+      rows.forEach(r => ok(r.getAttribute('title').startsWith(HOSTILE_ATTR + ' — '), 'title attribute altered: ' + r.getAttribute('title')));
+      ok(box.textContent.includes(HOSTILE_ATTR), 'the title is not shown as text');
+      return 'legend + bars';
+    }],
+
+    ['the statistics view keeps a hostile title inside title=""', async w => {
+      const box = await renderWithPlaylistTitle(w, HOSTILE_ATTR, () => { w.generateStatisticsCharts(); return 'statisticsCharts'; });
+      ok(!box.querySelector('[data-pwned]'), 'the title injected an attribute');
+      const cell = [...box.querySelectorAll('[title]')].find(el => el.getAttribute('title') === HOSTILE_ATTR);
+      return ok(cell && cell.textContent === HOSTILE_ATTR, 'top-playlists row lost the title');
+    }],
+
+    ['markup in a title renders as text on the dashboard', async w => {
+      const title = '<img src=x data-pwned=1>';
+      const box = await renderWithPlaylistTitle(w, title, () => { w.generateDashboardCharts(); return 'dashboardCharts'; });
+      ok(!box.querySelector('[data-pwned]'), 'the title rendered as an element');
+      return ok(box.textContent.includes(title), 'the title is not shown as text');
+    }],
+  ],
+},
+{
+  id: 'AUD-28', title: 'Reel Studio never plays unseen', note: 'collapsing used to slide the video off-screen while the audio went on — audio-only playback',
+  cases: [
+    ['collapsing the player docks the video on screen, at least 200×200', async w => {
+      const f = await openStudio();
+      try {
+        const d = f.contentDocument;
+        d.body.classList.add('has-player');                   // something is loaded
+        d.querySelector('.pb-meta').click();                   // expandPlayer()
+        d.querySelector('.sheet-head .ctrl').click();          // collapsePlayer()
+        ok(d.body.classList.contains('player-docked'), 'collapse did not dock');
+        const r = d.querySelector('.sheet-video').getBoundingClientRect();
+        const vw = f.contentWindow.innerWidth, vh = f.contentWindow.innerHeight;
+        ok(r.width >= 200 && r.height >= 200, 'embed below 200×200: ' + Math.round(r.width) + '×' + Math.round(r.height));
+        ok(r.left >= 0 && r.top >= 0 && r.right <= vw && r.bottom <= vh, 'embed off-screen: ' + JSON.stringify([r.left, r.top, r.right, r.bottom]));
+        return Math.round(r.width) + '×' + Math.round(r.height) + ' on screen';
+      } finally { f.remove(); }
+    }],
+
+    ['a narrow phone still gets a 200×200 embed', async w => {
+      const f = await openStudio(320, 640);
+      try {
+        const d = f.contentDocument;
+        d.body.classList.add('has-player');
+        d.querySelector('.sheet-head .ctrl').click();
+        const r = d.querySelector('.sheet-video').getBoundingClientRect();
+        ok(r.width >= 200 && r.height >= 200, 'embed below 200×200: ' + Math.round(r.width) + '×' + Math.round(r.height));
+        return ok(r.right <= f.contentWindow.innerWidth && r.left >= 0, 'embed overflows a 320 px screen');
+      } finally { f.remove(); }
+    }],
+
+    ['with nothing loaded, collapsing does not dock', async w => {
+      const f = await openStudio();
+      try {
+        const d = f.contentDocument;
+        d.querySelector('.sheet-head .ctrl').click();
+        return ok(!d.body.classList.contains('player-docked'), 'docked an empty player');
+      } finally { f.remove(); }
+    }],
+
+    ['hiding the tab pauses whether or not a YouTube tab is open', async w => {
+      // document.hidden cannot be faked from here; assert the handler has no
+      // other condition, which is exactly what the bug was.
+      const src = await (await fetch('reel-studio.html?aud28=' + Date.now())).text();
+      const m = src.match(/addEventListener\('visibilitychange',\s*\(\)\s*=>\s*\{([^}]*)\}/);
+      ok(m, 'no visibilitychange handler');
+      ok(!/externalTabAlive/.test(m[1]), 'pause still depends on an external tab: ' + m[1].trim());
+      return ok(/document\.hidden\)\s*pauseEmbedded\(\)/.test(m[1]), 'hidden does not pause: ' + m[1].trim());
+    }],
+  ],
+},
+{
+  id: '#G13b', title: 'The token leaves the URL before anything async', note: 'reopened by the audit: init() awaited IndexedDB work first, with the token still in location.href',
+  cases: [
+    ['the OAuth fragment is taken and wiped, the query kept', w => {
+      try {
+        w.history.replaceState({}, '', w.location.pathname + '?bookmark=PLabcdefghijk#access_token=TEST_TOKEN_2&expires_in=3600');
+        const h = w.takeOAuthHash();
+        ok(h.includes('access_token=TEST_TOKEN_2'), 'fragment not returned: ' + h);
+        ok(!w.location.href.includes('access_token'), 'token still in the URL');
+        return eq(w.location.search, '?bookmark=PLabcdefghijk', 'the deep link was lost');
+      } finally { w.history.replaceState({}, '', w.location.pathname); }
+    }],
+
+    ['a fragment without a token is left alone', w => {
+      try {
+        w.history.replaceState({}, '', w.location.pathname + '#/somewhere');
+        eq(w.takeOAuthHash(), '', 'took a fragment with no token');
+        return eq(w.location.hash, '#/somewhere');
+      } finally { w.history.replaceState({}, '', w.location.pathname); }
+    }],
+
+    ['init() takes the fragment before its first await', async w => {
+      const src = await (await fetch('youtube-playlist-manager.html?g13b=' + Date.now())).text();
+      const start = src.indexOf('async function init() {');
+      ok(start > 0, 'init() not found');
+      const body = src.slice(start, src.indexOf('\n}\n', start)).replace(/\/\/.*$/gm, '');   // comments may say "await"
+      const take = body.indexOf('takeOAuthHash()');
+      const firstAwait = body.search(/\bawait\b/);
+      ok(take > 0, 'init() never takes the fragment');
+      return ok(take < firstAwait, 'the fragment is taken after an await');
+    }],
+  ],
+},
+// Keep this suite last: its final case leaves the page in the "about to reload"
+// state a real deletion ends in, where the log no longer persists.
+{
+  id: 'AUD-03', title: 'Delete my data deletes all of it', note: 'two hand-kept key lists had drifted apart and between them forgot seventeen keys',
+  cases: [
+    ['every key the app or Reel Studio writes is in the registry', async w => {
+      const [app, studio] = await Promise.all(['youtube-playlist-manager.html', 'reel-studio.html']
+        .map(f => fetch(f + '?aud03=' + Date.now()).then(r => r.text())));
+      const written = new Set(['diagnosticLog', 'autoCache', 'autoCacheTimestamp']);   // written through constants
+      for (const src of [app, studio]) {
+        for (const m of src.matchAll(/(?:local|session)Storage\.setItem\(\s*'([A-Za-z0-9_]+)'/g)) written.add(m[1]);
+      }
+      const known = new Set([...w.APP_STORAGE_KEYS, ...w.APP_SESSION_KEYS]);
+      eq([...written].filter(k => !known.has(k)).sort(), [], 'written but never purged');
+      return written.size + ' keys written, all registered';
+    }],
+
+    ['the purge empties every registered key and the cache database', async w => {
+      const lsSnap = snapshot(w, w.APP_STORAGE_KEYS);
+      const ssSnap = w.APP_SESSION_KEYS.map(k => [k, w.sessionStorage.getItem(k)]);
+      const idb = await idbSnapshot(w);
+      try {
+        w.APP_STORAGE_KEYS.forEach(k => w.localStorage.setItem(k, 'x'));
+        w.APP_SESSION_KEYS.forEach(k => w.sessionStorage.setItem(k, 'x'));
+        await w.cacheStore.writeAll(SAMPLE_CACHE());
+        await w.purgeLocalData();
+        eq(w.APP_STORAGE_KEYS.filter(k => w.localStorage.getItem(k) !== null), [], 'localStorage keys left');
+        eq(w.APP_SESSION_KEYS.filter(k => w.sessionStorage.getItem(k) !== null), [], 'sessionStorage keys left');
+        const cache = await w.cacheStore.readAll();
+        ok(!cache || !(cache.playlists || []).length, 'the cache database survived');
+        return w.APP_STORAGE_KEYS.length + ' + ' + w.APP_SESSION_KEYS.length + ' keys, database empty';
+      } finally {
+        restore(w, lsSnap);
+        ssSnap.forEach(([k, v]) => v === null ? w.sessionStorage.removeItem(k) : w.sessionStorage.setItem(k, v));
+        await idbRestore(w, idb);
+      }
+    }],
+
+    ['the 30-day auto-purge clears the same keys as Delete my data', async w => {
+      const lsSnap = snapshot(w, w.APP_STORAGE_KEYS);
+      const idb = await idbSnapshot(w);
+      try {
+        w.APP_STORAGE_KEYS.forEach(k => w.localStorage.setItem(k, 'x'));
+        w.localStorage.setItem('lastLoginTimestamp', new Date(Date.now() - 31 * 864e5).toISOString());
+        eq(await w.checkAutoPurge(), true, 'purged after 31 days');
+        return eq(w.APP_STORAGE_KEYS.filter(k => w.localStorage.getItem(k) !== null), [], 'keys left');
+      } finally { restore(w, lsSnap); await idbRestore(w, idb); }
+    }],
+
+    ['no purge before 30 days', async w => {
+      const lsSnap = snapshot(w, ['lastLoginTimestamp', 'playlistTags']);
+      try {
+        w.localStorage.setItem('lastLoginTimestamp', new Date(Date.now() - 29 * 864e5).toISOString());
+        w.localStorage.setItem('playlistTags', '{"PL_keep":["t"]}');
+        eq(await w.checkAutoPurge(), false, 'purged too early');
+        return eq(w.localStorage.getItem('playlistTags'), '{"PL_keep":["t"]}');
+      } finally { restore(w, lsSnap); }
+    }],
+
+    ['after a deletion, unloading the page writes nothing back', async w => {
+      const lsSnap = snapshot(w, w.APP_STORAGE_KEYS);
+      const idb = await idbSnapshot(w);
+      try {
+        await w.purgeLocalData({ final: true });
+        w.log('warn', 'app', 'logged after the purge');
+        w.dispatchEvent(new w.Event('beforeunload', { cancelable: true }));
+        w.persistLog();
+        return eq(w.localStorage.getItem('diagnosticLog'), null, 'the diagnostic log came back');
+      } finally { restore(w, lsSnap); await idbRestore(w, idb); }
+    }],
+  ],
+},
 ];
+
+// AUD-05 — no angle bracket needed: one double quote closes title="" and the
+// rest of the playlist title becomes attributes of the row.
+const HOSTILE_ATTR = 'a" data-pwned="1" onmouseover="window.__pwn=1';
+
+// Seed APP.playlists through the app's own loader (APP is a const this page
+// cannot reach), render, and hand back the container that was written.
+async function renderWithPlaylistTitle(w, title, render) {
+  const real = { ytApi: w.ytApi, showToast: w.showToast };
+  w.showToast = () => {};
+  const answer = items => async (endpoint) => (endpoint === 'playlists' ? { items } : { items: [] });
+  try {
+    w.ytApi = answer([{ id: 'PL_aud05', snippet: { title }, contentDetails: { itemCount: 3 }, status: { privacyStatus: 'public' } }]);
+    await w.loadAllPlaylists();
+    const id = render();
+    const box = w.document.getElementById(id);
+    // Copy out before the library is emptied again, so the assertions read
+    // exactly what was rendered.
+    const copy = w.document.createElement('div');
+    copy.innerHTML = box.innerHTML;
+    box.innerHTML = '';
+    return copy;
+  } finally {
+    w.ytApi = answer([]);
+    try { await w.loadAllPlaylists(); } catch (_) {}
+    Object.assign(w, real);
+  }
+}
+
+// AUD-28 — Reel Studio in a real, laid-out frame. This page hides iframes, so
+// this one is placed off-screen instead, at a size where geometry is real.
+function openStudio(width, height) {
+  return new Promise((resolve, reject) => {
+    const f = document.createElement('iframe');
+    f.style.cssText = 'display:block;position:absolute;left:-12000px;top:0;border:0;' +
+                      'width:' + (width || 1024) + 'px;height:' + (height || 768) + 'px;';
+    f.src = 'reel-studio.html?aud28=' + Date.now();
+    const t = setTimeout(() => reject(new Error('Reel Studio did not load')), 15000);
+    f.addEventListener('load', () => { clearTimeout(t); setTimeout(() => resolve(f), 150); });
+    document.body.appendChild(f);
+  });
+}
+
+// AUD-04 — the payload the old escaper let through: ' became \' but the \ in
+// front of it stayed single, so the pair read as an escaped backslash followed
+// by a real closing quote.
+const HOSTILE_TITLE = "x\\');window.__pwn=1;//";
+
+// Drive the real Discover search with a stubbed ytApi, render the real result
+// card, and click every handler that plays a video. Returns what playVideo got.
+async function runDiscoverWithTitle(w, title, channel) {
+  const snap = seedQuota(w, { pool: 0, search: 0, upload: 0, stats: 0 });
+  const real = { ytApi: w.ytApi, showToast: w.showToast, playVideo: w.playVideo };
+  const host = w.document.createElement('div');
+  host.innerHTML = '<input id="__aud04Q" value="aud04">';
+  w.document.body.appendChild(host);
+  const old = w.document.getElementById('discoverSearchInput');
+  if (old) old.id = '__aud04Parked';
+  w.document.getElementById('__aud04Q').id = 'discoverSearchInput';
+  const calls = [];
+  try {
+    w.ytApi = async (endpoint) => {
+      if (endpoint === 'search') return { items: [{ id: { videoId: 'VIDaud04xx1' } }] };
+      if (endpoint === 'videos') return { items: [{
+        id: 'VIDaud04xx1',
+        snippet: { title, channelTitle: channel, channelId: 'UCaud04', description: '',
+                   thumbnails: { medium: { url: 'https://i.ytimg.com/vi/VIDaud04xx1/mqdefault.jpg' } } },
+        contentDetails: { duration: 'PT3M' }, player: {},
+      }] };
+      return { items: [] };
+    };
+    w.showToast = () => {};
+    w.playVideo = (...a) => { calls.push(a); };
+    delete w.__pwn;
+    await w.performDiscoverSearch();
+    const list = w.document.getElementById('discoverVideosList');
+    const handlers = list ? [...list.querySelectorAll('[onclick*="playVideo"]')] : [];
+    handlers.forEach(el => el.click());
+    return { calls, handlers: handlers.length };
+  } finally {
+    Object.assign(w, real);
+    const list = w.document.getElementById('discoverVideosList');
+    if (list) list.innerHTML = '';
+    host.remove(); if (old) old.id = 'discoverSearchInput';
+    unseedQuota(w, snap);
+  }
+}
 
 
 
