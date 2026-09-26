@@ -1,0 +1,1208 @@
+[
+ {
+  "v": "1.27.51",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "HORS LIGNE (AUD-30) — l’installation du mode hors ligne échouait dès que la feuille de style des polices Google ne pouvait pas être téléchargée ; hors ligne, un lien ?bookmark= ne trouvait pas la page en cache ; et le cache ne changeait de nom qu’à la main. Le cache porte désormais le numéro de version, ne précharge que des fichiers de l’app (dont shared/core.js, nécessaire au démarrage hors ligne), ignore les paramètres d’adresse hors ligne, et les scripts partagés sont toujours pris frais sur le réseau quand il est là",
+    "en": "OFFLINE (AUD-30) — installing offline mode failed whenever the Google Fonts stylesheet could not be downloaded; offline, a ?bookmark= link did not find the cached page; and the cache was only renamed by hand. The cache now carries the version number, pre-caches only the app’s own files (including shared/core.js, needed to start offline), ignores URL parameters when offline, and shared scripts are always fetched fresh from the network when it is available"
+   }
+  ]
+ },
+ {
+  "v": "1.27.50",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "MAINTENANCE (AUD-33) — l’app et Reel Studio 0.7.6 partagent désormais un seul exemplaire de leurs fonctions communes (calculs de couleurs des thèmes, choix des miniatures, lecture des durées), dans shared/core.js. Chaque correction de thème devait jusqu’ici être faite deux fois, et les deux copies avaient commencé à diverger. Aucun changement visible",
+    "en": "MAINTENANCE (AUD-33) — the app and Reel Studio 0.7.6 now share a single copy of their common functions (theme colour maths, thumbnail choice, duration parsing), in shared/core.js. Every theme fix used to be made twice, and the two copies had started to drift apart. No visible change"
+   }
+  ]
+ },
+ {
+  "v": "1.27.49",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "MAINTENANCE (AUD-41) — le journal des modifications n’existait qu’en français, sans accents, et pesait 47 Ko dans chaque chargement de l’app. Il vit désormais dans changelog.json, en français et en anglais, et n’est chargé qu’à l’ouverture de cette fenêtre, dans la langue de l’interface",
+    "en": "MAINTENANCE (AUD-41) — the changelog was French-only, with its accents stripped, and weighed 47 KB in every load of the app. It now lives in changelog.json, in French and English, and is loaded only when this window opens, in the UI language"
+   }
+  ]
+ },
+ {
+  "v": "1.27.48",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "TAGS (#J3) — le genre musical d’une vidéo n’était qu’un badge. La catégorisation automatique propose désormais aussi le genre que partage la musique d’une playlist (au moins deux vidéos, et la moitié d’entre elles), en plus de sa catégorie ; Appliquer écrit les deux tags. Aucun appel supplémentaire",
+    "en": "TAGS (#J3) — a video’s music genre was only a badge. Auto-categorize now also suggests the genre a playlist’s music shares (at least two videos, and half of them), on top of its category; Apply writes both tags. No extra calls"
+   }
+  ]
+ },
+ {
+  "v": "1.27.47",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "MUSIQUE (AUD-25) — le filtre Musique et la vue Musique jugeaient chacun de leur côté et pouvaient se contredire : un titre d’une chaîne « - Topic » sans catégorie était une piste pour l’une et pas de la musique pour l’autre. Un seul classement répond désormais aux deux questions : une piste compte toujours comme musique ; un mix de deux heures reste de la musique sans être une piste ; un cours rangé en Musique n’en est pas",
+    "en": "MUSIC (AUD-25) — the Music filter and the Music view each decided on their own and could contradict each other: a track from a “- Topic” channel with no category was a track for one and not music for the other. One classifier now answers both questions: a track always counts as music; a two-hour mix is still music without being a track; a lesson filed under Music is not music"
+   }
+  ]
+ },
+ {
+  "v": "1.27.46",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "SÉCURITÉ — dans la vue Abonnements, la description d'une chaîne était insérée dans la page sans échappement : une chaîne pouvait y placer du code HTML. Elle s'affiche désormais comme du texte",
+    "en": "SECURITY — in the Subscriptions view, a channel's description was inserted into the page without escaping: a channel could place HTML code in it. It is now displayed as text"
+   }
+  ]
+ },
+ {
+  "v": "1.27.45",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "TRADUCTION (AUD-27, #80) — plus d'une centaine de textes visibles écrits en dur échappaient à la traduction : messages d'erreur et notifications, tuiles du tableau de bord, fenêtres de création et de renommage, gestion des tags, abonnements, statistiques, en-têtes de l'export CSV, genres musicaux, et les huit libellés de classification du #80. Ils suivent tous la langue de l'interface, dates comprises ; les tags proposés par la catégorisation automatique aussi",
+    "en": "TRANSLATION (AUD-27, #80) — more than a hundred hard-coded visible strings escaped translation: error messages and notifications, dashboard tiles, create and rename dialogs, tag management, subscriptions, statistics, CSV export headers, music genres, and the eight classification labels from #80. They all follow the interface language, dates included; so do the tags suggested by automatic categorisation"
+   }
+  ]
+ },
+ {
+  "v": "1.27.44",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "MAINTENANCE (AUD-34) — trois fonctions affichaient la durée d'une vidéo, chacune à sa façon (1h02m ici, 1:02:05 là), et trois autres endroits relisaient le format de durée de YouTube à la main. Une seule fonction de formatage, en deux styles, et une seule de lecture. Les durées s'affichent comme avant ; une diffusion en direct n'affiche plus 0:00 dans le plan de visionnage",
+    "en": "MAINTENANCE (AUD-34) — three functions displayed a video's duration, each in its own way (1h02m here, 1:02:05 there), and three other places parsed YouTube's duration format by hand. A single formatting function, with two styles, and a single parsing one. Durations display as before; a live stream no longer shows 0:00 in the watch plan"
+   }
+  ]
+ },
+ {
+  "v": "1.27.43",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "MAINTENANCE (AUD-36) — 72 blocs de capture d'erreur étaient vides : une erreur y disparaissait sans laisser de trace, comme celle de la catégorisation automatique en 1.27.3. Chacun passe désormais par une fonction unique qui la consigne (dans la console, et dans le journal de diagnostic pour un rafraîchissement d'affichage qui échoue), sans interrompre l'action en cours",
+    "en": "MAINTENANCE (AUD-36) — 72 error-catching blocks were empty: an error vanished there without a trace, like the automatic categorisation one in 1.27.3. Each now goes through a single function that logs it (to the console, and to the diagnostic log for a failed display refresh), without interrupting the action in progress"
+   }
+  ]
+ },
+ {
+  "v": "1.27.42",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "MAINTENANCE (AUD-38, AUD-29) — suppression de code mort : l'ancien mini-lecteur que plus rien n'affichait depuis l'ancrage du lecteur, le minuteur qui ne servait qu'à sa barre de progression, deux fonctions jamais appelées, et une fonction globale masquée par une autre du même nom. Aucun changement visible",
+    "en": "MAINTENANCE (AUD-38, AUD-29) — dead code removed: the old mini-player that nothing had displayed since the player became dockable, the timer used only for its progress bar, two functions never called, and a global function shadowed by another of the same name. No visible change"
+   }
+  ]
+ },
+ {
+  "v": "1.27.41",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "MAINTENANCE (AUD-39) — les valeurs réglables de l'app (taille des lots d'appels à l'API, plafonds de pagination, délai de purge, âge d'alerte de la sauvegarde, durée des notifications) sont regroupées en un seul endroit. Aucun changement de comportement",
+    "en": "MAINTENANCE (AUD-39) — the app's tunable values (API call batch size, pagination caps, purge delay, backup warning age, notification duration) are grouped in a single place. No change in behaviour"
+   }
+  ]
+ },
+ {
+  "v": "1.27.40",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "ACCESSIBILITÉ — une vérification automatique (axe-core) après ce lot a trouvé les derniers écarts : trois champs de sauvegarde sans libellé, les étiquettes Beta et le filtre actif de la bibliothèque illisibles en thème clair, une ligne d'accueil trop pâle et un menu de tri sans nom dans Reel Studio 0.7.5. Tous corrigés ; la vérification ne relève plus rien",
+    "en": "ACCESSIBILITY — an automated check (axe-core) after this batch found the last gaps: three backup fields without a label, the Beta badges and the library's active filter unreadable in the light theme, a welcome line too pale and an unnamed sort menu in Reel Studio 0.7.5. All fixed; the check no longer reports anything"
+   }
+  ]
+ },
+ {
+  "v": "1.27.39",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "ACCESSIBILITÉ (AUD-50) — Reel Studio 0.7.4 : aucun attribut d'accessibilité ; les boutons du lecteur étaient annoncés par leur symbole (⏮ ▶ ⏭) et les cartes ne s'ouvraient qu'à la souris. Chaque commande a désormais un nom (lecture ou pause selon l'état, aléatoire et répétition avec leur état), les barres de progression se règlent aux flèches, les cartes s'ouvrent au clavier, et la page a des repères nommés",
+    "en": "ACCESSIBILITY (AUD-50) — Reel Studio 0.7.4: no accessibility attributes; the player buttons were announced by their symbol (⏮ ▶ ⏭) and cards could only be opened with the mouse. Each control now has a name (play or pause depending on state, shuffle and repeat with their state), progress bars can be adjusted with the arrow keys, cards open from the keyboard, and the page has named landmarks"
+   }
+  ]
+ },
+ {
+  "v": "1.27.38",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "ACCESSIBILITÉ (AUD-49) — le réglage système Réduire les animations ne coupait que les transitions : les fondus de vues, de fenêtres et de notifications, le clignotement d'une carte et le défilement animé continuaient. Tout est désormais coupé ; la carte ciblée reste signalée par un contour fixe",
+    "en": "ACCESSIBILITY (AUD-49) — the system setting Reduce motion only turned off transitions: fades on views, dialogs and notifications, a card's blinking and animated scrolling carried on. Everything is now turned off; the targeted card is still marked by a static outline"
+   }
+  ]
+ },
+ {
+  "v": "1.27.37",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "ACCESSIBILITÉ (AUD-44) — près de 90 cartes, lignes et vignettes ne réagissaient qu'à la souris : impossible au clavier d'ouvrir une playlist depuis le tableau de bord ou de lancer une vidéo depuis Découvrir. Tout élément cliquable reçoit désormais un arrêt de tabulation et s'active avec Entrée (et Espace pour un bouton). La réorganisation d'une playlist, jusqu'ici par glisser-déposer uniquement, se fait aussi avec des boutons Monter et Descendre",
+    "en": "ACCESSIBILITY (AUD-44) — nearly 90 cards, rows and thumbnails responded only to the mouse: with the keyboard it was impossible to open a playlist from the dashboard or start a video from Discover. Every clickable element now gets a tab stop and is activated with Enter (and Space for a button). Reordering a playlist, until now by drag and drop only, can also be done with Move up and Move down buttons"
+   }
+  ]
+ },
+ {
+  "v": "1.27.36",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "ACCESSIBILITÉ (AUD-42/43) — plusieurs textes étaient trop pâles pour être lus confortablement : en thème clair, la couleur d'accent et les couleurs d'état (dont le compteur de quota) tombaient à 1,7-2,6:1, et les textes secondaires échouaient partout. Tous atteignent désormais 4,5:1, quel que soit le thème, le coloris ou l'accent personnalisé ; les boutons principaux restent lisibles avec un accent sombre, et le contour des champs de saisie est nettement visible. Reel Studio suit les mêmes règles",
+    "en": "ACCESSIBILITY (AUD-42/43) — several texts were too pale to be read comfortably: in the light theme, the accent colour and the status colours (including the quota counter) dropped to 1.7-2.6:1, and secondary texts failed everywhere. All now reach 4.5:1, whatever the theme, colourway or custom accent; primary buttons stay readable with a dark accent, and the outline of input fields is clearly visible. Reel Studio follows the same rules"
+   }
+  ]
+ },
+ {
+  "v": "1.27.35",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "ACCESSIBILITÉ (AUD-45) — les fenêtres de dialogue n'étaient pas annoncées comme telles, le focus restait derrière elles et la page du dessous restait accessible au clavier ; le lecteur plein écran ignorait Échap. Une fenêtre ouverte prend désormais le focus, porte le nom de son titre, rend la page du dessous inactive et rend le focus à l'élément qui l'a ouverte ; Échap ancre le lecteur, comme son bouton",
+    "en": "ACCESSIBILITY (AUD-45) — dialogs were not announced as such, focus stayed behind them and the page underneath remained reachable from the keyboard; the full-screen player ignored Esc. An open dialog now takes focus, is named after its title, makes the page underneath inert and returns focus to the element that opened it; Esc docks the player, like its button"
+   }
+  ]
+ },
+ {
+  "v": "1.27.34",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "ACCESSIBILITÉ (AUD-48) — les notifications (succès, erreurs, alertes de quota) n'étaient pas annoncées par les lecteurs d'écran, et une notification avec bouton, comme Se reconnecter, disparaissait après 10 s quoi qu'on fasse. Elles sont désormais annoncées (les erreurs immédiatement) et restent affichées tant que le pointeur ou le focus est dessus",
+    "en": "ACCESSIBILITY (AUD-48) — notifications (successes, errors, quota warnings) were not announced by screen readers, and a notification with a button, such as Reconnect, disappeared after 10 s whatever you did. They are now announced (errors immediately) and stay displayed while the pointer or focus is on them"
+   }
+  ]
+ },
+ {
+  "v": "1.27.33",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "ACCESSIBILITÉ (AUD-47) — la page se déclarait toujours en français, même en anglais : un lecteur d'écran prononçait alors l'interface anglaise à la française. La langue de la page suit désormais celle de l'interface. La politique de confidentialité, texte juridique jusqu'ici uniquement en français, existe maintenant en anglais",
+    "en": "ACCESSIBILITY (AUD-47) — the page always declared itself as French, even in English: a screen reader then pronounced the English interface the French way. The page language now follows the interface language. The privacy policy, a legal text until now only in French, now exists in English"
+   }
+  ]
+ },
+ {
+  "v": "1.27.32",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "ACCESSIBILITÉ (AUD-46) — la navigation au clavier n'avait aucun repérage visible : aucun style de focus, et les champs de saisie supprimaient leur contour. Un anneau de 2 px signale désormais l'élément actif, dans tous les thèmes (couleur du texte en thème clair, où l'accent est trop pâle), dans l'app comme dans Reel Studio",
+    "en": "ACCESSIBILITY (AUD-46) — keyboard navigation had no visible indicator: no focus style, and input fields removed their outline. A 2 px ring now marks the active element, in all themes (text colour in the light theme, where the accent is too pale), in the app as in Reel Studio"
+   }
+  ]
+ },
+ {
+  "v": "1.27.31",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "RESTAURATION CSV (AUD-12) — une playlist nommée __proto__ faisait échouer toute la restauration, et un titre sur plusieurs lignes, exporté correctement, était coupé en deux à la relecture. Le fichier est désormais lu comme un vrai CSV (retours à la ligne entre guillemets compris) et les playlists sont regroupées sans risque sur leur nom",
+    "en": "CSV RESTORE (AUD-12) — a playlist named __proto__ made the whole restore fail, and a multi-line title, exported correctly, was split in two when read back. The file is now parsed as a real CSV (line breaks inside quotes included) and playlists are grouped safely by name"
+   }
+  ]
+ },
+ {
+  "v": "1.27.30",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "LIENS (AUD-11) — un lien ?bookmark= transmettait sa valeur telle quelle à la fenêtre d'ajout de favori, seuls les guillemets étant échappés. Seul un identifiant de playlist valide (ou une adresse YouTube qui en contient un) est désormais retenu ; toute autre valeur est ignorée",
+    "en": "LINKS (AUD-11) — a ?bookmark= link passed its value as-is to the add-bookmark dialog, with only quotes being escaped. Only a valid playlist ID (or a YouTube URL containing one) is now accepted; any other value is ignored"
+   }
+  ]
+ },
+ {
+  "v": "1.27.29",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "SÉCURITÉ (AUD-08) — la politique de sécurité (CSP) n'interdisait pas l'envoi de formulaires vers un autre site : un formulaire injecté aurait pu y poster des données de la page. C'est désormais interdit dans l'app et dans Reel Studio. Les pages Comment ça marche et Estimateur de quota, sur la même origine, reçoivent leur propre CSP ; l'estimateur n'autorise que son script, par empreinte. La protection contre l'inclusion dans un cadre (clickjacking) demande un en-tête HTTP de l'hébergeur : à configurer lors du déploiement",
+    "en": "SECURITY (AUD-08) — the security policy (CSP) did not forbid submitting forms to another site: an injected form could have posted page data there. This is now forbidden in the app and in Reel Studio. The How it works and Quota estimator pages, on the same origin, get their own CSP; the estimator allows only its own script, by hash. Protection against being embedded in a frame (clickjacking) requires an HTTP header from the host: to be configured at deployment"
+   }
+  ]
+ },
+ {
+  "v": "1.27.28",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "SÉCURITÉ (AUD-09) — l'estimateur de quota chargeait Chart.js depuis un CDN sans empreinte d'intégrité ; une réponse altérée du CDN se serait exécutée avec accès à la bibliothèque, aux tags et au journal de l'app, qui partagent la même origine. Chart.js 4.4.1 est désormais servi avec l'application, avec une empreinte vérifiée par le navigateur",
+    "en": "SECURITY (AUD-09) — the quota estimator loaded Chart.js from a CDN without an integrity hash; a tampered CDN response would have run with access to the app's library, tags and log, which share the same origin. Chart.js 4.4.1 is now served with the application, with a hash verified by the browser"
+   }
+  ]
+ },
+ {
+  "v": "1.27.27",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "JOURNAL (AUD-10) — le masquage des jetons ne reconnaissait qu'une valeur entière ; un jeton au milieu d'une adresse, d'un message d'erreur ou d'une pile passait tel quel, et le message lui-même n'était jamais filtré. Les jetons sont désormais masqués où qu'ils soient, message compris, et le journal ne garde plus de titres de playlists",
+    "en": "LOG (AUD-10) — token masking only recognised a whole value; a token in the middle of a URL, an error message or a stack trace went through as-is, and the message itself was never filtered. Tokens are now masked wherever they are, message included, and the log no longer keeps playlist titles"
+   }
+  ]
+ },
+ {
+  "v": "1.27.26",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "SÉCURITÉ (#G6) — l'app acceptait n'importe quel jeton présent dans l'adresse : un lien piégé pouvait connecter la victime au compte YouTube d'un attaquant, où atterriraient ensuite ses playlists et ses envois. Chaque connexion envoie désormais une valeur aléatoire (state) ; un jeton n'est accepté que s'il la renvoie, une seule fois, dans l'onglet qui a lancé la connexion. Le PKCE, qui demande un serveur, reste prévu en phase 4",
+    "en": "SECURITY (#G6) — the app accepted any token present in the URL: a booby-trapped link could sign the victim into an attacker's YouTube account, where the victim's playlists and uploads would then land. Each sign-in now sends a random value (state); a token is accepted only if it returns that value, once only, in the tab that started the sign-in. PKCE, which requires a server, is still planned for phase 4"
+   }
+  ]
+ },
+ {
+  "v": "1.27.25",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "SÉCURITÉ (AUD-07) — Reel Studio 0.7.3 : un nom de tag ou un identifiant de playlist placé dans un gestionnaire de clic était échappé pour le HTML, échappement que le navigateur défait avant d'exécuter le code ; un nom comme a';alert(1);' s'exécutait au clic. Ces valeurs sont désormais échappées pour le JavaScript, avec les mêmes règles que l'application",
+    "en": "SECURITY (AUD-07) — Reel Studio 0.7.3: a tag name or playlist ID placed in a click handler was escaped for HTML, an escaping the browser undoes before running the code; a name like a';alert(1);' executed on click. These values are now escaped for JavaScript, with the same rules as the application"
+   }
+  ]
+ },
+ {
+  "v": "1.27.24",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "SÉCURITÉ (AUD-06) — un fichier de sauvegarde partagé (forum, bibliothèque de départ) pouvait exécuter du code à chaque ouverture de l'app : l'import et la restauration ne vérifiaient que la présence d'une liste de playlists. Chaque sauvegarde est désormais reconstruite à partir des seuls champs connus : identifiants au format YouTube, images limitées aux serveurs Google, textes bornés, le reste écarté. Noms et icônes de dossiers et de tags s'affichent comme du texte. Les sauvegardes portent un numéro de format ; un fichier d'une version plus récente est refusé",
+    "en": "SECURITY (AUD-06) — a shared backup file (forum, starter library) could run code every time the app was opened: import and restore only checked that a list of playlists was present. Each backup is now rebuilt from known fields only: IDs in YouTube format, images restricted to Google servers, length-limited texts, everything else discarded. Folder and tag names and icons are displayed as text. Backups carry a format number; a file from a newer version is rejected"
+   }
+  ]
+ },
+ {
+  "v": "1.27.23",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "API (AUD-20) — l'API YouTube signale aussi une limite de débit par une erreur 403 (rateLimitExceeded, userRateLimitExceeded). Elle était traduite en session expirée, avec une invite à se reconnecter qui ne servait à rien. Ces 403 sont désormais traités comme un 429 : attente puis nouvel essai, et en dernier recours le message de limite de débit",
+    "en": "API (AUD-20) — the YouTube API also reports a rate limit with a 403 error (rateLimitExceeded, userRateLimitExceeded). It was interpreted as an expired session, with a prompt to reconnect that served no purpose. These 403s are now handled like a 429: wait then retry, and as a last resort the rate-limit message"
+   }
+  ]
+ },
+ {
+  "v": "1.27.22",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "DOUBLONS (AUD-19) — une création (POST) qui échouait sur le réseau ou en erreur 5xx était renvoyée jusqu'à trois fois ; si la première avait en fait abouti, cela créait une deuxième playlist ou insérerait deux fois la même vidéo. Une création n'est plus renvoyée qu'après un refus explicite 429 ; sinon l'erreur est signalée. Les lectures, modifications et suppressions, sans risque de doublon, gardent leurs nouvelles tentatives",
+    "en": "DUPLICATES (AUD-19) — a create request (POST) that failed on the network or with a 5xx error was resent up to three times; if the first one had in fact succeeded, this created a second playlist or inserted the same video twice. A create request is now resent only after an explicit 429 refusal; otherwise the error is reported. Reads, updates and deletions, which carry no risk of duplicates, keep their retries"
+   }
+  ]
+ },
+ {
+  "v": "1.27.21",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "NETTOYAGE (AUD-18) — l'en-tête If-Match sur les écritures (#55) n'était jamais envoyé : le cache n'est consulté que pour les lectures, et l'adresse d'une écriture n'est jamais celle d'une lecture en cache. Le code et son traitement de l'erreur 412, inatteignables, sont retirés ; aucun comportement ne change",
+    "en": "CLEAN-UP (AUD-18) — the If-Match header on writes (#55) was never sent: the cache is only consulted for reads, and a write's URL is never that of a cached read. The code and its handling of the 412 error, both unreachable, are removed; no behaviour changes"
+   }
+  ]
+ },
+ {
+  "v": "1.27.20",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "QUOTA (AUD-17) — le cache des réponses n'enregistrait une réponse que si l'en-tête HTTP ETag était lisible ; or une requête vers un autre domaine ne l'expose que si le serveur l'autorise. Sans lui, le cache ne gardait rien et chaque relecture pourtant dans son délai de fraîcheur était refacturée, recherches comprises. Une réponse est désormais mise en cache pour sa durée de vie, ETag ou non ; l'ETag, quand il est lisible, ne sert plus qu'à la revalidation",
+    "en": "QUOTA (AUD-17) — the response cache only stored a response if the HTTP ETag header was readable; but a request to another domain only exposes it if the server allows it. Without it, the cache kept nothing and every re-read, even within its freshness window, was charged again, searches included. A response is now cached for its lifetime, ETag or not; the ETag, when readable, is now used only for revalidation"
+   }
+  ]
+ },
+ {
+  "v": "1.27.19",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "QUOTA (AUD-01) — parcourir les playlists d'une chaîne depuis Découvrir pouvait coûter jusqu'à 20 appels en un clic, sans vérification de quota ; #82 promettait justement l'inverse. La liste s'arrête désormais à 3 pages (150 playlists), passe par la vérification de quota, et un message dit quand elle est tronquée",
+    "en": "QUOTA (AUD-01) — browsing a channel's playlists from Discover could cost up to 20 calls in one click, without a quota check; #82 promised precisely the opposite. The list now stops at 3 pages (150 playlists), goes through the quota check, and a message says when it is truncated"
+   }
+  ]
+ },
+ {
+  "v": "1.27.18",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "QUOTA (AUD-21) — deux règles de comptage cohabitaient : les appels ordinaires étaient comptés avant l'envoi, échecs compris, mais les envois de miniature, de sous-titre, de vidéo et de couverture seulement après un succès, et sans vérifier le passage à minuit heure du Pacifique. Un envoi raté ne comptait pas, alors que Google le facture ; le premier envoi d'une nouvelle journée s'ajoutait aux compteurs de la veille puis disparaissait. Une seule règle désormais, chargeCall : compté avant l'envoi, remise à zéro vérifiée d'abord",
+    "en": "QUOTA (AUD-21) — two counting rules coexisted: ordinary calls were counted before sending, failures included, but thumbnail, caption, video and cover uploads only after a success, and without checking for the rollover at midnight Pacific time. A failed upload did not count, although Google charges for it; the first upload of a new day was added to the previous day's counters and then disappeared. A single rule now, chargeCall: counted before sending, reset checked first"
+   }
+  ]
+ },
+ {
+  "v": "1.27.17",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "CORRECTIF (#I1) — les couvertures de playlist personnalisées ne pouvaient jamais être envoyées : l'image choisie est lue via une URL blob:, que la politique de sécurité du contenu (img-src) n'autorisait pas, et chaque tentative finissait sur Cette image n'a pas pu être lue. img-src accepte désormais blob:, qui ne désigne que des fichiers choisis par l'utilisateur. Trouvé en écrivant un test de quota ; les tests #I1 contournaient ce chemin",
+    "en": "FIX (#I1) — custom playlist covers could never be uploaded: the chosen image is read via a blob: URL, which the content security policy (img-src) did not allow, and every attempt ended with This image could not be read. img-src now accepts blob:, which only refers to files chosen by the user. Found while writing a quota test; the #I1 tests bypassed this path"
+   }
+  ]
+ },
+ {
+  "v": "1.27.16",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "QUOTA (AUD-22) — trois copies codées en dur du modèle de quota contredisaient le vrai : la carte Quota de l'aide, en anglais seulement, décrivait encore le pool unique de 10 000 unités retiré par #76 (le texte traduit à trois buckets existait sans être utilisé) ; le diagnostic du cache affichait / 10,000 et passait au rouge dès 500 unités, soit 5 % ; la restauration et la création de playlist depuis Découvrir calculaient leur coût avec des 50 littéraux. Tout est désormais tiré de QUOTA_LIMITS et de la table des coûts",
+    "en": "QUOTA (AUD-22) — three hard-coded copies of the quota model contradicted the real one: the help's Quota card, in English only, still described the single 10,000-unit pool removed by #76 (the translated three-bucket text existed but was not used); the cache diagnostics showed / 10,000 and turned red from 500 units, i.e. 5%; restore and playlist creation from Discover computed their cost with literal 50s. Everything is now taken from QUOTA_LIMITS and the cost table"
+   }
+  ]
+ },
+ {
+  "v": "1.27.15",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "QUOTA (AUD-15) — six actions vérifiaient le quota avec une clé absente de la table des coûts, et une clé inconnue valait 1 unité : l'envoi d'un sous-titre (400 unités) était estimé à 1, la mise à jour d'une vidéo, d'une miniature, de la chaîne et le réordonnancement à 1 au lieu de 50. Les six clés sont ajoutées ; une clé inconnue compte désormais 50 par élément et le journal le signale",
+    "en": "QUOTA (AUD-15) — six actions checked the quota with a key missing from the cost table, and an unknown key was worth 1 unit: a caption upload (400 units) was estimated at 1, and updating a video, a thumbnail or the channel, and reordering, at 1 instead of 50. The six keys are added; an unknown key now counts 50 per item and the log reports it"
+   },
+   {
+    "fr": "L'envoi de vidéo vérifie le bucket des envois (100 appels par jour) au lieu du pool ; l'ajout d'un titre tendance à une playlist est compté 50 et non 100",
+    "en": "Video upload checks the uploads bucket (100 calls per day) instead of the pool; adding a trending title to a playlist is counted as 50, not 100"
+   }
+  ]
+ },
+ {
+  "v": "1.27.14",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "FUSION (AUD-23) — une playlist jamais ouverte, un favori typiquement, n'apportait aucune vidéo à la fusion ; une vidéo présente dans deux sources était insérée deux fois. Chaque source est désormais chargée, chaque vidéo n'est insérée qu'une fois et jamais si la destination l'a déjà, et un message dit combien de doublons ont été écartés",
+    "en": "MERGE (AUD-23) — a playlist never opened, typically a bookmark, contributed no videos to the merge; a video present in two sources was inserted twice. Each source is now loaded, each video is inserted only once and never if the destination already has it, and a message says how many duplicates were skipped"
+   },
+   {
+    "fr": "L'estimation de quota compte ce qui sera vraiment inséré, plus la création de la playlist quand il y en a une ; elle comptait une suppression de playlist que la fusion ne fait pas. Les listes de fusion affichent le nombre de vidéos annoncé par YouTube pour une playlist pas encore chargée, au lieu de 0",
+    "en": "The quota estimate counts what will actually be inserted, plus the playlist creation when there is one; it used to count a playlist deletion that the merge does not perform. The merge lists show the video count reported by YouTube for a playlist not yet loaded, instead of 0"
+   }
+  ]
+ },
+ {
+  "v": "1.27.13",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "CORRECTIF (AUD-32) — le bouton Mode Musique en un clic (#J2) a été remplacé par la lentille de bibliothèque (#17), mais son état enregistré restait actif : qui l'avait allumé ne pouvait plus l'éteindre, et Réinitialiser remettait les filtres sur Musique au lieu de Tous. L'état et son bouton fantôme sont retirés, la clé reelMusicMode est effacée au démarrage",
+    "en": "FIX (AUD-32) — the one-click Music Mode button (#J2) was replaced by the library lens (#17), but its saved state stayed active: whoever had switched it on could no longer switch it off, and Reset set the filters back to Music instead of All. The state and its ghost button are removed, and the reelMusicMode key is cleared at startup"
+   }
+  ]
+ },
+ {
+  "v": "1.27.12",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "DÉPLACER (AUD-16) — la première insertion en échec (quota, session, limite de débit) interrompait tout sur un simple message d'erreur : ni la playlist source ni la destination n'étaient rafraîchies, et rien ne disait combien de vidéos avaient déjà été déplacées. Le déplacement s'arrête toujours au premier échec, puisque les suivants échoueraient de même en consommant du quota, mais il dit désormais combien de vidéos sont déplacées, copiées sans retrait et non traitées, et recharge les deux playlists dans tous les cas",
+    "en": "MOVE (AUD-16) — the first failed insertion (quota, session, rate limit) stopped everything with a bare error message: neither the source nor the destination playlist was refreshed, and nothing said how many videos had already been moved. The move still stops at the first failure, since the following ones would fail the same way while consuming quota, but it now says how many videos were moved, copied without removal and not processed, and reloads both playlists in every case"
+   }
+  ]
+ },
+ {
+  "v": "1.27.11",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "FANTÔMES (AUD-24) — le nettoyage parcourait aussi les playlists mises en favori, qui appartiennent à quelqu'un d'autre : chaque suppression y échouait en 403 après avoir consommé 50 unités. Seules vos playlists sont désormais analysées et nettoyées",
+    "en": "GHOSTS (AUD-24) — the clean-up also went through bookmarked playlists, which belong to someone else: every deletion there failed with a 403 after consuming 50 units. Only your own playlists are now scanned and cleaned"
+   },
+   {
+    "fr": "Avant une suppression en masse, les vidéos candidates sont vérifiées auprès de YouTube (1 unité pour 50 vidéos) : une vidéo encore disponible est conservée, et si la vérification échoue rien n'est supprimé",
+    "en": "Before a bulk deletion, candidate videos are checked with YouTube (1 unit per 50 videos): a video that is still available is kept, and if the check fails nothing is deleted"
+   },
+   {
+    "fr": "Le cache garde la date de publication et la confidentialité de chaque élément : après un rechargement, une vidéo privée n'est plus classée supprimée",
+    "en": "The cache keeps each item's publication date and privacy status: after a reload, a private video is no longer classed as deleted"
+   }
+  ]
+ },
+ {
+  "v": "1.27.10",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "INTÉGRITÉ DES DONNÉES (AUD-14) — le cache et la sauvegarde ne gardaient pas l'identifiant d'élément de playlist. Après un démarrage depuis le cache, le cas par défaut, Déplacer insérait dans la destination sans pouvoir supprimer la source (retour du bug #G7 : déplacer copiait), et réordonner, supprimer un doublon ou une vidéo fantôme échouaient. L'identifiant est désormais conservé et restauré",
+    "en": "DATA INTEGRITY (AUD-14) — the cache and the backup did not keep the playlist item ID. After a startup from the cache, the default case, Move inserted into the destination without being able to delete from the source (return of bug #G7: moving copied), and reordering, deleting a duplicate or a ghost video failed. The ID is now kept and restored"
+   },
+   {
+    "fr": "Un cache écrit par une version précédente, sans ces identifiants, est rechargé une fois depuis l'API quand la session est connectée ; hors ligne il reste lisible tel quel",
+    "en": "A cache written by a previous version, without these IDs, is reloaded once from the API when the session is signed in; offline it remains readable as-is"
+   }
+  ]
+ },
+ {
+  "v": "1.27.9",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "INTÉGRITÉ DES DONNÉES (AUD-13) — une playlist de plus de 1 000 vidéos était tronquée sans un mot : la pagination s'arrêtait à 20 pages de 50, et une page en échec rendait les pages déjà lues comme si c'était tout. La tranche partait ensuite dans le cache, la sauvegarde JSON et les exports CSV. Les playlists se chargent désormais jusqu'à 100 pages, soit les 5 000 éléments que YouTube autorise",
+    "en": "DATA INTEGRITY (AUD-13) — a playlist of more than 1,000 videos was silently truncated: pagination stopped at 20 pages of 50, and a failed page returned the pages already read as if that were everything. The truncated slice then went into the cache, the JSON backup and the CSV exports. Playlists now load up to 100 pages, i.e. the 5,000 items YouTube allows"
+   },
+   {
+    "fr": "Un chargement incomplet est signalé par un avertissement ; la sauvegarde automatique conserve alors la liste plus longue déjà en cache au lieu de l'écraser, et la sauvegarde manuelle comme l'export préviennent qu'une playlist n'y figure pas en entier",
+    "en": "An incomplete load is flagged with a warning; the automatic backup then keeps the longer list already in the cache instead of overwriting it, and both the manual backup and the export warn that a playlist is not included in full"
+   }
+  ]
+ },
+ {
+  "v": "1.27.8",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "SÉCURITÉ (#G13, rouvert par l'audit) — au retour de Google, le jeton restait dans l'adresse pendant tout le chargement du cache IndexedDB, avant que checkAuth ne l'efface : le journal d'erreurs lit l'adresse de la page. Le fragment est désormais lu et effacé en toute première instruction de init(), avant tout appel asynchrone ; le paramètre ?bookmark= est conservé pour la suite du démarrage",
+    "en": "SECURITY (#G13, reopened by the audit) — on returning from Google, the token stayed in the URL throughout the loading of the IndexedDB cache, before checkAuth cleared it: the error log reads the page URL. The fragment is now read and cleared as the very first statement of init(), before any asynchronous call; the ?bookmark= parameter is kept for the rest of startup"
+   }
+  ]
+ },
+ {
+  "v": "1.27.7",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "CGU YOUTUBE (AUD-28) — Reel Studio 0.7.2 : replier le lecteur le faisait glisser hors de l'écran pendant que le son continuait, soit une lecture audio seule. Replier l'ancre désormais en bas à droite, vidéo visible en 356 x 200 au-dessus de la barre de lecture ; la musique continue, l'image aussi",
+    "en": "YOUTUBE TERMS OF SERVICE (AUD-28) — Reel Studio 0.7.2: collapsing the player slid it off screen while the sound kept playing, i.e. audio-only playback. Collapsing now docks it at the bottom right, with the video visible at 356 x 200 above the playback bar; the music continues, and so does the picture"
+   },
+   {
+    "fr": "Reel Studio met en pause quand l'onglet est masqué, qu'un onglet YouTube soit ouvert ou non : la lecture en arrière-plan d'un lecteur intégré n'est pas autorisée",
+    "en": "Reel Studio pauses when the tab is hidden, whether or not a YouTube tab is open: background playback of an embedded player is not allowed"
+   },
+   {
+    "fr": "Le lecteur ancré de l'application passe de 320 x 180 à 356 x 200 : l'API IFrame exige au moins 200 x 200, en hauteur comme en largeur",
+    "en": "The application's docked player goes from 320 x 180 to 356 x 200: the IFrame API requires at least 200 x 200, in height as well as width"
+   }
+  ]
+ },
+ {
+  "v": "1.27.6",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "RGPD (AUD-03) — Supprimer mes données et la purge automatique à 30 jours tenaient chacune leur propre liste de clés, et les deux avaient dérivé : dix-sept clés survivaient, dont le journal de diagnostic, les playlists en favori, la langue, les compteurs de quota et les deux réglages de Reel Studio. Un registre unique, APP_STORAGE_KEYS, sert désormais aux deux chemins, sessionStorage compris",
+    "en": "GDPR (AUD-03) — Delete my data and the automatic 30-day purge each kept their own list of keys, and the two had drifted apart: seventeen keys survived, including the diagnostic log, bookmarked playlists, the language, the quota counters and the two Reel Studio settings. A single registry, APP_STORAGE_KEYS, now serves both paths, sessionStorage included"
+   },
+   {
+    "fr": "Après une suppression, le journal ne se réécrit plus au déchargement de la page, et aucune invite de modifications non enregistrées n'apparaît",
+    "en": "After a deletion, the log is no longer rewritten when the page unloads, and no unsaved-changes prompt appears"
+   },
+   {
+    "fr": "La purge automatique attend la fin du vidage de la base IndexedDB avant de continuer, puis recharge la page : l'application gardait en mémoire les tags, dossiers et favoris lus avant la purge et pouvait les réécrire",
+    "en": "The automatic purge waits for the IndexedDB database to finish clearing before continuing, then reloads the page: the application kept in memory the tags, folders and bookmarks read before the purge and could write them back"
+   }
+  ]
+ },
+ {
+  "v": "1.27.5",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "SÉCURITÉ (AUD-05) — le titre d'une playlist entrait brut dans l'attribut title des lignes du tableau de bord et des statistiques. Un guillemet suffisait à ajouter des attributs, onmouseover compris, sans chevron ; une playlist mise en favori porte le titre choisi par son propriétaire, pas par l'utilisateur. Les titres sont désormais échappés dans le donut, la légende, les barres, la plus grande playlist, les statistiques, les doublons et les listes du Studio",
+    "en": "SECURITY (AUD-05) — a playlist's title went raw into the title attribute of the dashboard and statistics rows. A quote mark was enough to add attributes, onmouseover included, without any angle bracket; a bookmarked playlist carries the title chosen by its owner, not by the user. Titles are now escaped in the donut, the legend, the bars, the largest playlist, the statistics, the duplicates and the Studio lists"
+   }
+  ]
+ },
+ {
+  "v": "1.27.4",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "SÉCURITÉ (AUD-04) — sept gestionnaires onclick échappaient l'apostrophe d'un titre mais pas la barre oblique inverse : un titre finissant par \\ annulait son propre échappement et le reste du titre s'exécutait comme du code, avec le jeton de l'utilisateur. Découvrir (miniature et titre), Deck, Plan de visionnage (grille et liste), file d'attente et recherches récentes passent désormais tous par escapeJsAttr, qui double la barre oblique avant de protéger l'apostrophe",
+    "en": "SECURITY (AUD-04) — seven onclick handlers escaped a title's apostrophe but not the backslash: a title ending in \\ cancelled its own escaping and the rest of the title ran as code, with the user's token. Discover (thumbnail and title), Deck, Watch plan (grid and list), queue and recent searches now all go through escapeJsAttr, which doubles the backslash before protecting the apostrophe"
+   },
+   {
+    "fr": "Les recherches récentes affichaient aussi la saisie brute dans le HTML ; elle est maintenant échappée",
+    "en": "Recent searches also displayed the raw input in the HTML; it is now escaped"
+   }
+  ]
+ },
+ {
+  "v": "1.27.3",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "CORRECTIF — Gestion des tags, Catégorisation auto : le scan tournait, consommait du quota, puis Appliquer ne changeait rien. getVideoDetails renvoie un dictionnaire indexé par identifiant de vidéo, pas un tableau ; le forEach échouait dès la première playlist, le catch avalait l'erreur sans un mot dans la console et tout retombait sur la liste de mots-clés. La détection par catégorie n'avait donc jamais fonctionné",
+    "en": "FIX — Tag management, Auto-categorisation: the scan ran, consumed quota, then Apply changed nothing. getVideoDetails returns a dictionary keyed by video ID, not an array; the forEach failed from the first playlist, the catch swallowed the error without a word in the console and everything fell back to the keyword list. Category detection had therefore never worked"
+   },
+   {
+    "fr": "Les mots-clés sont désormais comparés mot à mot : tech est contenu dans Techno, ce qui classait une playlist de psytrance en programmation, et son est contenu dans poisson",
+    "en": "Keywords are now matched word by word: tech is contained in Techno, which classed a psytrance playlist as programming, and son is contained in poisson"
+   },
+   {
+    "fr": "Un identifiant de catégorie que l'application ne sait pas nommer ne vaut plus Autre : elle se rabat sur le titre plutôt que d'étiqueter toute la bibliothèque avec un mot vide de sens",
+    "en": "A category ID that the application cannot name no longer counts as Other: it falls back to the title rather than labelling the whole library with a meaningless word"
+   },
+   {
+    "fr": "Quand aucune catégorie ne se dégage, le bouton Appliquer disparaît et un message le dit. Un cadre vide surmonté d'un bouton actif qui ne fait rien, c'est exactement ce qui se lisait comme Appliquer est cassé",
+    "en": "When no category emerges, the Apply button disappears and a message says so. An empty frame topped by an active button that does nothing is exactly what read as Apply is broken"
+   }
+  ]
+ },
+ {
+  "v": "1.27.2",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "CORRECTIF — dans Découvrir, passer de Vidéos à Playlists ou Chaînes vidait l'interface. Les affinages réservés aux vidéos étaient masqués par leur élément parent : discoverSortBy est un enfant direct de la barre de recherche, donc le champ de saisie et le bouton Rechercher partaient avec lui, et les quatre sélecteurs de filtre emportaient toute leur bande",
+    "en": "FIX — in Discover, switching from Videos to Playlists or Channels emptied the interface. The video-only refinements were hidden via their parent element: discoverSortBy is a direct child of the search bar, so the input field and the Search button went with it, and the four filter selectors took their whole strip with them"
+   },
+   {
+    "fr": "Chaque contrôle est désormais masqué pour lui-même. Le filtre de date de publication reste offert sur les trois types, puisque search.list l'accepte partout ; seuls durée, qualité, sous-titres, licence, lecture intégrée et le tri par statistiques disparaissent hors des vidéos",
+    "en": "Each control is now hidden individually. The publication date filter remains available for all three types, since search.list accepts it everywhere; only duration, quality, captions, licence, embedded playback and sorting by statistics disappear outside videos"
+   },
+   {
+    "fr": "Le type restauré au démarrage atteint enfin les contrôles : un rechargement ne revient plus avec les filtres vidéo affichés au-dessus d'une recherche de playlists",
+    "en": "The type restored at startup finally reaches the controls: a reload no longer comes back with the video filters shown above a playlist search"
+   }
+  ]
+ },
+ {
+  "v": "1.27.1",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "CORRECTIF CRITIQUE — Découvrir tombait sur Network error: Failed to fetch. videos:batchGetStats est une méthode personnalisée Google : le verbe s'attache à la ressource par DEUX-POINTS, pas par un segment de chemin. Écrit avec une barre oblique, il vise un chemin inexistant, le preflight CORS reste sans réponse et le navigateur ne rend qu'un Failed to fetch. Le paramètre part, obligatoire, manquait aussi",
+    "en": "CRITICAL FIX — Discover failed with Network error: Failed to fetch. videos:batchGetStats is a Google custom method: the verb is attached to the resource with a COLON, not with a path segment. Written with a slash, it targets a non-existent path, the CORS preflight gets no response and the browser only returns a Failed to fetch. The required part parameter was also missing"
+   },
+   {
+    "fr": "Le garde-fou de repli ne reconnaissait que des erreurs 404/400 propres. Une méthode que le navigateur ne peut pas joindre ne se présente jamais ainsi : elle échoue au niveau réseau. Failed to fetch, Load failed et NetworkError comptent désormais comme méthode indisponible, donc Découvrir bascule sur videos.list au lieu de mourir",
+    "en": "The fallback safeguard only recognised clean 404/400 errors. A method the browser cannot reach never shows up that way: it fails at the network level. Failed to fetch, Load failed and NetworkError now count as method unavailable, so Discover switches to videos.list instead of dying"
+   },
+   {
+    "fr": "normalizeEndpoint comprend les deux formes — videos/getRating et videos:batchGetStats — sinon la forme à deux-points ratait son entrée dans la table de coûts et était facturée au pool au lieu de son propre bucket",
+    "en": "normalizeEndpoint understands both forms — videos/getRating and videos:batchGetStats — otherwise the colon form missed its entry in the cost table and was charged to the pool instead of its own bucket"
+   }
+  ]
+ },
+ {
+  "v": "1.27.0",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "#I1 — couvertures de playlist personnalisées via la ressource playlistImages, derrière le drapeau FEATURES.playlistCovers. La couverture s'affiche en tête de la playlist et remplace la miniature sur la carte de bibliothèque quand elle existe",
+    "en": "#I1 — custom playlist covers via the playlistImages resource, behind the FEATURES.playlistCovers flag. The cover is shown at the top of the playlist and replaces the thumbnail on the library card when it exists"
+   },
+   {
+    "fr": "CORRECTIF DE SPÉCIFICATION — le brief prévoyait un redimensionnement en 1280 x 720. La documentation officielle n'accepte qu'un ratio 1:1 carré : un envoi en 16:9 aurait été refusé. Le recadrage est donc carré et centré, plafonné à 1280 px, sans jamais agrandir une petite image",
+    "en": "SPECIFICATION FIX — the brief called for resizing to 1280 x 720. The official documentation only accepts a square 1:1 ratio: a 16:9 upload would have been rejected. The crop is therefore square and centred, capped at 1280 px, never enlarging a small image"
+   },
+   {
+    "fr": "Le champ snippet.type est obligatoire et Google n'en documente pas les valeurs. Plutôt que de deviner, l'app relit le type que rapporte une couverture existante et ne retombe sur une constante que pour une playlist qui n'en a pas — et si l'API refuse, son message est affiché tel quel",
+    "en": "The snippet.type field is required and Google does not document its values. Rather than guess, the app reads back the type reported by an existing cover and falls back to a constant only for a playlist that has none — and if the API refuses, its message is shown as-is"
+   },
+   {
+    "fr": "Une réponse aucune couverture est mémorisée : redemander à chaque visite coûterait une unité pour s'entendre répéter la même chose. Un échec passager, lui, est réessayé",
+    "en": "A no cover response is remembered: asking again on every visit would cost a unit just to be told the same thing. A transient failure, on the other hand, is retried"
+   }
+  ]
+ },
+ {
+  "v": "1.26.0",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "Découvrir cherche désormais des playlists et des chaînes, pas seulement des vidéos. Même coût qu'une recherche de vidéos — un appel du bucket recherche par page — et les résultats se branchent sur les favoris existants : un bouton Ajouter aux favoris par playlist trouvée",
+    "en": "Discover now searches for playlists and channels, not just videos. Same cost as a video search — one search-bucket call per page — and the results plug into the existing bookmarks: an Add to bookmarks button for each playlist found"
+   },
+   {
+    "fr": "Les filtres propres aux vidéos (durée, définition, sous-titres, licence, intégrabilité) ne sont plus envoyés quand on cherche des playlists ou des chaînes : l'API les ignore, et une requête qui transporte des paramètres destinés à être jetés est une requête que plus personne ne sait relire",
+    "en": "Video-specific filters (duration, definition, captions, licence, embeddability) are no longer sent when searching for playlists or channels: the API ignores them, and a request carrying parameters meant to be thrown away is a request nobody can read back any more"
+   },
+   {
+    "fr": "Depuis une carte Abonnements ou un résultat de type chaîne, Playlists de cette chaîne ouvre la liste dans la même surface en lecture seule que les favoris, plafonnée à vingt pages pour qu'un clic ne devienne pas silencieusement vingt appels",
+    "en": "From a Subscriptions card or a channel-type result, Playlists from this channel opens the list in the same read-only surface as bookmarks, capped at twenty pages so that one click does not silently turn into twenty calls"
+   },
+   {
+    "fr": "Un nombre de vidéos qu'on n'a pas pu récupérer s'affiche comme inconnu et non comme zéro. Les favoris ajoutés depuis Découvrir gardent leur origine, pour les métriques locales uniquement",
+    "en": "A video count that could not be retrieved is shown as unknown rather than zero. Bookmarks added from Discover keep their origin, for local metrics only"
+   }
+  ]
+ },
+ {
+  "v": "1.25.0",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "Tuile Tendances sur le tableau de bord — videos.list chart=mostPopular, 1 unité du pool et non du bucket recherche. Depuis le 21 juillet 2025 le classement mélange Musique, Films et Jeux : il est donc toujours demandé pour une catégorie, choisie parmi celles que l'app connaît déjà, et la région suit la langue de l'interface",
+    "en": "Trending tile on the dashboard — videos.list chart=mostPopular, 1 unit from the pool rather than the search bucket. Since 21 July 2025 the chart mixes Music, Films and Gaming: it is therefore always requested for a category, chosen among those the app already knows, and the region follows the interface language"
+   },
+   {
+    "fr": "Chaque ligne se lit dans le lecteur, s'ajoute à une playlist par la plomberie d'insertion existante, et porte les badges Short et Musique déjà calculés ailleurs",
+    "en": "Each row plays in the player, can be added to a playlist through the existing insertion plumbing, and carries the Short and Music badges already computed elsewhere"
+   },
+   {
+    "fr": "Le classement est mis en cache une heure par une surcharge de TTL propre à cet appel : videos.list garde ses cinq minutes pour tout le reste",
+    "en": "The chart is cached for one hour through a TTL override specific to this call: videos.list keeps its five minutes for everything else"
+   }
+  ]
+ },
+ {
+  "v": "1.24.0",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "#17 phase 2 — lentille de bibliothèque Toutes / Vidéos / Musique dans l'en-tête. Elle absorbe l'ancien bouton Mode Musique, qui vivait dans l'en-tête du détail et ne faisait que positionner le menu déroulant situé deux lignes plus bas. Un seul contrôle musique par surface désormais",
+    "en": "#17 phase 2 — All / Videos / Music library lens in the header. It absorbs the old Music Mode button, which lived in the detail header and merely set the drop-down menu located two lines below. A single music control per surface now"
+   },
+   {
+    "fr": "Une playlist jamais ouverte n'a pas de verdict : elle reste visible sous toutes les lentilles plutôt que d'être masquée par une réponse que personne n'a calculée",
+    "en": "A playlist never opened has no verdict: it stays visible under every lens rather than being hidden by an answer nobody computed"
+   },
+   {
+    "fr": "CORRECTIF — réduire le lecteur le faisait disparaître : l'overlay perdait sa classe active, donc l'iframe quittait la page. La spécification l'interdit explicitement. Le lecteur s'ancre désormais en 320 x 180 en bas à droite, l'iframe n'est jamais déplacée dans le DOM (la déplacer rechargerait la vidéo et perdrait la position) et le dock se ferme d'un clic",
+    "en": "FIX — minimising the player made it disappear: the overlay lost its active class, so the iframe left the page. The specification explicitly forbids this. The player now docks at 320 x 180 at the bottom right, the iframe is never moved in the DOM (moving it would reload the video and lose the position) and the dock closes with one click"
+   },
+   {
+    "fr": "#18 — export CSV prêt au transfert : title, artist, album, isrc avec BOM UTF-8, présélectionné en vue Musique. Colonnes vérifiées contre la documentation Soundiiz (titre et artiste au minimum, en-têtes insensibles à la casse, colonnes inconnues ignorées) et contre ce que lit TuneMyMusic. Le champ isrc reste vide : les deux services demandent de laisser vide plutôt que de deviner, et un ISRC faux fait correspondre le mauvais enregistrement",
+    "en": "#18 — transfer-ready CSV export: title, artist, album, isrc with a UTF-8 BOM, preselected in Music view. Columns checked against the Soundiiz documentation (title and artist at minimum, case-insensitive headers, unknown columns ignored) and against what TuneMyMusic reads. The isrc field is left empty: both services ask for it to be left empty rather than guessed, and a wrong ISRC matches the wrong recording"
+   },
+   {
+    "fr": "Métriques locales dans le journal de diagnostic — vue Musique conservée, réversions, lectures de file, exports de transfert — sans aucun identifiant de playlist",
+    "en": "Local metrics in the diagnostic log — Music view kept, reversions, queue plays, transfer exports — without any playlist ID"
+   }
+  ]
+ },
+ {
+  "v": "1.23.0",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "#17 Mode Musique phase 1 — une playlist de musique s'affiche en liste de pistes : numéro, pochette 44 px, titre, artiste, chaîne, durée. C'est une couche de présentation, pas un second composant : un attribut data-viewmode échange le jeu de tokens, exactement comme le système de skins, et toutes les actions secondaires restent les mêmes",
+    "en": "#17 Music Mode phase 1 — a music playlist is displayed as a track list: number, 44 px cover art, title, artist, channel, duration. It is a presentation layer, not a second component: a data-viewmode attribute swaps the token set, exactly like the skins system, and all secondary actions stay the same"
+   },
+   {
+    "fr": "Détection par score et non par signal unique : une chaîne - Topic pèse 0,9, la catégorie 10 pèse 0,7, une durée de 2 à 7 minutes et un motif Artiste - Titre 0,2 chacun, et une durée de plus de 20 minutes retire 0,5. Un set de deux heures sur une chaîne - Topic reste donc une vidéo. Une playlist est musicale à partir de 80 % de ses 50 premières",
+    "en": "Detection by score rather than by a single signal: a - Topic channel weighs 0.9, category 10 weighs 0.7, a duration of 2 to 7 minutes and an Artist - Title pattern 0.2 each, and a duration over 20 minutes subtracts 0.5. A two-hour set on a - Topic channel therefore stays a video. A playlist counts as music from 80% of its first 50"
+   },
+   {
+    "fr": "Entre 50 et 80 %, la playlist est dite mixte : un bandeau propose la bascule au lieu de décider à la place de l'utilisateur. Un choix manuel prime toujours et n'est jamais réévalué, dans les deux sens — Pas maintenant est aussi un choix",
+    "en": "Between 50 and 80%, the playlist is called mixed: a banner offers the switch instead of deciding on the user's behalf. A manual choice always takes precedence and is never re-evaluated, in either direction — Not now is also a choice"
+   },
+   {
+    "fr": "Un seul parseur artiste / titre, partagé avec l'export à venir : décorations retirées (Official Video, MV, Lyrics, balises 4K/HD), feat. déplacé vers l'artiste, découpage au premier tiret sauf si la chaîne - Topic nomme déjà l'artiste. Un titre qu'on ne sait pas découper reste entier plutôt que d'être charcuté",
+    "en": "A single artist / title parser, shared with the upcoming export: decorations removed (Official Video, MV, Lyrics, 4K/HD tags), feat. moved to the artist, split at the first dash unless the - Topic channel already names the artist. A title that cannot be split stays whole rather than being mangled"
+   },
+   {
+    "fr": "Statistiques d'en-tête adaptées : pistes et durée moyenne en vue Musique, vidéos et disponibilité en vue Vidéo",
+    "en": "Header statistics adapted: tracks and average duration in Music view, videos and availability in Video view"
+   }
+  ]
+ },
+ {
+  "v": "1.22.0",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "#G11 — le cache automatique quitte localStorage pour IndexedDB. Le blob JSON unique butait sur le plafond pratique d'environ 5 Mo, et l'échec était silencieux : l'écriture levait une erreur, le cache restait figé, et le démarrage sur cache servait des données de plus en plus anciennes sans rien dire",
+    "en": "#G11 — the automatic cache moves from localStorage to IndexedDB. The single JSON blob was hitting the practical ceiling of about 5 MB, and the failure was silent: the write threw an error, the cache stayed frozen, and starting from cache served increasingly stale data without saying anything"
+   },
+   {
+    "fr": "Une fiche par playlist au lieu d'un blob : enregistrer une playlist ne signifie plus re-sérialiser toute la bibliothèque. La forme réassemblée est identique à l'ancienne, donc ni le chargement au démarrage ni Reel Studio n'ont eu à apprendre un nouveau format",
+    "en": "One record per playlist instead of one blob: saving a playlist no longer means re-serialising the whole library. The reassembled shape is identical to the old one, so neither startup loading nor Reel Studio had to learn a new format"
+   },
+   {
+    "fr": "Migration au premier lancement : l'ancien blob est importé puis supprimé, et seulement une fois la copie écrite. Un blob illisible est jeté plutôt que traîné indéfiniment",
+    "en": "Migration on first launch: the old blob is imported then deleted, and only once the copy has been written. An unreadable blob is discarded rather than carried around indefinitely"
+   },
+   {
+    "fr": "Là où IndexedDB est indisponible — navigation privée Safari, origine bloquée, ouverture en échec — tout retombe sur l'ancien blob localStorage. Ce n'est pas un mode dégradé à détecter : c'est la même API",
+    "en": "Where IndexedDB is unavailable — Safari private browsing, blocked origin, failed open — everything falls back to the old localStorage blob. It is not a degraded mode to detect: it is the same API"
+   },
+   {
+    "fr": "Supprimer mes données et la purge automatique à 30 jours vident aussi la base. La projection d'espace utilise navigator.storage.estimate quand le navigateur le fournit, au lieu de la constante de 5 Mo",
+    "en": "Delete my data and the automatic 30-day purge also empty the database. The storage projection uses navigator.storage.estimate when the browser provides it, instead of the 5 MB constant"
+   },
+   {
+    "fr": "Reel Studio lit la même base en lecture seule, sans écriture ni changement de CSP, et accepte encore un blob legacy",
+    "en": "Reel Studio reads the same database read-only, with no writes and no CSP change, and still accepts a legacy blob"
+   }
+  ]
+ },
+ {
+  "v": "1.21.0",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "#G14 — l'upgrade du scope d'écriture se fait dans une popup et non plus par une redirection plein écran. Un renommage en lot de quarante playlists perdait sa sélection et devait être recommencé : l'action reprend désormais sur place, sans reclic",
+    "en": "#G14 — the write-scope upgrade now happens in a popup instead of a full-screen redirect. A batch rename of forty playlists lost its selection and had to be started over: the action now resumes in place, without clicking again"
+   },
+   {
+    "fr": "La page de retour détecte qu'elle est dans une popup, transmet le jeton à l'ouvreur par postMessage vers sa propre origine uniquement, nettoie le fragment d'URL et se ferme. Un message d'une autre origine ou d'une autre forme est ignoré",
+    "en": "The return page detects that it is in a popup, passes the token to the opener via postMessage to its own origin only, clears the URL fragment and closes. A message from another origin or with another shape is ignored"
+   },
+   {
+    "fr": "Si la popup est bloquée, la redirection d'avant reste le chemin de repli, avec son marqueur de reprise. La popup fermée sans autorisation est dite comme telle plutôt que de rester en attente",
+    "en": "If the popup is blocked, the previous redirect remains the fallback path, with its resume marker. A popup closed without authorisation is reported as such rather than left pending"
+   },
+   {
+    "fr": "Nouvelle option de réglages : demander l'accès en écriture dès la connexion, désactivée par défaut — le scope progressif reste la promesse faite dans le dossier de soumission",
+    "en": "New settings option: request write access at sign-in, off by default — the incremental scope remains the commitment made in the submission file"
+   }
+  ]
+ },
+ {
+  "v": "1.20.0",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "#I2 — une pastille S'abonner / Abonné sur chaque carte Découvrir et dans le lecteur. L'état vient de la liste des abonnements quand elle est chargée ; sinon une seule requête par chaîne (forChannelId, 1 unité) au lieu de parcourir toute la liste pour une réponse",
+    "en": "#I2 — a Subscribe / Subscribed pill on every Discover card and in the player. The state comes from the subscriptions list when it is loaded; otherwise a single request per channel (forChannelId, 1 unit) instead of walking the whole list for one answer"
+   },
+   {
+    "fr": "La distinction jamais vérifié / vérifié et non abonné est explicite : la première déclenche une requête, la seconde n'en déclenche plus jamais. Une réponse négative est mémorisée comme une positive",
+    "en": "The distinction between never checked / checked and not subscribed is explicit: the first triggers a request, the second never triggers one again. A negative answer is remembered just like a positive one"
+   },
+   {
+    "fr": "L'abonnement rejoint immédiatement la liste en mémoire et le cache, pour que la pastille ne revienne pas en arrière au prochain rendu ; le désabonnement passe par la même pastille",
+    "en": "The subscription immediately joins the in-memory list and the cache, so the pill does not revert on the next render; unsubscribing goes through the same pill"
+   }
+  ]
+ },
+ {
+  "v": "1.19.0",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "videos.batchGetStats (méthode ajoutée le 3 juin 2026) fournit les statistiques de Découvrir : 1 unité par appel sur un quatrième bucket de 10 000 par jour, au lieu d'une unité du pool commun par lot de 50. La table de coûts publique ne la documente pas encore, donc un premier refus 404/400 fait basculer la session sur videos.list part=statistics et n'y revient plus — une méthode absente ne le devient pas moins au deuxième essai",
+    "en": "videos.batchGetStats (method added on 3 June 2026) provides the Discover statistics: 1 unit per call on a fourth bucket of 10,000 per day, instead of one unit from the shared pool per batch of 50. The public cost table does not document it yet, so a first 404/400 rejection switches the session to videos.list part=statistics and it never goes back — a missing method is no less missing on the second try"
+   },
+   {
+    "fr": "Le bucket statistiques n'apparaît dans l'infobulle du quota qu'une fois utilisé : afficher un quatrième compteur intact à tout le monde n'apprend rien",
+    "en": "The statistics bucket only appears in the quota tooltip once it has been used: showing an untouched fourth counter to everyone tells nobody anything"
+   },
+   {
+    "fr": "Option Afficher les vues sur les cartes de playlist, désactivée par défaut. Le libellé précise sur combien de vidéos la somme porte, et une vue est comptée dès la première image — ce n'est pas un temps de visionnage",
+    "en": "Show views option on playlist cards, off by default. The label states how many videos the total covers, and a view is counted from the first frame — it is not watch time"
+   },
+   {
+    "fr": "Correctif du lot précédent : l'appel de détails de Découvrir ne demandait pas player, donc le badge Short n'y apparaissait jamais",
+    "en": "Fix from the previous batch: the Discover details call did not request player, so the Short badge never appeared there"
+   }
+  ]
+ },
+ {
+  "v": "1.18.0",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "#I3 — bouton j'aime dans le lecteur. Depuis la révision d'API du 1er septembre 2026, videos.getRating accepte le scope lecture seule : l'état du j'aime s'affiche donc sans jamais demander l'accès en écriture. Seul le clic déclenche l'upgrade de scope",
+    "en": "#I3 — like button in the player. Since the 1 September 2026 API revision, videos.getRating accepts the read-only scope: the like state is therefore shown without ever requesting write access. Only the click triggers the scope upgrade"
+   },
+   {
+    "fr": "Correctif de fond : getQuotaCost, le cache et l'invalidation tronquaient l'endpoint à sa base, donc videos/rate aurait été compté comme videos.POST — c'est-à-dire, depuis le lot 1, sur le bucket des mises en ligne. Un seul j'aime aurait consommé 1 % du quota quotidien d'upload et laissé le pool intact. Le sous-chemin est désormais conservé",
+    "en": "Underlying fix: getQuotaCost, the cache and invalidation truncated the endpoint to its base, so videos/rate would have been counted as videos.POST — that is, since batch 1, against the uploads bucket. A single like would have used 1% of the daily upload quota and left the pool untouched. The sub-path is now preserved"
+   },
+   {
+    "fr": "Le bouton reste visible mais inerte en mode lecture seule et sans jeton, avec l'infobulle qui dit pourquoi ; l'état est optimiste et revient en arrière si l'écriture échoue",
+    "en": "The button stays visible but inert in read-only mode and without a token, with a tooltip saying why; the state is optimistic and reverts if the write fails"
+   }
+  ]
+ },
+ {
+  "v": "1.17.0",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "#68 — filtre Shorts. L'API Data v3 n'expose aucun indicateur officiel : le seul signal disponible est le format d'intégration (snippet.player), demandé dans le même appel que les détails, donc à coût de quota inchangé. Une vidéo est un Short si son intégration est verticale ET qu'elle dure 180 s ou moins — la durée seule ou le format seul se trompent tous les deux",
+    "en": "#68 — Shorts filter. The Data API v3 exposes no official flag: the only available signal is the embed format (snippet.player), requested in the same call as the details, so at unchanged quota cost. A video is a Short if its embed is vertical AND it lasts 180 s or less — duration alone and format alone are both wrong"
+   },
+   {
+    "fr": "Deux nouvelles options de type — Shorts seulement et Exclure les Shorts — dans les trois listes concernées (détail de playlist, recherche globale, plan de visionnage). Cet axe est indépendant de la classification musicale : un Short musical reste les deux",
+    "en": "Two new type options — Shorts only and Exclude Shorts — in the three lists concerned (playlist detail, global search, watch plan). This axis is independent of the music classification: a music Short remains both"
+   },
+   {
+    "fr": "Badge Short sur les cartes de playlist, les colonnes Deck et les résultats Découvrir, avec l'infobulle qui dit que c'est une déduction",
+    "en": "Short badge on playlist cards, Deck columns and Discover results, with a tooltip saying it is an inference"
+   },
+   {
+    "fr": "Depuis une carte Abonnements, les playlists système de la chaîne (UUSH pour les Shorts, UULF pour les vidéos longues) s'ouvrent en lecture seule — c'est la liste exacte de YouTube, là où l'heuristique par vidéo ne fait qu'approcher",
+    "en": "From a Subscriptions card, the channel's system playlists (UUSH for Shorts, UULF for long videos) open read-only — it is YouTube's exact list, whereas the per-video heuristic only approximates"
+   },
+   {
+    "fr": "Statistiques : répartition Shorts / standard, en indiquant sur combien de vidéos chargées la mesure porte",
+    "en": "Statistics: Shorts / standard breakdown, stating how many loaded videos the measurement covers"
+   }
+  ]
+ },
+ {
+  "v": "1.16.1",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "Le message de quota dépassé annonçait encore 10 000 unités par jour pour les trois quotas : il nomme désormais celui qui peut être épuisé (pool, recherches ou mises en ligne). Oubli de la v1.13.0",
+    "en": "The quota-exceeded message still announced 10,000 units per day for all three quotas: it now names the one that can be exhausted (pool, searches or uploads). Missed in v1.13.0"
+   }
+  ]
+ },
+ {
+  "v": "1.16.0",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "#B13 — un 403 ordinaire ne renvoie plus l'utilisateur vers la Google Cloud Console. L'application est en production : le message Ajoutez-vous aux Test users était un faux diagnostic pour presque tous les 403. Il ne reste que pour accessNotConfigured ou un message qui dit vraiment not registered / has not completed ; le reste devient Session expirée, avec un bouton de reconnexion dans le toast",
+    "en": "#B13 — an ordinary 403 no longer sends the user to the Google Cloud Console. The app is in production: the Add yourself to Test users message was a false diagnosis for almost every 403. It remains only for accessNotConfigured or a message that really says not registered / has not completed; everything else becomes Session expired, with a reconnect button in the toast"
+   },
+   {
+    "fr": "#B14 — le cache peut s'afficher sans jeton : le jeton ne vit que dans le fragment d'URL et un rechargement le perd, alors que l'en-tête affichait Connecté. Une pastille Hors ligne — cache local le dit, avec un bouton Se reconnecter, et toute écriture est refusée avant l'appel réseau au lieu de partir avec un Bearer vide",
+    "en": "#B14 — the cache can be displayed without a token: the token only lives in the URL fragment and a reload loses it, yet the header showed Connected. An Offline — local cache pill says so, with a Reconnect button, and any write is refused before the network call instead of going out with an empty Bearer"
+   },
+   {
+    "fr": "Le jeton ne change plus qu'à un seul endroit (setAccessToken), pour que l'en-tête ne puisse pas diverger de son état",
+    "en": "The token now changes in only one place (setAccessToken), so the header cannot drift from its state"
+   },
+   {
+    "fr": "expires_in est capté depuis le fragment OAuth : le journal de diagnostic distingue désormais un jeton absent d'un jeton expiré — les deux produisaient le même 403",
+    "en": "expires_in is captured from the OAuth fragment: the diagnostic log now distinguishes a missing token from an expired one — both produced the same 403"
+   }
+  ]
+ },
+ {
+  "v": "1.15.0",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "Miniatures fhd/qhd/uhd (révision d'API du 11 septembre 2026). Vingt-quatre sites du code avaient chacun leur propre chaîne medium || high || default écrite à la main, parfois dans un ordre différent : une ressource ne portant que les nouvelles clés passait pour n'avoir aucune miniature. Une seule fonction pickThumb désormais, deux modes — carte et grand format",
+    "en": "fhd/qhd/uhd thumbnails (11 September 2026 API revision). Twenty-four places in the code each had their own hand-written medium || high || default chain, sometimes in a different order: a resource carrying only the new keys appeared to have no thumbnail. A single pickThumb function now, two modes — card and large format"
+   },
+   {
+    "fr": "Les sélecteurs fields demandent fhd et qhd (pas uhd : poids inutile pour des cartes). Coût de quota inchangé",
+    "en": "The fields selectors request fhd and qhd (not uhd: needless weight for cards). Quota cost unchanged"
+   },
+   {
+    "fr": "Le cache automatique transporte une seule URL haute définition en plus, et seulement quand c'est une image différente — le blob est déjà proche de la limite pratique de 5 Mo",
+    "en": "The automatic cache carries only one extra high-definition URL, and only when it is a different image — the blob is already close to the practical 5 MB limit"
+   },
+   {
+    "fr": "Reel Studio partage la même chaîne et s'en sert pour la tuile bento principale et les vignettes de playlists",
+    "en": "Reel Studio shares the same chain and uses it for the main bento tile and the playlist thumbnails"
+   }
+  ]
+ },
+ {
+  "v": "1.14.1",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "videoCategories.list suivait FR/fr en dur : une interface anglaise recevait les noms de catégories en français, alors que tous les autres libellés de catégorie suivaient déjà la langue de l'interface. regionCode et hl viennent maintenant de la table LANG_REGION",
+    "en": "videoCategories.list was hard-coded to FR/fr: an English interface received category names in French, while all other category labels already followed the interface language. regionCode and hl now come from the LANG_REGION table"
+   },
+   {
+    "fr": "Au changement de langue, les listes déroulantes de catégories sont re-libellées sur place — elles gardaient les anciens libellés jusqu'à ce qu'autre chose reconstruise la vue",
+    "en": "On language change, the category dropdowns are relabelled in place — they kept the old labels until something else rebuilt the view"
+   }
+  ]
+ },
+ {
+  "v": "1.14.0",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "#73 — les quatre filtres Découvrir annoncés livrés en v1.6.0 partent enfin sur le réseau : videoDefinition, videoCaption, videoLicense, plus publishedAfter (24 h / 7 j / 30 j / 1 an) et un filtre de chaîne. Ils figuraient au backlog mais performDiscoverSearch n'envoyait que order, videoDuration et videoEmbeddable",
+    "en": "#73 — the four Discover filters announced as shipped in v1.6.0 finally go out over the network: videoDefinition, videoCaption, videoLicense, plus publishedAfter (24 h / 7 d / 30 d / 1 yr) and a channel filter. They were in the backlog but performDiscoverSearch only sent order, videoDuration and videoEmbeddable"
+   },
+   {
+    "fr": "regionCode et relevanceLanguage suivent la langue de l'interface via une table LANG_REGION : une interface française recevait des résultats calqués sur l'IP, pas sur la langue",
+    "en": "regionCode and relevanceLanguage follow the interface language via a LANG_REGION table: a French interface received results based on the IP, not on the language"
+   },
+   {
+    "fr": "Les choix de filtres sont persistés, tri et ordre compris — ils étaient réinitialisés à chaque rechargement. Le filtre de chaîne, lui, reste volontairement temporaire",
+    "en": "Filter choices are persisted, sort and order included — they were reset on every reload. The channel filter, however, deliberately stays temporary"
+   },
+   {
+    "fr": "Depuis une carte Abonnements, Chercher dans cette chaîne ouvre Découvrir pré-filtré sur la chaîne",
+    "en": "From a Subscriptions card, Search this channel opens Discover pre-filtered on the channel"
+   }
+  ]
+ },
+ {
+  "v": "1.13.0",
+  "date": "2026-09-16",
+  "items": [
+   {
+    "fr": "#76 — le quota n'est plus un pool unique. Depuis la révision d'API de juin 2026, search.list et videos.insert ont chacun leur propre allocation quotidienne comptée en APPELS (100 par jour) et ne touchent plus au pool de 10 000 unités. L'app comptait encore 100 unités par recherche et 1 600 par mise en ligne : une journée de Découvrir paraissait avoir vidé un quota qui était en réalité intact",
+    "en": "#76 — the quota is no longer a single pool. Since the June 2026 API revision, search.list and videos.insert each have their own daily allocation counted in CALLS (100 per day) and no longer touch the 10,000-unit pool. The app was still counting 100 units per search and 1,600 per upload: a day of Discover appeared to have drained a quota that was in fact intact"
+   },
+   {
+    "fr": "Trois compteurs persistés, remis à zéro ensemble à minuit heure du Pacifique ; l'ancienne clé quotaUnits est reprise dans le pool puis supprimée",
+    "en": "Three persisted counters, reset together at midnight Pacific time; the old quotaUnits key is carried over into the pool then deleted"
+   },
+   {
+    "fr": "La jauge prend la couleur du pire des trois ratios — un bucket recherche épuisé ne pouvait plus se cacher derrière un pool à 1 % — et son infobulle détaille les trois",
+    "en": "The gauge takes the colour of the worst of the three ratios — an exhausted search bucket could no longer hide behind a pool at 1% — and its tooltip details all three"
+   },
+   {
+    "fr": "Découvrir estime son coût en pages contre le bucket recherche, et refuse proprement quand il est épuisé au lieu de partir en 403",
+    "en": "Discover estimates its cost in pages against the search bucket, and cleanly refuses when it is exhausted instead of ending in a 403"
+   },
+   {
+    "fr": "Les seuils 50/75/90/100 % et l'en-tête du journal de diagnostic sont désormais par bucket",
+    "en": "The 50/75/90/100% thresholds and the diagnostic log header are now per bucket"
+   }
+  ]
+ },
+ {
+  "v": "1.12.1",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "CORRECTIF CRITIQUE — videoPublishedAt avait été demandé dans snippet() alors qu'il appartient à contentDetails. Un sélecteur fields invalide ne renvoie pas moins de données : il renvoie une erreur 400. Depuis la v1.11.0 aucun chargement de vidéos ne fonctionnait, et les exports étaient vides",
+    "en": "CRITICAL FIX — videoPublishedAt had been requested in snippet() although it belongs to contentDetails. An invalid fields selector does not return less data: it returns a 400 error. Since v1.11.0 no video loading worked, and exports were empty"
+   },
+   {
+    "fr": "fetchAllPages ne transforme plus un échec total en liste vide : l'erreur de la première page remonte, au lieu de se faire passer pour une playlist sans vidéos",
+    "en": "fetchAllPages no longer turns a total failure into an empty list: the first-page error propagates, instead of passing itself off as a playlist with no videos"
+   },
+   {
+    "fr": "loadPlaylistVideos réessaie sans le paramètre fields si celui-ci échoue — une optimisation de bande passante ne doit jamais coûter la bibliothèque",
+    "en": "loadPlaylistVideos retries without the fields parameter if it fails — a bandwidth optimisation must never cost the library"
+   }
+  ]
+ },
+ {
+  "v": "1.12.0",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "#76 — le cache automatique ne peut plus s'effacer lui-même : une écriture sans aucune vidéo est refusée si le cache en contient. Il était réécrit juste après un démarrage sur cache, quand les vidéos ne sont pas encore en mémoire, ce qui remplaçait un cache utilisable par une liste de playlists vides",
+    "en": "#76 — the automatic cache can no longer erase itself: a write with no videos at all is refused if the cache contains some. It was rewritten right after a start from cache, when the videos are not yet in memory, which replaced a usable cache with a list of empty playlists"
+   },
+   {
+    "fr": "Diagnostic Cache — verdict de santé (UTILISABLE / PARTIEL / DÉGRADÉ / VIDE) avec la raison, couverture playlists-avec-vidéos, marge par rapport à la limite pratique de 5 Mo avec projection sur la bibliothèque complète, et ancienneté lisible",
+    "en": "Cache diagnostics — health verdict (USABLE / PARTIAL / DEGRADED / EMPTY) with the reason, playlists-with-videos coverage, headroom against the practical 5 MB limit with a projection for the full library, and readable age"
+   }
+  ]
+ },
+ {
+  "v": "1.11.1",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "Correctif du correctif #G10 : la garde anti-formule ajoutait une apostrophe à l'export CSV que la restauration ne retirait pas — une playlist nommée -Techno revenait sous le nom apostrophe-Techno. Aller-retour désormais sans perte, et un titre commençant vraiment par une apostrophe est préservé",
+    "en": "Fix to the #G10 fix: the anti-formula guard added an apostrophe on CSV export that restore did not remove — a playlist named -Techno came back as apostrophe-Techno. Round trip now lossless, and a title that really starts with an apostrophe is preserved"
+   }
+  ]
+ },
+ {
+  "v": "1.11.0",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "#G8 — détection des fantômes par métadonnées (miniature + videoPublishedAt + privacyStatus) au lieu du titre. Le test cherchait Deleted ou Private n'importe où dans le titre : une vraie vidéo nommée Private Session était signalée, et aucun compte non anglophone n'était couvert",
+    "en": "#G8 — ghost detection via metadata (thumbnail + videoPublishedAt + privacyStatus) instead of the title. The test looked for Deleted or Private anywhere in the title: a real video named Private Session was flagged, and no non-English-speaking account was covered"
+   },
+   {
+    "fr": "#G9 — nettoyage en lot : une seule ré-analyse et un seul message à la fin, au lieu d'une ré-analyse complète et d'un message par suppression ; l'élément supprimé quitte enfin le cache",
+    "en": "#G9 — batch cleanup: a single re-scan and a single message at the end, instead of a full re-scan and a message per deletion; the deleted item finally leaves the cache"
+   }
+  ]
+ },
+ {
+  "v": "1.10.0",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "#G18 — la fusion choisit sa destination par identifiant : un menu liste les playlists existantes ou permet d'en créer une. Elle la cherchait par titre, donc deux playlists homonymes envoyaient les vidéos dans la première venue, et saisir un nom existant fusionnait dedans au lieu de créer",
+    "en": "#G18 — merge picks its destination by ID: a menu lists the existing playlists or lets you create one. It used to look it up by title, so two playlists with the same name sent the videos into whichever came first, and typing an existing name merged into it instead of creating one"
+   },
+   {
+    "fr": "#G18 — fusionner une playlist dans elle-même est refusé, et les insertions en échec sont signalées au lieu d'être annoncées comme une fusion propre",
+    "en": "#G18 — merging a playlist into itself is refused, and failed insertions are reported instead of being announced as a clean merge"
+   }
+  ]
+ },
+ {
+  "v": "1.9.0",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "#G7 — Déplacer déplace enfin : l'item source est supprimé après l'insertion. La fonction ne faisait qu'insérer dans la destination, donc elle copiait, et la vidéo restait aussi dans la source",
+    "en": "#G7 — Move finally moves: the source item is deleted after insertion. The function only inserted into the destination, so it copied, and the video also stayed in the source"
+   },
+   {
+    "fr": "#G7 — le cache de la playlist source est désormais invalidé lui aussi, et un échec de suppression est signalé au lieu d'être annoncé comme un succès",
+    "en": "#G7 — the source playlist's cache is now invalidated too, and a deletion failure is reported instead of being announced as a success"
+   }
+  ]
+ },
+ {
+  "v": "1.8.0",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "T1 / #G15 — la seconde définition de parseDuration masquait la première pour tout le fichier ; la version tolérante aux valeurs vides est conservée, la duplicata et formatSeconds (sans appelant) sont supprimées",
+    "en": "T1 / #G15 — the second definition of parseDuration shadowed the first for the whole file; the version tolerant of empty values is kept, the duplicate and formatSeconds (no caller) are removed"
+   },
+   {
+    "fr": "#G16 — suppression de drawBarChart, défini mais jamais appelé (70 lignes)",
+    "en": "#G16 — removal of drawBarChart, defined but never called (70 lines)"
+   },
+   {
+    "fr": "#G17 — les cartes bêta suivaient APP.lang, qui n'était jamais renseigné : elles restaient en français dans l'interface anglaise",
+    "en": "#G17 — the beta cards followed APP.lang, which was never set: they stayed in French in the English interface"
+   },
+   {
+    "fr": "#G19 — l'écriture du cache automatique remet à zéro l'indicateur de modifications : plus d'alerte de sortie alors que tout est déjà enregistré",
+    "en": "#G19 — writing the automatic cache resets the unsaved-changes flag: no more exit warning when everything is already saved"
+   }
+  ]
+ },
+ {
+  "v": "1.7.2",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "#G10 — injection de formule CSV : un titre commençant par = + - @ (ou tabulation / retour chariot) était exécuté à l'ouverture du fichier dans Excel ou Sheets ; il est désormais préfixé",
+    "en": "#G10 — CSV formula injection: a title starting with = + - @ (or tab / carriage return) was executed when the file was opened in Excel or Sheets; it is now prefixed"
+   }
+  ]
+ },
+ {
+  "v": "1.7.1",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "Les liens entre les deux interfaces portent le numéro de version : une page conservée par un ancien service worker n’est plus servie après une mise à jour",
+    "en": "Links between the two interfaces carry the version number: a page kept by an old service worker is no longer served after an update"
+   }
+  ]
+ },
+ {
+  "v": "1.7.0",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "Sélecteur de couleur intégré — carré saturation/valeur, curseur de teinte, champs HEX et RVB. <input type=\"color\"> ouvrait la boîte de dialogue du système, très différente entre le bureau et Android et non stylable ; le nouveau sélecteur est identique partout et devient une feuille basse sous 768 px",
+    "en": "Built-in colour picker — saturation/value square, hue slider, HEX and RGB fields. <input type=\"color\"> opened the system dialog, very different between desktop and Android and not stylable; the new picker is identical everywhere and becomes a bottom sheet below 768 px"
+   }
+  ]
+ },
+ {
+  "v": "1.6.0",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "#73 — Discover : l’ordre YouTube (pertinence / plus vues / plus récentes / mieux notées) devient un vrai contrôle, il change les résultats et pas seulement leur affichage",
+    "en": "#73 — Discover: the YouTube order (relevance / most viewed / most recent / top rated) becomes a real control, it changes the results and not just how they are displayed"
+   },
+   {
+    "fr": "#73 — trois tris locaux de plus (engagement, date, durée) et filtres durée + lisible dans le lecteur intégré, sans coût quota supplémentaire",
+    "en": "#73 — three more local sorts (engagement, date, duration) and duration + playable-in-the-embedded-player filters, at no extra quota cost"
+   },
+   {
+    "fr": "#73 — un compteur masqué (likes cachés, commentaires désactivés) n’est plus compté comme zéro : il s’affiche « — » et passe en fin de tri",
+    "en": "#73 — a hidden counter (hidden likes, comments disabled) is no longer counted as zero: it shows “—” and goes to the end of the sort"
+   }
+  ]
+ },
+ {
+  "v": "1.5.0",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "#B12 — le lecteur intégré se met en pause quand l’onglet passe en arrière-plan ou que la page est quittée : plus deux vidéos en lecture simultanée",
+    "en": "#B12 — the embedded player pauses when the tab goes to the background or the page is left: no more two videos playing at the same time"
+   }
+  ]
+ },
+ {
+  "v": "1.4.2",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "Bouton Musique conservé dans l’en-tête en portrait (icône seule) — il tombait sous la règle qui masque les outils d’en-tête sous 768 px",
+    "en": "Music button kept in the header in portrait (icon only) — it fell under the rule that hides header tools below 768 px"
+   }
+  ]
+ },
+ {
+  "v": "1.4.1",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "CR1 — deux sinks restants corrigés : noms de playlists dans Playlist Diff, et escapeJsAttr() pour les arguments des handlers inline (l’antislash n’était pas échappé)",
+    "en": "CR1 — two remaining sinks fixed: playlist names in Playlist Diff, and escapeJsAttr() for inline handler arguments (the backslash was not escaped)"
+   },
+   {
+    "fr": "CR4 — videos.insert corrigé à 1600 unités dans la table, et les trois uploads Studio persistent enfin le quota compté (saveQuotaState)",
+    "en": "CR4 — videos.insert corrected to 1600 units in the table, and the three Studio uploads finally persist the counted quota (saveQuotaState)"
+   }
+  ]
+ },
+ {
+  "v": "1.4.0",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "Bouton « Musique » — bascule vers Reel Studio depuis l’en-tête et la barre latérale",
+    "en": "“Music” button — switches to Reel Studio from the header and the sidebar"
+   },
+   {
+    "fr": "Service worker — les pages HTML sont servies réseau d’abord : une version éditée n’arrive plus avec un tour de retard",
+    "en": "Service worker — HTML pages are served network-first: an edited version no longer arrives one round late"
+   }
+  ]
+ },
+ {
+  "v": "1.3.0",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "Panneau Version — build en cours + journal des modifications, accessible depuis les deux pieds de page",
+    "en": "Version panel — current build + changelog, accessible from both footers"
+   },
+   {
+    "fr": "Reel Studio v0.4.0 — UI alternative 3a : 8 vues, panneau Palette, lecteur interne à file, et coordination avec l’onglet YouTube externe",
+    "en": "Reel Studio v0.4.0 — alternative UI 3a: 8 views, Palette panel, internal queue player, and coordination with the external YouTube tab"
+   }
+  ]
+ },
+ {
+  "v": "1.2.0",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "#70 — thèmes Bichrome / Duochrome / Trichrome : noir verrouillé + 1, 2 ou 3 accents éditables",
+    "en": "#70 — Bichrome / Duochrome / Trichrome themes: locked black + 1, 2 or 3 editable accents"
+   },
+   {
+    "fr": "#70 — palette catégorielle dérivée des accents (rampe monochrome en Bichrome) + 12 présets",
+    "en": "#70 — categorical palette derived from the accents (monochrome ramp in Bichrome) + 12 presets"
+   },
+   {
+    "fr": "#70 — tuiles réactives au survol dans les thèmes Studio",
+    "en": "#70 — hover-reactive tiles in the Studio themes"
+   }
+  ]
+ },
+ {
+  "v": "1.1.0",
+  "date": "2026-08-19",
+  "items": [
+   {
+    "fr": "#69 — moteur de thèmes nommés (typo, palette, rayons, mouvement appliqués en un appel)",
+    "en": "#69 — named theme engine (typography, palette, radii, motion applied in one call)"
+   },
+   {
+    "fr": "#69 — thème Studio / Music, remplacé depuis par les trois thèmes de #70",
+    "en": "#69 — Studio / Music theme, since replaced by the three themes of #70"
+   }
+  ]
+ },
+ {
+  "v": "1.0.0",
+  "date": "2026-07-29",
+  "items": [
+   {
+    "fr": "CR1–CR5 — échappement XSS + CSP, file de lecture, cache obsolète, comptage quota, purge RGPD",
+    "en": "CR1–CR5 — XSS escaping + CSP, playback queue, stale cache, quota counting, GDPR purge"
+   }
+  ]
+ }
+]

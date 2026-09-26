@@ -3,13 +3,22 @@
 // Strategy: Cache-first for static assets, network-first for API calls
 // ============================================================================
 
-const CACHE_NAME = 'reel-manager-v32';
+// AUD-30 — the cache is named after the release that registered this worker:
+// the app registers sw.js?v=<APP_VERSION>, so each release gets its own cache
+// and activate drops the previous one. It was a hand-bumped 'reel-manager-v32'
+// that had no link to APP_VERSION.
+const RELEASE = new URL(self.location).searchParams.get('v') || 'dev';
+const CACHE_NAME = 'reel-manager-' + RELEASE;
+// Same-origin only. The Google Fonts stylesheet used to be listed here: one
+// failed cross-origin request makes cache.addAll() reject and the whole install
+// with it, and the fetch handler never served that entry anyway (googleapis.com
+// goes straight to the network). shared/core.js is needed to boot offline.
 const STATIC_ASSETS = [
   'youtube-playlist-manager.html',
+  'shared/core.js',
   'manifest.json',
   'icons/icon-192.png',
   'icons/icon-512.png',
-  'https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap'
 ];
 
 // Install: cache static assets
@@ -45,7 +54,13 @@ self.addEventListener('fetch', event => {
 
   // Network-first for HTML documents: stale-while-revalidate served the PREVIOUS
   // version on every visit, so an edited page only appeared on the next reload.
-  if (event.request.mode === 'navigate' || event.request.destination === 'document') {
+  // AUD-30 — also for same-origin scripts and JSON (shared/core.js,
+  // changelog.json): a fresh page must not run against a stale shared script.
+  // Offline, the query string is ignored: ?bookmark=… and reel-studio.html?v=…
+  // are the cached page, not a miss.
+  const sameOrigin = url.origin === self.location.origin;
+  if (event.request.mode === 'navigate' || event.request.destination === 'document'
+      || (sameOrigin && (event.request.destination === 'script' || url.pathname.endsWith('.json')))) {
     event.respondWith(
       fetch(event.request).then(response => {
         if (response && response.status === 200) {
@@ -53,7 +68,7 @@ self.addEventListener('fetch', event => {
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
         }
         return response;
-      }).catch(() => caches.match(event.request))   // offline: fall back to cache
+      }).catch(() => caches.match(event.request, { ignoreSearch: true }))   // offline: fall back to cache
     );
     return;
   }

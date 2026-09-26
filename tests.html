@@ -3385,7 +3385,8 @@ const SUITES = [
     ['the video upload is checked against the upload bucket', async w => {
       // The bug was the caller, not checkQuotaBudget: it never named the bucket.
       const src = await (await fetch('youtube-playlist-manager.html?aud15b=' + Date.now())).text();
-      const call = (src.match(/checkQuotaBudget\([^)]*'video_insert'[^)]*\)/) || [''])[0];
+      // The action name is a t('…') call since AUD-27, hence the nested parentheses.
+      const call = (src.match(/checkQuotaBudget\((?:t\('[^']*'\)|[^)])*'video_insert'[^)]*\)/) || [''])[0];
       ok(/'upload'\s*\)$/.test(call), 'the upload pre-flight does not name the upload bucket: ' + call);
       const snap = seedQuota(w, { pool: 0, search: 0, upload: 100, stats: 0 });
       const real = { confirm: w.confirm, showToast: w.showToast };
@@ -4499,6 +4500,369 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-39', title: 'Tunable numbers live in one CONFIG block', note: 'caps, retention, timers and the API batch size were literals, the batch size in more than ten places',
+  cases: [
+    ['CONFIG holds the values and cannot be changed at run time', w => {
+      ok(w.CONFIG && Object.isFrozen(w.CONFIG), 'CONFIG missing or writable');
+      return eq([w.CONFIG.API_BATCH_SIZE, w.CONFIG.PLAYLIST_ITEMS_MAX_PAGES, w.CONFIG.CHANNEL_PLAYLISTS_MAX_PAGES, w.CONFIG.AUTO_PURGE_DAYS, w.CONFIG.BACKUP_STALE_HOURS],
+                [50, 100, 3, 30, 24], 'values');
+    }],
+    ['no copy of those numbers is left in the code', async w => {
+      const src = (await fetch('youtube-playlist-manager.html?aud39=' + Date.now()).then(r => r.text()))
+        .replace(/\/\/[^\n]*/g, '');
+      const patterns = { 'i += 50': /i \+= 50\b/, 'i + 50': /i \+ 50\b/, 'maxResults: 50': /maxResults: 50\b/, 'maxPages = 20': /maxPages = 20\b/,
+        'daysSinceLogin > 30': /daysSinceLogin > 30/, 'hours >= 24': /hours >= 24/, '600_000': /600_000/, 'life = 3000': /life = 3000/, 'life = 10000': /life = 10000/ };
+      return eq(Object.keys(patterns).filter(k => patterns[k].test(src)), [], 'literals still in the code');
+    }],
+    ['a toast lives CONFIG.TOAST_MS', w => aud48Toast(w, 'info', null, t => eq(t.live().map(x => x.ms), [w.CONFIG.TOAST_MS], 'life'))],
+  ],
+},
+{
+  id: 'AUD-38/29', title: 'Dead code is gone', note: 'a mini-player nothing ever showed, a progress timer that only fed it, two unused helpers and a shadowed global',
+  cases: [
+    ['the dead mini-player is gone, markup and code', w => {
+      eq(w.document.getElementById('miniPlayer'), null, 'markup');
+      return eq(['updateMiniPlayer', 'startProgressTracking', 'stopProgressTracking'].map(n => typeof w[n]), ['undefined', 'undefined', 'undefined'], 'functions');
+    }],
+    ['unused helpers are gone', w => eq(['addToQueueFromCard', 'isCategoryAssignable', 'toggleMusicMode', 'updateMusicModeBtn'].map(n => typeof w[n]),
+                                         ['undefined', 'undefined', 'undefined', 'undefined'])],
+    ['no global is shadowed by executeRestore()', w => {
+      eq(typeof w.updateProgress, 'undefined', 'global updateProgress');
+      return eq(typeof w.updateCategorizerProgress, 'function', 'the categorizer helper');
+    }],
+    ['the player still docks and closes without the mini-player', w => {
+      const overlay = w.document.getElementById('playerModalOverlay');
+      const before = overlay.className;
+      try {
+        w.minimizePlayer();
+        ok(overlay.classList.contains('docked'), 'not docked');
+        w.closePlayer();
+        return eq(overlay.classList.contains('active'), false, 'still open after close');
+      } finally { overlay.className = before; }
+    }],
+  ],
+},
+{
+  id: 'AUD-36', title: 'No error is swallowed without a trace', note: '72 empty catch blocks; one of them hid v1.27.3\'s auto-categorize failure',
+  cases: [
+    ['no empty catch block is left without a reason', async w => {
+      const src = await fetch('youtube-playlist-manager.html?aud36=' + Date.now()).then(r => r.text());
+      const empty = [...src.matchAll(/catch\s*(\(\s*\w+\s*\))?\s*\{\s*\}/g)].map(m => src.slice(0, m.index).split('\n').length);
+      return eq(empty, [], 'lines with an empty catch (use swallow(), or say why in a comment)');
+    }],
+    ['swallow() leaves a trace in the diagnostic log', w => {
+      const out = aud10Logged(w, 'aud36probe', () => w.swallow('aud36probe', new Error('boom'), 'warn'));
+      return eq(out.map(e => [e.level, e.category, e.msg, e.data.msg]), [['warn', 'swallowed', 'aud36probe', 'boom']]);
+    }],
+    ['a failed redraw is recorded, and the caller still returns', w => {
+      const real = w.refreshPlaylistsList;
+      try {
+        w.refreshPlaylistsList = () => { throw new Error('aud36 redraw failed'); };
+        const out = aud10Logged(w, 'aud36 redraw failed', () => w.scrollToPlaylistCard('PL_aud36_none'));
+        return eq(out.map(e => [e.level, e.msg]), [['warn', 'scrollToPlaylistCard:redraw']]);
+      } finally { w.refreshPlaylistsList = real; }
+    }],
+  ],
+},
+{
+  id: 'AUD-34', title: 'One duration formatter', note: 'three copies gave "1h02m", "1:02:05" and "1:02:05" for the same 3725 s, and Discover re-parsed ISO durations by hand',
+  cases: [
+    ['compact and clock styles', w => eq(
+      [w.formatDuration(3725), w.formatDuration(3725, 'clock'), w.formatDuration(185, 'clock'), w.formatDuration(185), w.formatDuration(0), w.formatDuration(0, 'clock'), w.formatDuration(59.7, 'clock')],
+      ['1h02m', '1:02:05', '3:05', '3:05', '--:--', '0:00', '0:59'])],
+    ['no other formatter or ISO parser is left', async w => {
+      // parseDuration() lives in shared/core.js since AUD-33: count both pages and it
+      const files = ['youtube-playlist-manager.html', 'reel-studio.html', 'shared/core.js'];
+      const srcs = await Promise.all(files.map(f => fetch(f + '?aud34=' + Date.now()).then(r => r.text())));
+      eq(typeof w.formatIsoDuration, 'undefined', 'formatIsoDuration');
+      const parsers = srcs.map(src => (src.replace(/\/\/[^\n]*/g, '').match(/PT\(\?:\(\\d\+\)H\)/g) || []).length);
+      return eq(parsers, [0, 0, 1], 'ISO 8601 duration regexes per file (parseDuration only)');
+    }],
+  ],
+},
+{
+  id: 'AUD-27', title: 'Visible strings go through t()', note: 'errors, toasts, dashboard tiles, modals, CSV headers and the #80 classification labels were French or English whatever the UI language',
+  cases: [
+    ['no French text is left in the code outside the translation tables', async w => {
+      const src = await fetch('youtube-playlist-manager.html?aud27=' + Date.now()).then(r => r.text());
+      const code = src.slice(src.indexOf('<script>\n// ===='));
+      const i18n = [code.indexOf('const I18N = {'), code.indexOf('function t(key')];
+      const clAt = code.indexOf('const CHANGELOG');   // moved out to changelog.json (AUD-41)
+      const cl = clAt < 0 ? [-1, -1] : [clAt, code.indexOf('\n];', clAt)];
+      const bad = [];
+      let off = 0;
+      for (const line of code.split('\n')) {
+        const inTable = (off >= i18n[0] && off <= i18n[1]) || (off >= cl[0] && off <= cl[1]);
+        const st = line.trim();
+        const skip = inTable || /^(\/\/|\*|\/\*)/.test(st) || /console\.|\blog\('/.test(line)
+          || /fr:"[^"]*",\s*en:/.test(line) || /\['[^']*', '[^']*'\]/.test(line);   // bilingual tables
+        if (!skip) for (const m of line.matchAll(/(['"`])((?:(?!\1).)*?[éèêàùçôîÉÀ](?:(?!\1).)*?)\1/g)) bad.push(m[2].slice(0, 50));
+        off += line.length + 1;
+      }
+      return eq(bad, [], 'French literals');
+    }],
+    ['the dashboard tiles follow the language', async w => {
+      const snap = snapshot(w, ['appLang']);
+      const before = w.localStorage.getItem('appLang') || 'fr';   // currentLang is a let, not on window
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      w.showToast = () => {};
+      try {
+        w.ytApi = async (endpoint, params) => endpoint === 'playlists' && params && params.mine
+          ? { items: [{ id: 'PL_aud27', snippet: { title: 'Aud27' }, contentDetails: { itemCount: 3 }, status: {} }] } : { items: [] };
+        await w.loadAllPlaylists();
+        const render = lang => { w.applyLanguage(lang); w.refreshDashboard(); return w.document.getElementById('dashboardStatTiles').textContent; };
+        const en = render('en'), fr = render('fr');
+        ok(/VIDEOS/.test(en) && /largest/.test(en) && !/VIDÉOS|plus grande/.test(en), 'English tiles: ' + en.slice(0, 120));
+        return ok(/VIDÉOS/.test(fr) && /plus grande/.test(fr) && !/largest/.test(fr), 'French tiles: ' + fr.slice(0, 120));
+      } finally {
+        w.applyLanguage(before); restore(w, snap);
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+    ['a network failure is translated, and still recognised by its flag', async w => {
+      const snap = snapshot(w, ['appLang']);
+      const before = w.localStorage.getItem('appLang') || 'fr';   // currentLang is a let, not on window
+      const real = { fetch: w.fetch, sleep: w.sleep };
+      try {
+        w.applyLanguage('fr');
+        w.sleep = async () => {};
+        w.fetch = async () => { throw new TypeError('Failed to fetch'); };
+        let err = null;
+        try { await w.ytApi('playlists', { part: 'id', aud27: Date.now() }); } catch (e) { err = e; }
+        ok(err && /^Erreur réseau/.test(err.message), 'message: ' + (err && err.message));
+        eq(err.network, true, 'flag');
+        return eq(w.isBatchStatsUnavailable(Object.assign(new Error('Erreur serveur'), { status: 404 })), true, 'status flag read');
+      } finally { Object.assign(w, real); w.applyLanguage(before); restore(w, snap); }
+    }],
+    ['CSV headers and status labels exist in both languages, with the same column count', w => {
+      const snap = snapshot(w, ['appLang']);
+      const before = w.localStorage.getItem('appLang') || 'fr';
+      const cols = lang => { w.applyLanguage(lang); return [w.t('csv_headers').split('|').length, w.t('csv_deleted')]; };
+      try {
+        return eq([cols('fr'), cols('en')], [[10, 'Supprimée'], [10, 'Deleted']]);
+      } finally { w.applyLanguage(before); restore(w, snap); }
+    }],
+  ],
+},
+{
+  id: 'Subs XSS', title: 'A channel description renders as text', note: 'found during AUD-27: the Subscriptions view put channel descriptions from the API into innerHTML unescaped',
+  cases: [
+    ['a hostile channel description injects nothing', async w => {
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      w.showToast = () => {};
+      try {
+        w.ytApi = async endpoint => endpoint === 'subscriptions' ? { items: [{ id: 'SUB_x',
+          snippet: { title: 'Chan', description: AUD06_HTML, publishedAt: '2026-01-01T00:00:00Z', resourceId: { channelId: 'UCaud00000000000000000xx' }, thumbnails: {} },
+          contentDetails: { totalItemCount: 3, newItemCount: 1 } }] } : { items: [] };
+        await w.loadSubscriptions();
+        const list = w.document.getElementById('subscriptionsList');
+        eq(list.querySelectorAll('img[onerror*="__pwn"], .sub-desc img').length, 0, 'elements injected');
+        return eq(list.querySelector('.sub-desc').textContent, AUD06_HTML.slice(0, 100), 'shown as text');
+      } finally {
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadSubscriptions(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+  ],
+},
+{
+  id: 'AUD-25', title: 'One music classifier, and the spec boundaries (S1–S6)', note: 'classifyVideoType() and musicScore() decided separately; a "- Topic" upload with no category was music for one only',
+  cases: [
+    ['S1 — category 10 alone reaches the 0.7 threshold', w => {
+      const v = { title: 'x', categoryId: '10', durationSeconds: 30 };
+      eq(Math.round(w.musicScore(v) * 100) / 100, 0.7, 'score');
+      return eq(w.isMusicVideo(v), true, 'track');
+    }],
+    ['S2 — the long-form penalty keeps a 25-minute Topic upload out', w => {
+      const v = { title: 'x', channelTitle: 'X - Topic', durationSeconds: 1500 };
+      eq(Math.round(w.musicScore(v) * 100) / 100, 0.4, 'score');
+      return eq(w.isMusicVideo(v), false, 'track');
+    }],
+    ['S3 — track-length bounds with only the artist-title pattern', w => eq(
+      [119, 120, 420, 421].map(d => Math.round(w.musicScore({ title: 'Artist - Title', durationSeconds: d }) * 100) / 100),
+      [0.2, 0.4, 0.4, 0.2])],
+    ['S4 — playlist verdict boundaries', w => {
+      const list = n => Array.from({ length: 50 }, (_, i) => i < n ? { title: 'x', categoryId: '10', durationSeconds: 200 } : { title: 'x', durationSeconds: 200 });
+      return eq([40, 25, 24].map(n => w.playlistMusicVerdict(list(n)).verdict), ['music', 'mixed', 'video']);
+    }],
+    ['S5 — a user override beats detection', w => {
+      const snap = snapshot(w, ['playlistViewMode']);
+      try {
+        w.setPlaylistViewMode('PL_aud25', 'video');
+        eq(w.effectiveViewMode('PL_aud25', 'music'), 'video', 'override video');
+        w.setPlaylistViewMode('PL_aud25', 'music');
+        eq(w.effectiveViewMode('PL_aud25', 'video'), 'music', 'override music');
+        w.setPlaylistViewMode('PL_aud25', null);
+        return eq(w.effectiveViewMode('PL_aud25', 'mixed'), 'video', 'no override');
+      } finally { restore(w, snap); }
+    }],
+    ['S6 — both paths agree on a Topic upload with no category or topics', w => {
+      const v = { videoId: 'aud25topic0', title: 'Song', channelTitle: 'Artist - Topic', durationSeconds: 200 };
+      const c = w.classifyVideoType(v);
+      return eq([c.isMusic, c.isTrack, w.isMusicVideo(v)], [true, true, true]);
+    }],
+    ['a track is always music content, never the other way round', w => {
+      const samples = [
+        { title: 'Song', channelTitle: 'A - Topic', durationSeconds: 200 },
+        { title: 'Boiler Room Set', channelTitle: 'A - Topic', durationSeconds: 7200 },
+        { title: 'Guitar lesson for beginners', categoryId: '10', durationSeconds: 600 },
+        { title: 'Artist - Title (Official Video)', durationSeconds: 240 },
+        { title: 'Demo', channelTitle: 'Band - Topic', durationSeconds: 180 },
+        { title: 'Podcast #12', durationSeconds: 3600 },
+        { title: 'DJ set live at X', durationSeconds: 5400 },
+      ];
+      const bad = samples.filter(v => { const c = w.classifyVideoType(v); return c.isTrack && !c.isMusic || w.isMusicVideo(v) !== c.isTrack; });
+      eq(bad.map(v => v.title), [], 'contradictions');
+      const c = s => w.classifyVideoType(s);
+      eq([c(samples[1]).isMusic, c(samples[1]).isTrack], [true, false], 'a 2 h set: music content, not a track');
+      eq(c(samples[2]).isMusic, false, 'a lesson filed under Music is not music');
+      return eq(c(samples[4]).isTrack, true, 'a Topic track titled "Demo" stays a track');
+    }],
+  ],
+},
+{
+  id: '#J3', title: 'A playlist\'s shared genre becomes a tag', note: 'the genre from topicDetails was shown as a badge and never written into the tags',
+  cases: [
+    ['dominantGenre needs two music videos and at least half of them', w => {
+      const topic = g => 'https://en.wikipedia.org/wiki/' + g;
+      const d = (id, g, cat = '10') => ({ id, snippet: { title: 'v', categoryId: cat }, contentDetails: { duration: 'PT3M' },
+                                          topicDetails: { topicCategories: g ? [topic(g), topic('Music')] : [] } });
+      const label = w.classifyVideoType({ topicCategories: [topic('Electronic_music')], categoryId: '10' }).genre;
+      ok(label, 'no genre label');
+      eq(w.dominantGenre([d('a', 'Electronic_music'), d('b', 'Electronic_music'), d('c', 'Rock_music')]), label, 'two of three');
+      eq(w.dominantGenre([d('a', 'Electronic_music')]), null, 'one track is not a genre');
+      eq(w.dominantGenre([d('a', 'Electronic_music'), d('b', 'Rock_music'), d('c', 'Pop_music'), d('d', 'Jazz')]), null, 'no majority');
+      return eq(w.dominantGenre([d('a', null, '27'), d('b', null, '27')]), null, 'no music');
+    }],
+    ['the categorizer suggests the genre and Apply writes it', async w => {
+      const snapLs = snapshot(w, ['playlistTags']);
+      const EDM = 'https://en.wikipedia.org/wiki/Electronic_music';
+      const done = await runCategorizer(w, params =>
+        ({ items: String(params.id).split(',').map(id => ({
+          id, snippet: { title: 'v', categoryId: '10' }, contentDetails: { duration: 'PT3M' },
+          topicDetails: { topicCategories: [EDM, 'https://en.wikipedia.org/wiki/Music'] },
+        })) }),
+        [{ id: 'PL_j3', snippet: { title: 'Night drive' }, contentDetails: { itemCount: 3 }, status: {} }]);
+      try {
+        const genre = w.classifyVideoType({ topicCategories: [EDM], categoryId: '10' }).genre;
+        const row = categorizerRows(w).find(r => r.id === 'PL_j3');
+        ok(row && row.text.includes(genre), 'suggestion: ' + (row && row.text));
+        w.document.getElementById('categorizerApplyBtn').click();
+        const stored = JSON.parse(w.localStorage.getItem('playlistTags') || '{}');
+        return eq(stored['PL_j3'], ['Musique', genre], 'tags written');
+      } finally { done(); restore(w, snapLs); }
+    }],
+  ],
+},
+{
+  id: 'AUD-41', title: 'The changelog is a bilingual file, loaded on demand', note: 'the release notes were 47 KB of French-only, accent-stripped text inside the app',
+  cases: [
+    ['changelog.json is well formed and starts at the running version', async w => {
+      const [cl, src] = await Promise.all([
+        fetch('changelog.json?aud41=' + Date.now()).then(r => r.json()),
+        fetch('youtube-playlist-manager.html?aud41=' + Date.now()).then(r => r.text())]);
+      const version = (src.match(/const APP_VERSION = '([^']+)'/) || [])[1];
+      eq(cl[0].v, version, 'newest entry vs APP_VERSION');
+      ok(!src.includes('const CHANGELOG'), 'the notes are still inside the app');
+      const bad = [];
+      cl.forEach(r => (r.items || []).forEach((it, i) => {
+        if (!it.fr || !it.en) bad.push(r.v + '#' + i + ' missing a language');
+        // the ASCII-folded French the old notes were written in
+        else if (/\b(desormais|etait|l app|d une|n est|a jour)\b/.test(it.fr)) bad.push(r.v + '#' + i + ' accents');
+      }));
+      return eq(bad, [], 'entries');
+    }],
+    ['the version window shows the notes in the UI language, as text', async w => {
+      const snap = snapshot(w, ['appLang']);
+      const before = w.localStorage.getItem('appLang') || 'fr';
+      const cl = await fetch('changelog.json?aud41b=' + Date.now()).then(r => r.json());
+      const read = async lang => {
+        w.applyLanguage(lang);
+        await w.showVersionInfo();
+        const box = w.document.getElementById('modalContent');
+        const r = { text: box.textContent, inputs: box.querySelectorAll('input').length };
+        w.closeModal();
+        return r;
+      };
+      try {
+        const en = await read('en'), fr = await read('fr');
+        ok(en.text.includes(cl[0].items[0].en) && !en.text.includes(cl[0].items[0].fr), 'English notes');
+        ok(fr.text.includes(cl[0].items[0].fr), 'French notes');
+        // v1.7.0's note quotes <input type="color">; it used to render as a real input
+        return eq(en.inputs, 0, 'markup from a note rendered as HTML');
+      } finally { w.applyLanguage(before); restore(w, snap); }
+    }],
+  ],
+},
+{
+  id: 'AUD-33', title: 'App and Reel Studio share one copy of their common helpers', note: 'colour maths, thumbnail choice and duration parsing were written twice and had started to drift',
+  cases: [
+    ['the helpers are defined once, in shared/core.js', async w => {
+      const names = ['hexToRgb', 'rgbToHex', 'rgbToHsv', 'hsvToRgb', 'hexToHsl', 'hsl', 'accentRamp', 'categoricalsFor', 'THUMB_ORDER', 'THUMB_ORDER_CARD', 'pickThumb', 'parseDuration'];
+      const files = ['shared/core.js', 'youtube-playlist-manager.html', 'reel-studio.html'];
+      const srcs = await Promise.all(files.map(f => fetch(f + '?aud33=' + Date.now()).then(r => r.text())));
+      const defines = (src, n) => new RegExp('(^|\\n)\\s*(function ' + n + '\\s*\\(|(const|let|var) ' + n + '\\s*=)').test(src);
+      const where = names.map(n => [n, files.filter((f, i) => defines(srcs[i], n))]);
+      return eq(where.filter(([, fs]) => fs.length !== 1 || fs[0] !== 'shared/core.js').map(([n, fs]) => n + ': ' + fs.join(', ')), [], 'definitions outside shared/core.js');
+    }],
+    ['both pages load it before their own script', async w => {
+      const out = [];
+      for (const page of ['youtube-playlist-manager.html', 'reel-studio.html']) {
+        const doc = new DOMParser().parseFromString(await fetch(page + '?aud33b=' + Date.now()).then(r => r.text()), 'text/html');
+        const first = doc.querySelector('script');
+        out.push(first && first.getAttribute('src'));
+      }
+      return eq(out, ['shared/core.js', 'shared/core.js']);
+    }],
+    ['the shared helpers behave the same in each page, and never throw', async w => {
+      const f = await openStudio();
+      try {
+        const sw = f.contentWindow;
+        const probe = x => [x.pickThumb({ medium: { url: 'm' }, uhd: { url: 'u' } }, 'hero'), x.parseDuration('PT1M5S'), x.hexToHsl('#ffffff').l, x.categoricalsFor({ accents: 1 }, ['#ff2d55']).length];
+        eq(probe(sw), probe(w), 'Studio vs app');
+        eq(w.hexToRgb('nope', 0xff2d55), { r: 255, g: 45, b: 85 }, 'fallback');
+        return eq(w.hexToHsl(null).h > 0, true, 'a non-string no longer throws');
+      } finally { f.remove(); }
+    }],
+  ],
+},
+{
+  id: 'AUD-30', title: 'The service worker installs reliably and works offline with a query string', note: 'a cross-origin pre-cache entry could fail the install, ?bookmark= missed the cache offline, and the cache name was bumped by hand',
+  cases: [
+    ['the install pre-caches same-origin files only, shared/core.js included, under a release-named cache', async w => {
+      const sw = await aud30Worker('1.2.3');
+      await sw.fire('install');
+      eq(sw.opened, ['reel-manager-1.2.3'], 'cache name');
+      ok(sw.added.every(u => !/^https?:/.test(u)), 'cross-origin entries: ' + sw.added.join(', '));
+      return ok(sw.added.includes('shared/core.js'), 'shared/core.js is not pre-cached');
+    }],
+    ['activate drops the caches of other releases', async w => {
+      const sw = await aud30Worker('1.2.3', { keys: ['reel-manager-v32', 'reel-manager-1.2.2', 'reel-manager-1.2.3'] });
+      await sw.fire('activate');
+      return eq(sw.deleted, ['reel-manager-v32', 'reel-manager-1.2.2'], 'deleted');
+    }],
+    ['offline, a navigation with a query string finds the cached page', async w => {
+      const sw = await aud30Worker('1.2.3', { offline: true });
+      const res = await sw.fetchEvent('http://app.test/youtube-playlist-manager.html?bookmark=PLabcdefghijk', 'navigate');
+      eq(sw.matched[0] && sw.matched[0].opts, { ignoreSearch: true }, 'match options');
+      return eq(res, 'CACHED', 'response');
+    }],
+    ['a same-origin script goes to the network first, the cache only offline', async w => {
+      const online = await aud30Worker('1.2.3');
+      eq(await online.fetchEvent('http://app.test/shared/core.js', 'no-cors', 'script'), 'NETWORK', 'online');
+      const offline = await aud30Worker('1.2.3', { offline: true });
+      return eq(await offline.fetchEvent('http://app.test/shared/core.js', 'no-cors', 'script'), 'CACHED', 'offline');
+    }],
+    ['the app registers the worker with its version', async w => {
+      const src = await fetch('youtube-playlist-manager.html?aud30=' + Date.now()).then(r => r.text());
+      return ok(/serviceWorker\.register\('sw\.js\?v=' \+ encodeURIComponent\(APP_VERSION\)\)/.test(src), 'registration without the release');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -4851,6 +5215,44 @@ async function aud08Csp(page) {
   const doc = new DOMParser().parseFromString(await fetch(page + '?aud08=' + Date.now()).then(r => r.text()), 'text/html');
   const meta = doc.querySelector('meta[http-equiv="Content-Security-Policy"]');
   return meta ? meta.getAttribute('content') : '';
+}
+
+// AUD-30 — run the real sw.js against a fake worker scope: `caches`, `fetch`
+// and the event objects are stand-ins that record what the worker asks for.
+async function aud30Worker(version, opts = {}) {
+  const src = await fetch('sw.js?aud30=' + Date.now()).then(r => r.text());
+  const listeners = {};
+  const rec = { opened: [], added: [], deleted: [], matched: [] };
+  const cache = { addAll: async list => { rec.added.push(...list); }, put: async () => {} };
+  const caches = {
+    open: async name => { rec.opened.push(name); return cache; },
+    keys: async () => opts.keys || [],
+    delete: async name => { rec.deleted.push(name); return true; },
+    match: async (req, o) => { rec.matched.push({ url: req.url, opts: o }); return 'CACHED'; },
+  };
+  const self = {
+    location: new URL('http://app.test/sw.js?v=' + version),
+    addEventListener: (type, fn) => { listeners[type] = fn; },
+    skipWaiting: async () => {}, clients: { claim: async () => {} },
+  };
+  const fakeFetch = async () => {
+    if (opts.offline) throw new TypeError('Failed to fetch');
+    return { status: 200, clone() { return this; }, tag: 'NETWORK' };
+  };
+  new Function('self', 'caches', 'fetch', src)(self, caches, fakeFetch);
+  return Object.assign(rec, {
+    async fire(type) {
+      let p = null;
+      listeners[type]({ waitUntil: x => { p = x; } });
+      await p;
+    },
+    async fetchEvent(url, mode, destination = '') {
+      let p = null;
+      listeners.fetch({ request: { url, mode, destination, method: 'GET' }, respondWith: x => { p = x; } });
+      const r = await p;
+      return r && r.tag ? r.tag : r;
+    },
+  });
 }
 
 // AUD-10 — run something that logs, persist the log and return the entries
