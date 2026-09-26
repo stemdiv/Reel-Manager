@@ -3268,8 +3268,6 @@ const I18N = {
     music_shuffle: 'Aléatoire',
     music_filter_label: 'Musique seulement',
     music_filter_tooltip: 'Ne montrer que les vidéos classées comme musique',
-    music_filter_on: 'Filtre musique activé',
-    music_filter_off: 'Filtre musique désactivé',
     music_hint_mixed: 'On dirait de la musique — passer en vue Musique ?',
     music_hint_switch: 'Passer en vue Musique',
     music_hint_dismiss: 'Pas maintenant',
@@ -3373,6 +3371,8 @@ const I18N = {
     toast_ghosts_cleaned_partial: '{removed} fantôme(s) supprimé(s), {failed} en échec',
     toast_moved: 'Vidéos déplacées',
     toast_moved_partial: '{moved} vidéo(s) déplacée(s), {stuck} copiée(s) sans être retirée(s) de la playlist source — réessayez sur celles-ci',
+    toast_moved_aborted: 'Déplacement interrompu : {msg}. {moved} déplacée(s), {stuck} copiée(s) sans retrait de la source, {left} non traitée(s)',
+    toast_merge_skipped: '{dupes} vidéo(s) déjà présente(s) non recopiée(s)',
     toast_scanning_ghosts: 'Scan des vidéos fantômes... (peut prendre un moment)',
     toast_video_deleted: 'Vidéo supprimée',
     toast_all_ghosts_cleaned: 'Toutes les vidéos fantômes supprimées',
@@ -3392,6 +3392,10 @@ const I18N = {
     toast_bulk_renamed: '{count} playlist(s) renommée(s)',
     toast_backup_json: 'Backup JSON créé : {playlists} playlists, {videos} vidéos',
     toast_backup_csv: 'Backup CSV créé : {playlists} playlists, {videos} lignes',
+    toast_playlist_incomplete: '« {title} » n\'a été chargée qu\'en partie ({count} vidéos) — rechargez-la avant de vous fier à une sauvegarde',
+    toast_backup_incomplete: 'Attention : {count} playlist(s) n\'ont été chargées qu\'en partie — cette sauvegarde ne les contient pas en entier',
+    toast_ghosts_recheck_failed: 'Vérification auprès de YouTube impossible, rien n\'a été supprimé : {msg}',
+    toast_ghosts_still_available: '{count} vidéo(s) signalée(s) comme fantômes sont toujours disponibles sur YouTube — conservées',
     toast_select_file: 'Sélectionnez un fichier JSON ou CSV',
     toast_restore_info: 'Backup chargé : {count} playlists. Sélectionnez celles à restaurer.',
     toast_read_error: 'Erreur de lecture du fichier',
@@ -4046,8 +4050,6 @@ const I18N = {
     music_shuffle: 'Shuffle',
     music_filter_label: 'Music only',
     music_filter_tooltip: 'Show only the videos classified as music',
-    music_filter_on: 'Music filter on',
-    music_filter_off: 'Music filter off',
     music_hint_mixed: 'Looks like music — switch to the Music view?',
     music_hint_switch: 'Switch to Music view',
     music_hint_dismiss: 'Not now',
@@ -4151,6 +4153,8 @@ const I18N = {
     toast_ghosts_cleaned_partial: '{removed} ghost(s) removed, {failed} failed',
     toast_moved: 'Videos moved',
     toast_moved_partial: '{moved} video(s) moved, {stuck} copied but not removed from the source playlist — retry those',
+    toast_moved_aborted: 'Move stopped: {msg}. {moved} moved, {stuck} copied without leaving the source, {left} not processed',
+    toast_merge_skipped: '{dupes} video(s) already there, not copied again',
     toast_scanning_ghosts: 'Scanning ghost videos... (may take a moment)',
     toast_video_deleted: 'Video deleted',
     toast_all_ghosts_cleaned: 'All ghost videos removed',
@@ -4170,6 +4174,10 @@ const I18N = {
     toast_bulk_renamed: '{count} playlist(s) renamed',
     toast_backup_json: 'JSON backup created: {playlists} playlists, {videos} videos',
     toast_backup_csv: 'CSV backup created: {playlists} playlists, {videos} rows',
+    toast_playlist_incomplete: '"{title}" only loaded partly ({count} videos) — reload it before relying on a backup',
+    toast_backup_incomplete: 'Warning: {count} playlist(s) only loaded partly — this backup does not hold them in full',
+    toast_ghosts_recheck_failed: 'Could not check with YouTube, nothing was deleted: {msg}',
+    toast_ghosts_still_available: '{count} video(s) flagged as ghosts are still available on YouTube — kept',
     toast_select_file: 'Select a JSON or CSV file',
     toast_restore_info: 'Backup loaded: {count} playlists. Select the ones to restore.',
     toast_read_error: 'File read error',
@@ -4385,6 +4393,9 @@ const APP = {
   userInfo: null,
   playlists: [],
   allVideos: {},
+  // AUD-13 — playlists whose last load stopped short (page cap or a failed
+  // page). Their in-memory list must not overwrite a fuller cached one.
+  incompletePlaylists: new Set(),
   theme: localStorage.getItem('appTheme') || 'dark',
   tags: JSON.parse(localStorage.getItem('playlistTags') || '{}'),
   tagIcons: JSON.parse(localStorage.getItem('tagIcons') || '{}'),
@@ -4412,11 +4423,34 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.8'; // bump per release
+const APP_VERSION = '1.27.14'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.14', date: '2026-09-24', items: [
+    "FUSION (AUD-23) — une playlist jamais ouverte, un favori typiquement, n apportait aucune video a la fusion ; une video presente dans deux sources etait inseree deux fois. Chaque source est desormais chargee, chaque video n est inseree qu une fois et jamais si la destination l a deja, et un message dit combien de doublons ont ete ecartes",
+    "L estimation de quota compte ce qui sera vraiment insere, plus la creation de la playlist quand il y en a une ; elle comptait une suppression de playlist que la fusion ne fait pas. Les listes de fusion affichent le nombre de videos annonce par YouTube pour une playlist pas encore chargee, au lieu de 0",
+  ]},
+  { v: '1.27.13', date: '2026-09-24', items: [
+    "CORRECTIF (AUD-32) — le bouton Mode Musique en un clic (#J2) a ete remplace par la lentille de bibliotheque (#17), mais son etat enregistre restait actif : qui l avait allume ne pouvait plus l eteindre, et Reinitialiser remettait les filtres sur Musique au lieu de Tous. L etat et son bouton fantome sont retires, la cle reelMusicMode est effacee au demarrage",
+  ]},
+  { v: '1.27.12', date: '2026-09-24', items: [
+    "DEPLACER (AUD-16) — la premiere insertion en echec (quota, session, limite de debit) interrompait tout sur un simple message d erreur : ni la playlist source ni la destination n etaient rafraichies, et rien ne disait combien de videos avaient deja ete deplacees. Le deplacement s arrete toujours au premier echec, puisque les suivants echoueraient de meme en consommant du quota, mais il dit desormais combien de videos sont deplacees, copiees sans retrait et non traitees, et recharge les deux playlists dans tous les cas",
+  ]},
+  { v: '1.27.11', date: '2026-09-24', items: [
+    "FANTOMES (AUD-24) — le nettoyage parcourait aussi les playlists mises en favori, qui appartiennent a quelqu un d autre : chaque suppression y echouait en 403 apres avoir consomme 50 unites. Seules vos playlists sont desormais analysees et nettoyees",
+    "Avant une suppression en masse, les videos candidates sont verifiees aupres de YouTube (1 unite pour 50 videos) : une video encore disponible est conservee, et si la verification echoue rien n est supprime",
+    "Le cache garde la date de publication et la confidentialite de chaque element : apres un rechargement, une video privee n est plus classee supprimee",
+  ]},
+  { v: '1.27.10', date: '2026-09-24', items: [
+    "INTEGRITE DES DONNEES (AUD-14) — le cache et la sauvegarde ne gardaient pas l identifiant d element de playlist. Apres un demarrage depuis le cache, le cas par defaut, Deplacer inserait dans la destination sans pouvoir supprimer la source (retour du bug #G7 : deplacer copiait), et reordonner, supprimer un doublon ou une video fantome echouaient. L identifiant est desormais conserve et restaure",
+    "Un cache ecrit par une version precedente, sans ces identifiants, est recharge une fois depuis l API quand la session est connectee ; hors ligne il reste lisible tel quel",
+  ]},
+  { v: '1.27.9', date: '2026-09-24', items: [
+    "INTEGRITE DES DONNEES (AUD-13) — une playlist de plus de 1 000 videos etait tronquee sans un mot : la pagination s arretait a 20 pages de 50, et une page en echec rendait les pages deja lues comme si c etait tout. La tranche partait ensuite dans le cache, la sauvegarde JSON et les exports CSV. Les playlists se chargent desormais jusqu a 100 pages, soit les 5 000 elements que YouTube autorise",
+    "Un chargement incomplet est signale par un avertissement ; la sauvegarde automatique conserve alors la liste plus longue deja en cache au lieu de l ecraser, et la sauvegarde manuelle comme l export previennent qu une playlist n y figure pas en entier",
+  ]},
   { v: '1.27.8', date: '2026-09-24', items: [
     "SECURITE (#G13, rouvert par l audit) — au retour de Google, le jeton restait dans l adresse pendant tout le chargement du cache IndexedDB, avant que checkAuth ne l efface : le journal d erreurs lit l adresse de la page. Le fragment est desormais lu et efface en toute premiere instruction de init(), avant tout appel asynchrone ; le parametre ?bookmark= est conserve pour la suite du demarrage",
   ]},
@@ -5973,7 +6007,13 @@ async function loadBackupFromStorage() {
         // opened). loadPlaylistVideos() relies on `undefined` = "never loaded"
         // to know when to fetch from the API.
         APP.allVideos[pl.id] = pl.videos.map(v => ({
-          contentDetails: { videoId: v.videoId, duration: v.duration || '' },
+          // AUD-14 — without it, Move could insert but never delete (so it
+          // copied), and reorder / duplicate / ghost removal had nothing to
+          // address. Older caches lack it; loadPlaylistVideos() refetches those.
+          ...(v.itemId ? { id: v.itemId } : {}),
+          ...(v.privacy ? { status: { privacyStatus: v.privacy } } : {}),
+          contentDetails: { videoId: v.videoId, duration: v.duration || '',
+                            ...(v.videoPublishedAt ? { videoPublishedAt: v.videoPublishedAt } : {}) },
           snippet: {
             title: v.title,
             position: v.position,
@@ -6197,7 +6237,8 @@ function estimateQuotaCost(action, count) {
 
   const costs = {
     'delete_playlists': count * DELETE_PLAYLIST,
-    'merge': count * INSERT + DELETE,                     // N inserts into target + 1 delete of source playlist
+    'merge': count * INSERT,                              // AUD-23 — N inserts; merge deletes nothing
+    'merge_new': count * INSERT + INSERT_PLAYLIST,        // … plus creating the destination
     'move': count * (INSERT + DELETE),                    // FIX (#58): move = delete from source + insert into target = 100/item
     'bulk_rename': count * UPDATE_PLAYLIST,
     'clean_ghosts': count * DELETE,
@@ -7591,6 +7632,7 @@ async function fetchAllPages(endpoint, params = {}, itemsKey = 'items', maxPages
   let allItems = [];
   let nextPageToken = null;
   let pageCount = 0;
+  let failedMidway = false;
 
   do {
     const p = { ...params };
@@ -7610,6 +7652,7 @@ async function fetchAllPages(endpoint, params = {}, itemsKey = 'items', maxPages
       // worth keeping.
       if (pageCount === 0) throw err;
       console.error(`Pagination error after ${pageCount} page(s):`, err);
+      failedMidway = true;
       break;
     }
   } while (nextPageToken && pageCount < maxPages);
@@ -7618,6 +7661,11 @@ async function fetchAllPages(endpoint, params = {}, itemsKey = 'items', maxPages
     console.warn(`[fetchAllPages] Hit page cap (${maxPages}) for endpoint "${endpoint}" — more results exist but were not fetched. Pass a higher maxPages if needed.`);
   }
 
+  // AUD-13 — say whether this is everything. A capped or interrupted run used to
+  // come back looking exactly like a complete one, and a 1 000-item slice of a
+  // 3 000-item playlist went on to be cached, backed up and exported as whole.
+  // Non-enumerable: the array still serialises and spreads as a plain array.
+  Object.defineProperty(allItems, 'complete', { value: !nextPageToken && !failedMidway });
   return allItems;
 }
 
@@ -7773,17 +7821,36 @@ async function autoSaveCache(opts) {
       return;
     }
 
+    // AUD-13 — a playlist that loaded short keeps whatever fuller list the
+    // cache already holds, rather than trading it for the truncated one.
+    const onDiskVideos = {};
+    if (APP.incompletePlaylists.size) {
+      try {
+        const disk = await cacheStore.readAll();
+        for (const pl of (disk?.playlists || [])) {
+          if (APP.incompletePlaylists.has(pl.id)) onDiskVideos[pl.id] = pl.videos || [];
+        }
+      } catch (_) { /* unreadable cache: nothing to protect */ }
+    }
+
     const cache = {
       timestamp: new Date().toISOString(),
       playlists: APP.playlists.map(pl => ({
         id: pl.id,
         title: pl.snippet?.title || '',
         description: pl.snippet?.description || '',
-        videos: (APP.allVideos[pl.id] || []).map(v => {
+        videos: (onDiskVideos[pl.id]?.length > (APP.allVideos[pl.id] || []).length)
+          ? onDiskVideos[pl.id]
+          : (APP.allVideos[pl.id] || []).map(v => {
           const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
           const detail = videoDetailsCache[videoId];
           return {
             videoId,
+            itemId: v.id || undefined,   // AUD-14 — the playlistItem id every item-level write needs
+            // AUD-24 — the two signals ghostStatus() reads besides thumbnails.
+            // Dropping them made a reloaded private video read as "deleted".
+            videoPublishedAt: v.contentDetails?.videoPublishedAt || undefined,
+            privacy: v.status?.privacyStatus || undefined,
             title: v.snippet?.title || '',
             position: v.snippet?.position,
             thumbnail: pickThumb(v.snippet?.thumbnails) || pickThumb(detail?.snippet?.thumbnails),
@@ -7948,6 +8015,10 @@ async function loadAllPlaylists() {
   }
 }
 
+// AUD-13 — a YouTube playlist holds up to 5 000 items, 50 per page. The generic
+// 20-page cap of fetchAllPages stopped at 1 000 and nothing said so.
+const PLAYLIST_ITEMS_MAX_PAGES = 100;
+
 async function loadPlaylistVideos(playlistId, opts) {
   // Treat an empty cached array as "never loaded" — protects against cache
   // poisoning when a bookmarked playlist is restored from a backup that
@@ -7955,7 +8026,12 @@ async function loadPlaylistVideos(playlistId, opts) {
   // opts.force bypasses the cache after a write (reorder/merge/move).
   if (!opts?.force) {
     const cached = APP.allVideos[playlistId];
-    if (Array.isArray(cached) && cached.length > 0) return cached;
+    // AUD-14 — a list rebuilt from a cache written before item ids were kept
+    // cannot be written to. Online, fetch it once properly; the next auto-save
+    // stores the ids and this never triggers again. Offline, it is still fine
+    // to read.
+    const writable = !APP.accessToken || (Array.isArray(cached) && cached.every(v => v.id));
+    if (Array.isArray(cached) && cached.length > 0 && writable) return cached;
   }
   // #57: fields= partial response — strip server-side everything we don't read.
   // Saves ~30-50% bandwidth on large playlists (etag, channel resource, snippets
@@ -7967,7 +8043,7 @@ async function loadPlaylistVideos(playlistId, opts) {
   };
   let videos;
   try {
-    videos = await fetchAllPages('playlistItems', params);
+    videos = await fetchAllPages('playlistItems', params, 'items', PLAYLIST_ITEMS_MAX_PAGES);
   } catch (err) {
     // A malformed fields= selector is a 400 on every page, and the library stops
     // loading entirely — that is exactly what a wrong field name cost in v1.11.0.
@@ -7976,7 +8052,15 @@ async function loadPlaylistVideos(playlistId, opts) {
     log('warn', 'api', 'playlistItems with fields= failed, retrying without it',
         { playlistId, msg: err.message });
     const { fields, ...noFields } = params;
-    videos = await fetchAllPages('playlistItems', noFields);
+    videos = await fetchAllPages('playlistItems', noFields, 'items', PLAYLIST_ITEMS_MAX_PAGES);
+  }
+  if (videos.complete === false) {
+    APP.incompletePlaylists.add(playlistId);
+    const title = APP.playlists.find(p => p.id === playlistId)?.snippet?.title || playlistId;
+    log('warn', 'api', 'playlist loaded incompletely', { playlistId, loaded: videos.length });
+    showToast(t('toast_playlist_incomplete', { title, count: videos.length }), 'warning');
+  } else {
+    APP.incompletePlaylists.delete(playlistId);
   }
   APP.allVideos[playlistId] = videos;
   return videos;
@@ -10716,23 +10800,11 @@ function shuffleCurrentPlaylist() {
   playPlaylist(currentDetailPlaylistId, 0);
 }
 
-let musicMode = false;
-try { musicMode = (typeof localStorage !== 'undefined' && localStorage.getItem('reelMusicMode') === '1'); } catch (e) {}
-function updateMusicModeBtn() {
-  const b = document.getElementById('musicModeBtn'); if (!b) return;
-  b.classList.toggle('btn-primary', musicMode);
-  b.classList.toggle('btn-secondary', !musicMode);
-  b.setAttribute('aria-pressed', musicMode ? 'true' : 'false');
-}
-function toggleMusicMode() {
-  musicMode = !musicMode;
-  try { localStorage.setItem('reelMusicMode', musicMode ? '1' : '0'); } catch (e) {}
-  updateMusicModeBtn();
-  const ft = document.getElementById('filterType');
-  if (ft) ft.value = musicMode ? 'music' : 'all';
-  if (musicMode) { try { showToast(t('music_filter_on'), 'success'); } catch (e) {} onFilterTypeChange(); }
-  else { try { showToast(t('music_filter_off'), 'info'); } catch (e) {} applyVideoFilters(); }
-}
+// AUD-32 — the one-click "Mode Musique" button (#J2) was replaced by the library
+// lens (#17), but its saved state stayed live: a user who had it on could no
+// longer turn it off, and "Reset" reset the filters *to* Music. The state is
+// gone; this drops the key a previous version may have left behind.
+try { localStorage.removeItem('reelMusicMode'); } catch (_) {}
 
 function resetVideoFilters() {
   document.getElementById('filterSearch').value = '';
@@ -10740,12 +10812,11 @@ function resetVideoFilters() {
   document.getElementById('filterStatus').value = 'all';
   document.getElementById('filterSort').value = 'position';
   const ft = document.getElementById('filterType');
-  if (ft) ft.value = musicMode ? 'music' : 'all';
+  if (ft) ft.value = 'all';
   const fc = document.getElementById('filterCategory');
   if (fc) fc.value = 'all';
   try { refreshCategoryFilterOptions(); } catch (e) {}
-  updateMusicModeBtn();
-  if (musicMode) { onFilterTypeChange(); } else { applyVideoFilters(); }
+  applyVideoFilters();
 }
 
 // ============================================================================
@@ -12212,7 +12283,7 @@ function refreshMergeUI() {
   const html = APP.playlists.map(pl => `
     <div class="form-checkbox">
       <input type="checkbox" value="${pl.id}" class="merge-playlist-select">
-      <span class="checkbox-label">${escapeHtml(pl.snippet.title)} (${APP.allVideos[pl.id]?.length || 0} vidéos)</span>
+      <span class="checkbox-label">${escapeHtml(pl.snippet.title)} (${APP.allVideos[pl.id]?.length ?? pl.contentDetails?.itemCount ?? 0} vidéos)</span>
     </div>
   `).join('');
 
@@ -12224,7 +12295,7 @@ function refreshMergeUI() {
   if (dest) {
     const previous = dest.value;
     dest.innerHTML = `<option value="__new__">${escapeHtml(t('merge_dest_new'))}</option>` +
-      APP.playlists.map(pl => `<option value="${escapeHtml(pl.id)}">${escapeHtml(pl.snippet.title)} (${APP.allVideos[pl.id]?.length || 0})</option>`).join('');
+      APP.playlists.map(pl => `<option value="${escapeHtml(pl.id)}">${escapeHtml(pl.snippet.title)} (${APP.allVideos[pl.id]?.length ?? pl.contentDetails?.itemCount ?? 0})</option>`).join('');
     if (previous && [...dest.options].some(o => o.value === previous)) dest.value = previous;
     onMergeDestChange();
   }
@@ -12256,8 +12327,32 @@ async function performMerge() {
     return;
   }
 
-  const totalVideos = selected.reduce((sum, id) => sum + (APP.allVideos[id]?.length || 0), 0);
-  if (!checkQuotaBudget('Fusion de playlists', 'merge', totalVideos)) return;
+  // AUD-23 — decide what will actually be inserted before estimating it. Every
+  // source goes through the loader: a playlist never opened (a bookmark,
+  // typically) used to contribute nothing at all. A video is inserted once,
+  // not once per source, and not at all if the destination already has it.
+  // Dead items are not guessed at here: the verdict is metadata-based (AUD-24),
+  // and a live video silently left out of a merge is worse than a failed insert.
+  const itemVideoId = v => v.contentDetails?.videoId || v.snippet?.resourceId?.videoId;
+  const toInsert = [];
+  let skippedDupes = 0;
+  try {
+    const seen = new Set();
+    if (!creatingNew) (await loadPlaylistVideos(destChoice)).forEach(v => seen.add(itemVideoId(v)));
+    for (const sourceId of selected) {
+      for (const v of await loadPlaylistVideos(sourceId)) {
+        const id = itemVideoId(v);
+        if (!id) continue;
+        if (seen.has(id)) { skippedDupes++; continue; }
+        seen.add(id);
+        toInsert.push(id);
+      }
+    }
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+    return;
+  }
+  if (!checkQuotaBudget('Fusion de playlists', creatingNew ? 'merge_new' : 'merge', toInsert.length)) return;
 
   try {
     // #G18: resolve the destination by id. The old code looked it up by title,
@@ -12276,26 +12371,23 @@ async function performMerge() {
       destId = destChoice;
     }
     let moved = 0, failed = 0;
-    const total = selected.reduce((sum, id) => sum + (APP.allVideos[id]?.length || 0), 0);
+    const total = toInsert.length;
 
     showProgressBar('mergeProgress', 0, total);
 
-    for (const sourceId of selected) {
-      const videos = APP.allVideos[sourceId] || [];
-      for (const video of videos) {
-        try {
-          await ytApi('playlistItems', { part: 'snippet' }, 'POST', {
-            snippet: {
-              playlistId: destId,
-              resourceId: { kind: 'youtube#video', videoId: video.contentDetails?.videoId }
-            }
-          });
-          moved++;
-          updateProgressBar('mergeProgress', moved, total);
-        } catch (err) {
-          failed++;
-          log('warn', 'action', 'merge: video not copied', { videoId: video.contentDetails?.videoId, msg: err.message });
-        }
+    for (const videoId of toInsert) {
+      try {
+        await ytApi('playlistItems', { part: 'snippet' }, 'POST', {
+          snippet: {
+            playlistId: destId,
+            resourceId: { kind: 'youtube#video', videoId }
+          }
+        });
+        moved++;
+        updateProgressBar('mergeProgress', moved, total);
+      } catch (err) {
+        failed++;
+        log('warn', 'action', 'merge: video not copied', { videoId, msg: err.message });
       }
     }
 
@@ -12306,6 +12398,7 @@ async function performMerge() {
     } else {
       showToast(t('toast_merged', { count: moved }), 'success');
     }
+    if (skippedDupes) showToast(t('toast_merge_skipped', { dupes: skippedDupes }), 'info');
   } catch (err) {
     showToast(t('toast_error', { msg: err.message }), 'error');
   }
@@ -12489,24 +12582,38 @@ async function performMove() {
   }
   if (!checkQuotaBudget('Déplacement de vidéos', 'move', selected.length)) return;
 
+  // AUD-16 — the counters live outside the try: whatever stops the loop, the
+  // report and the cache refresh below still know how far it got.
+  const stuck = [];   // inserted into the destination but still in the source
+  let moved = 0, attempted = 0, abortMsg = null;
   try {
     // #G7: this used to insert into the destination and stop, so "Move" was a
     // copy — the video stayed in the source too. The quota estimate has always
     // charged insert + delete per item, so the delete was intended all along.
-    const sourceItems = APP.allVideos[sourceId] || [];
-    const stuck = [];   // inserted into the destination but still in the source
-    let moved = 0;
+    // AUD-14 — through the loader, not straight from APP.allVideos: a list
+    // rebuilt from an older cache has no item ids and is refetched first.
+    const sourceItems = await loadPlaylistVideos(sourceId);
 
     for (const videoId of selected) {
       const sourceItem = sourceItems.find(v =>
         (v.contentDetails?.videoId || v.snippet?.resourceId?.videoId) === videoId);
 
-      await ytApi('playlistItems', { part: 'snippet' }, 'POST', {
-        snippet: {
-          playlistId: destId,
-          resourceId: { kind: 'youtube#video', videoId }
-        }
-      });
+      // A failed insert stops the run: quota, session and rate limits fail the
+      // same way for every item after it, and each attempt is charged.
+      attempted++;
+      try {
+        await ytApi('playlistItems', { part: 'snippet' }, 'POST', {
+          snippet: {
+            playlistId: destId,
+            resourceId: { kind: 'youtube#video', videoId }
+          }
+        });
+      } catch (insErr) {
+        attempted--;
+        abortMsg = insErr.message;
+        log('warn', 'action', 'move: insert failed — stopping', { videoId, msg: insErr.message });
+        break;
+      }
 
       if (!sourceItem?.id) {
         // No playlistItem id to delete with — report rather than pretend.
@@ -12522,18 +12629,22 @@ async function performMove() {
         stuck.push(videoId);
       }
     }
-
-    delete APP.allVideos[destId];   // evict stale destination cache
-    delete APP.allVideos[sourceId]; // the source lost items too
-    await loadAllPlaylists();
-
-    if (stuck.length) {
-      showToast(t('toast_moved_partial', { moved, stuck: stuck.length }), 'warning');
-    } else {
-      showToast(t('toast_moved'), 'success');
-    }
   } catch (err) {
-    showToast(t('toast_error', { msg: err.message }), 'error');
+    abortMsg = err.message;   // the source could not even be loaded
+  } finally {
+    // AUD-16 — both playlists may have changed even when the run stopped
+    // half-way; showing either from memory would show the wrong content.
+    delete APP.allVideos[destId];
+    delete APP.allVideos[sourceId];
+    try { await loadAllPlaylists(); } catch (_) {}
+  }
+
+  if (abortMsg !== null) {
+    showToast(t('toast_moved_aborted', { moved, stuck: stuck.length, left: selected.length - attempted, msg: abortMsg }), 'error');
+  } else if (stuck.length) {
+    showToast(t('toast_moved_partial', { moved, stuck: stuck.length }), 'warning');
+  } else {
+    showToast(t('toast_moved'), 'success');
   }
 }
 
@@ -12545,28 +12656,46 @@ async function performMove() {
 // GHOST VIDEOS
 // ============================================================================
 
-async function scanGhostVideos() {
-  showToast(t('toast_scanning_ghosts'), 'info');
-
-  // Load all videos first
-  for (const pl of APP.playlists) {
-    await loadPlaylistVideos(pl.id);
-  }
-
+// AUD-24 — ghosts are looked for in the user's own playlists only. A bookmarked
+// playlist belongs to someone else: its items cannot be deleted (403), and each
+// attempt was charged 50 units first. Loading goes through loadPlaylistVideos(),
+// so every item carries the id a delete needs (AUD-14).
+async function collectGhosts() {
   const ghosts = [];
-  for (const [playlistId, videos] of Object.entries(APP.allVideos)) {
+  for (const pl of APP.playlists.filter(p => !p._isBookmark)) {
+    const videos = await loadPlaylistVideos(pl.id);
     for (const v of videos) {
-      if (isGhostItem(v)) {
-        ghosts.push({
-          playlistId,
-          playlistTitle: APP.playlists.find(p => p.id === playlistId)?.snippet?.title,
-          videoId: v.contentDetails?.videoId,
-          title: v.snippet?.title || '',
-          itemId: v.id
-        });
-      }
+      if (!isGhostItem(v) || !v.id) continue;
+      ghosts.push({
+        playlistId: pl.id,
+        playlistTitle: pl.snippet?.title,
+        videoId: v.contentDetails?.videoId || v.snippet?.resourceId?.videoId,
+        title: v.snippet?.title || '',
+        itemId: v.id,
+      });
     }
   }
+  return ghosts;
+}
+
+// AUD-24 — the ghost verdict is read from metadata, and metadata can be missing
+// for reasons that have nothing to do with the video (an old cache without
+// thumbnails). Before anything is deleted in bulk, ask YouTube: a video it still
+// returns is not a ghost. 1 unit per 50 ids. Throws if the check cannot run —
+// the caller must not delete unverified.
+async function confirmGhostsLive(ghosts) {
+  const ids = [...new Set(ghosts.map(g => g.videoId).filter(Boolean))];
+  const alive = new Set();
+  for (let i = 0; i < ids.length; i += 50) {
+    const data = await ytApi('videos', { part: 'id', id: ids.slice(i, i + 50).join(','), fields: 'items(id)' });
+    (data.items || []).forEach(it => alive.add(it.id));
+  }
+  return ghosts.filter(g => !alive.has(g.videoId));
+}
+
+async function scanGhostVideos() {
+  showToast(t('toast_scanning_ghosts'), 'info');
+  const ghosts = await collectGhosts();
 
   const html = ghosts.length ? ghosts.map(g => `
     <div class="p-16" style="background: var(--surface); border-radius: var(--radius); margin-bottom: 12px;">
@@ -12603,12 +12732,18 @@ async function cleanAllGhosts() {
   if (!checkBackupSafety('Suppression des vidéos fantômes')) return;
   if (!confirm(t('confirm_clean_ghosts'))) return;
 
-  const ghosts = [];
-  for (const [playlistId, videos] of Object.entries(APP.allVideos)) {
-    for (const v of videos) {
-      if (isGhostItem(v)) ghosts.push({ playlistId, itemId: v.id });
-    }
+  const candidates = await collectGhosts();
+  let ghosts;
+  try {
+    ghosts = await confirmGhostsLive(candidates);
+  } catch (err) {
+    showToast(t('toast_ghosts_recheck_failed', { msg: err.message }), 'error');
+    return;
   }
+  if (ghosts.length < candidates.length) {
+    showToast(t('toast_ghosts_still_available', { count: candidates.length - ghosts.length }), 'info');
+  }
+  if (!ghosts.length) { scanGhostVideos(); return; }
 
   if (!checkQuotaBudget('Suppression des vidéos fantômes', 'clean_ghosts', ghosts.length)) return;
 
@@ -14494,8 +14629,17 @@ async function performBulkRename() {
 // BACKUP & RESTORE
 // ============================================================================
 
+// AUD-13 — a backup is the safety net for every destructive action (#3). One
+// built from a truncated playlist must say so instead of passing for complete.
+function warnIfBackupIncomplete() {
+  const n = APP.playlists.filter(pl => APP.incompletePlaylists.has(pl.id)).length;
+  if (n) showToast(t('toast_backup_incomplete', { count: n }), 'warning');
+  return n;
+}
+
 async function createBackup() {
   const format = document.getElementById('backupFormat')?.value || 'json';
+  warnIfBackupIncomplete();
 
   if (format === 'json' || format === 'both') {
     await createFullBackup();
@@ -14517,6 +14661,7 @@ async function createFullBackup() {
         const detail = videoDetailsCache[videoId];
         return {
           videoId,
+          itemId: v.id || undefined,   // AUD-14
           title: v.snippet?.title,
           position: v.snippet?.position,
           thumbnail: pickThumb(v.snippet?.thumbnails),
@@ -15124,6 +15269,8 @@ function buildTransferCsv(playlists) {
 async function exportLibrary() {
   const format = document.getElementById('exportFormat').value;
   const selectedPlaylists = APP.playlists.filter(pl => exportSelection[pl.id]);
+  const partial = selectedPlaylists.filter(pl => APP.incompletePlaylists.has(pl.id)).length;
+  if (partial) showToast(t('toast_backup_incomplete', { count: partial }), 'warning');   // AUD-13
 
   if (selectedPlaylists.length === 0) {
     showToast(t('toast_select_playlist'), 'error');

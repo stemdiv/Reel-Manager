@@ -206,20 +206,25 @@ async function runMove(w, opts) {
   const snap = snapshot(w, ['autoCache']);
 
   const host = w.document.createElement('div');
+  const vids = opts.videos || ['VID_A'];
+  const srcItems = vids.map(v => v === 'VID_A' ? SRC_ITEM
+    : { id: 'ITEM_' + v, contentDetails: { videoId: v }, snippet: { title: v, resourceId: { videoId: v } } });
   host.innerHTML = '<select id="moveSourcePlaylist"><option value="PL_SRC" selected>s</option></select>' +
                    '<select id="moveDestPlaylist"><option value="PL_DEST" selected>d</option></select>' +
-                   '<input type="checkbox" class="move-video-select" value="VID_A" checked>';
+                   vids.map(v => '<input type="checkbox" class="move-video-select" value="' + v + '" checked>').join('');
   const oldSrc = w.document.getElementById('moveSourcePlaylist');
   const oldDst = w.document.getElementById('moveDestPlaylist');
   if (oldSrc) oldSrc.id = '__moveSrcParked';
   if (oldDst) oldDst.id = '__moveDstParked';
   w.document.body.appendChild(host);
 
+  let inserts = 0;
   w.ytApi = async (endpoint, params, method, body) => {
     calls.push({ endpoint, params: params || {}, method: method || 'GET', body });
     if (opts.failDelete && method === 'DELETE') throw new Error('simulated delete failure');
+    if (method === 'POST' && ++inserts === opts.failInsertAt) throw new Error('The request cannot be completed because you have exceeded your quota.');
     if (endpoint === 'playlistItems' && (!method || method === 'GET')) {
-      return { items: (params && params.playlistId === 'PL_SRC') ? [SRC_ITEM] : [] };
+      return { items: (params && params.playlistId === 'PL_SRC') ? srcItems : [] };
     }
     return { items: [] };
   };
@@ -228,8 +233,21 @@ async function runMove(w, opts) {
   w.checkQuotaBudget = () => true;
   w.showToast = (msg, type) => { if (opts.toasts) opts.toasts.push({ msg, type }); };
 
+  const idb = opts.seedFromCache ? await idbSnapshot(w) : null;
   try {
-    await w.loadPlaylistVideos('PL_SRC', { force: true });   // seeds APP.allVideos.PL_SRC
+    if (opts.seedFromCache) {
+      // AUD-14 — the realistic session: the library comes from a cache written
+      // before item ids were kept, rebuilt by the app's own loader.
+      await w.cacheStore.writeAll({
+        timestamp: '2999-01-01T00:00:00.000Z',   // newer than any manual backup in this origin
+        playlists: [{ id: 'PL_SRC', title: 's', videos: [{ videoId: 'VID_A', title: 'A', thumbnail: 'u' }] }],
+        playlistObjects: [{ id: 'PL_SRC', snippet: { title: 's' }, contentDetails: { itemCount: 1 }, status: {} }],
+        tags: {}, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [], bookmarkedPlaylists: [],
+      });
+      await w.loadBackupFromStorage();
+    } else {
+      await w.loadPlaylistVideos('PL_SRC', { force: true });   // seeds APP.allVideos.PL_SRC
+    }
     calls.length = 0;                                        // only measure the move itself
     await w.performMove();
     const during = calls.slice();
@@ -245,6 +263,7 @@ async function runMove(w, opts) {
     if (oldDst) oldDst.id = 'moveDestPlaylist';
     Object.assign(w, real);
     restore(w, snap);
+    if (idb) await idbRestore(w, idb);
   }
 }
 
@@ -260,9 +279,9 @@ async function runMerge(w, opts) {
   const snap = snapshot(w, ['autoCache']);
 
   const host = w.document.createElement('div');
+  const sources = opts.sources || ['PL_1', 'PL_2'];
   host.innerHTML =
-    '<input type="checkbox" class="merge-playlist-select" value="PL_1" checked>' +
-    '<input type="checkbox" class="merge-playlist-select" value="PL_2" checked>' +
+    sources.map(id => '<input type="checkbox" class="merge-playlist-select" value="' + id + '" checked>').join('') +
     '<select id="mergeDestPlaylist">' +
       '<option value="__new__">new</option>' +
       '<option value="PL_DUPE_A">Musique</option>' +
@@ -285,7 +304,10 @@ async function runMerge(w, opts) {
     if (opts.failInserts && endpoint === 'playlistItems' && method === 'POST') throw new Error('simulated insert failure');
     if (endpoint === 'playlistItems' && (!method || method === 'GET')) {
       const pid = params && params.playlistId;
-      return { items: (pid === 'PL_1' || pid === 'PL_2')
+      const item = vid => ({ id: 'ITEM_' + pid + '_' + vid, contentDetails: { videoId: vid },
+                             snippet: { title: vid, resourceId: { videoId: vid } } });
+      if (opts.contents && opts.contents[pid]) return { items: opts.contents[pid].map(item) };
+      return { items: sources.includes(pid)
         ? [{ id: 'ITEM_' + pid, contentDetails: { videoId: 'VID_' + pid },
              snippet: { title: pid, resourceId: { videoId: 'VID_' + pid } } }]
         : [] };
@@ -295,15 +317,14 @@ async function runMerge(w, opts) {
   w.loadAllPlaylists = async () => {};
   w.refreshMergeUI = () => {};
   w.checkBackupSafety = () => true;
-  w.checkQuotaBudget = () => true;
+  w.checkQuotaBudget = (name, action, count) => { if (opts.budget) opts.budget.push({ action, count }); return true; };
   w.showProgressBar = () => {};
   w.updateProgressBar = () => {};
   w.showToast = (msg, type) => { if (opts.toasts) opts.toasts.push({ msg, type }); };
 
   try {
-    // seed two source playlists with one video each
-    await w.loadPlaylistVideos('PL_1', { force: true });
-    await w.loadPlaylistVideos('PL_2', { force: true });
+    // seed the source playlists (unless the case is about never-loaded ones)
+    if (!opts.noSeed) for (const id of sources) await w.loadPlaylistVideos(id, { force: true });
     calls.length = 0;
     await w.performMerge();
     return calls;
@@ -3109,6 +3130,233 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-13', title: 'Big playlists load whole, or say they did not', note: 'the 20-page cap stopped at 1 000 items and the slice was cached, backed up and exported as if complete',
+  cases: [
+    ['a 3 000-item playlist loads all 60 pages', async w => {
+      const got = await withPagedPlaylist(w, 'PL_aud13_big', { pages: 60 }, async () => w.loadPlaylistVideos('PL_aud13_big', { force: true }));
+      eq(got.videos.length, 3000, 'items loaded');
+      eq(got.videos.complete, true, 'marked complete');
+      return eq(got.toasts.filter(x => x.type === 'warning').length, 0, 'warned on a complete load');
+    }],
+
+    ['a page that fails mid-way is reported, not passed off as the whole playlist', async w => {
+      const got = await withPagedPlaylist(w, 'PL_aud13_cut', { pages: 5, failAt: 3 }, async () => w.loadPlaylistVideos('PL_aud13_cut', { force: true }));
+      eq(got.videos.length, 100, 'kept the two good pages');
+      eq(got.videos.complete, false, 'marked complete');
+      return ok(got.toasts.some(x => x.type === 'warning'), 'no warning toast: ' + JSON.stringify(got.toasts));
+    }],
+
+    ['the backup warns while a playlist is incomplete, and stops once it reloads whole', async w => {
+      const toasts = [];
+      await withPagedPlaylist(w, 'PL_aud13_cut', { pages: 5, failAt: 3 }, async () => {
+        await w.loadPlaylistVideos('PL_aud13_cut', { force: true });
+        const realToast = w.showToast;
+        w.showToast = (m, type) => toasts.push({ m, type });
+        try { eq(w.warnIfBackupIncomplete(), 1, 'incomplete playlists counted'); } finally { w.showToast = realToast; }
+      });
+      ok(toasts.some(x => x.type === 'warning'), 'no warning toast');
+      await withPagedPlaylist(w, 'PL_aud13_cut', { pages: 2 }, async () => {
+        await w.loadPlaylistVideos('PL_aud13_cut', { force: true });
+        eq(w.warnIfBackupIncomplete(), 0, 'still counted after a complete reload');
+      });
+      return 'warned, then cleared';
+    }],
+
+    ['auto-save keeps the fuller cached list of an incomplete playlist', async w => {
+      const idb = await idbSnapshot(w);
+      try {
+        await w.cacheStore.writeAll({
+          timestamp: new Date(0).toISOString(),
+          playlists: [{ id: 'PL_aud13_cut', title: 'cut', videos: [1, 2, 3, 4, 5].map(i => ({ videoId: 'OLD' + i, title: 'old ' + i, thumbnail: 'u' })) }],
+          playlistObjects: [], tags: {}, tagIcons: {}, folders: [], folderAssignments: {},
+          deckColumns: [], watchQueue: [], bookmarkedPlaylists: [],
+        });
+        await withPagedPlaylist(w, 'PL_aud13_cut', { pages: 5, failAt: 2, perPage: 2 }, async () => {
+          const v = await w.loadPlaylistVideos('PL_aud13_cut', { force: true });
+          eq(v.length, 2, 'precondition: one page of two loaded');
+          await w.autoSaveToLocalStorage({ force: true });
+        });
+        const after = await w.cacheStore.readAll();
+        const pl = (after?.playlists || []).find(p => p.id === 'PL_aud13_cut');
+        return eq(pl && pl.videos.length, 5, 'the cached list was replaced by the truncated one');
+      } finally { await idbRestore(w, idb); }
+    }],
+  ],
+},
+{
+  id: 'AUD-14', title: 'Items rebuilt from the cache can still be written to', note: 'the cache dropped the playlistItem id, so after a cache-first start Move copied and reorder/delete had nothing to address',
+  cases: [
+    ['the auto-cache keeps each item id, and the rebuild restores it', async w => {
+      const idb = await idbSnapshot(w);
+      try {
+        await withPagedPlaylist(w, 'PL_aud14', { pages: 1, perPage: 3 }, async () => {
+          await w.loadPlaylistVideos('PL_aud14', { force: true });
+          await w.autoSaveToLocalStorage({ force: true });
+        });
+        const disk = await w.cacheStore.readAll();
+        const pl = (disk?.playlists || []).find(p => p.id === 'PL_aud14');
+        eq(pl && pl.videos.map(v => v.itemId), ['IT0', 'IT1', 'IT2'], 'item ids in the cache');
+        // Offline, the rebuilt list is served as is — read it without a fetch.
+        w.setAccessToken('');
+        await w.loadBackupFromStorage();
+        const rebuilt = await w.loadPlaylistVideos('PL_aud14');
+        return eq(rebuilt.map(v => v.id), ['IT0', 'IT1', 'IT2'], 'ids after the rebuild');
+      } finally { w.setAccessToken('test-token'); await idbRestore(w, idb); }
+    }],
+
+    ['Move after a cache-first start moves, it does not copy', async w => {
+      const toasts = [];
+      const calls = await runMove(w, { seedFromCache: true, toasts });
+      const post = calls.filter(c => c.method === 'POST');
+      const del = calls.filter(c => c.method === 'DELETE');
+      eq(post.length, 1, 'inserts');
+      eq(del.length, 1, 'deletes — none means Move copied');
+      eq(del[0].params.id, 'ITEM_A', 'deleted item id');
+      return ok(!toasts.some(x => x.type === 'warning'), 'reported stuck: ' + JSON.stringify(toasts));
+    }],
+
+    ['an id-less cached list is still read offline, without a request', async w => {
+      const idb = await idbSnapshot(w);
+      const real = w.ytApi;
+      let fetched = false;
+      try {
+        await w.cacheStore.writeAll({
+          timestamp: '2999-01-01T00:00:00.000Z',
+          playlists: [{ id: 'PL_aud14_off', title: 'o', videos: [{ videoId: 'V1', title: 'one', thumbnail: 'u' }] }],
+          playlistObjects: [{ id: 'PL_aud14_off', snippet: { title: 'o' }, contentDetails: { itemCount: 1 }, status: {} }],
+          tags: {}, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [], bookmarkedPlaylists: [],
+        });
+        await w.loadBackupFromStorage();
+        w.setAccessToken('');
+        w.ytApi = async () => { fetched = true; return { items: [] }; };
+        const v = await w.loadPlaylistVideos('PL_aud14_off');
+        eq(v.length, 1, 'cached list served');
+        return eq(fetched, false, 'fetched while offline');
+      } finally { w.ytApi = real; w.setAccessToken('test-token'); await idbRestore(w, idb); }
+    }],
+  ],
+},
+{
+  id: 'AUD-24', title: 'Ghost cleanup only deletes what is really gone, from playlists you own', note: 'bookmarked playlists were swept too (403, 50 units each), and nothing re-checked the verdict before deleting',
+  cases: [
+    ['bulk clean skips bookmarks and videos YouTube still returns', async w => {
+      const r = await runGhostClean(w, { alive: ['VG2'] });
+      return eq(r.deleted, ['IG1'], 'deleted item ids');
+    }],
+
+    ['if the live check fails, nothing is deleted', async w => {
+      const r = await runGhostClean(w, { recheckFails: true });
+      eq(r.deleted, [], 'deleted without verification');
+      return ok(r.toasts.some(x => x.type === 'error'), 'no error toast');
+    }],
+
+    ['a private video is still "private" after a cache round-trip', async w => {
+      const idb = await idbSnapshot(w);
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      w.showToast = () => {};
+      try {
+        w.ytApi = async (endpoint, params) => {
+          if (endpoint === 'playlists') return { items: params && params.mine ? [{ id: 'PL_aud24_p', snippet: { title: 'p' }, contentDetails: { itemCount: 1 }, status: {} }] : [] };
+          if (endpoint === 'playlistItems') return { items: [{ id: 'IP1', contentDetails: { videoId: 'VP1' }, status: { privacyStatus: 'private' },
+                                                               snippet: { title: 'Private video', thumbnails: {}, resourceId: { videoId: 'VP1' } } }] };
+          return { items: [] };
+        };
+        await w.loadAllPlaylists();
+        const [item] = await w.loadPlaylistVideos('PL_aud24_p', { force: true });
+        eq(w.ghostStatus(item), 'private', 'precondition');
+        await w.autoSaveToLocalStorage({ force: true });
+        w.setAccessToken('');                      // read the rebuilt list as is
+        await w.loadBackupFromStorage();
+        const [rebuilt] = await w.loadPlaylistVideos('PL_aud24_p');
+        return eq(w.ghostStatus(rebuilt), 'private', 'status after the rebuild');
+      } finally {
+        w.setAccessToken('test-token');
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+        await idbRestore(w, idb);
+      }
+    }],
+  ],
+},
+{
+  id: 'AUD-16', title: 'A move that stops half-way says how far it got', note: 'the first failed insert jumped to a bare error toast; caches were never refreshed and nobody knew what had moved',
+  cases: [
+    ['a failed second insert stops the run after one full move', async w => {
+      const toasts = [];
+      const calls = await runMove(w, { videos: ['VID_A', 'VID_B', 'VID_C'], failInsertAt: 2, toasts });
+      const posts = calls.filter(c => c.method === 'POST').map(c => c.body.snippet.resourceId.videoId);
+      const dels = calls.filter(c => c.method === 'DELETE').map(c => c.params.id);
+      eq(posts, ['VID_A', 'VID_B'], 'inserts attempted — VID_C must not be tried');
+      eq(dels, ['ITEM_A'], 'the first video is fully moved');
+      const t = toasts.find(x => x.type === 'error');
+      ok(t, 'no error toast');
+      return ok(/\b1\b/.test(t.msg) && /\b2\b/.test(t.msg), 'counts missing from: ' + t.msg);
+    }],
+
+    ['both playlists are refreshed even when the run stops', async w => {
+      const calls = await runMove(w, { videos: ['VID_A', 'VID_B'], failInsertAt: 1, probeRefetch: true });
+      return ok(calls.refetched, 'the source was served from memory after an aborted move');
+    }],
+  ],
+},
+{
+  id: 'AUD-32', title: 'No orphaned Music Mode', note: 'the #J2 button was removed but its saved state kept steering the filters, with no way to turn it off',
+  cases: [
+    ['with the old key set before start-up, Reset returns the filters to All', async w => {
+      const snap = snapshot(w, ['reelMusicMode']);
+      w.localStorage.setItem('reelMusicMode', '1');        // what a user of the old button carries
+      const f = await openFreshApp();
+      try {
+        const aw = f.contentWindow;
+        aw.resetVideoFilters();
+        eq(aw.document.getElementById('filterType').value, 'all', 'Reset left the Music filter on');
+        return eq(aw.localStorage.getItem('reelMusicMode'), null, 'the stale key survived start-up');
+      } finally { f.remove(); restore(w, snap); }
+    }],
+
+    ['the toggle and its state are gone', w => {
+      eq(typeof w.toggleMusicMode, 'undefined', 'toggleMusicMode still defined');
+      return eq(typeof w.updateMusicModeBtn, 'undefined', 'updateMusicModeBtn still defined');
+    }],
+  ],
+},
+{
+  id: 'AUD-23', title: 'Merge copies each video once, from every source', note: 'a never-opened source contributed nothing, a video in two sources went in twice, and the estimate counted a delete merge never does',
+  cases: [
+    ['a source never opened is loaded and merged', async w => {
+      const calls = await runMerge(w, { dest: '__new__', name: 'Fusion', sources: ['PL_U1', 'PL_U2'], noSeed: true });
+      const ins = calls.filter(c => c.endpoint === 'playlistItems' && c.method === 'POST').map(c => c.body.snippet.resourceId.videoId);
+      return eq(ins.sort(), ['VID_PL_U1', 'VID_PL_U2'], 'inserted');
+    }],
+
+    ['a video present in two sources is inserted once', async w => {
+      const toasts = [];
+      const calls = await runMerge(w, { dest: '__new__', name: 'Fusion', sources: ['PL_O1', 'PL_O2'], toasts,
+        contents: { PL_O1: ['VA', 'VB'], PL_O2: ['VB', 'VC'] } });
+      const ins = calls.filter(c => c.endpoint === 'playlistItems' && c.method === 'POST').map(c => c.body.snippet.resourceId.videoId);
+      eq(ins, ['VA', 'VB', 'VC'], 'inserted');
+      return ok(toasts.some(x => x.type === 'info' && /\b1\b/.test(x.msg)), 'no note about the skipped duplicate');
+    }],
+
+    ['a video the destination already holds is not inserted again', async w => {
+      const calls = await runMerge(w, { dest: 'PL_DUPE_B', sources: ['PL_D1', 'PL_D2'],
+        contents: { PL_D1: ['VX'], PL_D2: ['VY'], PL_DUPE_B: ['VX'] } });
+      const ins = calls.filter(c => c.endpoint === 'playlistItems' && c.method === 'POST').map(c => c.body.snippet.resourceId.videoId);
+      return eq(ins, ['VY'], 'inserted');
+    }],
+
+    ['the estimate covers what is inserted, plus the playlist when one is created', async w => {
+      const budget = [];
+      await runMerge(w, { dest: '__new__', name: 'Fusion', sources: ['PL_E1', 'PL_E2'], budget,
+        contents: { PL_E1: ['VA', 'VB'], PL_E2: ['VB'] } });
+      eq(budget, [{ action: 'merge_new', count: 2 }], 'pre-flight');
+      eq(w.estimateQuotaCost('merge_new', 2), 150, 'new destination');
+      return eq(w.estimateQuotaCost('merge', 2), 100, 'existing destination — no phantom delete');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -3221,6 +3469,102 @@ function openStudio(width, height) {
     f.src = 'reel-studio.html?aud28=' + Date.now();
     const t = setTimeout(() => reject(new Error('Reel Studio did not load')), 15000);
     f.addEventListener('load', () => { clearTimeout(t); setTimeout(() => resolve(f), 150); });
+    document.body.appendChild(f);
+  });
+}
+
+// AUD-13 — serve one playlist page by page through a stubbed ytApi: `pages`
+// pages of `perPage` items, page `failAt` (1-based) throwing if set. The
+// playlist is put into APP.playlists through the app's own loader and taken
+// out again afterwards.
+async function withPagedPlaylist(w, id, opts, body) {
+  const perPage = opts.perPage || 50;
+  const real = { ytApi: w.ytApi, showToast: w.showToast };
+  const toasts = [];
+  w.showToast = (m, type) => toasts.push({ m, type });
+  w.ytApi = async (endpoint, params) => {
+    if (endpoint === 'playlists') {
+      return { items: params && params.mine ? [{ id, snippet: { title: id }, contentDetails: { itemCount: opts.pages * perPage }, status: {} }] : [] };
+    }
+    if (endpoint === 'playlistItems' && params.playlistId === id) {
+      const n = params.pageToken ? parseInt(params.pageToken.slice(1), 10) : 1;
+      if (opts.failAt && n === opts.failAt) throw new Error('Server error (503) — please try again later');
+      const items = Array.from({ length: perPage }, (_, i) => {
+        const k = (n - 1) * perPage + i;
+        return { id: 'IT' + k, contentDetails: { videoId: 'V' + k }, snippet: { title: 'v' + k, resourceId: { videoId: 'V' + k }, thumbnails: { medium: { url: 'u' } } } };
+      });
+      return { items, nextPageToken: n < opts.pages ? 'p' + (n + 1) : undefined };
+    }
+    return { items: [] };
+  };
+  try {
+    await w.loadAllPlaylists();
+    const videos = await body();
+    return { videos, toasts };
+  } finally {
+    w.ytApi = async () => ({ items: [] });
+    try { await w.loadAllPlaylists(); } catch (_) {}
+    Object.assign(w, real);
+  }
+}
+
+// AUD-24 — the real cleanAllGhosts() over a library rebuilt from the cache:
+// PL_own holds a true ghost (IG1), a "ghost" YouTube still returns (IG2) and a
+// normal video; PL_bm is a bookmarked playlist holding a ghost (IG3).
+async function runGhostClean(w, opts) {
+  const idb = await idbSnapshot(w);
+  const lsSnap = snapshot(w, ['bookmarkedPlaylists']);
+  const real = { ytApi: w.ytApi, showToast: w.showToast, confirm: w.confirm, scanGhostVideos: w.scanGhostVideos,
+                 checkBackupSafety: w.checkBackupSafety, checkQuotaBudget: w.checkQuotaBudget };
+  const deleted = [], toasts = [];
+  const ghost = (id, v) => ({ videoId: v, itemId: id, title: 'Deleted video' });
+  try {
+    await w.cacheStore.writeAll({
+      timestamp: '2999-01-01T00:00:00.000Z',
+      playlists: [
+        { id: 'PL_own', title: 'own', videos: [ghost('IG1', 'VG1'), ghost('IG2', 'VG2'), { videoId: 'VOK', itemId: 'IOK', title: 'fine', thumbnail: 'u' }] },
+        { id: 'PL_bm', title: 'bm', videos: [ghost('IG3', 'VG3')] },
+      ],
+      playlistObjects: [
+        { id: 'PL_own', snippet: { title: 'own' }, contentDetails: { itemCount: 3 }, status: {} },
+        { id: 'PL_bm', snippet: { title: 'bm' }, contentDetails: { itemCount: 1 }, status: {} },
+      ],
+      tags: {}, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [],
+      bookmarkedPlaylists: [{ id: 'PL_bm', addedAt: '2026-09-01T00:00:00Z' }],
+    });
+    await w.loadBackupFromStorage();
+    w.ytApi = async (endpoint, params, method) => {
+      if (method === 'DELETE') { deleted.push(params.id); return null; }
+      if (endpoint === 'videos') {
+        if (opts.recheckFails) throw new Error('Server error (503) — please try again later');
+        const asked = String(params.id).split(',');
+        return { items: (opts.alive || []).filter(v => asked.includes(v)).map(id => ({ id })) };
+      }
+      return { items: [] };
+    };
+    w.showToast = (m, type) => toasts.push({ m, type });
+    w.confirm = () => true;
+    w.scanGhostVideos = async () => {};
+    w.checkBackupSafety = () => true;
+    w.checkQuotaBudget = () => true;
+    await w.cleanAllGhosts();
+    return { deleted, toasts };
+  } finally {
+    Object.assign(w, real);
+    restore(w, lsSnap);
+    await idbRestore(w, idb);
+  }
+}
+
+// AUD-32 — a second, fresh copy of the app, for state that is read when the
+// script is parsed and therefore cannot be set on the already-running one.
+function openFreshApp() {
+  return new Promise((resolve, reject) => {
+    const f = document.createElement('iframe');
+    f.style.cssText = 'display:block;position:absolute;left:-12000px;top:0;width:1024px;height:768px;border:0;';
+    f.src = 'youtube-playlist-manager.html?fresh=' + Date.now();
+    const t = setTimeout(() => reject(new Error('fresh app did not load')), 15000);
+    f.addEventListener('load', () => { clearTimeout(t); setTimeout(() => resolve(f), 300); });
     document.body.appendChild(f);
   });
 }
