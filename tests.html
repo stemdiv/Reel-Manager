@@ -4052,6 +4052,453 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-46', title: 'Keyboard focus is always visible', note: 'there was no :focus-visible rule, and form fields removed their outline for a 40 %-alpha border tint',
+  cases: [
+    ['a focused text field and a focused button show a 2px ring', async w => {
+      // The main test frame is display:none, where nothing can take focus.
+      const f = await openFreshApp();
+      try {
+        const fw = f.contentWindow;
+        eq(aud46Ring(fw, '<input class="form-control" type="text">'), { style: 'solid', width: '2px' }, 'text field');
+        return eq(aud46Ring(fw, '<button class="btn btn-secondary">x</button>'), { style: 'solid', width: '2px' }, 'button');
+      } finally { f.remove(); }
+    }],
+    ['in the light theme the ring uses the text colour, not the pale accent', async w => {
+      const f = await openFreshApp();
+      try {
+        const fw = f.contentWindow, doc = fw.document;
+        doc.body.classList.add('light-theme');
+        const host = doc.createElement('div');
+        host.innerHTML = '<button class="btn">x</button>';
+        doc.body.appendChild(host);
+        const b = host.firstChild;
+        b.focus();
+        const cs = fw.getComputedStyle(b);
+        eq(cs.outlineStyle, 'solid', 'ring drawn');
+        // An element without a ring also reports currentColor, so compare with
+        // the text token explicitly, and make sure it is not the accent.
+        const probe = doc.createElement('span');
+        probe.style.color = 'var(--text)';
+        const probe2 = doc.createElement('span');
+        probe2.style.color = 'var(--accent)';
+        host.append(probe, probe2);
+        eq(cs.outlineColor, fw.getComputedStyle(probe).color, 'ring colour');
+        return ok(cs.outlineColor !== fw.getComputedStyle(probe2).color, 'the ring is the accent');
+      } finally { f.remove(); }
+    }],
+    ['no stylesheet removes the outline from a focusable element', async w => {
+      const bad = [];
+      for (const page of ['youtube-playlist-manager.html', 'reel-studio.html']) {
+        const css = [...(await fetch(page + '?aud46=' + Date.now()).then(r => r.text())).matchAll(/<style>([\s\S]*?)<\/style>/g)].map(m => m[1]).join('\n');
+        for (const m of css.matchAll(/([^{}]+)\{[^}]*outline:\s*none[^}]*\}/g)) bad.push(page + ': ' + m[1].trim());
+      }
+      // The Studio search pill draws the ring itself (.search:focus-within).
+      return eq(bad, ['reel-studio.html: .search input'], 'rules with outline: none');
+    }],
+    ['Reel Studio shows the ring too', async w => {
+      const f = await openStudio();
+      try {
+        const sw = f.contentWindow;
+        const b = sw.document.createElement('button');
+        b.textContent = 'x';
+        sw.document.body.appendChild(b);
+        b.focus();
+        const cs = sw.getComputedStyle(b);
+        return eq({ style: cs.outlineStyle, width: cs.outlineWidth }, { style: 'solid', width: '2px' }, 'ring');
+      } finally { f.remove(); }
+    }],
+  ],
+},
+{
+  id: 'AUD-47', title: 'The page language follows the UI language', note: 'the html lang attribute stayed "fr", and the privacy policy was French-only',
+  cases: [
+    ['switching language updates the page lang attribute', w => {
+      const snap = snapshot(w, ['appLang']);
+      const before = w.currentLang;
+      try {
+        w.applyLanguage('en');
+        eq(w.document.documentElement.lang, 'en', 'after EN');
+        w.applyLanguage('fr');
+        return eq(w.document.documentElement.lang, 'fr', 'after FR');
+      } finally { w.applyLanguage(before); restore(w, snap); }
+    }],
+    ['the privacy policy is shown in the UI language', w => {
+      const snap = snapshot(w, ['appLang']);
+      const before = w.currentLang;
+      const read = lang => {
+        w.applyLanguage(lang);
+        w.showPrivacyPolicy();
+        const box = w.document.getElementById('modalContent');
+        const r = { title: box.querySelector('h2').textContent, sections: box.querySelectorAll('h3').length,
+                    close: box.querySelector('button').textContent.trim(), text: box.textContent };
+        w.closeModal();
+        return r;
+      };
+      try {
+        const en = read('en'), fr = read('fr');
+        eq([en.title, en.close, en.sections], ['Privacy Policy — Playlist Manager', 'Close', 8], 'EN');
+        ok(!/Données|Suppression|navigateur/.test(en.text), 'French left in the English policy');
+        return eq([fr.title, fr.close, fr.sections], ['Politique de confidentialité — Playlist Manager', 'Fermer', 8], 'FR');
+      } finally { w.applyLanguage(before); restore(w, snap); }
+    }],
+  ],
+},
+{
+  id: 'AUD-48', title: 'Toasts are announced and wait for the user', note: 'no live region, so feedback was silent for screen readers; an action toast vanished after 10 s whatever the user was doing',
+  cases: [
+    ['the toast area is a live region, and errors are alerts', w => {
+      const box = w.document.getElementById('toastContainer');
+      eq([box.getAttribute('role'), box.getAttribute('aria-live')], ['status', 'polite'], 'container');
+      const r = aud48Toast(w, 'error', null, t => t.el.getAttribute('role'));
+      eq(r, 'alert', 'error toast');
+      return eq(aud48Toast(w, 'success', null, t => t.el.getAttribute('role')), null, 'success toast');
+    }],
+    ['the countdown stops under the pointer and resumes after', w => aud48Toast(w, 'info', null, t => {
+      eq(t.live().map(x => x.ms), [3000], 'first countdown');
+      t.el.dispatchEvent(new w.MouseEvent('mouseenter'));
+      eq(t.live().length, 0, 'countdown still running under the pointer');
+      t.el.dispatchEvent(new w.MouseEvent('mouseleave'));
+      const [again] = t.live();
+      ok(again && again.ms > 0 && again.ms <= 3000, 'did not resume with the time left: ' + JSON.stringify(t.live()));
+      again.fn();
+      t.live().forEach(x => x.fn());   // the fade-out
+      return eq(t.el.isConnected, false, 'dismissed after resuming');
+    })],
+    ['focus on the action button holds the toast', w => aud48Toast(w, 'error', { label: 'Reconnect', onClick: () => {} }, t => {
+      eq(t.live().map(x => x.ms), [10000], 'action toast life');
+      t.el.querySelector('button').dispatchEvent(new w.FocusEvent('focusin', { bubbles: true }));
+      return eq(t.live().length, 0, 'countdown still running with focus inside');
+    })],
+  ],
+},
+{
+  id: 'AUD-45', title: 'Modals behave as dialogs', note: 'no dialog role, focus never moved in or came back, the page behind stayed reachable, and the player ignored Escape',
+  cases: [
+    ['an open modal is a named, modal dialog over an inert page', w => {
+      w.openModal('<div class="modal-header"><div class="modal-title">Aud45 title</div></div><button>ok</button>');
+      try {
+        const box = w.document.getElementById('modalContent');
+        eq([box.getAttribute('role'), box.getAttribute('aria-modal')], ['dialog', 'true'], 'role');
+        eq(w.document.getElementById(box.getAttribute('aria-labelledby')).textContent, 'Aud45 title', 'accessible name');
+        const main = [...w.document.body.children].filter(el => el.id !== 'modalOverlay' && el.id !== 'toastContainer' && el.tagName !== 'SCRIPT');
+        ok(main.length && main.every(el => el.inert), 'part of the page stays reachable behind the modal');
+        eq(w.document.getElementById('toastContainer').inert, false, 'toasts must stay reachable');
+      } finally { w.closeModal(); }
+      const left = [...w.document.body.children].filter(el => el.inert);
+      return eq(left.length, 0, 'elements left inert after closing');
+    }],
+    ['focus moves into the dialog and returns to the opener', async w => {
+      const f = await openFreshApp();
+      try {
+        const fw = f.contentWindow, doc = fw.document;
+        const opener = doc.createElement('button');
+        opener.textContent = 'open';
+        doc.body.appendChild(opener);
+        opener.focus();
+        fw.openModal('<h2>Aud45</h2><input id="aud45field" type="text"><button>ok</button>');
+        eq(doc.activeElement && doc.activeElement.id, 'aud45field', 'focus after opening');
+        fw.closeModal();
+        return eq(doc.activeElement, opener, 'focus after closing');
+      } finally { f.remove(); }
+    }],
+    ['a modal without a field takes focus itself', async w => {
+      const f = await openFreshApp();
+      try {
+        const fw = f.contentWindow;
+        fw.openModal('<p>no fields</p><button>ok</button>');
+        const active = fw.document.activeElement;
+        fw.closeModal();
+        return eq(active && active.id, 'modalContent', 'focus after opening');
+      } finally { f.remove(); }
+    }],
+    ['Escape closes a modal, and docks the full-size player', w => {
+      const esc = () => w.document.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      w.openModal('<h2>x</h2>');
+      esc();
+      eq(w.document.getElementById('modalOverlay').classList.contains('active'), false, 'modal still open');
+      const player = w.document.getElementById('playerModalOverlay');
+      const before = player.className;
+      try {
+        player.classList.add('active');
+        player.classList.remove('docked');
+        esc();
+        return eq(player.classList.contains('docked'), true, 'player docked on Escape');
+      } finally { player.className = before; }
+    }],
+  ],
+},
+{
+  id: 'AUD-42/43', title: 'Text and field edges meet WCAG AA contrast in every theme and accent', note: 'light theme accent and status colours fell to 1.7–2.6:1, --text4 failed everywhere, and a custom accent had no guard',
+  cases: [
+    ['secondary text reaches 4.5:1 on every surface, dark and light', w => aud42Themes(w, (theme, c) => {
+      const bad = [];
+      for (const tok of ['--text3', '--text4']) for (const bg of AUD42_SURFACES) {
+        const r = c.ratio('var(' + tok + ')', 'var(' + bg + ')');
+        if (r < 4.5) bad.push(theme + ' ' + tok + ' on ' + bg + ': ' + r.toFixed(2));
+      }
+      return bad;
+    })],
+    ['the accent as text reaches 4.5:1 for every skin, a custom accent and each Studio preset', w => aud42Themes(w, (theme, c) => {
+      const bad = [];
+      const accents = AUD42_SKINS.map(id => ['skin ' + id, () => w.setSkinVars(id)])
+        .concat(['#1f2a6b', '#e8e8e8', '#f5e642', '#2fd07f'].map(hex => ['custom ' + hex, () => w.setAccentVars(hex)]));
+      for (const [name, apply] of accents) {
+        apply();
+        for (const bg of AUD42_SURFACES) {
+          // A real accent-coloured heading (search result groups), not the token alone
+          const r = c.against('<div class="search-result-group-title">x</div>', 'color', 'var(' + bg + ')');
+          if (r < 4.5) bad.push(theme + ' ' + name + ' on ' + bg + ': ' + r.toFixed(2));
+        }
+      }
+      return bad;
+    })],
+    ['status colours used as text reach 4.5:1', w => aud42Themes(w, (theme, c) => {
+      const bad = [];
+      for (const tok of ['--green', '--yellow', '--orange', '--blue', '--danger']) for (const bg of ['--bg', '--surface', '--surface2']) {
+        const r = c.ratio('var(' + tok + ')', 'var(' + bg + ')');
+        if (r < 4.5) bad.push(theme + ' ' + tok + ' on ' + bg + ': ' + r.toFixed(2));
+      }
+      return bad;
+    })],
+    ['primary and success buttons keep 4.5:1 text, whatever the accent (AUD-43)', w => aud42Themes(w, (theme, c) => {
+      const bad = [];
+      for (const hex of ['#1f2a6b', '#000000', '#e8604c', '#ffffff', '#3fd0ff']) {
+        w.setAccentVars(hex);
+        const r = c.element('<button class="btn btn-primary">x</button>');
+        if (r < 4.5) bad.push(theme + ' primary on ' + hex + ': ' + r.toFixed(2));
+      }
+      const r = c.element('<button class="btn btn-success">x</button>');
+      if (r < 4.5) bad.push(theme + ' success: ' + r.toFixed(2));
+      return bad;
+    })],
+    ['a text field edge reaches 3:1 against the field and the page (AUD-43)', w => aud42Themes(w, (theme, c) => {
+      const bad = [];
+      for (const bg of ['--bg', '--surface', '--surface2']) {
+        const r = c.against('<input class="form-control">', 'borderTopColor', 'var(' + bg + ')');
+        if (r < 3) bad.push(theme + ' on ' + bg + ': ' + r.toFixed(2));
+      }
+      return bad;
+    })],
+    ['Reel Studio: secondary text and a dark custom accent read at 4.5:1', async w => {
+      const f = await openStudio();
+      try {
+        const sw = f.contentWindow;
+        sw.document.documentElement.style.setProperty('--accent', '#1f2a6b');
+        const c = aud42Meter(sw);
+        const bad = [];
+        for (const bg of ['--bg', '--surface', '--surface2', '--surface3']) {
+          const r = c.ratio('var(--text3)', 'var(' + bg + ')');
+          if (r < 4.5) bad.push('--text3 on ' + bg + ': ' + r.toFixed(2));
+          // an active player control is drawn in the accent
+          const a = c.against('<button class="ctrl on">x</button>', 'color', 'var(' + bg + ')');
+          if (a < 4.5) bad.push('accent text on ' + bg + ': ' + a.toFixed(2));
+        }
+        return eq(bad, [], 'below AA');
+      } finally { f.remove(); }
+    }],
+  ],
+},
+{
+  id: 'AUD-44', title: 'Everything clickable can be reached and used from the keyboard', note: '86 clickable div/span/img had no tab stop and no role, and reordering a playlist was drag-only',
+  cases: [
+    ['rendered cards, rows and tiles get a tab stop and a role', async w => {
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      w.showToast = () => {};
+      try {
+        w.ytApi = async (endpoint, params) => endpoint === 'playlists' && params && params.mine
+          ? { items: [{ id: 'PL_aud44a', snippet: { title: 'Aud44' }, contentDetails: { itemCount: 3 }, status: { privacyStatus: 'public' } }] }
+          : { items: [] };
+        await w.loadAllPlaylists();
+        w.generateDashboardCharts();
+        w.refreshPlaylistsList();
+        await new Promise(r => setTimeout(r, 0));   // the observer runs after the render
+        const missing = [];
+        for (const id of ['dashboardCharts', 'playlistsList']) {
+          w.document.getElementById(id).querySelectorAll('[onclick]').forEach(el => {
+            if (el.matches('a[href], button, input, select, textarea, summary, label, iframe') || el.hasAttribute('data-no-kbd') || /^\s*event\.stopPropagation\(\);?\s*$/.test(el.getAttribute('onclick'))) return;
+            if (el.tabIndex !== 0 || !['button', 'link'].includes(el.getAttribute('role'))) missing.push(id + ': ' + el.outerHTML.slice(0, 80));
+          });
+        }
+        ok(w.document.querySelector('#playlistsList [data-playlist-id="PL_aud44a"]'), 'the playlist card was not rendered');
+        return eq(missing, [], 'click targets without keyboard access');
+      } finally {
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+    ['Enter and Space activate a button; a link takes Enter only', async w => {
+      const host = w.document.createElement('div');
+      host.innerHTML = '<div id="aud44b" onclick="window.__aud44 = (window.__aud44 || 0) + 1">plain</div>'
+                     + '<div id="aud44l" onclick="window.__aud44l = (window.__aud44l || 0) + 1">card <button>inner</button></div>';
+      w.document.body.appendChild(host);
+      try {
+        await new Promise(r => setTimeout(r, 0));
+        const b = w.document.getElementById('aud44b'), l = w.document.getElementById('aud44l');
+        eq([b.getAttribute('role'), l.getAttribute('role')], ['button', 'link'], 'roles');
+        const key = (el, k) => el.dispatchEvent(new w.KeyboardEvent('keydown', { key: k, bubbles: true }));
+        key(b, 'Enter'); key(b, ' ');
+        key(l, 'Enter'); key(l, ' ');
+        key(l.querySelector('button'), 'Enter');   // a real button inside is not doubled
+        return eq([w.__aud44, w.__aud44l], [2, 1], 'activations');
+      } finally { host.remove(); delete w.__aud44; delete w.__aud44l; }
+    }],
+    ['click shields and backdrops stay out of the tab order', w => {
+      eq(w.document.getElementById('modalOverlay').hasAttribute('tabindex'), false, 'modal backdrop');
+      eq(w.document.getElementById('modalContent').getAttribute('tabindex'), '-1', 'the dialog keeps its own tabindex');
+      return eq(w.document.getElementById('playerModalOverlay').hasAttribute('tabindex'), false, 'player backdrop');
+    }],
+    ['a playlist can be reordered with ↑/↓ buttons', async w => {
+      const id = 'PL_aud44r', puts = [];
+      const real = { ytApi: w.ytApi, showToast: w.showToast, checkBackupSafety: w.checkBackupSafety, checkQuotaBudget: w.checkQuotaBudget };
+      const items = [0, 1, 2].map(k => ({ id: 'IR' + k, contentDetails: { videoId: 'VR' + k },
+        snippet: { title: 'Song ' + k, position: k, resourceId: { videoId: 'VR' + k }, thumbnails: { medium: { url: 'https://i.ytimg.com/vi/x/mq.jpg' } } } }));
+      w.showToast = () => {};
+      w.checkBackupSafety = () => true;
+      w.checkQuotaBudget = () => true;
+      w.ytApi = async (endpoint, params, method, body) => {
+        if (method === 'PUT') { puts.push(body); return {}; }
+        if (endpoint === 'playlists') return { items: params && params.mine ? [{ id, snippet: { title: id }, contentDetails: { itemCount: 3 }, status: {} }] : [] };
+        if (endpoint === 'playlistItems') return { items };
+        return { items: [] };
+      };
+      const grid = w.document.getElementById('playlistDetailVideos');
+      try {
+        await w.loadAllPlaylists();
+        await w.openPlaylistDetail(id);
+        w.toggleReorderMode();
+        const ups = grid.querySelectorAll('.reorder-moves [data-dir="-1"]'), downs = grid.querySelectorAll('.reorder-moves [data-dir="1"]');
+        eq([ups.length, downs.length], [3, 3], 'move buttons');
+        eq([ups[0].disabled, downs[2].disabled, downs[0].disabled], [true, true, false], 'ends disabled');
+        ok(downs[0].getAttribute('aria-label').includes('Song 0'), 'the button does not name its video');
+        downs[0].click();
+        for (let i = 0; i < 50 && !puts.length; i++) await new Promise(r => setTimeout(r, 10));
+        return eq(puts[0], { id: 'IR0', snippet: { playlistId: id, resourceId: { kind: 'youtube#video', videoId: 'VR0' }, position: 1 } }, 'update sent');
+      } finally {
+        if (grid.classList.contains('reorder-mode')) w.toggleReorderMode();
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+  ],
+},
+{
+  id: 'AUD-49', title: 'Reduced motion stops every animation, not only transitions', note: 'the view, modal and toast keyframes, the card flash and smooth scrolling ignored the preference',
+  cases: [
+    ['the reduced-motion rules stop keyframes and smooth scrolling', w => {
+      const rules = [];
+      for (const sheet of w.document.styleSheets) {
+        let list;
+        try { list = sheet.cssRules; } catch (_) { continue; }   // cross-origin font sheets
+        for (const r of list) if (r.media && /prefers-reduced-motion:\s*reduce/.test(r.media.mediaText)) rules.push(...r.cssRules);
+      }
+      const all = rules.find(r => r.selectorText && r.selectorText.split(',').map(x => x.trim()).includes('*'));
+      ok(all, 'no reduced-motion rule for every element');
+      eq([all.style.getPropertyValue('animation-name'), all.style.getPropertyPriority('animation-name')], ['none', 'important'], 'animation');
+      eq(all.style.getPropertyValue('scroll-behavior'), 'auto', 'scroll');
+      return ok(rules.some(r => r.selectorText === '.playlist-card.flash' && /outline:[^;]*solid/.test(r.cssText)), 'the card highlight lost its static cue');
+    }],
+    ['scrolling to a card does not animate when motion is reduced', w => {
+      const realMM = w.matchMedia;
+      const card = w.document.createElement('div');
+      card.className = 'playlist-card';
+      card.dataset.playlistId = 'PL_aud49';
+      let opts = null;
+      card.scrollIntoView = o => { opts = o; };
+      w.document.body.appendChild(card);
+      try {
+        w.matchMedia = q => ({ matches: /reduce/.test(q), media: q, addEventListener() {}, removeEventListener() {} });
+        w.scrollToPlaylistCard('PL_aud49');
+        return eq(opts && opts.behavior, 'auto', 'scroll behaviour');
+      } finally { w.matchMedia = realMM; card.remove(); }
+    }],
+  ],
+},
+{
+  id: 'AUD-50', title: 'Reel Studio can be used with a keyboard and a screen reader', note: 'no aria, role or tabindex anywhere; the player buttons were named by their glyph',
+  cases: [
+    ['every button has a real name, not a glyph', async w => {
+      const f = await openStudio();
+      try {
+        const doc = f.contentDocument;
+        const bad = [...doc.querySelectorAll('button')].filter(b => {
+          const name = (b.getAttribute('aria-label') || b.textContent || '').trim();
+          return !/[A-Za-zÀ-ÿ]{3}/.test(name);
+        }).map(b => b.outerHTML.slice(0, 90));
+        eq(bad, [], 'buttons without a readable name');
+        return eq(doc.getElementById('sheetPlayBtn').getAttribute('aria-label'), f.contentWindow.document.documentElement.lang === 'en' ? 'Play' : 'Lecture', 'play button');
+      } finally { f.remove(); }
+    }],
+    ['the page has named landmarks and slider seek bars', async w => {
+      const f = await openStudio();
+      try {
+        const doc = f.contentDocument;
+        eq(doc.getElementById('app').tagName, 'MAIN', 'main content');
+        ok(doc.getElementById('dock').getAttribute('aria-label'), 'the view navigation has no name');
+        ok(doc.getElementById('palette').getAttribute('aria-label'), 'the palette has no name');
+        const sliders = [...doc.querySelectorAll('.track')];
+        return eq(sliders.map(t => [t.getAttribute('role'), t.tabIndex, !!t.getAttribute('aria-label'), !!t.getAttribute('onkeydown')]),
+                  [['slider', 0, true, true], ['slider', 0, true, true]], 'seek bars');
+      } finally { f.remove(); }
+    }],
+    ['library cards are reachable and open with Enter', async w => {
+      const r = await withStudioLibrary(w, async sw => {
+        sw.location.hash = '#/playlists';
+        await aud07Tick();
+        const card = [...sw.document.querySelectorAll('.pl-card')].find(c => c.getAttribute('onclick').includes('PL_aud07a'));
+        ok(card, 'no card');
+        const state = [card.tabIndex, card.getAttribute('role')];
+        card.focus();
+        card.dispatchEvent(new sw.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        await aud07Tick();
+        return { state, hash: sw.location.hash };
+      });
+      eq(r.state[0], 0, 'tab stop');
+      ok(['button', 'link'].includes(r.state[1]), 'role: ' + r.state[1]);
+      return eq(r.hash, '#/playlists/PL_aud07a', 'Enter opened the playlist');
+    }],
+  ],
+},
+{
+  id: 'Lot 8 · axe', title: 'What an axe-core pass found after the lot', note: 'axe-core 4.13 (WCAG 2.1 A/AA) over the app and Studio with a seeded library, dark and light: these were the last findings',
+  cases: [
+    ['the Backup view fields have labels', w => {
+      const named = id => { const el = w.document.getElementById(id); return el.labels.length > 0 || !!(el.getAttribute('aria-labelledby') && w.document.getElementById(el.getAttribute('aria-labelledby'))); };
+      return eq(['backupFormat', 'exportFormat', 'backupFileInput'].map(named), [true, true, true], 'labelled');
+    }],
+    ['beta tags and the active lens read at 4.5:1', w => aud42Themes(w, (theme, c) => {
+      const bad = [];
+      const checks = [
+        // its background is a 12 % tint, so measure against the surface under it
+        ['beta status', () => c.against('<span class="beta-status testing">x</span>', 'color', 'var(--surface)')],
+        ['active lens', () => c.element('<div class="lens"><button class="is-active">x</button></div>', 'button')],
+        ['beta tag on surface', () => c.against('<div class="sidebar-section-label"><span class="beta-section-tag">x</span></div>', 'color', 'var(--surface)')],
+      ];
+      for (const [name, run] of checks) { const r = run(); if (r < 4.5) bad.push(theme + ' ' + name + ': ' + r.toFixed(2)); }
+      return bad;
+    })],
+    ['Reel Studio: the greeting line reads at 3:1 and the sort menu is named', async w => {
+      const r = await withStudioLibrary(w, async sw => {
+        sw.location.hash = '#/dashboard';
+        await aud07Tick();
+        // the default Studio accent, whatever a stored theme says
+        sw.document.documentElement.style.setProperty('--accent', '#ff2d55');
+        const c = aud42Meter(sw);
+        const h2 = sw.document.querySelector('.greeting h2');
+        ok(h2, 'no greeting rendered');
+        const ratio = c.of(h2, 'var(--bg)');
+        sw.location.hash = '#/playlists';
+        await aud07Tick();
+        const sel = sw.document.querySelector('.toolbar select');
+        return { ratio, name: sel && sel.getAttribute('aria-label') };
+      });
+      ok(r.ratio >= 3, 'greeting at ' + r.ratio.toFixed(2));
+      return ok(r.name, 'the sort menu has no name');
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -4290,6 +4737,105 @@ async function runRetry(w, method, script) {
     catch (e) { threw = true; message = e.message; }
     return { fetches, threw, message, toasts };
   } finally { Object.assign(w, real); }
+}
+
+// AUD-42/43 — contrast measured on the real computed colours. A canvas turns
+// any CSS colour the page computes (oklch, relative colours) into sRGB.
+const AUD42_SKINS = ['coral', 'amber', 'lime', 'teal', 'ocean', 'indigo', 'violet', 'rose', 'mono', 'gold'];
+const AUD42_SURFACES = ['--bg', '--surface', '--surface2', '--surface3'];
+function aud42Meter(w) {
+  const doc = w.document;
+  const cv = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+  const rgb = css => {
+    cv.clearRect(0, 0, 1, 1);
+    cv.fillStyle = '#000'; cv.fillStyle = css;
+    cv.fillRect(0, 0, 1, 1);
+    return [...cv.getImageData(0, 0, 1, 1).data].slice(0, 3);
+  };
+  const lum = ([r, g, b]) => [r, g, b].map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; })
+    .reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const computed = css => {
+    const probe = doc.createElement('span');
+    probe.style.color = css;
+    doc.body.appendChild(probe);
+    const v = w.getComputedStyle(probe).color;
+    probe.remove();
+    return rgb(v);
+  };
+  return {
+    ratio: (fg, bg) => contrast(computed(fg), computed(bg)),
+    // An element already on the page, against a background token
+    of: (el, bg) => contrast(rgb(w.getComputedStyle(el).color), computed(bg)),
+    // A property of a real element, against a background token
+    against: (html, prop, bg) => {
+      const host = doc.createElement('div');
+      host.innerHTML = html;
+      doc.body.appendChild(host);
+      const v = w.getComputedStyle(host.firstChild)[prop];
+      host.remove();
+      return contrast(rgb(v), computed(bg));
+    },
+    element: (html, sel) => {
+      const host = doc.createElement('div');
+      host.innerHTML = html;
+      doc.body.appendChild(host);
+      const cs = w.getComputedStyle(sel ? host.querySelector(sel) : host.firstChild);
+      const r = contrast(rgb(cs.color), rgb(cs.backgroundColor));
+      host.remove();
+      return r;
+    },
+  };
+}
+// Run a check in the dark and the light theme, then put the page's theme and
+// accent back. The check returns a list of failures.
+function aud42Themes(w, check) {
+  const root = w.document.documentElement, body = w.document.body;
+  const rootStyle = root.getAttribute('style'), light = body.classList.contains('light-theme');
+  const bad = [];
+  try {
+    for (const theme of ['dark', 'light']) {
+      body.classList.toggle('light-theme', theme === 'light');
+      bad.push(...check(theme, aud42Meter(w)));
+      if (rootStyle === null) root.removeAttribute('style'); else root.setAttribute('style', rootStyle);
+    }
+  } finally {
+    body.classList.toggle('light-theme', light);
+    if (rootStyle === null) root.removeAttribute('style'); else root.setAttribute('style', rootStyle);
+  }
+  return eq(bad, [], 'below AA');
+}
+
+// AUD-48 — show one real toast under a fake clock: setTimeout calls are
+// recorded instead of scheduled, so a test can see and fire them.
+function aud48Toast(w, type, action, body) {
+  const real = { setTimeout: w.setTimeout, clearTimeout: w.clearTimeout };
+  const timers = [];
+  let el = null;
+  try {
+    w.setTimeout = (fn, ms) => { timers.push({ fn, ms, cleared: false }); return timers.length; };
+    w.clearTimeout = id => { if (timers[id - 1]) timers[id - 1].cleared = true; };
+    w.showToast('aud48', type, action);
+    el = w.document.getElementById('toastContainer').lastElementChild;
+    const live = () => timers.filter(x => !x.cleared && !x.fired).map(x => ({ ...x, fn: () => { x.fired = true; x.fn(); } }));
+    return body({ el, live });
+  } finally {
+    Object.assign(w, real);
+    if (el) el.remove();
+  }
+}
+
+// AUD-46 — focus a fresh element in a rendered app frame and read its outline.
+function aud46Ring(w, html) {
+  const host = w.document.createElement('div');
+  host.innerHTML = html;
+  w.document.body.appendChild(host);
+  try {
+    const el = host.firstChild;
+    el.focus();
+    const cs = w.getComputedStyle(el);
+    return { style: cs.outlineStyle, width: cs.outlineWidth };
+  } finally { host.remove(); }
 }
 
 // AUD-12 — a CSV in the export's exact shape (BOM, bare header, csvRow cells)
