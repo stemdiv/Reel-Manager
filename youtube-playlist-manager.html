@@ -4647,7 +4647,7 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.53'; // bump per release
+const APP_VERSION = '1.27.54'; // bump per release
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -6655,16 +6655,12 @@ async function runCacheDiagnostic() {
   const backupKB = (backupBytes / 1024).toFixed(1);
   const cacheKB = (cacheBytes / 1024).toFixed(1);
 
-  // Estimate storage limit
-  let storageStatus = '?';
-  if (navigator.storage && navigator.storage.estimate) {
-    navigator.storage.estimate().then(est => {
-      const usedMB = (est.usage / (1024 * 1024)).toFixed(1);
-      const quotaMB = (est.quota / (1024 * 1024)).toFixed(0);
-      const pctUsed = ((est.usage / est.quota) * 100).toFixed(1);
-      document.getElementById('cacheDiagStorage').textContent = `${usedMB} MB / ${quotaMB} MB (${pctUsed}%)`;
-    });
-  }
+  // Estimate storage limit. AUD-54 — started here, written only once the
+  // panel below exists: the IndexedDB reads in between outlast the estimate on
+  // a real library, and writing into the not-yet-rendered span threw.
+  const storageEstimate = (navigator.storage && navigator.storage.estimate)
+    ? navigator.storage.estimate().catch(e => { swallow('runCacheDiagnostic:estimate', e); return null; })
+    : null;
 
   // Manual backup data
   const manualRaw = localStorage.getItem('lastBackup');
@@ -6826,6 +6822,16 @@ async function runCacheDiagnostic() {
     <div><b>Source used at startup:</b> ${manualRaw || cacheRaw ? `<span style="${green}">${manualRaw && (!cacheRaw || new Date(manualTs) >= new Date(cacheTs)) ? 'lastBackup (manual)' : 'autoCache (auto)'}</span>` : `<span style="${red}">none</span>`}</div>
     <div><b>Token:</b> ${APP.accessToken ? `<span style="${green}">present</span> (${APP.accessToken.substring(0, 8)}...)` : `<span style="${red}">absent</span>`}</div>
   `;
+
+  const est = storageEstimate ? await storageEstimate : null;
+  // The view may have been left, or re-run, while the estimate was pending.
+  const span = document.getElementById('cacheDiagStorage');
+  if (!span) return;
+  if (!est || !est.quota) { span.textContent = '?'; return; }
+  const usedMB = (est.usage / (1024 * 1024)).toFixed(1);
+  const quotaMB = (est.quota / (1024 * 1024)).toFixed(0);
+  const pctUsed = ((est.usage / est.quota) * 100).toFixed(1);
+  span.textContent = `${usedMB} MB / ${quotaMB} MB (${pctUsed}%)`;
 }
 
 function updateBackupIndicator() {

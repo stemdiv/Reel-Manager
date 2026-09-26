@@ -1,5 +1,15 @@
 [
  {
+  "v": "1.27.54",
+  "date": "2026-09-24",
+  "items": [
+   {
+    "fr": "Diagnostic du cache : l'erreur « Cannot set properties of null (setting 'textContent') » ne se produit plus quand l'estimation de stockage arrive avant la fin de la lecture du cache (AUD-54).",
+    "en": "Cache diagnostic: the \"Cannot set properties of null (setting 'textContent')\" error no longer occurs when the storage estimate arrives before the cache read ends (AUD-54)."
+   }
+  ]
+ },
+ {
   "v": "1.27.53",
   "date": "2026-09-24",
   "items": [

@@ -3442,6 +3442,28 @@ const SUITES = [
       } finally { unseedQuota(w, snap); }
     }],
 
+    ['AUD-54 — a storage estimate that beats the IndexedDB read no longer throws', async w => {
+      // The estimate resolves at once; the cache read takes a while, as on a
+      // 2 700-video library. The span it writes into did not exist yet.
+      const storage = w.navigator.storage;
+      const realRead = w.cacheStore.readAll;
+      const errors = [];
+      const onRejection = e => errors.push(String(e.reason && e.reason.message || e.reason));
+      w.addEventListener('unhandledrejection', onRejection);
+      Object.defineProperty(storage, 'estimate', { configurable: true, value: async () => ({ usage: 50 * 1048576, quota: 1000 * 1048576 }) });
+      w.cacheStore.readAll = async () => { await new Promise(r => setTimeout(r, 150)); return realRead.call(w.cacheStore); };
+      try {
+        await w.runCacheDiagnostic();
+        await new Promise(r => setTimeout(r, 50));
+        eq(errors, [], 'unhandled rejections');
+        return eq(w.document.getElementById('cacheDiagStorage').textContent, '50.0 MB / 1000 MB (5.0%)', 'estimate shown');
+      } finally {
+        delete storage.estimate;
+        w.cacheStore.readAll = realRead;
+        w.removeEventListener('unhandledrejection', onRejection);
+      }
+    }],
+
     ['restore cost comes from the cost table, once', async w => {
       eq(w.restoreQuotaCost([{ videos: [1, 2, 3] }, { videos: [4] }]), 2 * 50 + 4 * 50, 'two playlists, four videos');
       const src = await (await fetch('youtube-playlist-manager.html?aud22=' + Date.now())).text();
