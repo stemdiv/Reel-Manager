@@ -712,6 +712,18 @@
     font-size: 11px; color: var(--text3);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
+  /* Trending view — the tile's row plus a tick box and the two counts */
+  .trending-row.tv-row { grid-template-columns: 20px 28px 96px minmax(0, 1fr) auto; padding: 6px 8px; }
+  .tv-row .trending-art { width: 96px; }
+  .tv-row .trending-title { font-size: 13.5px; }
+  .tv-select { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+  .tv-stats { display: flex; flex-direction: column; align-items: flex-end; font-size: 11px; color: var(--text3); white-space: nowrap; }
+  body.read-only .trending-row.tv-row { grid-template-columns: 0 28px 96px minmax(0, 1fr) auto; }
+  @media (max-width: 640px) {
+    .trending-row.tv-row { grid-template-columns: 20px 22px 64px minmax(0, 1fr); }
+    .tv-row .trending-art { width: 64px; }
+    .tv-row .tv-stats { grid-column: 4; flex-direction: row; gap: 8px; align-items: center; }
+  }
   /* Music badge — same treatment as the Shorts badge, and equally a deduction. */
   .music-badge {
     font-size: 10px; font-weight: 700; letter-spacing: .04em;
@@ -1461,6 +1473,10 @@
           <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 13.5 8.5 19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5z"/><path d="M19 4v3M17.5 5.5h3"/><path d="M5 18v3M3.5 19.5h3"/></svg></span>
           <span data-i18n="nav_discover">Discover</span>
         </div>
+        <div class="sidebar-item" data-view="trending" onclick="switchView('trending')">
+          <span class="icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/></svg></span>
+          <span data-i18n="nav_trending">Tendances</span>
+        </div>
 
         <!-- Organize -->
         <div class="sidebar-section-label">Organize</div>
@@ -1938,6 +1954,56 @@
           </div>
           <div id="discoverVideosList"></div>
         </div>
+      </div>
+
+      <!-- TRENDING VIEW -->
+      <div id="trending" class="view">
+        <h1 style="margin-bottom: 8px;" data-i18n="trending_view_title">Tendances</h1>
+        <p class="text-muted" style="margin-bottom: 20px;" data-i18n="trending_view_subtitle">Les vidéos les plus populaires du moment, par catégorie et par pays</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;padding:12px;background:var(--surface2);border-radius:var(--radius);">
+          <div><label for="tvCategory" style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="detail_category">Catégorie</label>
+            <select class="form-control" id="tvCategory" style="padding:6px 10px;font-size:13px;" onchange="setTrendingCategory(this.value)"></select></div>
+          <div><label for="tvRegion" style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="trending_region">Pays</label>
+            <select class="form-control" id="tvRegion" style="padding:6px 10px;font-size:13px;" onchange="setTrendingRegion(this.value)"></select></div>
+          <div><label for="tvSize" style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="trending_size">Classement</label>
+            <select class="form-control" id="tvSize" style="padding:6px 10px;font-size:13px;" onchange="setTrendingViewPref('size', this.value)">
+              <option value="10">Top 10</option>
+              <option value="25">Top 25</option>
+              <option value="50">Top 50</option>
+              <option value="100">Top 100</option>
+              <option value="200">Top 200</option>
+            </select></div>
+          <div><label for="tvSort" style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="detail_sort">Tri</label>
+            <select class="form-control" id="tvSort" style="padding:6px 10px;font-size:13px;" onchange="setTrendingViewPref('sort', this.value)">
+              <option value="rank" data-i18n="trending_sort_rank">Classement YouTube</option>
+              <option value="views" data-i18n="trending_sort_views">Plus vues</option>
+              <option value="likes" data-i18n="trending_sort_likes">Plus aimées</option>
+              <option value="ratio" data-i18n="trending_sort_ratio">Meilleur ratio j'aime / vues</option>
+              <option value="duration_desc" data-i18n="detail_sort_dur_desc">Durée décroissante</option>
+              <option value="duration_asc" data-i18n="detail_sort_dur_asc">Durée croissante</option>
+            </select></div>
+          <button class="btn btn-secondary btn-sm" onclick="loadTrendingView(true)" data-i18n="trending_refresh">Rafraîchir les tendances</button>
+          <span id="tvCostNote" class="text-muted mono" style="font-size:11px;"></span>
+        </div>
+        <div id="tvSelectBar" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;font-size:13px;">
+          <button class="btn btn-secondary btn-sm dash-write-action" onclick="tvSelectAll(true)" data-i18n="search_select_all">Tout sélectionner</button>
+          <button class="btn btn-secondary btn-sm dash-write-action" onclick="tvSelectAll(false)" data-i18n="search_select_none">Tout désélectionner</button>
+          <span id="tvCount" class="text-muted"></span>
+        </div>
+        <div id="tvList" class="trending-list"></div>
+        <div id="tvActionBar" class="dash-write-action" role="region" aria-label="Actions" style="display:none;position:sticky;bottom:0;z-index:5;margin-top:16px;padding:12px;gap:10px;align-items:center;flex-wrap:wrap;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 -4px 16px rgba(0,0,0,.18);">
+          <strong id="tvSelCount" aria-live="polite" style="font-size:13px;"></strong>
+          <select class="form-control" id="tvDest" onchange="tvUpdateActionBar()" style="max-width:260px;padding:6px 10px;font-size:13px;" aria-label="Destination"></select>
+          <input type="text" class="form-control" id="tvNewName" data-i18n-placeholder="merge_dest_name" placeholder="Nom de la nouvelle playlist" oninput="tvUpdateActionBar()" style="display:none;max-width:220px;padding:6px 10px;font-size:13px;">
+          <select class="form-control" id="tvNewVisibility" style="display:none;width:auto;padding:6px 10px;font-size:13px;" aria-label="Visibility">
+            <option value="private" data-i18n="discover_visibility_private">Privée</option>
+            <option value="unlisted" data-i18n="discover_visibility_unlisted">Non répertoriée</option>
+            <option value="public" data-i18n="discover_visibility_public">Publique</option>
+          </select>
+          <button class="btn btn-primary btn-sm" id="tvAddBtn" onclick="performTrendingAdd()" data-i18n="trending_add_selected">Ajouter</button>
+          <span id="tvActionNote" class="text-muted" style="font-size:12px;"></span>
+        </div>
+        <div class="mono" id="tvRegionNote" style="font-size:10px;color:var(--text4);margin-top:12px;"></div>
       </div>
 
       <!-- MERGE VIEW -->
@@ -3385,6 +3451,28 @@ const I18N = {
     trending_added: 'Vidéo ajoutée à la playlist',
     trending_no_playlist: "Vous n'avez aucune playlist modifiable.",
     trending_region_note: 'Classement pour la région {region} — depuis juillet 2025, il mélange Musique, Films et Jeux, il est donc toujours filtré par catégorie.',
+    nav_trending: 'Tendances',
+    trending_see_all: 'Voir tout →',
+    trending_view_title: 'Tendances',
+    trending_view_subtitle: 'Les vidéos les plus populaires du moment, par catégorie et par pays',
+    trending_region: 'Pays',
+    trending_size: 'Classement',
+    trending_sort_rank: 'Classement YouTube',
+    trending_sort_views: 'Plus vues',
+    trending_sort_likes: 'Plus aimées',
+    trending_sort_ratio: 'Meilleur ratio j\'aime / vues',
+    trending_cost_note: '{units} unité(s) de quota par chargement, gardé 1 h en cache',
+    trending_view_error: 'Classement indisponible pour ce pays et cette catégorie ({msg})',
+    trending_views: 'Vues',
+    trending_views_short: 'vues',
+    trending_likes: 'J\'aime (masqué par certaines chaînes)',
+    trending_likes_short: 'j\'aime',
+    trending_add_selected: 'Ajouter',
+    trending_action_cost: 'Coût max : {cost} unités (les doublons sont ignorés)',
+    trending_confirm_add: 'Ajouter {count} vidéo(s) à « {dest} » ?',
+    trending_confirm_new: 'Une playlist « {name} » ({visibility}) sera créée.',
+    trending_playlist_description: 'Tendances {category} — {region}',
+    trending_toast_added: '{count} vidéo(s) ajoutée(s) à « {dest} »',
     music_badge: 'Musique',
     music_badge_tooltip: "Déduit de la chaîne, de la catégorie et de la durée — l'API n'expose pas d'indicateur musique.",
     // Découvrir des playlists et des chaînes (#14)
@@ -4319,6 +4407,28 @@ const I18N = {
     trending_added: 'Video added to the playlist',
     trending_no_playlist: 'You have no playlist you can write to.',
     trending_region_note: 'Chart for region {region} — since July 2025 it mixes Music, Films and Gaming, so it is always filtered by category.',
+    nav_trending: 'Trending',
+    trending_see_all: 'See all →',
+    trending_view_title: 'Trending',
+    trending_view_subtitle: 'The most popular videos right now, by category and country',
+    trending_region: 'Country',
+    trending_size: 'Chart',
+    trending_sort_rank: 'YouTube rank',
+    trending_sort_views: 'Most viewed',
+    trending_sort_likes: 'Most liked',
+    trending_sort_ratio: 'Best likes / views ratio',
+    trending_cost_note: '{units} quota unit(s) per load, cached for 1 h',
+    trending_view_error: 'Chart unavailable for this country and category ({msg})',
+    trending_views: 'Views',
+    trending_views_short: 'views',
+    trending_likes: 'Likes (hidden by some channels)',
+    trending_likes_short: 'likes',
+    trending_add_selected: 'Add',
+    trending_action_cost: 'Max cost: {cost} units (duplicates are skipped)',
+    trending_confirm_add: 'Add {count} video(s) to "{dest}"?',
+    trending_confirm_new: 'A playlist "{name}" ({visibility}) will be created.',
+    trending_playlist_description: 'Trending {category} — {region}',
+    trending_toast_added: '{count} video(s) added to "{dest}"',
     music_badge: 'Music',
     music_badge_tooltip: 'Inferred from the channel, category and length — the API exposes no music flag.',
     // Discovering playlists and channels (#14)
@@ -4783,7 +4893,7 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.56'; // bump per release
+const APP_VERSION = '1.27.57'; // bump per release
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -6757,7 +6867,7 @@ var APP_STORAGE_KEYS = [   // var: read by tests.html, which cannot see a top-le
   'autoCache', 'autoCacheTimestamp', 'lastBackup', 'lastBackupTimestamp',
   'playlistTags', 'tagIcons', 'playlistFolders', 'folderAssignments', 'folderExpanded',
   'bookmarkedPlaylists', 'deckColumns', 'watchQueue', 'recentSearches',
-  'playlistViewMode', 'libraryLens', 'discoverFilters', 'trendingCategory',
+  'playlistViewMode', 'libraryLens', 'discoverFilters', 'trendingCategory', 'trendingRegion', 'trendingView',
   'showPlaylistViews', 'reelMusicMode',
   // identity and session
   'youtubeClientId', 'userInfo', 'oauthScope', 'writeScopeAtLogin', 'lastLoginTimestamp',
@@ -8629,23 +8739,82 @@ function trendingCategory() {
   return (saved && VIDEO_CATEGORIES[saved]) ? saved : TRENDING_DEFAULT_CATEGORY;
 }
 
-function setTrendingCategory(id) {
-  try { localStorage.setItem('trendingCategory', id); } catch (e) { swallow('setTrendingCategory:storage', e); }
+function isViewActive(id) { return !!document.getElementById(id)?.classList.contains('active'); }
+
+// The tile and the Trending view share the category and the country. A change
+// empties both; only the one on screen reloads (1 unit, cached for an hour).
+function onTrendingSourceChange() {
   trendingVideos = [];
-  loadTrending();
+  tvState.videos = [];
+  renderTrendingTile();
+  if (isViewActive('dashboard')) loadTrending();
+  if (isViewActive('trending')) loadTrendingView();
 }
 
-/** The request, isolated so its exact shape is testable without a network call. */
-function buildTrendingParams(categoryId, lang) {
-  const lr = langRegion(lang || currentLang);
-  return {
-    part: 'snippet,contentDetails',
+function setTrendingCategory(id) {
+  try { localStorage.setItem('trendingCategory', id); } catch (e) { swallow('setTrendingCategory:storage', e); }
+  onTrendingSourceChange();
+}
+
+// Countries offered for the chart. Unknown or unset → the UI language's region, as before.
+const TRENDING_REGIONS = ['FR', 'BE', 'CH', 'CA', 'US', 'GB', 'IE', 'DE', 'AT', 'ES', 'IT', 'PT', 'NL',
+                          'SE', 'PL', 'BR', 'MX', 'AR', 'JP', 'KR', 'IN', 'AU'];
+
+function trendingRegion() {
+  const saved = localStorage.getItem('trendingRegion');
+  return TRENDING_REGIONS.includes(saved) ? saved : langRegion(currentLang).regionCode;
+}
+
+function setTrendingRegion(code) {
+  try { localStorage.setItem('trendingRegion', code); } catch (e) { swallow('setTrendingRegion:storage', e); }
+  onTrendingSourceChange();
+}
+
+function regionName(code) {
+  try { return new Intl.DisplayNames([currentLang], { type: 'region' }).of(code) || code; }
+  catch (e) { return code; }
+}
+
+/**
+ * The request, isolated so its exact shape is testable without a network call.
+ * opts (Trending view): region overrides the language's, max up to 50 a page,
+ * stats adds the view/like counts — same call, same 1 unit — and pageToken pages.
+ */
+function buildTrendingParams(categoryId, lang, opts) {
+  opts = opts || {};
+  const p = {
+    part: opts.stats ? 'snippet,contentDetails,statistics' : 'snippet,contentDetails',
     chart: 'mostPopular',
     videoCategoryId: String(categoryId),
-    regionCode: lr.regionCode,
-    maxResults: TRENDING_MAX,
+    regionCode: opts.region || langRegion(lang || currentLang).regionCode,
+    maxResults: opts.max || TRENDING_MAX,
     _ttlMs: 60 * 60_000,   // 1 hour — the chart does not move faster than that
-    fields: 'items(id,snippet(title,channelTitle,channelId,categoryId,thumbnails(medium(url),high(url),default(url),fhd(url),qhd(url))),contentDetails(duration))',
+    fields: 'nextPageToken,items(id,snippet(title,channelTitle,channelId,categoryId,thumbnails(medium(url),high(url),default(url),fhd(url),qhd(url))),contentDetails(duration)' +
+      (opts.stats ? ',statistics(viewCount,likeCount)' : '') + ')',
+  };
+  if (opts.pageToken) p.pageToken = opts.pageToken;
+  return p;
+}
+
+function trendingItem(v, rank) {
+  const seconds = parseDuration(v.contentDetails?.duration || '');
+  const count = n => (n === undefined || n === null || n === '' ? null : Number(n));
+  return {
+    rank,
+    videoId: v.id,
+    title: v.snippet?.title || '',
+    channelTitle: v.snippet?.channelTitle || '',
+    channelId: v.snippet?.channelId || '',
+    categoryId: v.snippet?.categoryId,
+    thumbnail: pickThumb(v.snippet?.thumbnails),
+    durationSeconds: seconds,
+    durationFormatted: formatDuration(seconds),
+    // The two badges the app already knows how to compute (#68, #17).
+    isShort: detectShort(v.player?.embedWidth, v.player?.embedHeight, seconds),
+    isMusic: isMusicVideo({ title: v.snippet?.title, channelTitle: v.snippet?.channelTitle,
+                           categoryId: v.snippet?.categoryId, durationSeconds: seconds }),
+    views: count(v.statistics?.viewCount),
+    likes: count(v.statistics?.likeCount),   // null when the owner hides it
   };
 }
 
@@ -8654,24 +8823,8 @@ async function loadTrending() {
   trendingLoading = true;
   renderTrendingTile();
   try {
-    const data = await ytApi('videos', buildTrendingParams(trendingCategory()));
-    trendingVideos = (data.items || []).map(v => {
-      const seconds = parseDuration(v.contentDetails?.duration || '');
-      return {
-        videoId: v.id,
-        title: v.snippet?.title || '',
-        channelTitle: v.snippet?.channelTitle || '',
-        channelId: v.snippet?.channelId || '',
-        categoryId: v.snippet?.categoryId,
-        thumbnail: pickThumb(v.snippet?.thumbnails),
-        durationSeconds: seconds,
-        durationFormatted: formatDuration(seconds),
-        // The two badges the app already knows how to compute (#68, #17).
-        isShort: detectShort(v.player?.embedWidth, v.player?.embedHeight, seconds),
-        isMusic: isMusicVideo({ title: v.snippet?.title, channelTitle: v.snippet?.channelTitle,
-                               categoryId: v.snippet?.categoryId, durationSeconds: seconds }),
-      };
-    });
+    const data = await ytApi('videos', buildTrendingParams(trendingCategory(), null, { region: trendingRegion() }));
+    trendingVideos = (data.items || []).map((v, i) => trendingItem(v, i + 1));
     log('info', 'api', 'trending loaded', { category: trendingCategory(), count: trendingVideos.length });
   } catch (err) {
     log('warn', 'api', 'trending failed', { msg: err.message });
@@ -8723,10 +8876,255 @@ function renderTrendingTile() {
         <button class="btn-icon" onclick="loadTrending()" title="${t('trending_refresh')}" style="width:28px;height:28px;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
         </button>
+        <button class="btn btn-secondary btn-sm" onclick="switchView('trending')">${t('trending_see_all')}</button>
       </div>
     </div>
     <div class="trending-list">${body}</div>
-    <div class="mono" style="font-size:10px;color:var(--text4);margin-top:10px;">${t('trending_region_note', { region: langRegion(currentLang).regionCode })}</div>`;
+    <div class="mono" style="font-size:10px;color:var(--text4);margin-top:10px;">${t('trending_region_note', { region: regionName(trendingRegion()) })}</div>`;
+}
+
+// ── Trending view ─────────────────────────────────────────────────────────────
+// The tile's chart at full size: up to 200 rows (the chart's ceiling), 50 per
+// page at 1 unit each, with view and like counts from the same call. Selected
+// rows go to one of the user's playlists or to a new one, without duplicates.
+const TRENDING_SIZES = [10, 25, 50, 100, 200];
+const TRENDING_SORTS = ['rank', 'views', 'likes', 'ratio', 'duration_desc', 'duration_asc'];
+const tvState = { videos: [], loading: false, error: null, key: '' };
+const tvSelected = new Set();   // videoIds
+
+function trendingViewPrefs() {
+  let p = {};
+  try { p = JSON.parse(localStorage.getItem('trendingView') || '{}') || {}; } catch (e) { swallow('trendingViewPrefs', e); }
+  return {
+    size: TRENDING_SIZES.includes(Number(p.size)) ? Number(p.size) : 50,
+    sort: TRENDING_SORTS.includes(p.sort) ? p.sort : 'rank',
+  };
+}
+
+function setTrendingViewPref(key, value) {
+  const p = trendingViewPrefs();
+  p[key] = key === 'size' ? Number(value) : value;
+  try { localStorage.setItem('trendingView', JSON.stringify(p)); } catch (e) { swallow('setTrendingViewPref:storage', e); }
+  if (key === 'size') loadTrendingView(); else renderTrendingView();
+}
+
+function trendingPageCount(size) { return Math.ceil(size / 50); }
+
+function sortTrendingVideos(list, sort) {
+  const a = [...list];
+  const n = x => (x === null || x === undefined || Number.isNaN(x) ? -1 : x);
+  const ratio = v => (v.likes !== null && v.views > 0 ? v.likes / v.views : -1);
+  switch (sort) {
+    case 'views': a.sort((x, y) => n(y.views) - n(x.views)); break;
+    case 'likes': a.sort((x, y) => n(y.likes) - n(x.likes)); break;
+    case 'ratio': a.sort((x, y) => ratio(y) - ratio(x)); break;
+    case 'duration_desc': a.sort((x, y) => y.durationSeconds - x.durationSeconds); break;
+    case 'duration_asc': a.sort((x, y) => x.durationSeconds - y.durationSeconds); break;
+    default: a.sort((x, y) => x.rank - y.rank);
+  }
+  return a;
+}
+
+function compactCount(n) {
+  if (n === null || n === undefined || Number.isNaN(n)) return '—';
+  try { return new Intl.NumberFormat(currentLang, { notation: 'compact', maximumFractionDigits: 1 }).format(n); }
+  catch (e) { return String(n); }
+}
+
+async function loadTrendingView(force) {
+  if (tvState.loading) return;
+  if (!APP.accessToken) { renderTrendingView(); return; }
+  const cat = trendingCategory(), region = trendingRegion(), size = trendingViewPrefs().size;
+  const key = cat + '|' + region + '|' + size;
+  if (!force && tvState.key === key && tvState.videos.length) { renderTrendingView(); return; }
+  tvState.loading = true;
+  tvState.error = null;
+  renderTrendingView();
+  try {
+    const out = [], seen = new Set();
+    let pageToken;
+    while (out.length < size) {
+      const data = await ytApi('videos', buildTrendingParams(cat, null,
+        { region, stats: true, max: Math.min(50, size - out.length), pageToken }));
+      for (const v of data.items || []) {
+        if (v.id && !seen.has(v.id)) { seen.add(v.id); out.push(trendingItem(v, out.length + 1)); }
+      }
+      pageToken = data.nextPageToken;
+      if (!pageToken || !(data.items || []).length) break;
+    }
+    tvState.videos = out;
+    tvState.key = key;
+    for (const id of [...tvSelected]) if (!seen.has(id)) tvSelected.delete(id);
+    log('info', 'api', 'trending view loaded', { category: cat, region, count: out.length });
+  } catch (err) {
+    tvState.videos = [];
+    tvState.key = '';
+    tvState.error = err.message;
+    log('warn', 'api', 'trending view failed', { category: cat, region, msg: err.message });
+  } finally {
+    tvState.loading = false;
+    renderTrendingView();
+  }
+}
+
+function renderTrendingView() {
+  const list = document.getElementById('tvList');
+  if (!list) return;
+  const prefs = trendingViewPrefs();
+
+  const cat = document.getElementById('tvCategory');
+  cat.innerHTML = Object.keys(VIDEO_CATEGORIES).filter(cid => VIDEO_CATEGORIES[cid].a)
+    .map(cid => `<option value="${cid}"${cid === trendingCategory() ? ' selected' : ''}>${escapeHtml(getCategoryName(cid))}</option>`).join('');
+  const reg = document.getElementById('tvRegion');
+  const regions = TRENDING_REGIONS.map(code => ({ code, name: regionName(code) })).sort((a, b) => a.name.localeCompare(b.name));
+  reg.innerHTML = regions.map(r => `<option value="${r.code}"${r.code === trendingRegion() ? ' selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
+  document.getElementById('tvSize').value = String(prefs.size);
+  document.getElementById('tvSort').value = prefs.sort;
+  const pages = trendingPageCount(prefs.size);
+  document.getElementById('tvCostNote').textContent = t('trending_cost_note', { units: pages });
+  document.getElementById('tvRegionNote').textContent = t('trending_region_note', { region: regionName(trendingRegion()) });
+
+  let html;
+  if (tvState.loading) html = `<p class="text-muted">${t('btn_loading')}</p>`;
+  else if (!APP.accessToken) html = `<p class="text-muted">${t('trending_signed_out')}</p>`;
+  else if (tvState.error) html = `<p class="text-muted">${escapeHtml(t('trending_view_error', { msg: tvState.error }))}</p>`;
+  else if (!tvState.videos.length) html = `<button class="btn btn-secondary btn-sm" onclick="loadTrendingView(true)">${t('trending_load')}</button>`;
+  else html = sortTrendingVideos(tvState.videos, prefs.sort).map(v => {
+    const play = `playVideo('${v.videoId}','${escapeJsAttr(v.title)}','${escapeJsAttr(v.channelTitle)}','${escapeJsAttr(v.thumbnail)}',null,'${escapeJsAttr(v.channelId)}')`;
+    return `
+      <div class="trending-row tv-row">
+        <input type="checkbox" class="tv-select dash-write-action" value="${escapeHtml(v.videoId)}" ${tvSelected.has(v.videoId) ? 'checked' : ''}
+          onchange="tvToggle(this)" aria-label="${escapeHtml(t('search_select_video', { title: v.title }))}">
+        <span class="trending-num mono">${v.rank}</span>
+        <span class="trending-art" onclick="${play}">${v.thumbnail ? `<img src="${escapeHtml(v.thumbnail)}" alt="" loading="lazy">` : ''}</span>
+        <span class="trending-main" onclick="${play}">
+          <span class="trending-title">${escapeHtml(v.title)}</span>
+          <span class="trending-meta">${escapeHtml(v.channelTitle)} · ${v.durationFormatted}${v.isShort ? ' ' + shortBadgeHTML() : ''}${v.isMusic ? ' ' + musicBadgeHTML() : ''}</span>
+        </span>
+        <span class="tv-stats mono">
+          <span title="${escapeHtml(t('trending_views'))}">${compactCount(v.views)} ${escapeHtml(t('trending_views_short'))}</span>
+          <span title="${escapeHtml(t('trending_likes'))}">${compactCount(v.likes)} ${escapeHtml(t('trending_likes_short'))}</span>
+        </span>
+      </div>`;
+  }).join('');
+  list.innerHTML = html;
+  tvUpdateActionBar();
+}
+
+function tvToggle(cb) {
+  if (cb.checked) tvSelected.add(cb.value); else tvSelected.delete(cb.value);
+  tvUpdateActionBar();
+}
+
+function tvSelectAll(on) {
+  document.querySelectorAll('#tvList .tv-select').forEach(cb => {
+    cb.checked = on;
+    if (on) tvSelected.add(cb.value); else tvSelected.delete(cb.value);
+  });
+  tvUpdateActionBar();
+}
+
+function tvUpdateActionBar() {
+  const n = tvSelected.size;
+  const selBar = document.getElementById('tvSelectBar');
+  if (selBar) selBar.style.display = tvState.videos.length && !tvState.loading ? 'flex' : 'none';
+  const count = document.getElementById('tvCount');
+  if (count) count.textContent = t('search_result_count', { count: tvState.videos.length });
+  const bar = document.getElementById('tvActionBar');
+  if (!bar) return;
+  bar.style.display = n ? 'flex' : 'none';
+  if (!n) return;
+  bar.setAttribute('aria-label', t('search_actions_label'));
+  document.getElementById('tvSelCount').textContent = t('search_selected_count', { count: n });
+
+  // Own playlists only: YouTube refuses writes to a bookmarked playlist.
+  const dest = document.getElementById('tvDest');
+  const prev = dest.value;
+  dest.setAttribute('aria-label', t('merge_dest_label'));
+  dest.innerHTML = '<option value="">' + escapeHtml(t('search_action_dest')) + '</option>' +
+    '<option value="__new__">' + escapeHtml(t('merge_dest_new')) + '</option>' +
+    APP.playlists.filter(p => !p._isBookmark)
+      .map(pl => '<option value="' + escapeHtml(pl.id) + '">' + escapeHtml(pl.snippet?.title || pl.id) + '</option>').join('');
+  dest.value = [...dest.options].some(o => o.value === prev) ? prev : '';
+
+  const creatingNew = dest.value === '__new__';
+  const nameInput = document.getElementById('tvNewName');
+  nameInput.style.display = creatingNew ? '' : 'none';
+  document.getElementById('tvNewVisibility').style.display = creatingNew ? '' : 'none';
+  document.getElementById('tvAddBtn').disabled = !dest.value || (creatingNew && !nameInput.value.trim());
+  const cost = (n + (creatingNew ? 1 : 0)) * YT_QUOTA_COSTS['playlistItems.POST'];
+  document.getElementById('tvActionNote').textContent = t('trending_action_cost', { cost });
+}
+
+// Add the ticked rows to one of the user's playlists, or to a new one created
+// first. planTransfer skips what the destination already holds; runTransfer
+// stops at the first failed insert and reports how far it got (AUD-16).
+async function performTrendingAdd() {
+  const ids = tvState.videos.filter(v => tvSelected.has(v.videoId)).map(v => v.videoId);
+  const destSel = document.getElementById('tvDest').value;
+  const creatingNew = destSel === '__new__';
+  const newName = (document.getElementById('tvNewName').value || '').trim();
+  const visibility = document.getElementById('tvNewVisibility').value || 'private';
+  if (!ids.length || !destSel || (creatingNew && !newName)) {
+    showToast(t('search_action_incomplete'), 'error');
+    return;
+  }
+
+  let plan;
+  try {
+    plan = await planTransfer(ids.map(videoId => ({ sourceId: null, videoId })), creatingNew ? null : destSel, { remove: false });
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+    return;
+  }
+  const writes = plan.inserts + (creatingNew ? 1 : 0);
+  if (!writes) { showToast(t('search_action_nothing'), 'info'); return; }
+
+  const destTitle = creatingNew ? newName : (APP.playlists.find(p => p.id === destSel)?.snippet?.title || destSel);
+  const lines = [t('trending_confirm_add', { count: ids.length, dest: destTitle })];
+  if (creatingNew) lines.push(t('trending_confirm_new', { name: newName, visibility: t('discover_visibility_' + visibility) }));
+  lines.push(t('search_confirm_calls', { inserts: plan.inserts, deletes: 0, cost: estimateQuotaCost('playlist_writes', writes) }));
+  if (plan.skippedDupes) lines.push(t('search_confirm_dupes', { count: plan.skippedDupes }));
+  lines.push(t('discover_confirm_usage', { current: APP.quota.pool, limit: QUOTA_LIMITS.pool }));
+  if (!confirm(lines.join('\n') + '\n\n' + t('discover_confirm_proceed'))) {
+    showToast(t('toast_cancelled'), 'warning');
+    return;
+  }
+  if (!checkQuotaBudget(t('trending_add'), 'playlist_writes', writes)) return;
+
+  const btn = document.getElementById('tvAddBtn');
+  const note = document.getElementById('tvActionNote');
+  if (btn) btn.disabled = true;
+  let destId = destSel, res;
+  try {
+    if (creatingNew) {
+      const created = await ytApi('playlists', { part: 'snippet,status' }, 'POST', {
+        snippet: { title: newName, description: t('trending_playlist_description', { category: getCategoryName(trendingCategory()), region: regionName(trendingRegion()) }) },
+        status: { privacyStatus: visibility }
+      });
+      if (!created || !created.id) throw new Error(t('err_playlist_no_id'));
+      destId = created.id;
+      APP.allVideos[destId] = [];
+    }
+    res = await runTransfer(plan, destId, (k, total) => { if (note) note.textContent = t('search_progress', { current: k, total }); });
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  if (res.abortMsg !== null) {
+    showToast(t('search_toast_copy_aborted', { count: res.inserted, left: plan.steps.length - res.attempted, msg: res.abortMsg }), 'error');
+  } else {
+    showToast(t('trending_toast_added', { count: res.inserted, dest: destTitle }), 'success');
+    log('info', 'action', 'trending videos added', { count: res.inserted, created: creatingNew });
+  }
+  if (plan.skippedDupes) showToast(t('toast_merge_skipped', { dupes: plan.skippedDupes }), 'info');
+
+  tvSelected.clear();
+  if (creatingNew) { document.getElementById('tvNewName').value = ''; document.getElementById('tvDest').value = ''; }
+  if (btn) btn.disabled = false;
+  renderTrendingView();
 }
 
 function musicBadgeHTML() {
@@ -9947,6 +10345,7 @@ function switchView(viewName) {
     else if (viewName === 'tags') refreshTagsList();
     else if (viewName === 'folders') renderFolderTree();
     else if (viewName === 'deck') { renderDeck(); if (APP.deckColumns.length) loadAllDeckVideos(); }
+    else if (viewName === 'trending') loadTrendingView();
     else if (viewName === 'export') renderExportPlaylistList();
     else if (viewName === 'backup') runCacheDiagnostic();
     else if (viewName === 'beta') { renderBetaFeatures(); initStudioCreator(); }

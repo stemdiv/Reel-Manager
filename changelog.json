@@ -1,5 +1,19 @@
 [
  {
+  "v": "1.27.57",
+  "date": "2026-09-26",
+  "items": [
+   {
+    "fr": "Nouvelle page Tendances (menu Library, après Découvrir) : le classement des vidéos populaires en Top 10, 25, 50, 100 ou 200, par catégorie et par pays, avec le nombre de vues et de « j'aime » et un tri par classement, vues, j'aime, ratio j'aime / vues ou durée. Chaque chargement coûte 1 unité par tranche de 50 vidéos et reste en cache 1 h.",
+    "en": "New Trending page (Library menu, after Discover): the popular videos chart as a Top 10, 25, 50, 100 or 200, by category and country, with view and like counts and sorting by rank, views, likes, likes / views ratio or duration. Each load costs 1 unit per 50 videos and stays cached for 1 h."
+   },
+   {
+    "fr": "Tendances : les vidéos se sélectionnent, puis s'ajoutent à une de vos playlists ou à une nouvelle playlist (nom et visibilité au choix). Le coût s'affiche avant de confirmer et une vidéo déjà présente n'est pas ajoutée deux fois. La tuile du tableau de bord reste en place, avec un lien « Voir tout » et le même pays.",
+    "en": "Trending: videos can be selected, then added to one of your playlists or to a new one (name and visibility of your choice). The cost is shown before you confirm and a video already there is not added twice. The dashboard tile stays, with a See all link and the same country."
+   }
+  ]
+ },
+ {
   "v": "1.27.56",
   "date": "2026-09-26",
   "items": [
