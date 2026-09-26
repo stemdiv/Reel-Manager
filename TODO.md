@@ -12,6 +12,13 @@ Details for each finding: `08-remediation.md` in the audit report, kept outside 
 - [x] #2 (audit): not to be merged. Merged by mistake on 2026-09-26, reverted (`6d51c4e`); branch deleted, report moved out of the repo.
 - [x] Merge #10 (`claude/youthful-fermi-b0e5wy`, on top of #9): tutorial detection (1.27.52), local server and offline page (1.27.53), AUD-54 (1.27.54), sign-in kept across page loads (1.27.55).
 
+## To test before pushing
+
+- [ ] Branch `fix/category-cache` (1.27.58, local only): run the auto-categorisation twice in a row (Tags view). The first run
+  may still cost units (older backups carry no categories); the second must leave the quota counter unchanged. Then reload
+  the page and use the Type or Category filter in the global search: no "analysing" call for videos already known.
+  Run `tests.html` (4 new cases, `category-cache`).
+
 ## To investigate
 
 - [x] AUD-54: page error `Cannot set properties of null (setting 'textContent')`: the storage estimate beat the IndexedDB read in the cache diagnostic. Fixed in 1.27.54.
