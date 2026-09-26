@@ -5,9 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#d4613a">
 <!-- CSP: blocks external script injection and exfiltration to non-whitelisted origins.
+     img-src allows blob: for the playlist-cover picker (#I1), which decodes the chosen
+     file through URL.createObjectURL; without it every cover upload failed. blob: URLs
+     are minted by this page from files the user picked — no remote origin is opened.
      'unsafe-inline' is required for now (single-file app with inline handlers); tightening
      it needs the event-delegation refactor tracked in the backlog. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://*.ytimg.com https://*.ggpht.com https://*.googleusercontent.com; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.ytimg.com https://*.ggpht.com https://*.googleusercontent.com; connect-src 'self' https://www.googleapis.com https://oauth2.googleapis.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'">
 <meta name="description" content="Manage, organize and analyze your YouTube playlists with advanced tools">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2609,8 +2612,10 @@
 
           <div class="stat-card" style="cursor: default;">
             <div style="width: 32px; height: 32px; border-radius: var(--r-sm); background: var(--surface2); color: var(--text2); display: flex; align-items: center; justify-content: center; margin-bottom: 4px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15 1.65 1.65 0 0 0 3.09 14H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6 1.65 1.65 0 0 0 10.09 3.09V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
-            <div style="font-size: 13px; font-weight: 600; color: var(--text);">API Quota</div>
-            <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;">YouTube API is limited to <strong style="color: var(--text);">10,000 units/day</strong>. Reads cost 1 unit, writes cost 50. Check the quota counter in the header.</p>
+            <div style="font-size: 13px; font-weight: 600; color: var(--text);" data-i18n="help_quota_title">API Quota</div>
+            <!-- AUD-22 — was hard-coded English describing the single 10 000-unit pool
+                 that #76 retired; the translated three-bucket text existed, unused. -->
+            <p style="color: var(--text2); font-size: 12px; margin-top: 6px; line-height: 1.5;" data-i18n="help_quota_text"></p>
           </div>
 
           <div class="stat-card" style="cursor: default; border-color: var(--accent-line);">
@@ -3373,6 +3378,7 @@ const I18N = {
     toast_moved_partial: '{moved} vidéo(s) déplacée(s), {stuck} copiée(s) sans être retirée(s) de la playlist source — réessayez sur celles-ci',
     toast_moved_aborted: 'Déplacement interrompu : {msg}. {moved} déplacée(s), {stuck} copiée(s) sans retrait de la source, {left} non traitée(s)',
     toast_merge_skipped: '{dupes} vidéo(s) déjà présente(s) non recopiée(s)',
+    discover_channel_playlists_capped: 'Les {count} premières playlists de la chaîne sont affichées ; la liste s\'arrête là',
     toast_scanning_ghosts: 'Scan des vidéos fantômes... (peut prendre un moment)',
     toast_video_deleted: 'Vidéo supprimée',
     toast_all_ghosts_cleaned: 'Toutes les vidéos fantômes supprimées',
@@ -4155,6 +4161,7 @@ const I18N = {
     toast_moved_partial: '{moved} video(s) moved, {stuck} copied but not removed from the source playlist — retry those',
     toast_moved_aborted: 'Move stopped: {msg}. {moved} moved, {stuck} copied without leaving the source, {left} not processed',
     toast_merge_skipped: '{dupes} video(s) already there, not copied again',
+    discover_channel_playlists_capped: 'Showing the channel\'s first {count} playlists; the list stops there',
     toast_scanning_ghosts: 'Scanning ghost videos... (may take a moment)',
     toast_video_deleted: 'Video deleted',
     toast_all_ghosts_cleaned: 'All ghost videos removed',
@@ -4423,11 +4430,39 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.14'; // bump per release
+const APP_VERSION = '1.27.23'; // bump per release
 
 // Shipped increments, newest first. Surfaced by showVersionInfo() so the running
 // build is identifiable at a glance — a stale service worker is otherwise silent.
 const CHANGELOG = [
+  { v: '1.27.23', date: '2026-09-24', items: [
+    "API (AUD-20) — l API YouTube signale aussi une limite de debit par une erreur 403 (rateLimitExceeded, userRateLimitExceeded). Elle etait traduite en session expiree, avec une invite a se reconnecter qui ne servait a rien. Ces 403 sont desormais traites comme un 429 : attente puis nouvel essai, et en dernier recours le message de limite de debit",
+  ]},
+  { v: '1.27.22', date: '2026-09-24', items: [
+    "DOUBLONS (AUD-19) — une creation (POST) qui echouait sur le reseau ou en erreur 5xx etait renvoyee jusqu a trois fois ; si la premiere avait en fait abouti, cela creait une deuxieme playlist ou insererait deux fois la meme video. Une creation n est plus renvoyee qu apres un refus explicite 429 ; sinon l erreur est signalee. Les lectures, modifications et suppressions, sans risque de doublon, gardent leurs nouvelles tentatives",
+  ]},
+  { v: '1.27.21', date: '2026-09-24', items: [
+    "NETTOYAGE (AUD-18) — l en-tete If-Match sur les ecritures (#55) n etait jamais envoye : le cache n est consulte que pour les lectures, et l adresse d une ecriture n est jamais celle d une lecture en cache. Le code et son traitement de l erreur 412, inatteignables, sont retires ; aucun comportement ne change",
+  ]},
+  { v: '1.27.20', date: '2026-09-24', items: [
+    "QUOTA (AUD-17) — le cache des reponses n enregistrait une reponse que si l en-tete HTTP ETag etait lisible ; or une requete vers un autre domaine ne l expose que si le serveur l autorise. Sans lui, le cache ne gardait rien et chaque relecture pourtant dans son delai de fraicheur etait refacturee, recherches comprises. Une reponse est desormais mise en cache pour sa duree de vie, ETag ou non ; l ETag, quand il est lisible, ne sert plus qu a la revalidation",
+  ]},
+  { v: '1.27.19', date: '2026-09-24', items: [
+    "QUOTA (AUD-01) — parcourir les playlists d une chaine depuis Decouvrir pouvait couter jusqu a 20 appels en un clic, sans verification de quota ; #82 promettait justement l inverse. La liste s arrete desormais a 3 pages (150 playlists), passe par la verification de quota, et un message dit quand elle est tronquee",
+  ]},
+  { v: '1.27.18', date: '2026-09-24', items: [
+    "QUOTA (AUD-21) — deux regles de comptage cohabitaient : les appels ordinaires etaient comptes avant l envoi, echecs compris, mais les envois de miniature, de sous-titre, de video et de couverture seulement apres un succes, et sans verifier le passage a minuit heure du Pacifique. Un envoi rate ne comptait pas, alors que Google le facture ; le premier envoi d une nouvelle journee s ajoutait aux compteurs de la veille puis disparaissait. Une seule regle desormais, chargeCall : compte avant l envoi, remise a zero verifiee d abord",
+  ]},
+  { v: '1.27.17', date: '2026-09-24', items: [
+    "CORRECTIF (#I1) — les couvertures de playlist personnalisees ne pouvaient jamais etre envoyees : l image choisie est lue via une URL blob:, que la politique de securite du contenu (img-src) n autorisait pas, et chaque tentative finissait sur Cette image n a pas pu etre lue. img-src accepte desormais blob:, qui ne designe que des fichiers choisis par l utilisateur. Trouve en ecrivant un test de quota ; les tests #I1 contournaient ce chemin",
+  ]},
+  { v: '1.27.16', date: '2026-09-24', items: [
+    "QUOTA (AUD-22) — trois copies codees en dur du modele de quota contredisaient le vrai : la carte Quota de l aide, en anglais seulement, decrivait encore le pool unique de 10 000 unites retire par #76 (le texte traduit a trois buckets existait sans etre utilise) ; le diagnostic du cache affichait / 10,000 et passait au rouge des 500 unites, soit 5 % ; la restauration et la creation de playlist depuis Decouvrir calculaient leur cout avec des 50 litteraux. Tout est desormais tire de QUOTA_LIMITS et de la table des couts",
+  ]},
+  { v: '1.27.15', date: '2026-09-24', items: [
+    "QUOTA (AUD-15) — six actions verifiaient le quota avec une cle absente de la table des couts, et une cle inconnue valait 1 unite : l envoi d un sous-titre (400 unites) etait estime a 1, la mise a jour d une video, d une miniature, de la chaine et le reordonnancement a 1 au lieu de 50. Les six cles sont ajoutees ; une cle inconnue compte desormais 50 par element et le journal le signale",
+    "L envoi de video verifie le bucket des envois (100 appels par jour) au lieu du pool ; l ajout d un titre tendance a une playlist est compte 50 et non 100",
+  ]},
   { v: '1.27.14', date: '2026-09-24', items: [
     "FUSION (AUD-23) — une playlist jamais ouverte, un favori typiquement, n apportait aucune video a la fusion ; une video presente dans deux sources etait inseree deux fois. Chaque source est desormais chargee, chaque video n est inseree qu une fois et jamais si la destination l a deja, et un message dit combien de doublons ont ete ecartes",
     "L estimation de quota compte ce qui sera vraiment insere, plus la creation de la playlist quand il y en a une ; elle comptait une suppression de playlist que la fusion ne fait pas. Les listes de fusion affichent le nombre de videos annonce par YouTube pour une playlist pas encore chargee, au lieu de 0",
@@ -5332,6 +5367,21 @@ function chargeQuota(endpoint, method) {
   return { bucket, cost };
 }
 
+// AUD-21 — the one charging rule. Every billed request, through ytApi() or a
+// direct upload, is charged once, BEFORE it is sent: Google bills a request
+// whether or not it succeeds, and a failed upload still spent its quota. The
+// Pacific-day reset is checked first, so the first call of a new day is not
+// added to yesterday's counters. Uploads used to charge only on success and to
+// skip the reset entirely.
+function chargeCall(endpoint, method) {
+  checkQuotaDailyReset();
+  const charged = chargeQuota(endpoint, method);
+  APP.apiCalls++;
+  saveQuotaState();
+  updateQuotaIndicator();
+  return charged;
+}
+
 // Daily quota persistence + Pacific Time reset (audit item #47)
 // YouTube quota resets at midnight Pacific (America/Los_Angeles), NOT UTC, NOT local.
 // Human-readable token state for the diagnostic log — an expired token and a
@@ -5470,6 +5520,16 @@ function parseRetryAfter(headerValue) {
   return null;
 }
 
+// AUD-20 — a 403 whose reason is a rate limit is a "slow down", not a lost
+// session. Reads a clone, so the caller can still consume the body.
+const RATE_LIMIT_REASONS = ['rateLimitExceeded', 'userRateLimitExceeded'];
+async function isRateLimit403(res) {
+  try {
+    const body = await res.clone().json();
+    return RATE_LIMIT_REASONS.includes(body?.error?.errors?.[0]?.reason);
+  } catch (_) { return false; }
+}
+
 // Decide if a status code is worth retrying.
 // 429 = rate-limited (Google explicitly tells us to retry), 5xx = transient server errors.
 function isRetryableStatus(status) {
@@ -5509,9 +5569,9 @@ const API_CACHE_CONFIG = {
     'videos.GET':              5 * 60_000,
     'videos.getRating.GET':    5 * 60_000,   // #I3 — per user + per video, rarely changes mid-session
     'videos.batchGetStats.GET': 60_000,      // 1 min — view counts move, but not second by second
-    // The trending chart is refreshed by YouTube far less often than hourly;
-    // re-fetching it on every dashboard visit would spend units for the same
-    // ten rows.
+    // videos.list?chart=mostPopular (#81) shares the 'videos.GET' key above, so
+    // its longer life cannot live here: buildTrendingParams() passes
+    // _ttlMs: 1 hour itself. (AUD-31 read this comment as a missing entry.)
   },
   defaultTtlMs: 0,           // unknown endpoints → don't cache
   maxEntries: 500,           // LRU cap — drop oldest when exceeded
@@ -6247,10 +6307,25 @@ function estimateQuotaCost(action, count) {
     'cover_set': count * YT_QUOTA_COSTS['playlistImages.POST'],  // #I1 — 50 per cover
     'discover_create': count * INSERT + INSERT_PLAYLIST,  // N inserts into new playlist + 1 playlist creation
     'discover_search_pages': count * SEARCH_PAGE,         // #76: cost = pages × 1 CALL, charged to the search bucket
-    'caption_upload': count * CAPTION_INSERT,             // ⚠️ very expensive: 400/track
+    'caption_insert': count * CAPTION_INSERT,             // ⚠️ very expensive: 400/track
     'caption_update': count * CAPTION_UPDATE,             // ⚠️ very expensive: 450/track
+    // AUD-15 — every key a caller passes must be here. These six were not, and
+    // an unknown key used to fall back to `count`: a 400-unit caption upload was
+    // pre-flighted at 1, and every other Studio write at 1 instead of 50.
+    'add_to_playlist': count * INSERT,                    // one item into an existing playlist
+    'video_update': count * YT_QUOTA_COSTS['videos.PUT'],
+    'thumbnail_set': count * YT_QUOTA_COSTS['thumbnails.POST'],
+    'channel_update': count * YT_QUOTA_COSTS['channels.PUT'],
+    'reorder_video': count * YT_QUOTA_COSTS['playlistItems.PUT'],
+    'video_insert': count * YT_QUOTA_COSTS['videos.POST'],   // 1 call from the upload bucket (#76)
+    'channel_playlists_pages': count * YT_QUOTA_COSTS['playlists.GET'],   // AUD-01 — worst case, 1 unit a page
   };
-  return costs[action] || count;
+  if (!(action in costs)) {
+    // Never again a silent 1: assume a write and say so in the log.
+    log('error', 'quota', 'estimateQuotaCost: unknown action — assuming 50 per item', { action, count });
+    return count * 50;
+  }
+  return costs[action];
 }
 
 // bucket defaults to 'pool' — every bulk action except Discover's search spends units.
@@ -6603,7 +6678,7 @@ async function runCacheDiagnostic() {
     <div><b>Thumbnails in autoCache:</b>
       <span style="${cacheThumbCount > 0 ? green : red}">${cacheThumbCount} videos with thumbnail URL</span>
     </div>
-    <div><b>API quota used:</b> <span style="${quota > 500 ? red : quota > 100 ? yellow : green}">${quota} / 10,000 units</span></div>
+    <div><b>API quota used:</b> <span style="${quota >= QUOTA_LIMITS.pool * 0.9 ? red : quota >= QUOTA_LIMITS.pool * 0.75 ? yellow : green}">${quota} / ${QUOTA_LIMITS.pool} units</span></div>
     <div style="margin-top:8px;"><b>Cache-first status:</b>
       ${memPlaylists > 0 && memVideos > 0 ? `<span style="${green}">ACTIVE</span> — startup uses 0 API calls` : `<span style="${red}">INACTIVE</span> — startup will fetch from API`}
     </div>
@@ -7471,34 +7546,31 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
   if (body) opts.body = JSON.stringify(body);
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Conditional headers (audit #54 If-None-Match, #55 If-Match)
+  // Conditional header (audit #54 If-None-Match)
   // ──────────────────────────────────────────────────────────────────────────
-  // Stale GET with a cached etag: ask server if anything changed
+  // Stale GET with a cached etag: ask server if anything changed.
+  // AUD-18 — #55's If-Match on PUT/DELETE is gone: `cached` is only ever looked
+  // up for GETs, and a write's URL is never a cached GET's key, so the header
+  // was never sent and its 412 handler never reached. Optimistic concurrency
+  // would need the resource's own etag, looked up by id — not worth faking.
   if (method === 'GET' && cached?.etag && !bypassCache) {
     opts.headers['If-None-Match'] = cached.etag;
-  }
-  // Write on a specific resource id: send If-Match for optimistic concurrency
-  // (only if we previously fetched this resource and cached its etag)
-  if ((method === 'PUT' || method === 'DELETE') && cached?.etag) {
-    opts.headers['If-Match'] = cached.etag;
   }
 
   // ──────────────────────────────────────────────────────────────────────────
   // Quota accounting — happens ONCE regardless of retries.
   // Google charges full cost per logical request, including 304 responses.
   // ──────────────────────────────────────────────────────────────────────────
-  checkQuotaDailyReset();
-  const { bucket, cost } = chargeQuota(endpoint, method);
-  APP.apiCalls++;
-  saveQuotaState();
-  updateQuotaIndicator();
+  const { bucket, cost } = chargeCall(endpoint, method);
 
   try {
     // Retry loop (audit #48 429, #49 5xx, #50 exponential backoff with jitter).
-    // Idempotency caveat: POST/PUT/DELETE retries could theoretically duplicate if the original
-    // request succeeded but its response was lost. Accepted risk — YouTube returns 200/204 fast
-    // on success, so loss-of-response after success is rare. Detected duplicates can be cleaned
-    // up via the existing "clean ghosts" feature.
+    // AUD-19 — only idempotent requests are retried blindly. A POST that died on
+    // the network or came back 5xx may still have been carried out: sending it
+    // again created a second playlist or a second playlistItem, and "clean
+    // ghosts" does not clean duplicates. A POST is retried only on 429, which
+    // means the request was refused before anything happened.
+    const idempotent = method !== 'POST';
     let lastError = null;
     for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
       let res;
@@ -7506,7 +7578,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
         res = await fetch(url, opts);
       } catch (networkErr) {
         lastError = networkErr;
-        if (attempt < RETRY_CONFIG.maxRetries) {
+        if (idempotent && attempt < RETRY_CONFIG.maxRetries) {
           const delay = computeBackoffDelay(attempt);
           console.warn(`[ytApi] Network error on ${method} ${endpoint}, retry ${attempt + 1}/${RETRY_CONFIG.maxRetries} in ${delay}ms`, networkErr);
           log('warn', 'api', 'network error — retrying', { endpoint, method, attempt: attempt + 1, delay });
@@ -7526,17 +7598,16 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
         return cached.body;
       }
 
-      // 412 Precondition Failed — our If-Match etag is stale; another client modified the resource
-      if (res.status === 412) {
-        API_CACHE.delete(cacheKey);
-        throw new Error('Cette ressource a été modifiée ailleurs — rafraîchissez et réessayez.');
-      }
 
       // Retryable status codes (429 rate-limit, 5xx server errors)
-      if (isRetryableStatus(res.status)) {
-        if (attempt < RETRY_CONFIG.maxRetries) {
+      // AUD-20 — the Data API signals rate limiting with 403 and a reason, not
+      // only with 429. Those 403s were mapped to "session expired" and a
+      // reconnect prompt, when the right move is to wait and try again.
+      const rateLimited = res.status === 429 || (res.status === 403 && await isRateLimit403(res));
+      if (isRetryableStatus(res.status) || rateLimited) {
+        if (attempt < RETRY_CONFIG.maxRetries && (idempotent || rateLimited)) {
           let delay;
-          if (res.status === 429) {
+          if (rateLimited) {
             const retryAfter = parseRetryAfter(res.headers.get('Retry-After'));
             delay = retryAfter ?? computeBackoffDelay(attempt);
             console.warn(`[ytApi] 429 rate-limited on ${method} ${endpoint}, retry ${attempt + 1}/${RETRY_CONFIG.maxRetries} in ${delay}ms (Retry-After=${res.headers.get('Retry-After') || 'absent'})`);
@@ -7550,7 +7621,7 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
           await sleep(delay);
           continue;
         }
-        if (res.status === 429) {
+        if (rateLimited) {
           throw new Error(t('error_rate_limited') || 'Rate limit exceeded — please try again in a moment');
         }
         throw new Error(`Server error (${res.status}) — please try again later`);
@@ -7598,18 +7669,20 @@ async function ytApi(endpoint, params = {}, method = 'GET', body = null) {
 
       const responseBody = await res.json();
 
-      // Cache GET responses with their ETag for future If-None-Match
+      // Cache GET responses for their TTL. AUD-17 — this used to require a
+      // readable ETag response header, and a cross-origin fetch only exposes it
+      // if the server lists it in Access-Control-Expose-Headers. Without it the
+      // whole TTL cache stored nothing and every "free" re-read was billed. The
+      // fresh-hit path needs no ETag at all; the header is kept, when there is
+      // one, only for If-None-Match on the next stale read.
       if (method === 'GET' && ttl > 0) {
-        const etag = res.headers.get('ETag');
-        if (etag) {
-          const serialized = JSON.stringify(responseBody);
-          cacheSet(cacheKey, {
-            etag,
-            body: responseBody,
-            savedAt: Date.now(),
-            sizeBytes: serialized.length,
-          });
-        }
+        const serialized = JSON.stringify(responseBody);
+        cacheSet(cacheKey, {
+          etag: res.headers.get('ETag') || null,
+          body: responseBody,
+          savedAt: Date.now(),
+          sizeBytes: serialized.length,
+        });
       }
 
       log('info', 'api', 'API call ok', { endpoint, method, status: res.status, bucket, cost, durationMs: Date.now() - _logCallStart, retries: _logRetries });
@@ -8386,7 +8459,7 @@ async function addTrendingToPlaylist(videoId) {
 async function confirmAddTrending(videoId) {
   const destId = document.getElementById('trendingDestPlaylist')?.value;
   if (!destId) return;
-  if (!checkQuotaBudget(t('trending_add'), 'discover_create', 1)) return;
+  if (!checkQuotaBudget(t('trending_add'), 'add_to_playlist', 1)) return;
   closeModal();
   try {
     await ytApi('playlistItems', { part: 'snippet' }, 'POST', {
@@ -9339,6 +9412,7 @@ async function uploadThumbnail() {
   try {
     showToast(t('studio_uploading'), 'info');
     const url = `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${videoId}&uploadType=media`;
+    chargeCall('thumbnails', 'POST');   // AUD-21 — billed before the request, like every ytApi() call
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -9351,10 +9425,6 @@ async function uploadThumbnail() {
       const err = await res.json().catch(() => ({}));
       throw new Error(err?.error?.message || `HTTP ${res.status}`);
     }
-    APP.apiCalls++;
-    chargeQuota('thumbnails', 'POST');
-    saveQuotaState();
-    updateQuotaIndicator();
     showToast(t('studio_thumb_uploaded'), 'success');
   } catch (err) {
     showToast(t('toast_error', { msg: err.message }), 'error');
@@ -9416,6 +9486,7 @@ async function uploadCaption() {
     formData.append('media', file);
 
     const url = 'https://www.googleapis.com/upload/youtube/v3/captions?part=snippet&uploadType=multipart';
+    chargeCall('captions', 'POST');   // AUD-21 — billed before the request
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${APP.accessToken}` },
@@ -9425,10 +9496,6 @@ async function uploadCaption() {
       const err = await res.json().catch(() => ({}));
       throw new Error(err?.error?.message || `HTTP ${res.status}`);
     }
-    APP.apiCalls++;
-    chargeQuota('captions', 'POST');
-    saveQuotaState();
-    updateQuotaIndicator();
     showToast(t('studio_caption_uploaded'), 'success');
     loadCaptionsList(); // refresh
   } catch (err) {
@@ -9501,7 +9568,7 @@ async function uploadVideo() {
     return;
   }
   if (!checkBackupSafety('Video upload')) return;
-  if (!checkQuotaBudget('Video upload', 'video_insert', 1)) return;
+  if (!checkQuotaBudget('Video upload', 'video_insert', 1, 'upload')) return;
 
   const file = fileInput.files[0];
   const progressDiv = document.getElementById('uploadProgress');
@@ -9521,6 +9588,7 @@ async function uploadVideo() {
     };
 
     // Resumable upload: init
+    chargeCall('videos', 'POST');   // AUD-21 — the resumable-session POST is the billed call
     const initRes = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status&uploadType=resumable', {
       method: 'POST',
       headers: {
@@ -9560,10 +9628,6 @@ async function uploadVideo() {
       xhr.send(file);
     });
 
-    APP.apiCalls++;
-    chargeQuota('videos', 'POST');
-    saveQuotaState();
-    updateQuotaIndicator();
     showToast(t('studio_video_uploaded'), 'success');
 
     // Reset form
@@ -10166,6 +10230,7 @@ async function uploadPlaylistCover(playlistId, file) {
   const part = buildCoverMultipart(boundary, metadata, blob.type);
   const url = `https://www.googleapis.com/upload/youtube/v3/playlistImages?part=snippet&uploadType=multipart`;
 
+  chargeCall('playlistImages', method);   // AUD-21 — billed before the request
   const res = await fetch(url, {
     method,
     headers: { 'Authorization': `Bearer ${APP.accessToken}`, 'Content-Type': part.contentType },
@@ -10177,10 +10242,6 @@ async function uploadPlaylistCover(playlistId, file) {
     // is wrong the API's own words are the only useful diagnosis.
     throw new Error(err?.error?.message || `HTTP ${res.status}`);
   }
-  APP.apiCalls++;
-  chargeQuota('playlistImages', method);
-  saveQuotaState();
-  updateQuotaIndicator();
 
   const body = await res.json().catch(() => null);
   playlistCovers[playlistId] = {
@@ -11611,15 +11672,21 @@ function tagBookmarkSource(playlistId, source) {
 }
 
 /** Browse a channel's playlists in the same read-only surface as bookmarks. */
+// AUD-01 — #82 promised "a page cap so one click cannot become twenty calls",
+// and the cap was 20. Three pages = 150 playlists, which covers nearly every
+// channel; beyond that the user is told the list stops there.
+const CHANNEL_PLAYLISTS_MAX_PAGES = 3;
+
 async function browseChannelPlaylists(channelId, channelTitle) {
+  if (!checkQuotaBudget(t('discover_channel_playlists'), 'channel_playlists_pages', CHANNEL_PLAYLISTS_MAX_PAGES)) return;
   const btnHost = document.getElementById('discoverSearchBtn');
   if (btnHost) btnHost.disabled = true;
   try {
     let items = [];
     let pageToken = '';
     // 1 unit per page, capped: a channel with hundreds of playlists must not
-    // quietly turn one click into twenty calls.
-    for (let p = 0; p < 20; p++) {
+    // quietly turn one click into many calls.
+    for (let p = 0; p < CHANNEL_PLAYLISTS_MAX_PAGES; p++) {
       const params = {
         part: 'snippet,contentDetails',
         channelId,
@@ -11632,6 +11699,7 @@ async function browseChannelPlaylists(channelId, channelTitle) {
       pageToken = data.nextPageToken || '';
       if (!pageToken) break;
     }
+    if (pageToken) showToast(t('discover_channel_playlists_capped', { count: items.length }), 'info');
     discoverEntities = items.map(p => ({
       kind: 'playlist',
       id: p.id,
@@ -12165,8 +12233,8 @@ function toggleDiscoverSelectAll() {
 function updateDiscoverQuota() {
   const count = discoverResults.filter(v => v.selected).length;
   const note = document.getElementById('discoverQuotaNote');
-  // Creating playlist = 50 quota, each insert = 50 quota
-  const cost = count > 0 ? 50 + (count * 50) : 0;
+  // AUD-22 — creating the playlist plus one insert per video, from the cost table.
+  const cost = count > 0 ? estimateQuotaCost('discover_create', count) : 0;
   const remaining = QUOTA_LIMITS.pool - APP.quota.pool;
   const pctAfter = (APP.quota.pool + cost) / QUOTA_LIMITS.pool * 100;
 
@@ -12192,7 +12260,7 @@ async function createPlaylistFromDiscover() {
   if (!selected.length) { showToast(t('discover_select_video'), 'error'); return; }
 
   const visibility = document.getElementById('discoverPlaylistVisibility').value;
-  const totalCost = 50 + (selected.length * 50);
+  const totalCost = estimateQuotaCost('discover_create', selected.length);   // AUD-22
   const remaining = QUOTA_LIMITS.pool - APP.quota.pool;
   const pctAfter = ((APP.quota.pool + totalCost) / QUOTA_LIMITS.pool * 100).toFixed(0);
 
@@ -14931,12 +14999,17 @@ function restoreToggleAll(state) {
   renderRestorePanel();
 }
 
+// AUD-22 — one place computes what a restore costs, from the cost table, for
+// both the live estimate and the confirmation. They each had their own literal 50s.
+function restoreQuotaCost(selected) {
+  const videos = selected.reduce((sum, pl) => sum + pl.videos.length, 0);
+  return selected.length * YT_QUOTA_COSTS['playlists.POST'] + videos * YT_QUOTA_COSTS['playlistItems.POST'];
+}
+
 function updateRestoreQuota() {
   const bar = document.getElementById('restoreQuotaBar');
   const selected = restoreData.playlists.filter(pl => pl.selected);
-  const playlistCost = selected.length * 50; // playlists.insert = 50 each
-  const videoCost = selected.reduce((sum, pl) => sum + pl.videos.length * 50, 0); // playlistItems.insert = 50 each
-  const totalCost = playlistCost + videoCost;
+  const totalCost = restoreQuotaCost(selected);
   const remaining = QUOTA_LIMITS.pool - APP.quota.pool;
   const isOk = totalCost <= remaining;
   const totalVideos = selected.reduce((sum, pl) => sum + pl.videos.length, 0);
@@ -14974,7 +15047,7 @@ async function executeRestore() {
   if (selected.length === 0) return;
 
   const totalVideos = selected.reduce((sum, pl) => sum + pl.videos.length, 0);
-  const totalCost = selected.length * 50 + totalVideos * 50;
+  const totalCost = restoreQuotaCost(selected);
   const remaining = QUOTA_LIMITS.pool - APP.quota.pool;
   const warning = totalCost > remaining
     ? '⚠️ ' + t('restore_quota_warning')

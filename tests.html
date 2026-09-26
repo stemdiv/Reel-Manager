@@ -1670,6 +1670,8 @@ const SUITES = [
       // REGRESSION: "Failed to fetch" is how an unreachable method surfaces in a
       // browser — never as a clean 404 body. The guard used to miss it, so the
       // error escaped fetchVideoStats and Discover died on it.
+      // Its own video id: since AUD-17 the response cache works, and an earlier
+      // case's successful read of 'A' would be served from it for a minute.
       const realFetch = w.fetch;
       const wasEnabled = w.batchStatsEnabled();
       try {
@@ -1677,12 +1679,12 @@ const SUITES = [
         w.setBatchStatsEnabled(true);
         w.fetch = async (u) => {
           if (String(u).includes('batchGetStats')) throw new TypeError('Failed to fetch');
-          return new w.Response(JSON.stringify({ items: [{ id: 'A', statistics: { viewCount: '42' } }] }),
+          return new w.Response(JSON.stringify({ items: [{ id: 'A_unreach', statistics: { viewCount: '42' } }] }),
                                 { status: 200, headers: { 'Content-Type': 'application/json' } });
         };
-        const r = await w.fetchVideoStats(['A']);
+        const r = await w.fetchVideoStats(['A_unreach']);
         eq(r.source, 'videos.list', 'it should have fallen back');
-        eq(r.byId.A.viewCount, 42, 'the stats still came through');
+        eq(r.byId.A_unreach.viewCount, 42, 'the stats still came through');
         return eq(w.batchStatsEnabled(), false, 'the flag should be down for the session');
       } finally { w.fetch = realFetch; w.setBatchStatsEnabled(wasEnabled); }
     }],
@@ -2727,7 +2729,9 @@ const SUITES = [
           return { nextPageToken: 'more', items: [{ id: 'PL_p' + pages, snippet: { title: 'p' + pages, thumbnails: {} }, contentDetails: { itemCount: 1 } }] };
         };
         await w.browseChannelPlaylists('UC_endless', 'Endless');
-        return ok(pages <= 20, 'paged ' + pages + ' times');
+        // AUD-01 — this asserted pages <= 20, so twenty calls passed a case
+        // titled "cannot become twenty calls".
+        return eq(pages, 3, 'pages fetched for one click');
       } finally { w.ytApi = real; }
     }],
 
@@ -3357,6 +3361,305 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: 'AUD-15', title: 'Every pre-flight knows what it costs', note: 'six action keys were missing from the table and fell back to 1 unit — a 400-unit caption upload was checked at 1',
+  cases: [
+    ['every key passed to checkQuotaBudget has its real cost', async w => {
+      const src = await (await fetch('youtube-playlist-manager.html?aud15=' + Date.now())).text();
+      const keys = [...new Set([...src.matchAll(/checkQuotaBudget\([^,]+,\s*'([a-z_]+)'/g)].map(m => m[1]))];
+      ok(keys.length >= 14, 'found only ' + keys.length + ' pre-flight keys');
+      const expected = {
+        add_to_playlist: 50, video_update: 50, thumbnail_set: 50, caption_insert: 400, channel_update: 50,
+        video_insert: 1, cover_set: 50, reorder_video: 50, rename_playlists: 50, delete_playlists: 50,
+        discover_search_pages: 1, move: 100, clean_ghosts: 50, bulk_rename: 50, merge: 50, merge_new: 100,
+        channel_playlists_pages: 1,
+      };
+      const unknown = keys.filter(k => !(k in expected));
+      eq(unknown, [], 'pre-flight keys this case does not know — add them to `expected`');
+      const wrong = keys.filter(k => w.estimateQuotaCost(k, 1) !== expected[k]).map(k => k + '=' + w.estimateQuotaCost(k, 1));
+      return eq(wrong, [], 'wrong costs');
+    }],
+
+    ['the video upload is checked against the upload bucket', async w => {
+      // The bug was the caller, not checkQuotaBudget: it never named the bucket.
+      const src = await (await fetch('youtube-playlist-manager.html?aud15b=' + Date.now())).text();
+      const call = (src.match(/checkQuotaBudget\([^)]*'video_insert'[^)]*\)/) || [''])[0];
+      ok(/'upload'\s*\)$/.test(call), 'the upload pre-flight does not name the upload bucket: ' + call);
+      const snap = seedQuota(w, { pool: 0, search: 0, upload: 100, stats: 0 });
+      const real = { confirm: w.confirm, showToast: w.showToast };
+      const asked = [];
+      w.confirm = m => { asked.push(m); return false; };
+      w.showToast = () => {};
+      try {
+        const go = w.checkQuotaBudget('Video upload', 'video_insert', 1, 'upload');
+        eq(go, false, 'a full upload bucket let the upload through');
+        return eq(asked.length, 1, 'the user was not asked');
+      } finally { Object.assign(w, real); unseedQuota(w, snap); }
+    }],
+
+    ['a caption upload near the pool limit is caught', w => {
+      const snap = seedQuota(w, { pool: 9990, search: 0, upload: 0, stats: 0 });
+      const real = { confirm: w.confirm, showToast: w.showToast };
+      const asked = [];
+      w.confirm = m => { asked.push(m); return false; };
+      w.showToast = () => {};
+      try {
+        eq(w.checkQuotaBudget('Caption upload', 'caption_insert', 1), false, 'went through with 10 units left');
+        return ok(asked.length === 1 && /400/.test(asked[0]), 'cost not named: ' + asked[0]);
+      } finally { Object.assign(w, real); unseedQuota(w, snap); }
+    }],
+  ],
+},
+{
+  id: 'AUD-22', title: 'One quota model, not three copies of an old one', note: 'the help card, the cache diagnostic and restore each hard-coded 10 000 or 50',
+  cases: [
+    ['the help card follows the language and names the separate quotas', w => {
+      const snap = snapshot(w, ['appLang']);
+      try {
+        const card = w.document.querySelector('[data-i18n="help_quota_text"]');
+        ok(card, 'the quota help card is not translated');
+        w.applyLanguage('fr');
+        eq(card.textContent, w.t('help_quota_text'), 'French text');
+        ok(/100 recherches/.test(card.textContent), 'the search bucket is not mentioned');
+        w.applyLanguage('en');
+        return eq(card.textContent, w.t('help_quota_text'), 'English text');
+      } finally { restoreLang(w, snap); }
+    }],
+
+    ['the cache diagnostic reads the limit and colours by share of it', async w => {
+      const snap = seedQuota(w, { pool: 600, search: 0, upload: 0, stats: 0 });
+      try {
+        await w.runCacheDiagnostic();
+        const box = w.document.getElementById('cacheDiagContent');
+        const line = [...box.querySelectorAll('div')].find(d => /API quota used/.test(d.textContent));
+        ok(line, 'no quota line');
+        ok(line.textContent.includes('600 / ' + 10000), 'limit not read from QUOTA_LIMITS: ' + line.textContent);
+        // 600 of 10 000 is 6 %: the old thresholds painted it red from 500.
+        return eq(line.querySelector('span').getAttribute('style'), 'color:var(--green)', 'colour at 6 %');
+      } finally { unseedQuota(w, snap); }
+    }],
+
+    ['restore cost comes from the cost table, once', async w => {
+      eq(w.restoreQuotaCost([{ videos: [1, 2, 3] }, { videos: [4] }]), 2 * 50 + 4 * 50, 'two playlists, four videos');
+      const src = await (await fetch('youtube-playlist-manager.html?aud22=' + Date.now())).text();
+      // Restore and Discover's create-playlist both computed "n × 50" by hand.
+      ok(!/selected\.length \* 50/.test(src), 'a literal restore / Discover cost is still in the source');
+      return ok(!/50 \+ \(count \* 50\)/.test(src), 'the Discover quota note still computes its cost by hand');
+    }],
+  ],
+},
+{
+  id: 'AUD-51', title: 'A playlist cover can actually be read', note: 'found while testing AUD-21: the CSP blocked the blob: URL the cover picker decodes the file through, so every upload failed',
+  cases: [
+    ['a real PNG is decoded into an upload-ready square', async w => {
+      const c = w.document.createElement('canvas'); c.width = 64; c.height = 36;
+      const png = await new Promise(r => c.toBlob(r, 'image/png'));
+      const blob = await w.coverBlobFromFile(new w.File([png], 'c.png', { type: 'image/png' }));
+      ok(blob && blob.size > 0, 'no blob');
+      const img = await w.createImageBitmap(blob);
+      return eq([img.width, img.height], [36, 36], 'centre-cropped to a square, never upscaled');
+    }],
+  ],
+},
+{
+  id: 'AUD-21', title: 'One charging rule for every billed request', note: 'uploads were charged only on success and skipped the Pacific-day reset; ytApi charged every attempt',
+  cases: [
+    ['a failed cover upload is still charged, as Google bills it', async w => {
+      const snap = seedQuota(w, { pool: 0, search: 0, upload: 0, stats: 0 });
+      const realFetch = w.fetch;
+      try {
+        const c = w.document.createElement('canvas'); c.width = c.height = 4;
+        const png = await new Promise(r => c.toBlob(r, 'image/png'));
+        const file = new w.File([png], 'c.png', { type: 'image/png' });
+        w.fetch = async () => new w.Response(JSON.stringify({ error: { message: 'forbidden' } }), { status: 403 });
+        let threw = false;
+        try { await w.uploadPlaylistCover('PL_aud21', file); } catch (_) { threw = true; }
+        ok(threw, 'the failed upload did not report failure');
+        return eq(readQuota(w).pool, 50, 'pool after a failed 50-unit upload');
+      } finally { w.fetch = realFetch; unseedQuota(w, snap); }
+    }],
+
+    ['the first call of a new Pacific day lands in the new day', w => {
+      const snap = snapshot(w, ['quotaState', 'quotaUnits', 'quotaResetDate', 'apiCalls']);
+      try {
+        w.localStorage.setItem('quotaState', JSON.stringify({ pool: 500, search: 3, upload: 2, stats: 0 }));
+        w.localStorage.setItem('quotaResetDate', '2000-01-01');      // yesterday, as far as the app knows
+        w.loadQuotaState();
+        w.localStorage.setItem('quotaResetDate', '2000-01-01');      // loadQuotaState moved it to today
+        w.chargeCall('videos', 'POST');
+        return eq(readQuota(w), { pool: 0, search: 0, upload: 1 }, 'counters after the first upload of the day');
+      } finally { restore(w, snap); w.loadQuotaState(); }
+    }],
+
+    ['every billed request goes through chargeCall, before it is sent', async w => {
+      const src = await (await fetch('youtube-playlist-manager.html?aud21=' + Date.now())).text();
+      const direct = [...src.matchAll(/chargeQuota\(/g)].length;
+      eq(direct, 2, 'chargeQuota( should appear only in its definition and in chargeCall');
+      for (const fn of ['uploadThumbnail', 'uploadCaption', 'uploadVideo', 'uploadPlaylistCover']) {
+        const start = src.indexOf('function ' + fn + '(');
+        ok(start > 0, fn + ' not found');
+        const body = src.slice(start, src.indexOf('\n}\n', start));
+        const charge = body.indexOf('chargeCall(');
+        const send = body.search(/await fetch\(/);
+        ok(charge > 0 && charge < send, fn + ' charges after sending, or not at all');
+      }
+      return '4 uploads charge first';
+    }],
+  ],
+},
+{
+  id: 'AUD-01', title: 'Browsing a channel\'s playlists is bounded and pre-flighted', note: 'one click could spend twenty calls, with no quota check',
+  cases: [
+    ['the pre-flight runs and a truncated list says so', async w => {
+      const real = { ytApi: w.ytApi, showToast: w.showToast, checkQuotaBudget: w.checkQuotaBudget };
+      const budget = [], toasts = [];
+      try {
+        w.ytApi = async () => ({ nextPageToken: 'more', items: [{ id: 'PL_x', snippet: { title: 'x', thumbnails: {} }, contentDetails: { itemCount: 1 } }] });
+        w.checkQuotaBudget = (name, action, count) => { budget.push([action, count]); return true; };
+        w.showToast = (m, type) => toasts.push({ m, type });
+        await w.browseChannelPlaylists('UC_endless', 'Endless');
+        eq(budget, [['channel_playlists_pages', 3]], 'pre-flight');
+        return ok(toasts.some(x => x.type === 'info' && /3/.test(x.m)), 'no note that the list stops: ' + JSON.stringify(toasts));
+      } finally { Object.assign(w, real); }
+    }],
+
+    ['a refused pre-flight sends nothing', async w => {
+      const real = { ytApi: w.ytApi, checkQuotaBudget: w.checkQuotaBudget };
+      let calls = 0;
+      try {
+        w.ytApi = async () => { calls++; return { items: [] }; };
+        w.checkQuotaBudget = () => false;
+        await w.browseChannelPlaylists('UC_x', 'X');
+        return eq(calls, 0, 'requests sent after the user declined');
+      } finally { Object.assign(w, real); }
+    }],
+  ],
+},
+{
+  id: 'AUD-17', title: 'The response cache works without an ETag header', note: 'a cross-origin fetch exposes ETag only if the server allows it; without it nothing was ever cached',
+  cases: [
+    ['a second read within the TTL is served from memory, not billed again', async w => {
+      const snap = seedQuota(w, { pool: 0, search: 0, upload: 0, stats: 0 });
+      const realFetch = w.fetch;
+      let fetches = 0;
+      try {
+        w.fetch = async () => { fetches++; return new w.Response(JSON.stringify({ items: [{ id: '10' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } }); };
+        const params = { part: 'snippet', regionCode: 'FR', hl: 'aud17-' + Date.now() };   // a URL no earlier case cached
+        const a = await w.ytApi('videoCategories', params);
+        const b = await w.ytApi('videoCategories', params);
+        eq(fetches, 1, 'network requests');
+        eq(b, a, 'cached body');
+        return eq(readQuota(w).pool, 1, 'units billed');
+      } finally { w.fetch = realFetch; unseedQuota(w, snap); }
+    }],
+
+    ['an ETag, when readable, is still sent on the next stale read', async w => {
+      const realFetch = w.fetch;
+      const seen = [];
+      try {
+        w.fetch = async (url, opts) => {
+          seen.push(opts.headers['If-None-Match'] || null);
+          return new w.Response(JSON.stringify({ items: [] }), { status: 200, headers: { 'Content-Type': 'application/json', 'ETag': '"v1"' } });
+        };
+        const params = { part: 'snippet', regionCode: 'FR', hl: 'aud17e-' + Date.now(), _ttlMs: 0 };
+        // _ttlMs: 0 makes the entry stale at once, so the second call goes out.
+        await w.ytApi('videoCategories', { ...params, _ttlMs: 60000 });
+        await w.ytApi('videoCategories', { ...params, _ttlMs: 1 });
+        await new Promise(r => setTimeout(r, 5));
+        await w.ytApi('videoCategories', { ...params, _ttlMs: 1 });
+        return eq(seen[seen.length - 1], '"v1"', 'If-None-Match on the stale read');
+      } finally { w.fetch = realFetch; }
+    }],
+  ],
+},
+{
+  id: 'AUD-18', title: 'No dead If-Match path', note: 'the header could never be sent: `cached` is only looked up for GETs',
+  cases: [
+    ['a write sends no conditional header', async w => {
+      const real = { fetch: w.fetch, ensureWriteScope: w.ensureWriteScope };
+      let headers = null;
+      try {
+        w.ensureWriteScope = async () => true;          // no consent popup in a test
+        w.fetch = async (url, opts) => { headers = opts.headers; return new w.Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } }); };
+        await w.ytApi('playlists', { part: 'snippet' }, 'PUT', { id: 'PL_x', snippet: { title: 't' } });
+        return ok(!('If-Match' in headers) && !('If-None-Match' in headers), 'conditional header on a write: ' + JSON.stringify(headers));
+      } finally { Object.assign(w, real); }
+    }],
+
+    ['the unreachable If-Match / 412 code is gone', async w => {
+      const src = await (await fetch('youtube-playlist-manager.html?aud18=' + Date.now())).text();
+      ok(!/headers\['If-Match'\]/.test(src), 'If-Match is still set somewhere');
+      return ok(!/res\.status === 412/.test(src), 'the 412 branch is still there');
+    }],
+  ],
+},
+{
+  id: 'AUD-19', title: 'A create is never sent twice on a guess', note: 'a POST that timed out or came back 5xx may have been carried out; retrying it made duplicates',
+  cases: [
+    ['a POST that gets a 503 is not retried', async w => {
+      const r = await runRetry(w, 'POST', [503, 200]);
+      eq(r.fetches, 1, 'requests sent');
+      return ok(r.threw, 'the 503 was swallowed');
+    }],
+    ['a POST that dies on the network is not retried', async w => {
+      const r = await runRetry(w, 'POST', ['net', 200]);
+      eq(r.fetches, 1, 'requests sent');
+      return ok(r.threw, 'the network error was swallowed');
+    }],
+    ['a POST refused with 429 is retried', async w => {
+      const r = await runRetry(w, 'POST', [429, 200]);
+      eq(r.fetches, 2, 'requests sent');
+      return ok(!r.threw, 'failed after a successful retry');
+    }],
+    ['a PUT still retries a 503', async w => {
+      const r = await runRetry(w, 'PUT', [503, 200]);
+      eq(r.fetches, 2, 'requests sent');
+      return ok(!r.threw, 'failed after a successful retry');
+    }],
+  ],
+},
+{
+  id: 'AUD-20', title: 'A rate-limit 403 means "wait", not "log in again"', note: 'rateLimitExceeded / userRateLimitExceeded were shown as an expired session with a reconnect prompt',
+  cases: [
+    ['a 403 rateLimitExceeded is retried like a 429', async w => {
+      const r = await runRetry(w, 'GET', ['403:rateLimitExceeded', 200]);
+      eq(r.fetches, 2, 'requests sent');
+      return ok(!r.threw, 'failed after a successful retry: ' + r.message);
+    }],
+    ['a POST refused with userRateLimitExceeded is retried too', async w => {
+      const r = await runRetry(w, 'POST', ['403:userRateLimitExceeded', 200]);
+      eq(r.fetches, 2, 'requests sent');
+      return ok(!r.threw, 'failed after a successful retry');
+    }],
+    ['a persistent rate limit ends on the rate-limit message, with no reconnect prompt', async w => {
+      const r = await runRetry(w, 'GET', ['403:rateLimitExceeded']);
+      eq(r.message, w.t('error_rate_limited'), 'final message');
+      return ok(!r.toasts.some(x => x.msg === w.t('error_session_expired')), 'offered a reconnect');
+    }],
+    ['a genuine 403 still asks to reconnect', async w => {
+      const r = await runRetry(w, 'GET', ['403:forbidden']);
+      eq(r.fetches, 1, 'a real 403 is not retried');
+      return eq(r.message, w.t('error_session_expired'), 'final message');
+    }],
+  ],
+},
+{
+  id: 'AUD-31', title: 'Revisiting the dashboard does not re-buy the trending chart', note: 'the 1-hour TTL was set in buildTrendingParams all along; it only started to hold once AUD-17 made the cache store anything',
+  cases: [
+    ['a second tile load within the hour sends nothing', async w => {
+      const realFetch = w.fetch;
+      let fetches = 0;
+      try {
+        w.setAccessToken('test-token');
+        w.fetch = async () => { fetches++; return new w.Response(JSON.stringify({ items: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } }); };
+        const params = { ...w.buildTrendingParams('31'), aud31: Date.now() };   // a key no earlier case cached
+        await w.ytApi('videos', params);
+        await w.ytApi('videos', params);
+        return eq(fetches, 1, 'network requests for two loads');
+      } finally { w.fetch = realFetch; }
+    }],
+  ],
+},
 // Keep this suite last: its final case leaves the page in the "about to reload"
 // state a real deletion ends in, where the log no longer persists.
 {
@@ -3567,6 +3870,31 @@ function openFreshApp() {
     f.addEventListener('load', () => { clearTimeout(t); setTimeout(() => resolve(f), 300); });
     document.body.appendChild(f);
   });
+}
+
+// AUD-19 — drive ytApi's retry loop with a scripted fetch: each entry is an
+// HTTP status or 'net' for a network failure. Backoff sleeps are skipped.
+async function runRetry(w, method, script) {
+  const real = { fetch: w.fetch, sleep: w.sleep, ensureWriteScope: w.ensureWriteScope, showToast: w.showToast };
+  let fetches = 0, threw = false, message = '';
+  const toasts = [];
+  try {
+    w.sleep = async () => {};
+    w.ensureWriteScope = async () => true;
+    w.fetch = async () => {
+      const step = script[Math.min(fetches++, script.length - 1)];
+      if (step === 'net') throw new TypeError('Failed to fetch');
+      const m = /^(\d{3}):(\w+)$/.exec(String(step));            // e.g. '403:rateLimitExceeded'
+      const status = m ? +m[1] : step;
+      const body = status === 200 ? '{"id":"X"}'
+        : JSON.stringify({ error: { message: m ? 'Rate Limit Exceeded' : 'busy', errors: m ? [{ reason: m[2] }] : [] } });
+      return new w.Response(body, { status, headers: { 'Content-Type': 'application/json' } });
+    };
+    w.showToast = (msg, type) => toasts.push({ msg, type });
+    try { await w.ytApi('playlists', { part: 'snippet', aud19: Date.now() }, method, { snippet: { title: 't' } }); }
+    catch (e) { threw = true; message = e.message; }
+    return { fetches, threw, message, toasts };
+  } finally { Object.assign(w, real); }
 }
 
 // AUD-04 — the payload the old escaper let through: ' became \' but the \ in
