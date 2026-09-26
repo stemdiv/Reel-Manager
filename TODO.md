@@ -14,10 +14,12 @@ Details for each finding: `audit/2026-09/08-remediation.md` (on branch `audit/20
 ## To investigate
 
 - [x] AUD-54: page error `Cannot set properties of null (setting 'textContent')`: the storage estimate beat the IndexedDB read in the cache diagnostic. Fixed in 1.27.54.
-- [ ] "HORS LIGNE — CACHE LOCAL" appears when switching a playlist between Music and Video view.
-  The toggle does not touch the token; only a page reload (or Logout) loses it, since the token lives in memory.
-  To collect: does the page visibly reload on the switch? After **Reconnect**, does switching bring the banner back?
-  Export the diagnostic log (Help) right after it happens: it records every page load and sign-in.
+- [ ] "HORS LIGNE — CACHE LOCAL" after switching between Reel Studio and Reel Manager. **Diagnosed** (log of 2026-09-26):
+  the two are separate pages, so each switch is a page load, and the token lives only in memory. The Music/Video
+  button is not involved (no "music view" entry in the log). Fix to decide: keep the token in `sessionStorage`
+  (this tab only, until it expires or the tab closes) so it survives the switch.
+- [ ] The app used day to day is **GitHub Pages** (`stemdiv.github.io/Reel-Manager/`), which serves `main` (v1.27.3):
+  none of the fixes reach it until the PRs are merged. Until then, use `LANCER-APP.bat` (localhost) to test them.
 - [ ] Music detection v1.27.52: check the Ableton playlist with the Type filter; send any tutorial titles still read as music (to add as tests).
   Option: make auto-categorize tag mostly-tutorial playlists "Tutorials" instead of the YouTube category.
 
