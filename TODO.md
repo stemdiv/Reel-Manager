@@ -18,6 +18,9 @@ Details for each finding: `08-remediation.md` in the audit report, kept outside 
   may still cost units (older backups carry no categories); the second must leave the quota counter unchanged. Then reload
   the page and use the Type or Category filter in the global search: no "analysing" call for videos already known.
   Run `tests.html` (4 new cases, `category-cache`).
+- [ ] Same branch, 1.27.59: with your real library, pick the Music then Videos filter right after loading, without opening
+  anything. Concert playlists should be under Music. In Tags, try a chip cross, Rename (onto an existing tag too),
+  Remove from… and Delete everywhere.
 
 ## To investigate
 

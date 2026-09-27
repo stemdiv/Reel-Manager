@@ -884,6 +884,11 @@
     background: var(--accent-soft); border: 1px solid var(--accent-line);
     color: var(--accent-text); padding: 2px 8px; border-radius: 100px; font-size: 10px; font-weight: 500;
   }
+  .tag-remove { background: none; border: 0; padding: 0 0 0 2px; margin: 0; color: inherit; opacity: 0.6; cursor: pointer; font-size: 12px; line-height: 1; }
+  .tag-remove:hover, .tag-remove:focus-visible { opacity: 1; }
+  .tag-index-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 12px; background: var(--surface); border-radius: var(--radius); margin-bottom: 8px; }
+  .tag-index-count { font-size: 11px; color: var(--text3); }
+  .tag-index-actions { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
   .playlist-actions { display: flex; gap: 4px; padding: 8px 0 0; border-top: 1px solid var(--border); padding-top: 8px; }
   .playlist-actions button { flex: 1; padding: 6px; font-size: 11px; }
 
@@ -3087,7 +3092,7 @@ const I18N = {
     dash_public: 'Playlists publiques',
     dash_private: 'Playlists privées',
     dash_my_playlists: 'Mes Playlists',
-    dash_create: '+ Créer playlist',
+    dash_create: 'Créer playlist',
     dash_rename: 'Renommer',
     dash_delete: 'Supprimer',
     dash_videos: 'vidéos',
@@ -3220,7 +3225,7 @@ const I18N = {
 
     // Tags
     tags_title: 'Gestion des Tags',
-    tags_add: '+ Ajouter tag',
+    tags_add: 'Ajouter tag',
     tags_auto: 'Catégorisation auto',
     tags_auto_title: 'Catégorisation Automatique',
     tags_auto_subtitle: 'Analyse intelligente de vos playlists',
@@ -3580,6 +3585,24 @@ const I18N = {
     tags_for: 'Tags pour {title}',
     tags_input_label: 'Tags (séparés par des virgules)',
     tags_add_title: 'Ajouter un tag',
+    tags_index_title: 'Tous les tags',
+    tags_by_playlist_title: 'Par playlist',
+    tags_none_yet: "Aucun tag pour l'instant",
+    tags_count: '{count} playlist(s)',
+    tags_remove_one: 'Retirer le tag « {tag} »',
+    tags_rename: 'Renommer',
+    tags_rename_title: 'Renommer le tag « {tag} »',
+    tags_rename_label: 'Nouveau nom (un nom existant fusionne les deux tags)',
+    tags_remove_from: 'Retirer de…',
+    tags_remove_from_title: 'Retirer « {tag} » des playlists cochées',
+    tags_remove_btn: 'Retirer',
+    tags_delete_all: 'Supprimer partout',
+    tags_delete_confirm: 'Supprimer le tag « {tag} » de {count} playlist(s) ?',
+    toast_tag_removed: 'Tag retiré',
+    toast_tag_renamed: 'Tag renommé',
+    toast_tag_deleted: 'Tag supprimé partout',
+    toast_tag_select_playlists: 'Cochez au moins une playlist',
+    toast_tag_name_invalid: 'Nom de tag invalide (vide ou avec une virgule)',
     modal_name: 'Nom',
     modal_rename_playlists: 'Renommer des playlists',
     modal_select_playlists: 'Sélectionner les playlists',
@@ -4043,7 +4066,7 @@ const I18N = {
     dash_public: 'Public Playlists',
     dash_private: 'Private Playlists',
     dash_my_playlists: 'My Playlists',
-    dash_create: '+ Create playlist',
+    dash_create: 'Create playlist',
     dash_rename: 'Rename',
     dash_delete: 'Delete',
     dash_videos: 'videos',
@@ -4176,7 +4199,7 @@ const I18N = {
 
     // Tags
     tags_title: 'Tag Management',
-    tags_add: '+ Add tag',
+    tags_add: 'Add tag',
     tags_auto: 'Auto categorize',
     tags_auto_title: 'Auto Categorization',
     tags_auto_subtitle: 'Smart analysis of your playlists',
@@ -4536,6 +4559,24 @@ const I18N = {
     tags_for: 'Tags for {title}',
     tags_input_label: 'Tags (comma-separated)',
     tags_add_title: 'Add a tag',
+    tags_index_title: 'All tags',
+    tags_by_playlist_title: 'By playlist',
+    tags_none_yet: 'No tags yet',
+    tags_count: '{count} playlist(s)',
+    tags_remove_one: 'Remove the tag "{tag}"',
+    tags_rename: 'Rename',
+    tags_rename_title: 'Rename the tag "{tag}"',
+    tags_rename_label: 'New name (an existing name merges the two tags)',
+    tags_remove_from: 'Remove from…',
+    tags_remove_from_title: 'Remove "{tag}" from the checked playlists',
+    tags_remove_btn: 'Remove',
+    tags_delete_all: 'Delete everywhere',
+    tags_delete_confirm: 'Delete the tag "{tag}" from {count} playlist(s)?',
+    toast_tag_removed: 'Tag removed',
+    toast_tag_renamed: 'Tag renamed',
+    toast_tag_deleted: 'Tag deleted everywhere',
+    toast_tag_select_playlists: 'Select at least one playlist',
+    toast_tag_name_invalid: 'Invalid tag name (empty or with a comma)',
     modal_name: 'Name',
     modal_rename_playlists: 'Rename playlists',
     modal_select_playlists: 'Select playlists',
@@ -4893,7 +4934,7 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.58'; // bump per release
+const APP_VERSION = '1.27.59'; // bump per release
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -10450,6 +10491,13 @@ async function loadPlaylistViewTotals() {
 
 function refreshPlaylistsList() {
   const lens = libraryLens();
+  if (lens !== 'all') {
+    APP.playlists.forEach(pl => {
+      if (playlistVerdictCache[pl.id]) return;
+      const verdict = cachedPlaylistVerdict(pl.id);
+      if (verdict) playlistVerdictCache[pl.id] = verdict;
+    });
+  }
   const visible = APP.playlists.filter(pl => playlistPassesLens(pl.id, lens));
   const hidden = APP.playlists.length - visible.length;
   const note = document.getElementById('libraryLensNote');
@@ -10510,6 +10558,26 @@ let currentDetailVideos = []; // enriched with duration data
 let currentDetailViewMode = 'video';
 let currentDetailVerdict = { verdict: 'video', ratio: 0, sampled: 0 };
 const playlistVerdictCache = {};
+
+// The lens needs a verdict before a playlist is ever opened. The backup already
+// holds its videos with duration, category and topics, so the verdict can be
+// computed from the cache at no quota cost. Nothing cached → null, and the
+// playlist stays visible under every lens.
+function cachedPlaylistVerdict(playlistId) {
+  const items = APP.allVideos[playlistId];
+  if (!Array.isArray(items) || !items.length) return null;
+  return playlistMusicVerdict(items.slice(0, MUSIC_SAMPLE_SIZE).map(v => {
+    const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId;
+    const detail = videoDetailsCache[videoId];
+    return {
+      videoId,
+      title: v.snippet?.title || '',
+      channelTitle: detail?.snippet?.channelTitle || v.snippet?.channelTitle || '',
+      durationSeconds: parseDuration(detail?.contentDetails?.duration || v.contentDetails?.duration || ''),
+      categoryId: (detail && detail.snippet ? detail.snippet.categoryId : undefined) || undefined,
+    };
+  }));
+}
 // videoDetailsCache declared earlier (before loadBackupFromStorage) to avoid TDZ
 
 async function openPlaylistDetail(playlistId) {
@@ -11151,11 +11219,13 @@ function isMusicVideo(v) {
  * Verdict for a whole playlist: 'music' | 'mixed' | 'video'.
  * Sampled over the first 50, per the spec — a 2 000-track playlist does not
  * need all of them to answer the question.
+ * Counts music content (isMusic), not only tracks: a playlist of concerts or
+ * live sets is a music playlist even though none of its videos is a track.
  */
 function playlistMusicVerdict(videos) {
   const list = Array.isArray(videos) ? videos.slice(0, MUSIC_SAMPLE_SIZE) : [];
   if (!list.length) return { verdict: 'video', ratio: 0, sampled: 0 };
-  const hits = list.filter(isMusicVideo).length;
+  const hits = list.filter(v => classifyVideoType(v).isMusic).length;
   const ratio = hits / list.length;
   const verdict = ratio >= MUSIC_PLAYLIST_THRESHOLD ? 'music'
                 : ratio >= MUSIC_MIXED_THRESHOLD ? 'mixed'
@@ -11320,6 +11390,11 @@ function tutorialScore(v) {
   return Math.round(score * 100) / 100;
 }
 
+// Title keywords for music content. wordsRe(), not \b: \b is ASCII-only, so
+// "live à Paris" never matched (no word boundary after "à").
+const MUSIC_INCLUDE_RE = wordsRe(String.raw`official (?:video|music video|audio)|clip officiel|lyrics? video|concert|full album|album complet|mix|dj ?set|remix|audio|feat\.?|ft\.?|prod\.?|cover|acoustic|bande originale|ost|soundtrack`);
+const MUSIC_LIVE_RE = wordsRe(String.raw`live\s*(?:at|@|in|from|au|aux|\u00e0)|\(live\)|\[live\]|live (?:session|set|concert|show|performance)|boiler room|unplugged|tiny desk`);
+
 function classifyVideoType(v) {
   try {
     v = v || {};
@@ -11351,8 +11426,8 @@ function classifyVideoType(v) {
     });
     const isTutorial = tutScore >= TUTORIAL_THRESHOLD;
     const howtoCategory = HOWTO_CATEGORIES.includes(String(categoryId));
-    const includeRe = /\b(official (video|music video|audio)|clip officiel|lyric[s]? video|concert|full album|album complet|mix|dj ?set|remix|audio|feat\.?|ft\.?|prod\.?|cover|acoustic|bande originale|ost|soundtrack)\b/;
-    const liveRe = /\blive\s*(at|@|in|from|au|aux|à)\b|\(live\)|\[live\]|\blive (session|set|concert|show|performance)\b|\bboiler room\b|\bunplugged\b|\btiny desk\b/;
+    const includeRe = MUSIC_INCLUDE_RE;
+    const liveRe = MUSIC_LIVE_RE;
     const includeMatched = includeRe.test(title) || liveRe.test(title);
     // AUD-25 — the #17 score is one of the signals (Topic channel, category 10,
     // track length, "Artist - Title", long-form penalty), with the category
@@ -14259,6 +14334,40 @@ function pickEmoji(emoji, inputId) {
   event.target.style.border = '2px solid var(--red)';
 }
 
+// A chip with its own remove button, for the Tags view only — the playlist
+// cards keep the plain chip. The tag travels in data-tag, not in the handler.
+function renderRemovableTag(playlistId, tag) {
+  const icon = APP.tagIcons[tag] || '';
+  const label = t('tags_remove_one', { tag });
+  return `<span class="tag">${icon ? escapeHtml(icon) + ' ' : ''}${escapeHtml(tag)}<button type="button" class="tag-remove" data-tag="${escapeHtml(tag)}" onclick="removePlaylistTag('${escapeJsAttr(playlistId)}', this.dataset.tag)" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">&times;</button></span>`;
+}
+
+/** tag → ids of the listed playlists carrying it. */
+function tagUsage() {
+  const usage = new Map();
+  APP.playlists.forEach(pl => (APP.tags[pl.id] || []).forEach(tag => {
+    if (!usage.has(tag)) usage.set(tag, []);
+    usage.get(tag).push(pl.id);
+  }));
+  return usage;
+}
+
+function renderTagIndex() {
+  const usage = [...tagUsage()].sort((a, b) => a[0].localeCompare(b[0]));
+  if (!usage.length) return `<p class="text-muted">${t('tags_none_yet')}</p>`;
+  return usage.map(([tag, ids]) => `
+    <div class="tag-index-row" data-tag="${escapeHtml(tag)}">
+      ${renderTagWithIcon(tag)}
+      <span class="mono tag-index-count">${escapeHtml(t('tags_count', { count: ids.length }))}</span>
+      <span class="tag-index-actions">
+        <button class="btn btn-secondary btn-sm" onclick="showRenameTagModal(this.closest('[data-tag]').dataset.tag)">${t('tags_rename')}</button>
+        <button class="btn btn-secondary btn-sm" onclick="showRemoveTagModal(this.closest('[data-tag]').dataset.tag)">${t('tags_remove_from')}</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteTagEverywhere(this.closest('[data-tag]').dataset.tag)">${t('tags_delete_all')}</button>
+      </span>
+    </div>
+  `).join('');
+}
+
 function refreshTagsList() {
   const html = APP.playlists.length ? APP.playlists.map(pl => {
     const tags = APP.tags[pl.id] || [];
@@ -14266,8 +14375,8 @@ function refreshTagsList() {
       <div class="p-16" style="background: var(--surface); border-radius: var(--radius); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
         <div>
           <div><strong>${escapeHtml(pl.snippet.title)}</strong></div>
-          <div class="flex gap-8" style="margin-top: 8px;">
-            ${tags.length ? tags.map(tg => renderTagWithIcon(tg)).join('') : `<span class="text-muted">${t('tags_no_tag')}</span>`}
+          <div class="flex gap-8" style="margin-top: 8px; flex-wrap: wrap;">
+            ${tags.length ? tags.map(tg => renderRemovableTag(pl.id, tg)).join('') : `<span class="text-muted">${t('tags_no_tag')}</span>`}
           </div>
         </div>
         <button class="btn btn-secondary btn-sm" onclick="editPlaylistTags('${pl.id}')" title="${t('tags_edit_tooltip')}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg></button>
@@ -14275,7 +14384,121 @@ function refreshTagsList() {
     `;
   }).join('') : `<p class="text-muted">${t('no_playlist')}</p>`;
 
-  document.getElementById('tagsList').innerHTML = html;
+  document.getElementById('tagsList').innerHTML = `
+    <h3 style="margin: 0 0 12px;">${t('tags_index_title')}</h3>
+    <div id="tagsIndex" style="margin-bottom: 24px;">${renderTagIndex()}</div>
+    <h3 style="margin: 0 0 12px;">${t('tags_by_playlist_title')}</h3>
+    ${html}`;
+}
+
+// Tags and icons are persisted together. An icon whose tag no playlist uses
+// any more is dropped here, so every write path cleans up after itself.
+function saveTagState() {
+  for (const [id, tags] of Object.entries(APP.tags)) if (!tags.length) delete APP.tags[id];
+  const used = new Set(Object.values(APP.tags).flat());
+  Object.keys(APP.tagIcons).forEach(tag => { if (!used.has(tag)) delete APP.tagIcons[tag]; });
+  localStorage.setItem('tagIcons', JSON.stringify(APP.tagIcons));
+  localStorage.setItem('playlistTags', JSON.stringify(APP.tags));
+}
+
+function removePlaylistTag(playlistId, tag) {
+  const tags = APP.tags[playlistId] || [];
+  if (!tags.includes(tag)) return;
+  APP.tags[playlistId] = tags.filter(tg => tg !== tag);
+  saveTagState();
+  refreshTagsList();
+  showToast(t('toast_tag_removed'), 'success');
+}
+
+function showRenameTagModal(tag) {
+  openModal(`
+    <div class="modal-header">
+      <div class="modal-title">${escapeHtml(t('tags_rename_title', { tag }))}</div>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label" for="renameTagInput">${t('tags_rename_label')}</label>
+        <input type="text" class="form-control" id="renameTagInput" maxlength="60" value="${escapeHtml(tag)}" data-old="${escapeHtml(tag)}">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">${t('modal_cancel')}</button>
+      <button class="btn btn-primary" onclick="applyRenameTag()">${t('modal_save')}</button>
+    </div>
+  `);
+  const input = document.getElementById('renameTagInput');
+  input.focus();
+  input.select();
+}
+
+function applyRenameTag() {
+  const input = document.getElementById('renameTagInput');
+  const from = input.dataset.old;
+  const to = input.value.trim().slice(0, 60);
+  // A comma would split the tag the next time the playlist's tag field is saved.
+  if (!to || to.includes(',') || ['__proto__', 'constructor', 'prototype'].includes(to)) {
+    showToast(t('toast_tag_name_invalid'), 'error');
+    return;
+  }
+  if (to !== from) {
+    // Renaming onto an existing tag merges the two.
+    for (const id of Object.keys(APP.tags)) {
+      if (APP.tags[id].includes(from)) APP.tags[id] = [...new Set(APP.tags[id].map(tg => tg === from ? to : tg))];
+    }
+    if (APP.tagIcons[from] && !APP.tagIcons[to]) APP.tagIcons[to] = APP.tagIcons[from];
+    saveTagState();
+    refreshTagsList();
+  }
+  closeModal();
+  showToast(t('toast_tag_renamed'), 'success');
+}
+
+function showRemoveTagModal(tag) {
+  const ids = tagUsage().get(tag) || [];
+  const rows = ids.map(id => {
+    const pl = APP.playlists.find(p => p.id === id);
+    return `
+      <div class="form-checkbox">
+        <input type="checkbox" value="${escapeHtml(id)}" class="tag-remove-select">
+        <span class="checkbox-label">${escapeHtml(pl.snippet.title)}</span>
+      </div>`;
+  }).join('');
+  openModal(`
+    <div class="modal-header">
+      <div class="modal-title">${escapeHtml(t('tags_remove_from_title', { tag }))}</div>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="removeTagName" value="${escapeHtml(tag)}">
+      ${rows}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">${t('modal_cancel')}</button>
+      <button class="btn btn-primary" onclick="applyRemoveTag()">${t('tags_remove_btn')}</button>
+    </div>
+  `);
+}
+
+function applyRemoveTag() {
+  const tag = document.getElementById('removeTagName').value;
+  const selected = Array.from(document.querySelectorAll('.tag-remove-select:checked')).map(el => el.value);
+  if (!selected.length) {
+    showToast(t('toast_tag_select_playlists'), 'error');
+    return;
+  }
+  selected.forEach(id => { APP.tags[id] = (APP.tags[id] || []).filter(tg => tg !== tag); });
+  saveTagState();
+  refreshTagsList();
+  closeModal();
+  showToast(t('toast_tag_removed'), 'success');
+}
+
+function deleteTagEverywhere(tag) {
+  const count = (tagUsage().get(tag) || []).length;
+  if (!confirm(t('tags_delete_confirm', { tag, count }))) return;
+  for (const id of Object.keys(APP.tags)) APP.tags[id] = APP.tags[id].filter(tg => tg !== tag);
+  saveTagState();
+  refreshTagsList();
+  showToast(t('toast_tag_deleted'), 'success');
 }
 
 function editPlaylistTags(playlistId) {
@@ -14333,8 +14556,7 @@ function savePlaylistTags(playlistId) {
       }
     }
   });
-  localStorage.setItem('tagIcons', JSON.stringify(APP.tagIcons));
-  localStorage.setItem('playlistTags', JSON.stringify(APP.tags));
+  saveTagState();
   refreshTagsList();
   closeModal();
   showToast(t('toast_tags_saved'), 'success');
@@ -14397,8 +14619,7 @@ function applyNewTag() {
   } else {
     delete APP.tagIcons[tagName];
   }
-  localStorage.setItem('tagIcons', JSON.stringify(APP.tagIcons));
-  localStorage.setItem('playlistTags', JSON.stringify(APP.tags));
+  saveTagState();
   refreshTagsList();
   closeModal();
   showToast(t('toast_tags_added'), 'success');

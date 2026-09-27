@@ -2260,6 +2260,74 @@ const SUITES = [
   ],
 },
 {
+  id: 'TAGS-EDIT', title: 'Tags can be removed, renamed and deleted', note: 'adding was the only way in; removing meant editing a comma-separated field, one playlist at a time',
+  cases: [
+    ['a chip removes its tag; the index renames, merges, removes from some and deletes everywhere', async w => {
+      const snap = snapshot(w, ['lastBackup', 'lastBackupTimestamp', 'playlistTags', 'tagIcons']);
+      const real = { ytApi: w.ytApi, showToast: w.showToast, confirm: w.confirm };
+      w.showToast = () => {};
+      w.confirm = () => true;
+      const backup = {
+        schemaVersion: 1, timestamp: '2026-09-01T10:00:00.000Z',
+        playlists: [{ id: 'PL_tagedit_a', title: 'A', videos: [] }, { id: 'PL_tagedit_b', title: 'B', videos: [] }],
+        playlistObjects: ['a', 'b'].map(k => ({ id: 'PL_tagedit_' + k, snippet: { title: k.toUpperCase() }, contentDetails: { itemCount: 0 }, status: { privacyStatus: 'private' } })),
+      };
+      // Through the real Add modal: APP is a top-level const, not reachable from here.
+      const addTag = (name, icon, ids) => {
+        w.showAddTagModal();
+        w.document.getElementById('newTagInput').value = name;
+        w.document.getElementById('newTagIconInput').value = icon;
+        w.document.querySelectorAll('.tag-playlist-select').forEach(el => { el.checked = ids.includes(el.value); });
+        w.applyNewTag();
+      };
+      const rename = (from, to) => {
+        w.showRenameTagModal(from);
+        w.document.getElementById('renameTagInput').value = to;
+        w.applyRenameTag();
+      };
+      const tags = () => { const s = JSON.parse(w.localStorage.getItem('playlistTags') || '{}'); return [s.PL_tagedit_a, s.PL_tagedit_b]; };
+      const icons = () => JSON.parse(w.localStorage.getItem('tagIcons') || '{}');
+      try {
+        w.localStorage.setItem('lastBackup', JSON.stringify(backup));
+        w.localStorage.setItem('lastBackupTimestamp', new Date().toISOString());
+        await w.loadBackupFromStorage();
+        addTag('zzLive', '🎤', ['PL_tagedit_a', 'PL_tagedit_b']);
+        addTag('zzGigs', '', ['PL_tagedit_a']);
+
+        const chip = [...w.document.querySelectorAll('#tagsList .tag-remove')].find(b => b.dataset.tag === 'zzGigs');
+        ok(chip, 'the chip has no remove button');
+        chip.click();
+        eq(tags(), [['zzLive'], ['zzLive']], 'the chip removed its tag from A only');
+
+        rename('zzLive', 'zz,bad');
+        eq(tags(), [['zzLive'], ['zzLive']], 'a name with a comma is refused');
+        rename('zzLive', 'zzConcerts');
+        eq(tags(), [['zzConcerts'], ['zzConcerts']], 'renamed everywhere');
+        eq([icons().zzConcerts, icons().zzLive], ['🎤', undefined], 'the icon follows the rename');
+
+        addTag('zzOther', '', ['PL_tagedit_a']);
+        rename('zzOther', 'zzConcerts');
+        eq(tags()[0], ['zzConcerts'], 'renaming onto an existing tag merges, not doubles');
+
+        w.showRemoveTagModal('zzConcerts');
+        w.document.querySelectorAll('.tag-remove-select').forEach(el => { el.checked = el.value === 'PL_tagedit_b'; });
+        w.applyRemoveTag();
+        eq(tags(), [['zzConcerts'], undefined], 'removed from the checked playlist only');
+
+        w.deleteTagEverywhere('zzConcerts');
+        eq(tags(), [undefined, undefined], 'deleted everywhere');
+        return eq(icons().zzConcerts, undefined, 'an unused tag keeps no icon');
+      } finally {
+        w.closeModal();
+        restore(w, snap);
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+  ],
+},
+{
   id: '#17', title: 'Music mode — detection and parsing', note: 'design spec §3 and §6; both run on metadata already fetched, so no extra quota',
   cases: [
     ['"- Topic" alone is enough', w =>
@@ -2316,6 +2384,25 @@ const SUITES = [
       const r = w.playlistMusicVerdict(big);
       eq(r.sampled, 50, 'sample size');
       return eq(r.verdict, 'music', 'the 500 videos past the sample must not be read');
+    }],
+
+    ['a playlist of concerts is a music playlist', w => {
+      // None of them is a track (long-form penalty), all of them are music
+      // content — the verdict counts the latter.
+      const gig = n => ({ title: 'Band ' + n + ' - Live at Olympia 2019', categoryId: '10', durationSeconds: 5400 });
+      const list = [gig(1), gig(2), gig(3), gig(4), gig(5)];
+      eq(list.map(w.isMusicVideo), [false, false, false, false, false], 'no track');
+      return eq(w.playlistMusicVerdict(list).verdict, 'music');
+    }],
+
+    ['live keywords match past non-ASCII letters', w => {
+      // \b is ASCII-only: "live à Paris" used to miss.
+      const c = title => w.classifyVideoType({ title, durationSeconds: 3600 });
+      eq([c('Stromae live à Paris').isMusic, c('Stromae live à Paris').type], [true, 'live'], 'live à');
+      eq(c('Angèle live au Zénith').type, 'live', 'live au');
+      eq(c('Song (Live)').type, 'live', '(live)');
+      eq(c('Clip officiel').isMusic, true, 'clip officiel');
+      return eq(c('Olivier livestream').isMusic, false, 'live inside a word is not live');
     }],
 
     // ── Parser (§6) ─────────────────────────────────────────────────────────
@@ -2465,6 +2552,44 @@ const SUITES = [
         w.setPlaylistViewMode('PL_lens_a', 'video');
         return eq(w.playlistPassesLens('PL_lens_a', 'music'), false, 'the override must flip the lens too');
       } finally { restore(w, snap); }
+    }],
+
+    ['the lens filters playlists at load, from the cached videos', async w => {
+      // No playlist is opened: the verdict must come from the backup alone.
+      const snap = snapshot(w, ['lastBackup', 'lastBackupTimestamp', 'libraryLens', 'playlistViewMode']);
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      w.showToast = () => {};
+      const vid = (id, title, category, duration) => ({ videoId: id, title, channel: 'Chan', duration, category, position: 0 });
+      const backup = {
+        schemaVersion: 1, timestamp: '2026-09-01T10:00:00.000Z',
+        playlists: [
+          { id: 'PL_lensload_gigs', title: 'Gigs', videos: [
+            vid('lnsGig00001', 'Band - Live at Olympia', '10', 'PT1H30M'),
+            vid('lnsGig00002', 'Band - live à Paris', '10', 'PT1H10M')] },
+          { id: 'PL_lensload_talk', title: 'Talks', videos: [
+            vid('lnsTalk0001', 'Quarterly review', '28', 'PT45M'),
+            vid('lnsTalk0002', 'Keynote', '28', 'PT50M')] },
+          { id: 'PL_lensload_none', title: 'Never loaded', videos: [] },
+        ],
+        playlistObjects: ['gigs', 'talk', 'none'].map(k => ({ id: 'PL_lensload_' + k, snippet: { title: k }, contentDetails: { itemCount: 2 }, status: { privacyStatus: 'private' } })),
+      };
+      const rendered = () => [...w.document.querySelectorAll('#playlistsList [data-playlist-id]')].map(e => e.dataset.playlistId).sort();
+      try {
+        w.localStorage.setItem('lastBackup', JSON.stringify(backup));
+        w.localStorage.setItem('lastBackupTimestamp', new Date().toISOString());
+        await w.loadBackupFromStorage();
+        w.setLibraryLens('music');
+        eq(rendered(), ['PL_lensload_gigs', 'PL_lensload_none'], 'music lens');
+        w.setLibraryLens('video');
+        eq(rendered(), ['PL_lensload_none', 'PL_lensload_talk'], 'video lens');
+        w.setLibraryLens('all');
+        return eq(rendered().length, 3, 'all');
+      } finally {
+        restore(w, snap);
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
     }],
 
     ['the old dedicated music button is gone from the detail header', w => {

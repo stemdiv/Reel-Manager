@@ -1,5 +1,27 @@
 [
  {
+  "v": "1.27.59",
+  "date": "2026-09-27",
+  "items": [
+   {
+    "fr": "Bibliothèque : les filtres Vidéos et Musique trient les playlists dès le chargement, à partir des vidéos déjà en cache (sans quota). Avant, une playlist restait visible sous les trois filtres tant qu'elle n'avait pas été ouverte. Seules les playlists jamais chargées restent visibles partout.",
+    "en": "Library: the Videos and Music filters sort playlists as soon as the app loads, from the videos already cached (no quota). Before, a playlist stayed visible under all three filters until it had been opened. Only playlists never loaded stay visible everywhere."
+   },
+   {
+    "fr": "Musique : une playlist de concerts, de sessions live ou de sets est désormais une playlist musicale (elle compte le contenu musical, plus seulement les morceaux de 2 à 7 minutes). « live à Paris » et les autres titres avec un accent après « live » sont reconnus.",
+    "en": "Music: a playlist of concerts, live sessions or sets is now a music playlist (it counts music content, not only 2 to 7-minute tracks). \"live à Paris\" and other titles with an accent after \"live\" are recognised."
+   },
+   {
+    "fr": "Tags : chaque tag d'une playlist se retire d'un clic (croix sur la pastille). Nouvelle section « Tous les tags » : renommer un tag partout (un nom existant fusionne les deux), le retirer des playlists cochées ou le supprimer partout. L'icône d'un tag qui n'est plus utilisé est effacée.",
+    "en": "Tags: each tag on a playlist can be removed in one click (cross on the chip). New All tags section: rename a tag everywhere (an existing name merges the two), remove it from the checked playlists or delete it everywhere. The icon of a tag no longer used is cleared."
+   },
+   {
+    "fr": "Les boutons « Créer playlist » et « Ajouter tag » n'affichent plus deux « + ».",
+    "en": "The Create playlist and Add tag buttons no longer show two \"+\" signs."
+   }
+  ]
+ },
+ {
   "v": "1.27.58",
   "date": "2026-09-26",
   "items": [
