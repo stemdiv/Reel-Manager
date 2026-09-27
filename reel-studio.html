@@ -76,7 +76,17 @@
   .btn-primary { background: var(--accent); background: oklch(from var(--accent) max(l, 0.70) c h); color: #0a0a0f; }
   .btn-ghost { background: var(--surface2); border: 1px solid var(--border); }
   @media (prefers-reduced-motion: reduce) { .btn:hover { transform: none; } }
-  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  /* The fixed Palette button sits over the top-right corner (22px + its ~80px
+     width): keep clear of it, the topbar has no side padding on a phone. */
+  .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; padding-right: 112px; }
+  /* A phone: one row did not fit even before the language button (540px of
+     bar in 319). The brand shares the first row with the fixed Palette button,
+     the search takes the next one, the buttons the last. */
+  @media (max-width: 640px) {
+    .topbar { flex-wrap: wrap; gap: 12px; }
+    .search { order: 2; flex-basis: 100%; max-width: none; }
+    .topbar-right { order: 3; flex-basis: 100%; margin-left: 0; padding-right: 0; gap: 8px; }
+  }
   .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--surface3); border: 1px solid var(--border2); object-fit: cover; }
 
   /* ── Greeting + ticker ─────────────────────────────────────────────── */
@@ -543,7 +553,7 @@
 
 <nav class="dock" id="dock" data-a11y="navLabel"></nav>
 
-<script src="shared/core.js?v=1.27.62"></script>   <!-- AUD-33 — helpers shared with the app -->
+<script src="shared/core.js?v=1.27.63"></script>   <!-- AUD-33 — helpers shared with the app -->
 <script>
 // ═══════════════════════════════════════════════════════════════════════
 // Reel Studio — companion UI for Reel Manager (exploration 3a).
@@ -555,7 +565,7 @@ const STUDIO_VERSION = '0.7.6';
 
 // ── i18n ───────────────────────────────────────────────────────────────
 const LANG = (localStorage.getItem('appLang') || 'fr') === 'en' ? 'en' : 'fr';
-const S = {
+const STRINGS = {
   fr: {
     search: 'Rechercher dans {n} vidéos…', create: '+ Créer',
     greet: 'Bonsoir, {name}.', greet2: 'Votre bibliothèque, en grand.',
@@ -594,6 +604,7 @@ const S = {
     ctlSeek: 'Position dans la vidéo', palClose: 'Fermer la palette', palHex: 'Saisir une couleur hexadécimale',
     navLabel: 'Vues', palLabel: 'Palette',
     lensLabel: 'Type de playlist', lensVideo: 'Vidéos', lensMusic: 'Musique',
+    langSwitch: 'Changer de langue ({lang})',
     sortBy: 'Trier par', palCombo: 'Utiliser les couleurs {colours}', palSlot: 'Modifier l’accent {n} ({hex})', palSlotHex: 'Accent {n}, code hexadécimal',
   },
   en: {
@@ -636,8 +647,21 @@ const S = {
     navLabel: 'Views', palLabel: 'Palette',
     lensLabel: 'Playlist type', lensVideo: 'Videos', lensMusic: 'Music',
     sortBy: 'Sort by', palCombo: 'Use the colours {colours}', palSlot: 'Change accent {n} ({hex})', palSlotHex: 'Accent {n}, hex code',
+    langSwitch: 'Switch language ({lang})',
   },
-}[LANG];
+};
+const S = STRINGS[LANG];
+
+// Same key as Reel Manager, so the two pages keep one language. Everything
+// here is built for one language at load (strings, tag names, number format),
+// so switching reloads: the page boots from the local cache, no API call,
+// and the view survives in the URL hash.
+function toggleStudioLanguage() {
+  const langs = Object.keys(STRINGS);
+  const next = langs[(langs.indexOf(LANG) + 1) % langs.length];
+  try { localStorage.setItem('appLang', next); } catch (_) { return; }
+  location.reload();
+}
 
 const tr = (key, params) => {
   let s = S[key] != null ? S[key] : key;
@@ -1091,6 +1115,8 @@ function topbar() {
         <kbd>⌘K</kbd>
       </label>
       <div class="topbar-right">
+        <button class="btn btn-ghost btn-sm" id="langToggle" onclick="toggleStudioLanguage()"
+                title="${esc(tr('langSwitch', { lang: LANG.toUpperCase() }))}" aria-label="${esc(tr('langSwitch', { lang: LANG.toUpperCase() }))}">${esc(LANG.toUpperCase())}</button>
         <a class="btn btn-ghost" style="text-decoration:none;" href="youtube-playlist-manager.html">Reel Manager</a>
         ${d.picture ? `<img class="avatar" src="${esc(d.picture)}" alt="" referrerpolicy="no-referrer">` : '<div class="avatar"></div>'}
       </div>

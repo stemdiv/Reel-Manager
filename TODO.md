@@ -22,11 +22,14 @@ Details for each finding: `08-remediation.md` in the audit report, kept outside 
   anything. Concert playlists should be under Music. In Tags, try a chip cross, Rename (onto an existing tag too),
   Remove from… and Delete everywhere.
 - [ ] Same branch, 1.27.60: in Reel Studio (Playlists), the All / Videos / Music chips should list the same playlists as the
-  Reel Manager lens. After pushing, open GitHub Pages once: the page must load `shared/core.js?v=1.27.62` (DevTools, Network).
+  Reel Manager lens. After pushing, open GitHub Pages once: the page must load `shared/core.js?v=1.27.63` (DevTools, Network).
 - [ ] Same branch, 1.27.62 (tag ids): **export a backup first** — once migrated, an older version (GitHub Pages until the push)
   shows `yt:10` instead of "Musique". Then open the app on your real library: the FR/EN pairs should be one tag each
   (Tags view, and Reel Studio). Switch FR ↔ EN: names follow. Translate one of your own tags, switch again.
   Run auto-categorisation in English: no English duplicate. (The 1.27.61 merge button is gone: the migration replaces it.)
+- [ ] Same branch, 1.27.63: in Tags, a tag you translated shows "· EN" after its count. In Reel Studio, the FR/EN button
+  switches the language (the page reloads on the same view) and Reel Manager follows on its next load. On a phone, the
+  Studio top bar wraps (brand, search, buttons) and nothing sits under the Palette button.
 
 ## To investigate
 

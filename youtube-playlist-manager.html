@@ -2883,7 +2883,7 @@
   </div>
 </div>
 
-<script src="shared/core.js?v=1.27.62"></script>   <!-- AUD-33 — helpers shared with Reel Studio -->
+<script src="shared/core.js?v=1.27.63"></script>   <!-- AUD-33 — helpers shared with Reel Studio -->
 <script>
 // ============================================================================
 // CONSTANTS & CONFIG
@@ -3604,6 +3604,7 @@ const I18N = {
     toast_tag_select_playlists: 'Cochez au moins une playlist',
     toast_tag_name_invalid: 'Nom de tag invalide (vide ou avec une virgule)',
     tags_translate: 'Traduire',
+    tags_translated_in: 'Traduit en : {langs}',
     tags_translate_title: 'Traduire le tag « {tag} »',
     tags_translate_hint: 'Un nom par langue. Laissé vide, le tag garde son nom d\'origine : {tag}.',
     toast_tag_translated: 'Traductions enregistrées',
@@ -4583,6 +4584,7 @@ const I18N = {
     toast_tag_select_playlists: 'Select at least one playlist',
     toast_tag_name_invalid: 'Invalid tag name (empty or with a comma)',
     tags_translate: 'Translate',
+    tags_translated_in: 'Translated into: {langs}',
     tags_translate_title: 'Translate the tag "{tag}"',
     tags_translate_hint: 'One name per language. Left empty, the tag keeps its original name: {tag}.',
     toast_tag_translated: 'Translations saved',
@@ -4954,7 +4956,7 @@ migrateTagIds();
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.62'; // bump per release, with the ?v= on shared/core.js in both pages
+const APP_VERSION = '1.27.63'; // bump per release, with the ?v= on shared/core.js in both pages
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -14218,10 +14220,13 @@ function tagUsage() {
 function renderTagIndex() {
   const usage = [...tagUsage()].sort((a, b) => tagDisplayName(a[0]).localeCompare(tagDisplayName(b[0])));
   if (!usage.length) return `<p class="text-muted">${t('tags_none_yet')}</p>`;
-  return usage.map(([tag, ids]) => `
+  return usage.map(([tag, ids]) => {
+    // The languages a user tag has a name in, in interface order: "· EN".
+    const langs = isBuiltinTag(tag) ? [] : UI_LANGUAGES.filter(l => (APP.tagLabels[tag] || {})[l]);
+    return `
     <div class="tag-index-row" data-tag="${escapeHtml(tag)}">
       ${renderTagWithIcon(tag)}
-      <span class="mono tag-index-count">${escapeHtml(t('tags_count', { count: ids.length }))}</span>
+      <span class="mono tag-index-count">${escapeHtml(t('tags_count', { count: ids.length }))}${langs.length ? `<span class="tag-index-langs" title="${escapeHtml(t('tags_translated_in', { langs: langs.map(l => l.toUpperCase()).join(', ') }))}"> · ${escapeHtml(langs.map(l => l.toUpperCase()).join(' '))}</span>` : ''}</span>
       <span class="tag-index-actions">
         ${isBuiltinTag(tag) ? '' : `
         <button class="btn btn-secondary btn-sm" onclick="showRenameTagModal(this.closest('[data-tag]').dataset.tag)">${t('tags_rename')}</button>
@@ -14230,7 +14235,8 @@ function renderTagIndex() {
         <button class="btn btn-danger btn-sm" onclick="deleteTagEverywhere(this.closest('[data-tag]').dataset.tag)">${t('tags_delete_all')}</button>
       </span>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function refreshTagsList() {

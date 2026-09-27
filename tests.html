@@ -2401,6 +2401,8 @@ const SUITES = [
 
         translate('Détente', 'en', 'Chill');
         eq(labels(), { en: 'Chill' }, 'translation saved');
+        eq([(row('Détente').querySelector('.tag-index-langs') || {}).textContent, !!row('yt:10').querySelector('.tag-index-langs')],
+           [' · EN', false], 'the row shows the languages it is translated into; a category shows none');
         translate('Détente', 'en', 'Music');
         eq(labels(), { en: 'Chill' }, 'a name another tag already has is refused');
         w.closeModal();
@@ -2446,6 +2448,41 @@ const SUITES = [
         await aud07Tick();
         const pills = [...sw.document.querySelectorAll('.pl-card .tag-pill')].map(p => p.textContent);
         return eq(pills, ['Music', 'Chill']);
+      } finally {
+        if (f) f.remove();
+        restore(w, snap);
+        await idbRestore(w, idb);
+      }
+    }],
+
+    ['Reel Studio has its own language button, sharing the language with the app', async w => {
+      const idb = await idbSnapshot(w);
+      const snap = snapshot(w, ['appLang']);
+      let f;
+      try {
+        await w.cacheStore.writeAll({
+          timestamp: new Date().toISOString(),
+          playlists: [{ id: 'PL_stlang_a', title: 'A', videos: [{ videoId: 'stlangvid01', title: 'v', duration: 'PT3M', channel: 'c' }] }],
+          playlistObjects: [], tags: { PL_stlang_a: ['yt:10'] }, tagIcons: {}, tagLabels: {},
+          folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [],
+        });
+        w.localStorage.setItem('appLang', 'fr');
+        f = await openStudio();
+        f.contentWindow.location.hash = '#/playlists';
+        await aud07Tick();
+        const btn = f.contentWindow.document.getElementById('langToggle');
+        ok(btn, 'no language button');
+        eq(btn.textContent.trim(), 'FR', 'label before');
+        // The switch reloads the page: everything there is built for one language.
+        const reloaded = new Promise(r => f.addEventListener('load', r, { once: true }));
+        btn.click();
+        await reloaded;
+        await new Promise(r => setTimeout(r, 400));
+        const sw = f.contentWindow;
+        eq(w.localStorage.getItem('appLang'), 'en', 'the key Reel Manager reads');
+        eq([sw.document.documentElement.lang, sw.document.getElementById('langToggle').textContent.trim(), sw.location.hash],
+           ['en', 'EN', '#/playlists'], 'after the reload, on the same view');
+        return eq([...sw.document.querySelectorAll('.pl-card .tag-pill')].map(p => p.textContent), ['Music'], 'tag names follow');
       } finally {
         if (f) f.remove();
         restore(w, snap);

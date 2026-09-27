@@ -1,5 +1,23 @@
 [
  {
+  "v": "1.27.63",
+  "date": "2026-09-27",
+  "items": [
+   {
+    "fr": "Tags : un tag que vous avez traduit affiche ses langues à côté du nombre de playlists (par exemple « 3 playlist(s) · EN »).",
+    "en": "Tags: a tag you translated shows its languages next to its playlist count (for example \"3 playlist(s) · EN\")."
+   },
+   {
+    "fr": "Reel Studio : un bouton FR / EN dans la barre du haut change la langue. Elle est partagée avec Reel Manager, et la page se recharge sur la même vue, sans appel à YouTube.",
+    "en": "Reel Studio: an FR / EN button in the top bar switches the language. It is shared with Reel Manager, and the page reloads on the same view, with no call to YouTube."
+   },
+   {
+    "fr": "Reel Studio : le bouton Palette ne recouvre plus Reel Manager, et sur téléphone la barre du haut passe sur trois lignes au lieu de déborder de l'écran.",
+    "en": "Reel Studio: the Palette button no longer covers Reel Manager, and on a phone the top bar wraps onto three rows instead of running off the screen."
+   }
+  ]
+ },
+ {
   "v": "1.27.62",
   "date": "2026-09-27",
   "items": [
