@@ -1,5 +1,23 @@
 [
  {
+  "v": "1.27.62",
+  "date": "2026-09-27",
+  "items": [
+   {
+    "fr": "Tags : un tag n'a plus une langue, il a un nom par langue. Passer de FR à EN affiche Music au lieu de Musique, Sports au lieu de Sport, dans Reel Manager comme dans Reel Studio. Au premier lancement, les doublons FR/EN existants deviennent un seul tag, icônes comprises. Le bouton de fusion de la 1.27.61 n'est plus nécessaire et disparaît.",
+    "en": "Tags: a tag no longer has one language, it has a name per language. Switching from FR to EN shows Music instead of Musique, Sports instead of Sport, in Reel Manager and Reel Studio alike. On first launch, existing FR/EN duplicates become one tag, icons included. The 1.27.61 merge button is no longer needed and is gone."
+   },
+   {
+    "fr": "Tags : vos propres tags se traduisent (bouton Traduire, un nom par langue). Taper « Music » ou « Musique » dans Ajouter tag donne le même tag. Renommer un tag traduit ne change que son nom dans la langue affichée. Les catégories et genres gardent leurs noms officiels.",
+    "en": "Tags: your own tags can be translated (Translate button, one name per language). Typing Music or Musique in Add tag gives the same tag. Renaming a translated tag changes its name in the displayed language only. Categories and genres keep their official names."
+   },
+   {
+    "fr": "Avant d'ouvrir cette version sur votre bibliothèque, exportez une sauvegarde : une version plus ancienne de l'application afficherait ensuite les tags sous leur identifiant (yt:10).",
+    "en": "Before opening this version on your library, export a backup: an older version of the app would then show tags by their id (yt:10)."
+   }
+  ]
+ },
+ {
   "v": "1.27.61",
   "date": "2026-09-27",
   "items": [

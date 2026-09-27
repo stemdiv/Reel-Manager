@@ -2883,7 +2883,7 @@
   </div>
 </div>
 
-<script src="shared/core.js?v=1.27.61"></script>   <!-- AUD-33 — helpers shared with Reel Studio -->
+<script src="shared/core.js?v=1.27.62"></script>   <!-- AUD-33 — helpers shared with Reel Studio -->
 <script>
 // ============================================================================
 // CONSTANTS & CONFIG
@@ -3603,9 +3603,11 @@ const I18N = {
     toast_tag_deleted: 'Tag supprimé partout',
     toast_tag_select_playlists: 'Cochez au moins une playlist',
     toast_tag_name_invalid: 'Nom de tag invalide (vide ou avec une virgule)',
-    tags_merge_btn: 'Fusionner les doublons FR/EN ({count})',
-    tags_merge_confirm: 'Fusionner {count} paire(s) de tags ? Le nom français est gardé :\n\n{list}',
-    toast_tags_merged: '{count} paire(s) de tags fusionnée(s)',
+    tags_translate: 'Traduire',
+    tags_translate_title: 'Traduire le tag « {tag} »',
+    tags_translate_hint: 'Un nom par langue. Laissé vide, le tag garde son nom d\'origine : {tag}.',
+    toast_tag_translated: 'Traductions enregistrées',
+    toast_tag_label_taken: '« {tag} » est déjà le nom d\'un autre tag',
     modal_name: 'Nom',
     modal_rename_playlists: 'Renommer des playlists',
     modal_select_playlists: 'Sélectionner les playlists',
@@ -4580,9 +4582,11 @@ const I18N = {
     toast_tag_deleted: 'Tag deleted everywhere',
     toast_tag_select_playlists: 'Select at least one playlist',
     toast_tag_name_invalid: 'Invalid tag name (empty or with a comma)',
-    tags_merge_btn: 'Merge FR/EN duplicates ({count})',
-    tags_merge_confirm: 'Merge {count} tag pair(s)? The English name is kept:\n\n{list}',
-    toast_tags_merged: '{count} tag pair(s) merged',
+    tags_translate: 'Translate',
+    tags_translate_title: 'Translate the tag "{tag}"',
+    tags_translate_hint: 'One name per language. Left empty, the tag keeps its original name: {tag}.',
+    toast_tag_translated: 'Translations saved',
+    toast_tag_label_taken: '"{tag}" is already another tag\'s name',
     modal_name: 'Name',
     modal_rename_playlists: 'Rename playlists',
     modal_select_playlists: 'Select playlists',
@@ -4855,6 +4859,10 @@ const I18N = {
 
 let currentLang = localStorage.getItem('appLang') || 'fr';
 
+// The interface languages: the tag translation fields, and the test that every
+// tag-name table in shared/core.js covers each of them.
+var UI_LANGUAGES = Object.keys(I18N);   // var: read by tests.html
+
 function t(key, params = {}) {
   let str = I18N[currentLang]?.[key] || I18N.fr[key] || key;
   for (const [k, v] of Object.entries(params)) {
@@ -4916,6 +4924,8 @@ const APP = {
   theme: localStorage.getItem('appTheme') || 'dark',
   tags: JSON.parse(localStorage.getItem('playlistTags') || '{}'),
   tagIcons: JSON.parse(localStorage.getItem('tagIcons') || '{}'),
+  // Names per language of the tags the user created: { id: { fr, en } }.
+  tagLabels: JSON.parse(localStorage.getItem('tagLabels') || '{}'),
   folders: JSON.parse(localStorage.getItem('playlistFolders') || '[]'),
   folderAssignments: JSON.parse(localStorage.getItem('folderAssignments') || '{}'),
   folderExpanded: JSON.parse(localStorage.getItem('folderExpanded') || '{}'),
@@ -4934,13 +4944,17 @@ const APP = {
   readOnlyMode: localStorage.getItem('readOnlyMode') === '1',
 };
 
+// Tags were names in whatever language the UI had; they are ids now (see
+// shared/core.js). One pass at startup, a no-op once done.
+migrateTagIds();
+
 // ============================================================================
 // DIAGNOSTIC LOG (#66) — in-memory ring buffer for user-shareable support logs.
 // Captures API calls, quota events, OAuth lifecycle, backup ops, SW events,
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.61'; // bump per release, with the ?v= on shared/core.js in both pages
+const APP_VERSION = '1.27.62'; // bump per release, with the ?v= on shared/core.js in both pages
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -6456,6 +6470,16 @@ function sanitizeBackup(raw) {
       if (name && name === k && typeof v === 'string' && v) out.tagIcons[k] = v.slice(0, 16);
     }
   }
+  // Names per language of user tags: { id: { fr, en } }, two-letter codes only.
+  if (isObj(raw.tagLabels)) {
+    out.tagLabels = {};
+    for (const [k, v] of Object.entries(raw.tagLabels)) {
+      if (tagName(k) !== k || !isObj(v)) continue;
+      const names = {};
+      for (const [lang, n] of Object.entries(v)) if (/^[a-z]{2}$/.test(lang) && tagName(n)) names[lang] = tagName(n);
+      if (Object.keys(names).length) out.tagLabels[k] = names;
+    }
+  }
   if (Array.isArray(raw.folders)) {
     const folders = raw.folders.filter(f => isObj(f) && id(f.id) && tagName(f.name)).slice(0, 500)
       .map(f => ({ id: f.id, name: f.name.trim().slice(0, 100), icon: str(f.icon, 16), parentId: id(f.parentId) }));
@@ -6937,7 +6961,7 @@ async function deleteAllUserData() {
 var APP_STORAGE_KEYS = [   // var: read by tests.html, which cannot see a top-level const
   // library, organisation, backups
   'autoCache', 'autoCacheTimestamp', 'lastBackup', 'lastBackupTimestamp',
-  'playlistTags', 'tagIcons', 'playlistFolders', 'folderAssignments', 'folderExpanded',
+  'playlistTags', 'tagIcons', 'tagLabels', 'playlistFolders', 'folderAssignments', 'folderExpanded',
   'bookmarkedPlaylists', 'deckColumns', 'watchQueue', 'recentSearches',
   'playlistViewMode', 'libraryLens', 'discoverFilters', 'trendingCategory', 'trendingRegion', 'trendingView',
   'showPlaylistViews', 'reelMusicMode',
@@ -8442,6 +8466,7 @@ async function autoSaveCache(opts) {
       }),
       tags: APP.tags,
       tagIcons: APP.tagIcons,
+      tagLabels: APP.tagLabels,
       folders: APP.folders,
       folderAssignments: APP.folderAssignments,
       deckColumns: APP.deckColumns,
@@ -10798,8 +10823,6 @@ function formatDuration(seconds, style = 'compact') {
 // ── Thumbnails ── pickThumb() and its THUMB_ORDER chains live in shared/core.js
 // (AUD-33), with the history of why there is one chain.
 
-// YouTube video categories (IDs are global/stable; labels localized). Source: videoCategories.list FR+EN.
-const VIDEO_CATEGORIES = { "1":{fr:"Films et animations",en:"Film & Animation",a:1}, "2":{fr:"Auto/Moto",en:"Autos & Vehicles",a:1}, "10":{fr:"Musique",en:"Music",a:1}, "15":{fr:"Animaux",en:"Pets & Animals",a:1}, "17":{fr:"Sport",en:"Sports",a:1}, "18":{fr:"Courts métrages",en:"Short Movies",a:0}, "19":{fr:"Voyages et événements",en:"Travel & Events",a:1}, "20":{fr:"Jeux vidéo",en:"Gaming",a:1}, "21":{fr:"Blogs vidéo",en:"Videoblogging",a:0}, "22":{fr:"People et blogs",en:"People & Blogs",a:1}, "23":{fr:"Humour",en:"Comedy",a:1}, "24":{fr:"Divertissement",en:"Entertainment",a:1}, "25":{fr:"Actualités et politique",en:"News & Politics",a:1}, "26":{fr:"Vie pratique et style",en:"Howto & Style",a:1}, "27":{fr:"Éducation",en:"Education",a:1}, "28":{fr:"Science et technologie",en:"Science & Technology",a:1}, "29":{fr:"Associations et bénévolat",en:"Nonprofits & Activism",a:1}, "30":{fr:"Films",en:"Movies",a:0}, "31":{fr:"Dessins animés/films d'animation",en:"Anime/Animation",a:0}, "32":{fr:"Action/aventure",en:"Action/Adventure",a:0}, "33":{fr:"Classique",en:"Classics",a:0}, "34":{fr:"Humour",en:"Comedy",a:0}, "35":{fr:"Documentaire",en:"Documentary",a:0}, "36":{fr:"Drame",en:"Drama",a:0}, "37":{fr:"Famille",en:"Family",a:0}, "38":{fr:"Étranger",en:"Foreign",a:0}, "39":{fr:"Horreur",en:"Horror",a:0}, "40":{fr:"Science-fiction/fantastique",en:"Sci-Fi/Fantasy",a:0}, "41":{fr:"Thriller",en:"Thriller",a:0}, "42":{fr:"Court métrage",en:"Shorts",a:0}, "43":{fr:"Émissions",en:"Shows",a:0}, "44":{fr:"Bandes-annonces",en:"Trailers",a:0} };
 function assignableCategoryOptionsHTML() {
   let h = '';
   for (const cid of Object.keys(VIDEO_CATEGORIES)) { if (VIDEO_CATEGORIES[cid].a) h += '<option value="' + cid + '">' + escapeHtml(getCategoryName(cid)) + '</option>'; }
@@ -10813,12 +10836,8 @@ function getCategoryName(id, lang) {
   return c[l] || c.fr || c.en || ('#' + id);
 }
 
-// Wikipedia topic → genre label, [fr, en] (AUD-27: was French only)
-const GENRE_LABELS = { 'Electronic_music': ['Électronique / EDM', 'Electronic / EDM'], 'Hip_hop_music': ['Hip-hop / Rap', 'Hip-hop / Rap'],
-  'Pop_music': ['Pop', 'Pop'], 'Rock_music': ['Rock', 'Rock'], 'Rhythm_and_blues': ['R&B', 'R&B'], 'Soul_music': ['Soul', 'Soul'],
-  'Classical_music': ['Classique', 'Classical'], 'Country_music': ['Country', 'Country'], 'Christian_music': ['Gospel / Chrétienne', 'Gospel / Christian'],
-  'Independent_music': ['Indé', 'Indie'], 'Music_of_Latin_America': ['Latino', 'Latin'], 'Music_of_Asia': ['Asie', 'Asian'],
-  'Jazz': ['Jazz', 'Jazz'], 'Reggae': ['Reggae', 'Reggae'], 'Blues': ['Blues', 'Blues'] };
+// VIDEO_CATEGORIES and GENRE_LABELS (tag and genre names per language) live in
+// shared/core.js: Reel Studio shows tag names too.
 
 async function ensureClassificationData(videos) {
   try {
@@ -11280,12 +11299,13 @@ function classifyVideoType(v) {
     else if (c.isMusic) type = 'music';
     else if (c.isTutorial) type = 'tutorial';
     else type = 'other';
-    let genre = null;
+    let genre = null, genreKey = null;
     if (c.isMusic) {
       const gseg = c.topicSegs.find(s => /music/i.test(s) && !/^Music$/i.test(s)) || c.topicSegs.find(s => /^(Jazz|Reggae|Blues)$/i.test(s));
-      if (gseg) genre = GENRE_LABELS[gseg] ? GENRE_LABELS[gseg][currentLang === 'en' ? 1 : 0] : gseg.replace(/_/g, ' ');
+      // genreKey is the Wikipedia page (the tag is "genre:<key>"); genre its name.
+      if (gseg && TAG_ID_RE.test('genre:' + gseg)) { genreKey = gseg; genre = tagLabel('genre:' + gseg, currentLang); }
     }
-    return { isMusic: c.isMusic, isTrack: c.isTrack, type: type, genre: genre, tutorialScore: c.tutorialScore };
+    return { isMusic: c.isMusic, isTrack: c.isTrack, type: type, genre: genre, genreKey: genreKey, tutorialScore: c.tutorialScore };
   } catch (e) {
     return { isMusic: false, isTrack: false, type: 'other' };
   }
@@ -11979,10 +11999,10 @@ function onGsAdvancedChange() {
 }
 function gsRefreshTagOptions() {
   const sel = document.getElementById('gsTag'); if (!sel) return;
-  const tags = [...new Set(Object.values(APP.tags || {}).flat().filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const tags = [...new Set(Object.values(APP.tags || {}).flat().filter(Boolean))].sort((a, b) => tagDisplayName(a).localeCompare(tagDisplayName(b)));
   const cur = sel.value;
   sel.innerHTML = '<option value="all">' + escapeHtml(t('search_tag_all')) + '</option>' +
-    tags.map(tag => '<option value="' + escapeHtml(tag) + '">' + escapeHtml(tag) + '</option>').join('');
+    tags.map(tag => '<option value="' + escapeHtml(tag) + '">' + escapeHtml(tagDisplayName(tag)) + '</option>').join('');
   sel.value = tags.includes(cur) ? cur : 'all';
 }
 function gsTagPasses(playlistId, tag) {
@@ -14012,7 +14032,7 @@ function generateStatisticsCharts() {
   // Compute data
   const categories = {};
   APP.playlists.forEach(pl => {
-    const tag = APP.tags[pl.id]?.[0] || t('tags_uncategorised');
+    const tag = APP.tags[pl.id]?.[0] ? tagDisplayName(APP.tags[pl.id][0]) : t('tags_uncategorised');
     categories[tag] = (categories[tag] || 0) + (pl.contentDetails?.itemCount || 0);
   });
 
@@ -14145,9 +14165,14 @@ const TAG_EMOJI_PALETTE = [
   '🎓', '❤️', '⭐', '🔥', '💡', '🎯', '🚀', '📌', '🏷️', '📂',
 ];
 
-function renderTagWithIcon(tagName) {
-  const icon = APP.tagIcons[tagName] || '';
-  return `<span class="tag">${icon ? escapeHtml(icon) + ' ' : ''}${escapeHtml(tagName)}</span>`;
+/** A tag's name in the interface language (tags are ids: shared/core.js). */
+function tagDisplayName(id) {
+  return tagLabel(id, currentLang, APP.tagLabels);
+}
+
+function renderTagWithIcon(id) {
+  const icon = APP.tagIcons[id] || '';
+  return `<span class="tag">${icon ? escapeHtml(icon) + ' ' : ''}${escapeHtml(tagDisplayName(id))}</span>`;
 }
 
 function getEmojiPickerHtml(selectedEmoji, inputId) {
@@ -14170,14 +14195,15 @@ function pickEmoji(emoji, inputId) {
 }
 
 // A chip with its own remove button, for the Tags view only — the playlist
-// cards keep the plain chip. The tag travels in data-tag, not in the handler.
-function renderRemovableTag(playlistId, tag) {
-  const icon = APP.tagIcons[tag] || '';
-  const label = t('tags_remove_one', { tag });
-  return `<span class="tag">${icon ? escapeHtml(icon) + ' ' : ''}${escapeHtml(tag)}<button type="button" class="tag-remove" data-tag="${escapeHtml(tag)}" onclick="removePlaylistTag('${escapeJsAttr(playlistId)}', this.dataset.tag)" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">&times;</button></span>`;
+// cards keep the plain chip. The tag id travels in data-tag, not in the handler.
+function renderRemovableTag(playlistId, id) {
+  const icon = APP.tagIcons[id] || '';
+  const name = tagDisplayName(id);
+  const label = t('tags_remove_one', { tag: name });
+  return `<span class="tag">${icon ? escapeHtml(icon) + ' ' : ''}${escapeHtml(name)}<button type="button" class="tag-remove" data-tag="${escapeHtml(id)}" onclick="removePlaylistTag('${escapeJsAttr(playlistId)}', this.dataset.tag)" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">&times;</button></span>`;
 }
 
-/** tag → ids of the listed playlists carrying it. */
+/** tag id → ids of the listed playlists carrying it. */
 function tagUsage() {
   const usage = new Map();
   APP.playlists.forEach(pl => (APP.tags[pl.id] || []).forEach(tag => {
@@ -14187,15 +14213,19 @@ function tagUsage() {
   return usage;
 }
 
+// Built-in tags (YouTube categories, genres) take their names from the tables
+// in shared/core.js: only the tags the user created can be renamed or translated.
 function renderTagIndex() {
-  const usage = [...tagUsage()].sort((a, b) => a[0].localeCompare(b[0]));
+  const usage = [...tagUsage()].sort((a, b) => tagDisplayName(a[0]).localeCompare(tagDisplayName(b[0])));
   if (!usage.length) return `<p class="text-muted">${t('tags_none_yet')}</p>`;
   return usage.map(([tag, ids]) => `
     <div class="tag-index-row" data-tag="${escapeHtml(tag)}">
       ${renderTagWithIcon(tag)}
       <span class="mono tag-index-count">${escapeHtml(t('tags_count', { count: ids.length }))}</span>
       <span class="tag-index-actions">
+        ${isBuiltinTag(tag) ? '' : `
         <button class="btn btn-secondary btn-sm" onclick="showRenameTagModal(this.closest('[data-tag]').dataset.tag)">${t('tags_rename')}</button>
+        <button class="btn btn-secondary btn-sm" onclick="showTranslateTagModal(this.closest('[data-tag]').dataset.tag)">${t('tags_translate')}</button>`}
         <button class="btn btn-secondary btn-sm" onclick="showRemoveTagModal(this.closest('[data-tag]').dataset.tag)">${t('tags_remove_from')}</button>
         <button class="btn btn-danger btn-sm" onclick="deleteTagEverywhere(this.closest('[data-tag]').dataset.tag)">${t('tags_delete_all')}</button>
       </span>
@@ -14219,25 +14249,40 @@ function refreshTagsList() {
     `;
   }).join('') : `<p class="text-muted">${t('no_playlist')}</p>`;
 
-  const dupes = tagDuplicatePairs().length;
   document.getElementById('tagsList').innerHTML = `
-    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 12px;">
-      <h3 style="margin: 0;">${t('tags_index_title')}</h3>
-      ${dupes ? `<button class="btn btn-secondary btn-sm" id="mergeTagDupesBtn" onclick="mergeTagDuplicates()">${escapeHtml(t('tags_merge_btn', { count: dupes }))}</button>` : ''}
-    </div>
+    <h3 style="margin: 0 0 12px;">${t('tags_index_title')}</h3>
     <div id="tagsIndex" style="margin-bottom: 24px;">${renderTagIndex()}</div>
     <h3 style="margin: 0 0 12px;">${t('tags_by_playlist_title')}</h3>
     ${html}`;
 }
 
-// Tags and icons are persisted together. An icon whose tag no playlist uses
-// any more is dropped here, so every write path cleans up after itself.
+// Tags, icons and translations are persisted together. What no playlist uses
+// any more (an icon, a translation) is dropped here, so every write path
+// cleans up after itself.
 function saveTagState() {
   for (const [id, tags] of Object.entries(APP.tags)) if (!tags.length) delete APP.tags[id];
   const used = new Set(Object.values(APP.tags).flat());
   Object.keys(APP.tagIcons).forEach(tag => { if (!used.has(tag)) delete APP.tagIcons[tag]; });
+  Object.keys(APP.tagLabels).forEach(tag => { if (!used.has(tag)) delete APP.tagLabels[tag]; });
   localStorage.setItem('tagIcons', JSON.stringify(APP.tagIcons));
+  localStorage.setItem('tagLabels', JSON.stringify(APP.tagLabels));
   localStorage.setItem('playlistTags', JSON.stringify(APP.tags));
+}
+
+// Names → ids (shared/core.js), once at startup and after a restore. The
+// French and English names of one category become one tag.
+function migrateTagIds() {
+  const r = normalizeTagIds(APP.tags, APP.tagIcons, APP.tagLabels);
+  if (!r.changed) return false;
+  APP.tags = r.tags;
+  APP.tagIcons = r.icons;
+  saveTagState();
+  return true;
+}
+
+// A comma would split the tag the next time the playlist's tag field is saved.
+function isValidTagText(s) {
+  return !!s && !s.includes(',') && !['__proto__', 'constructor', 'prototype'].includes(s);
 }
 
 function removePlaylistTag(playlistId, tag) {
@@ -14249,15 +14294,16 @@ function removePlaylistTag(playlistId, tag) {
   showToast(t('toast_tag_removed'), 'success');
 }
 
-function showRenameTagModal(tag) {
+function showRenameTagModal(id) {
+  const name = tagDisplayName(id);
   openModal(`
     <div class="modal-header">
-      <div class="modal-title">${escapeHtml(t('tags_rename_title', { tag }))}</div>
+      <div class="modal-title">${escapeHtml(t('tags_rename_title', { tag: name }))}</div>
     </div>
     <div class="modal-body">
       <div class="form-group">
         <label class="form-label" for="renameTagInput">${t('tags_rename_label')}</label>
-        <input type="text" class="form-control" id="renameTagInput" maxlength="60" value="${escapeHtml(tag)}" data-old="${escapeHtml(tag)}">
+        <input type="text" class="form-control" id="renameTagInput" maxlength="60" value="${escapeHtml(name)}" data-old="${escapeHtml(id)}">
       </div>
     </div>
     <div class="modal-footer">
@@ -14270,17 +14316,24 @@ function showRenameTagModal(tag) {
   input.select();
 }
 
+// Rename a tag the user created. Onto a name some tag already has, in any
+// language (a category, a genre, another tag or its translation), the two
+// merge. Otherwise a tag with translations gets its name in the current
+// language changed; a tag without any is renamed outright.
 function applyRenameTag() {
   const input = document.getElementById('renameTagInput');
   const from = input.dataset.old;
   const to = input.value.trim().slice(0, 60);
-  // A comma would split the tag the next time the playlist's tag field is saved.
-  if (!to || to.includes(',') || ['__proto__', 'constructor', 'prototype'].includes(to)) {
+  const target = isValidTagText(to) ? tagIdFromName(to, APP.tagLabels) : null;
+  if (!target || isBuiltinTag(from)) {
     showToast(t('toast_tag_name_invalid'), 'error');
     return;
   }
-  if (to !== from) {
-    mergeTagInto(from, to);
+  const used = new Set(Object.values(APP.tags).flat());
+  if (target !== from) {
+    const translated = Object.keys(APP.tagLabels[from] || {}).length > 0;
+    if (isBuiltinTag(target) || used.has(target) || target !== to || !translated) mergeTagInto(from, target);
+    else APP.tagLabels[from] = { ...APP.tagLabels[from], [currentLang]: to };
     saveTagState();
     refreshTagsList();
   }
@@ -14289,54 +14342,62 @@ function applyRenameTag() {
 }
 
 // Renames `from` to `to` everywhere; onto an existing tag, the two merge. The
-// icon follows unless `to` has one. The caller saves.
+// icon and the translations follow unless `to` has its own. The caller saves.
 function mergeTagInto(from, to) {
   for (const id of Object.keys(APP.tags)) {
     if (APP.tags[id].includes(from)) APP.tags[id] = [...new Set(APP.tags[id].map(tg => tg === from ? to : tg))];
   }
   if (APP.tagIcons[from] && !APP.tagIcons[to]) APP.tagIcons[to] = APP.tagIcons[from];
+  if (APP.tagLabels[from] && !APP.tagLabels[to] && !isBuiltinTag(to)) APP.tagLabels[to] = APP.tagLabels[from];
 }
 
-// The auto-categorizer writes tags in the UI language (AUD-27), so a run in
-// French and another in English left both "Musique" and "Music". These are the
-// [fr, en] names it can write: YouTube categories, genres, keyword tags.
-function tagTranslationPairs() {
-  const pairs = new Map();
-  const add = (fr, en) => { if (fr && en && fr !== en) pairs.set(fr + '\u0000' + en, [fr, en]); };
-  Object.values(VIDEO_CATEGORIES).forEach(c => add(c.fr, c.en));
-  Object.values(GENRE_LABELS).forEach(([fr, en]) => add(fr, en));
-  ['autotag_music', 'autotag_education', 'autotag_entertainment'].forEach(k => add(I18N.fr[k], I18N.en[k]));
-  return [...pairs.values()];
+function showTranslateTagModal(id) {
+  const names = APP.tagLabels[id] || {};
+  const fields = UI_LANGUAGES.map(lang => `
+      <div class="form-group">
+        <label class="form-label" for="tagLabel_${lang}">${lang.toUpperCase()}</label>
+        <input type="text" class="form-control tag-label-input" id="tagLabel_${lang}" data-lang="${lang}" maxlength="60"
+               value="${escapeHtml(names[lang] || '')}" placeholder="${escapeHtml(id)}">
+      </div>`).join('');
+  openModal(`
+    <div class="modal-header">
+      <div class="modal-title">${escapeHtml(t('tags_translate_title', { tag: tagDisplayName(id) }))}</div>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="translateTagId" value="${escapeHtml(id)}">
+      <p class="text-muted" style="font-size: 12px; margin-bottom: 12px;">${escapeHtml(t('tags_translate_hint', { tag: id }))}</p>
+      ${fields}
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">${t('modal_cancel')}</button>
+      <button class="btn btn-primary" onclick="applyTranslateTag()">${t('modal_save')}</button>
+    </div>
+  `);
 }
 
-/** The spelling this library already uses for `tag`, in either language. */
-function existingTagSpelling(tag) {
+// One name per language; an empty field shows the tag's own text. A name that
+// is already another tag's (in any language) is refused: it would merge them.
+function applyTranslateTag() {
+  const id = document.getElementById('translateTagId').value;
   const used = new Set(Object.values(APP.tags).flat());
-  if (used.has(tag)) return tag;
-  for (const [fr, en] of tagTranslationPairs()) {
-    if (tag === fr && used.has(en)) return en;
-    if (tag === en && used.has(fr)) return fr;
+  const names = {};
+  for (const input of document.querySelectorAll('.tag-label-input')) {
+    const value = input.value.trim().slice(0, 60);
+    if (!value) continue;
+    if (!isValidTagText(value)) { showToast(t('toast_tag_name_invalid'), 'error'); return; }
+    const other = tagIdFromName(value, APP.tagLabels);
+    if (!other || (other !== id && (other !== value || used.has(value)))) {
+      showToast(t('toast_tag_label_taken', { tag: value }), 'error');
+      return;
+    }
+    if (value !== id) names[input.dataset.lang] = value;
   }
-  return tag;
-}
-
-/** [keep, drop] for every pair the library carries in both languages; the UI language is kept. */
-function tagDuplicatePairs() {
-  const used = new Set(Object.values(APP.tags).flat());
-  return tagTranslationPairs()
-    .filter(([fr, en]) => used.has(fr) && used.has(en))
-    .map(([fr, en]) => currentLang === 'en' ? [en, fr] : [fr, en]);
-}
-
-function mergeTagDuplicates() {
-  const pairs = tagDuplicatePairs();
-  if (!pairs.length) return;
-  const list = pairs.map(([keep, drop]) => `${drop} → ${keep}`).join('\n');
-  if (!confirm(t('tags_merge_confirm', { count: pairs.length, list }))) return;
-  pairs.forEach(([keep, drop]) => mergeTagInto(drop, keep));
+  if (Object.keys(names).length) APP.tagLabels[id] = names;
+  else delete APP.tagLabels[id];
   saveTagState();
   refreshTagsList();
-  showToast(t('toast_tags_merged', { count: pairs.length }), 'success');
+  closeModal();
+  showToast(t('toast_tag_translated'), 'success');
 }
 
 function showRemoveTagModal(tag) {
@@ -14351,7 +14412,7 @@ function showRemoveTagModal(tag) {
   }).join('');
   openModal(`
     <div class="modal-header">
-      <div class="modal-title">${escapeHtml(t('tags_remove_from_title', { tag }))}</div>
+      <div class="modal-title">${escapeHtml(t('tags_remove_from_title', { tag: tagDisplayName(tag) }))}</div>
     </div>
     <div class="modal-body">
       <input type="hidden" id="removeTagName" value="${escapeHtml(tag)}">
@@ -14380,7 +14441,7 @@ function applyRemoveTag() {
 
 function deleteTagEverywhere(tag) {
   const count = (tagUsage().get(tag) || []).length;
-  if (!confirm(t('tags_delete_confirm', { tag, count }))) return;
+  if (!confirm(t('tags_delete_confirm', { tag: tagDisplayName(tag), count }))) return;
   for (const id of Object.keys(APP.tags)) APP.tags[id] = APP.tags[id].filter(tg => tg !== tag);
   saveTagState();
   refreshTagsList();
@@ -14391,14 +14452,16 @@ function editPlaylistTags(playlistId) {
   const playlist = APP.playlists.find(p => p.id === playlistId);
   const currentTags = APP.tags[playlistId] || [];
 
-  const tagIconEditors = currentTags.length ? currentTags.map(t => {
-    const currentIcon = APP.tagIcons[t] || '';
+  // Icon inputs are keyed by position and carry the tag id: an id such as
+  // "yt:10" is no safe element id.
+  const tagIconEditors = currentTags.length ? currentTags.map((tag, i) => {
+    const currentIcon = APP.tagIcons[tag] || '';
     return `
       <div style="margin-bottom: 12px; padding: 8px; background: var(--surface2); border-radius: var(--radius);">
-        <div style="font-weight: 500; margin-bottom: 4px;">${currentIcon ? escapeHtml(currentIcon) + ' ' : ''}${escapeHtml(t)}</div>
+        <div style="font-weight: 500; margin-bottom: 4px;">${currentIcon ? escapeHtml(currentIcon) + ' ' : ''}${escapeHtml(tagDisplayName(tag))}</div>
         <div class="form-group" style="margin: 0;">
-          <input type="hidden" id="tagIcon_${escapeHtml(CSS.escape(t))}" value="${escapeHtml(currentIcon)}">
-          ${getEmojiPickerHtml(currentIcon, 'tagIcon_' + CSS.escape(t))}
+          <input type="hidden" class="tag-icon-input" id="tagIcon_${i}" data-tag="${escapeHtml(tag)}" value="${escapeHtml(currentIcon)}">
+          ${getEmojiPickerHtml(currentIcon, 'tagIcon_' + i)}
         </div>
       </div>
     `;
@@ -14411,7 +14474,7 @@ function editPlaylistTags(playlistId) {
     <div class="modal-body">
       <div class="form-group">
         <label class="form-label" for="tagsInput">${t('tags_input_label')}</label>
-        <input type="text" class="form-control" id="tagsInput" value="${escapeHtml(currentTags.join(', '))}">
+        <input type="text" class="form-control" id="tagsInput" value="${escapeHtml(currentTags.map(tagDisplayName).join(', '))}">
       </div>
       <div class="form-group" style="margin-top: 16px;">
         <label class="form-label">${t('tags_per_tag')}</label>
@@ -14426,21 +14489,20 @@ function editPlaylistTags(playlistId) {
   document.getElementById('tagsInput').focus();
 }
 
+// The field holds names in the interface language; each becomes the id it
+// stands for, so typing "Music" or "Musique" is the same category.
 function savePlaylistTags(playlistId) {
   const input = document.getElementById('tagsInput').value;
-  const tags = input.split(',').map(t => t.trim()).filter(t => t);
+  const tags = [...new Set(input.split(',').map(s => s.trim()).filter(isValidTagText)
+    .map(s => tagIdFromName(s, APP.tagLabels)).filter(Boolean))];
   APP.tags[playlistId] = tags;
 
   // Save icons for each tag that has an icon input
-  tags.forEach(t => {
-    const iconInput = document.getElementById('tagIcon_' + CSS.escape(t));
-    if (iconInput) {
-      if (iconInput.value) {
-        APP.tagIcons[t] = iconInput.value;
-      } else {
-        delete APP.tagIcons[t];
-      }
-    }
+  document.querySelectorAll('.tag-icon-input').forEach(iconInput => {
+    const tag = iconInput.dataset.tag;
+    if (!tags.includes(tag)) return;
+    if (iconInput.value) APP.tagIcons[tag] = iconInput.value;
+    else delete APP.tagIcons[tag];
   });
   saveTagState();
   refreshTagsList();
@@ -14485,25 +14547,31 @@ function showAddTagModal() {
 }
 
 function applyNewTag() {
-  const tagName = document.getElementById('newTagInput').value.trim();
+  const typed = document.getElementById('newTagInput').value.trim().slice(0, 60);
   const tagIcon = document.getElementById('newTagIconInput').value.trim();
   const selected = Array.from(document.querySelectorAll('.tag-playlist-select:checked')).map(el => el.value);
 
-  if (!tagName || !selected.length) {
+  if (!typed || !selected.length) {
     showToast(t('toast_enter_tag_select'), 'error');
+    return;
+  }
+  // "Music" typed in French is the Musique category: one tag, not two.
+  const tag = isValidTagText(typed) ? tagIdFromName(typed, APP.tagLabels) : null;
+  if (!tag) {
+    showToast(t('toast_tag_name_invalid'), 'error');
     return;
   }
 
   selected.forEach(id => {
     if (!APP.tags[id]) APP.tags[id] = [];
-    if (!APP.tags[id].includes(tagName)) APP.tags[id].push(tagName);
+    if (!APP.tags[id].includes(tag)) APP.tags[id].push(tag);
   });
 
   // Save icon
   if (tagIcon) {
-    APP.tagIcons[tagName] = tagIcon;
+    APP.tagIcons[tag] = tagIcon;
   } else {
-    delete APP.tagIcons[tagName];
+    delete APP.tagIcons[tag];
   }
   saveTagState();
   refreshTagsList();
@@ -15137,13 +15205,15 @@ function keywordCategory(title, keywords) {
 }
 
 async function showAutoCategorizerModal() {
-  // The suggested tag names are the user's future tags: in the UI language (AUD-27)
+  // Tag ids, named in the interface language when shown (shared/core.js).
+  // Music, Education and Entertainment are the YouTube categories of those
+  // names; Fitness and Tech have none and stay plain tags.
   const keywords = {
-    [t('autotag_music')]: ['music', 'chanson', 'playlist', 'audio', 'son'],
+    'yt:10': ['music', 'chanson', 'playlist', 'audio', 'son'],
     'Fitness': ['gym', 'sport', 'exercise', 'workout', 'fitness'],
     'Tech': ['tech', 'code', 'programming', 'software', 'developer'],
-    [t('autotag_education')]: ['course', 'tutorial', 'learn', 'education', 'school'],
-    [t('autotag_entertainment')]: ['funny', 'comedy', 'entertainment', 'movie', 'film'],
+    'yt:27': ['course', 'tutorial', 'learn', 'education', 'school'],
+    'yt:24': ['funny', 'comedy', 'entertainment', 'movie', 'film'],
   };
 
   const suggestions = {};
@@ -15212,22 +15282,20 @@ async function showAutoCategorizerModal() {
               if (catId) categoryCount[catId] = (categoryCount[catId] || 0) + 1;
             }
 
-            // The most common category of the videos, by name. An id we cannot
-            // name is no answer: the categories list may have failed to load,
-            // and tagging the whole library "Autre" is worse than saying nothing.
+            // The most common category of the videos, as a tag id. An id we
+            // cannot name is no answer: tagging the whole library with an
+            // unknown category is worse than saying nothing.
             const mostCommon = Object.entries(categoryCount).sort((a, b) => b[1] - a[1])[0]?.[0];
-            const suggested = (mostCommon && VIDEO_CATEGORIES[mostCommon] && getCategoryName(mostCommon))
+            const suggested = (mostCommon && VIDEO_CATEGORIES[mostCommon] && 'yt:' + mostCommon)
                            || keywordCategory(pl.snippet.title, keywords);
             // #J3 — the genre was only a badge; a playlist whose music shares one
             // genre now gets it as a tag too. Same details, no extra quota.
             const genre = dominantGenre(Object.values(details));
-            // A tag the library already has in the other language keeps that spelling.
-            const tags = [suggested, genre].filter(Boolean).map(existingTagSpelling);
+            const tags = [suggested, genre].filter(Boolean);
             if (tags.length) suggestions[pl.id] = { title: pl.snippet.title, suggested: tags[0], tags, accepted: false };
           } catch (err) {
             console.warn('Categorization: no details for ' + pl.id, err);
-            const found = keywordCategory(pl.snippet.title, keywords);
-            const suggested = found && existingTagSpelling(found);
+            const suggested = keywordCategory(pl.snippet.title, keywords);
             if (suggested) suggestions[pl.id] = { title: pl.snippet.title, suggested, tags: [suggested], accepted: false };
           }
         }
@@ -15254,7 +15322,7 @@ async function showAutoCategorizerModal() {
           <input type="checkbox" data-pl-id="${plId}" class="categorizer-checkbox" checked>
           <div style="flex: 1;">
             <div style="font-weight: 500; font-size: 14px;">${escapeHtml(info.title)}</div>
-            <div style="font-size: 12px; color: var(--text2);">${t('categorizer_suggested')} <strong>${escapeHtml((info.tags || [info.suggested]).join(' · '))}</strong></div>
+            <div style="font-size: 12px; color: var(--text2);">${t('categorizer_suggested')} <strong>${escapeHtml((info.tags || [info.suggested]).map(tagDisplayName).join(' · '))}</strong></div>
           </div>
         </div>
       `;
@@ -15299,10 +15367,10 @@ function dominantGenre(details) {
     });
     if (!c.isMusic) continue;
     music++;
-    if (c.genre) counts[c.genre] = (counts[c.genre] || 0) + 1;
+    if (c.genreKey) counts[c.genreKey] = (counts[c.genreKey] || 0) + 1;
   }
   const [genre, n] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0] || [];
-  return genre && n >= 2 && n * 2 >= music ? genre : null;
+  return genre && n >= 2 && n * 2 >= music ? 'genre:' + genre : null;   // a tag id
 }
 
 function applyCategorization(suggestions) {
@@ -15996,6 +16064,7 @@ async function createFullBackup() {
     playlistObjects: APP.playlists,
     tags: APP.tags,
     tagIcons: APP.tagIcons,
+    tagLabels: APP.tagLabels,
     folders: APP.folders,
     folderAssignments: APP.folderAssignments,
     deckColumns: APP.deckColumns,
@@ -16039,7 +16108,7 @@ function createCSVBackup() {
     const videos = APP.allVideos[pl.id] || [];
     const tags = (APP.tags[pl.id] || []).map(t => {
       const icon = APP.tagIcons[t] || '';
-      return icon ? icon + ' ' + t : t;
+      return icon ? icon + ' ' + tagDisplayName(t) : tagDisplayName(t);
     }).join(' | ');
 
     if (videos.length === 0) {
@@ -16163,6 +16232,7 @@ function parseJSONForRestore(text) {
     metadata: {
       tags: backup.tags || null,
       tagIcons: backup.tagIcons || null,
+      tagLabels: backup.tagLabels || null,
       folders: backup.folders || null,
       folderAssignments: backup.folderAssignments || null,
       deckColumns: backup.deckColumns || null,
@@ -16321,6 +16391,9 @@ async function executeRestore() {
     const m = restoreData.metadata;
     if (m.tags) { APP.tags = { ...APP.tags, ...m.tags }; localStorage.setItem('playlistTags', JSON.stringify(APP.tags)); }
     if (m.tagIcons) { APP.tagIcons = { ...APP.tagIcons, ...m.tagIcons }; localStorage.setItem('tagIcons', JSON.stringify(APP.tagIcons)); }
+    if (m.tagLabels) { APP.tagLabels = { ...APP.tagLabels, ...m.tagLabels }; localStorage.setItem('tagLabels', JSON.stringify(APP.tagLabels)); }
+    // A backup from before tag ids carries names: make them ids (shared/core.js).
+    if (m.tags || m.tagIcons) migrateTagIds();
     if (m.folders) { APP.folders = m.folders; localStorage.setItem('playlistFolders', JSON.stringify(APP.folders)); }
     if (m.folderAssignments) { APP.folderAssignments = { ...APP.folderAssignments, ...m.folderAssignments }; localStorage.setItem('folderAssignments', JSON.stringify(APP.folderAssignments)); }
     if (m.deckColumns) { APP.deckColumns = m.deckColumns; localStorage.setItem('deckColumns', JSON.stringify(APP.deckColumns)); }
@@ -16638,7 +16711,7 @@ async function exportLibrary() {
       const videos = APP.allVideos[pl.id] || [];
       const tags = (APP.tags[pl.id] || []).map(t => {
         const icon = APP.tagIcons[t] || '';
-        return icon ? icon + ' ' + t : t;
+        return icon ? icon + ' ' + tagDisplayName(t) : tagDisplayName(t);
       }).join(' | ');
 
       if (videos.length === 0) {
@@ -16686,7 +16759,8 @@ async function exportLibrary() {
       allData.push({
         playlistId: pl.id,
         playlistTitle: pl.snippet.title,
-        tags: APP.tags[pl.id] || [],
+        tags: APP.tags[pl.id] || [],   // ids (shared/core.js); names below, in the interface language
+        tagNames: (APP.tags[pl.id] || []).map(tagDisplayName),
         videos: videos.map(v => {
           const videoId = v.contentDetails?.videoId || v.snippet?.resourceId?.videoId || '';
           const detail = videoDetailsCache[videoId];

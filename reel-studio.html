@@ -543,7 +543,7 @@
 
 <nav class="dock" id="dock" data-a11y="navLabel"></nav>
 
-<script src="shared/core.js?v=1.27.61"></script>   <!-- AUD-33 — helpers shared with the app -->
+<script src="shared/core.js?v=1.27.62"></script>   <!-- AUD-33 — helpers shared with the app -->
 <script>
 // ═══════════════════════════════════════════════════════════════════════
 // Reel Studio — companion UI for Reel Manager (exploration 3a).
@@ -972,7 +972,11 @@ function loadData(cache) {
 
   const objects = {};
   (cache.playlistObjects || []).forEach(p => { objects[p.id] = p; });
-  const tagMap = cache.tags || {};
+  // Tags are ids named per language (shared/core.js). An older cache carries
+  // names: normalizeTagIds() turns them into ids, as the app does at startup.
+  const tagLabels = cache.tagLabels || {};
+  const tagMap = normalizeTagIds(cache.tags || {}, {}, tagLabels).tags;
+  const tagName = id => tagLabel(id, LANG, tagLabels);
 
   const occurrences = new Map();   // videoId -> [{playlist, title}]
   const channels = new Map();
@@ -1026,7 +1030,7 @@ function loadData(cache) {
 
   const tagTotals = {};
   playlists.forEach(pl => pl.tags.forEach(tag => {
-    tagTotals[tag] = tagTotals[tag] || { name: tag, playlists: [], videos: 0 };
+    tagTotals[tag] = tagTotals[tag] || { id: tag, name: tagName(tag), playlists: [], videos: 0 };
     tagTotals[tag].playlists.push(pl);
     tagTotals[tag].videos += pl.count;
   }));
@@ -1048,6 +1052,7 @@ function loadData(cache) {
     dupes,
     dupeCount: dupes.reduce((a, l) => a + l.length - 1, 0),
     tags: Object.values(tagTotals).sort((a, b) => b.videos - a.videos),
+    tagName,   // tag id → its name in the interface language
     channels: [...channels.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
     months: [...months.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-12),
     watchQueue: Array.isArray(watchQueue) ? watchQueue : [],
@@ -1121,7 +1126,7 @@ function playlistCard(pl) {
       <div class="pl-body">
         <div class="pl-title" title="${esc(pl.title)}">${esc(pl.title)}</div>
         <div class="pl-meta">${fmtHours(pl.seconds)}${pl.privacy ? ' · ' + esc(pl.privacy) : ''}</div>
-        ${pl.tags.length ? `<div class="pl-tags">${pl.tags.map(t => `<span class="tag-pill">${esc(t)}</span>`).join('')}</div>` : ''}
+        ${pl.tags.length ? `<div class="pl-tags">${pl.tags.map(t => `<span class="tag-pill">${esc(DATA.tagName(t))}</span>`).join('')}</div>` : ''}
       </div>
     </article>`;
 }
@@ -1274,7 +1279,7 @@ function viewPlaylists() {
 
   return `
     <div class="view-head"><h2>${esc(tr('playlists'))}</h2>
-      <span class="count">${nf(list.length)} / ${nf(d.playlists.length)}${UI.plTag ? ' · ' + esc(UI.plTag) : ''}</span></div>
+      <span class="count">${nf(list.length)} / ${nf(d.playlists.length)}${UI.plTag ? ' · ' + esc(d.tagName(UI.plTag)) : ''}</span></div>
     <div class="toolbar">
       <span role="group" aria-label="${esc(tr('lensLabel'))}" style="display:inline-flex;gap:6px">
         ${[['all', tr('all')], ['video', tr('lensVideo')], ['music', tr('lensMusic')]].map(([val, label]) =>
@@ -1287,7 +1292,7 @@ function viewPlaylists() {
         <option value="title"${UI.plSort === 'title' ? ' selected' : ''}>${esc(tr('sortTitle'))}</option>
         <option value="duration"${UI.plSort === 'duration' ? ' selected' : ''}>${esc(tr('sortDuration'))}</option>
       </select>
-      ${UI.plTag ? `<button class="chip active" onclick="UI.plTag=''; renderView()">${esc(UI.plTag)} ×</button>` : ''}
+      ${UI.plTag ? `<button class="chip active" onclick="UI.plTag=''; renderView()">${esc(d.tagName(UI.plTag))} ×</button>` : ''}
     </div>
     <div class="grid">${list.map(playlistCard).join('') || `<div class="muted">${esc(tr('noResult'))}</div>`}</div>`;
 }
@@ -1310,7 +1315,7 @@ function viewPlaylistDetail(pl) {
       <a class="chip" style="text-decoration:none" href="${plUrl(pl.id)}" target="_blank" rel="noopener"
          onclick="return openOnYouTube(event, '${escJs(plUrl(pl.id))}')">YouTube ↗</a>
     </div>
-    ${pl.tags.length ? `<div class="pl-tags" style="margin-bottom:14px">${pl.tags.map(t => `<span class="tag-pill">${esc(t)}</span>`).join('')}</div>` : ''}
+    ${pl.tags.length ? `<div class="pl-tags" style="margin-bottom:14px">${pl.tags.map(t => `<span class="tag-pill">${esc(DATA.tagName(t))}</span>`).join('')}</div>` : ''}
     <div class="toolbar">
       <input class="field" id="vidFilterField" style="min-width:260px" placeholder="${esc(tr('filterVideos'))}" value="${esc(UI.vidFilter)}"
              oninput="UI.vidFilter=this.value; renderView(true)">
@@ -1479,7 +1484,7 @@ function viewTags() {
   return `
     <div class="view-head"><h2>${esc(S.dock.tags)}</h2><span class="count">${d.tags.length}</span></div>
     <div class="grid">${d.tags.map((t, i) => `
-      <article class="card reactive" style="cursor:pointer" onclick="UI.plTag='${escJs(t.name)}'; go('playlists')">
+      <article class="card reactive" style="cursor:pointer" onclick="UI.plTag='${escJs(t.id)}'; go('playlists')">
         <div class="legend-dot" style="background:${catColor(i)};width:12px;height:12px;margin-bottom:10px"></div>
         <div style="font-family:var(--font-display);font-weight:800;font-size:19px;margin-bottom:6px">${esc(t.name)}</div>
         <div class="pl-meta">${t.playlists.length} ${esc(tr('playlists').toLowerCase())} · ${nf(t.videos)} ${esc(tr('items'))}</div>

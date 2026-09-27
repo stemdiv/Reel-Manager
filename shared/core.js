@@ -102,6 +102,99 @@ function categoricalsFor(theme, accents) {
   return [accents[0], accents[1], accents[2], hsl(c[0], 15), hsl(c[1], 15), hsl(c[2], 15)];
 }
 
+// ── Tags: an id, and a name per language ────────────────────────────────────
+// A tag is stored as an id; its name follows the interface language, so the
+// French and English names of one category are one tag. Built-in ids carry a
+// namespace: "yt:<categoryId>" (a YouTube category) and "genre:<Wikipedia
+// page>" (a music genre). Any other id is a tag the user created: its own
+// text, with optional names per language in tagLabels ({ id: { fr, en } }).
+// Adding a language means adding it to these tables (tests.html checks).
+
+// YouTube video categories (ids are global and stable). Source:
+// videoCategories.list FR + EN. a: assignable to an upload.
+var VIDEO_CATEGORIES = { "1":{fr:"Films et animations",en:"Film & Animation",a:1}, "2":{fr:"Auto/Moto",en:"Autos & Vehicles",a:1}, "10":{fr:"Musique",en:"Music",a:1}, "15":{fr:"Animaux",en:"Pets & Animals",a:1}, "17":{fr:"Sport",en:"Sports",a:1}, "18":{fr:"Courts métrages",en:"Short Movies",a:0}, "19":{fr:"Voyages et événements",en:"Travel & Events",a:1}, "20":{fr:"Jeux vidéo",en:"Gaming",a:1}, "21":{fr:"Blogs vidéo",en:"Videoblogging",a:0}, "22":{fr:"People et blogs",en:"People & Blogs",a:1}, "23":{fr:"Humour",en:"Comedy",a:1}, "24":{fr:"Divertissement",en:"Entertainment",a:1}, "25":{fr:"Actualités et politique",en:"News & Politics",a:1}, "26":{fr:"Vie pratique et style",en:"Howto & Style",a:1}, "27":{fr:"Éducation",en:"Education",a:1}, "28":{fr:"Science et technologie",en:"Science & Technology",a:1}, "29":{fr:"Associations et bénévolat",en:"Nonprofits & Activism",a:1}, "30":{fr:"Films",en:"Movies",a:0}, "31":{fr:"Dessins animés/films d'animation",en:"Anime/Animation",a:0}, "32":{fr:"Action/aventure",en:"Action/Adventure",a:0}, "33":{fr:"Classique",en:"Classics",a:0}, "34":{fr:"Humour",en:"Comedy",a:0}, "35":{fr:"Documentaire",en:"Documentary",a:0}, "36":{fr:"Drame",en:"Drama",a:0}, "37":{fr:"Famille",en:"Family",a:0}, "38":{fr:"Étranger",en:"Foreign",a:0}, "39":{fr:"Horreur",en:"Horror",a:0}, "40":{fr:"Science-fiction/fantastique",en:"Sci-Fi/Fantasy",a:0}, "41":{fr:"Thriller",en:"Thriller",a:0}, "42":{fr:"Court métrage",en:"Shorts",a:0}, "43":{fr:"Émissions",en:"Shows",a:0}, "44":{fr:"Bandes-annonces",en:"Trailers",a:0} };
+
+// Wikipedia topic → genre name (AUD-27: was French only). A topic missing
+// here still names itself, underscores as spaces.
+var GENRE_LABELS = {
+  'Electronic_music': { fr: 'Électronique / EDM', en: 'Electronic / EDM' }, 'Hip_hop_music': { fr: 'Hip-hop / Rap', en: 'Hip-hop / Rap' },
+  'Pop_music': { fr: 'Pop', en: 'Pop' }, 'Rock_music': { fr: 'Rock', en: 'Rock' }, 'Rhythm_and_blues': { fr: 'R&B', en: 'R&B' }, 'Soul_music': { fr: 'Soul', en: 'Soul' },
+  'Classical_music': { fr: 'Classique', en: 'Classical' }, 'Country_music': { fr: 'Country', en: 'Country' }, 'Christian_music': { fr: 'Gospel / Chrétienne', en: 'Gospel / Christian' },
+  'Independent_music': { fr: 'Indé', en: 'Indie' }, 'Music_of_Latin_America': { fr: 'Latino', en: 'Latin' }, 'Music_of_Asia': { fr: 'Asie', en: 'Asian' },
+  'Jazz': { fr: 'Jazz', en: 'Jazz' }, 'Reggae': { fr: 'Reggae', en: 'Reggae' }, 'Blues': { fr: 'Blues', en: 'Blues' },
+};
+
+var TAG_ID_RE = /^(?:yt:\d+|genre:[A-Za-z0-9_%().\-]+)$/;   // genre: a Wikipedia page name
+
+function isBuiltinTag(id) {
+  return /^(?:yt|genre):/.test(String(id || ''));
+}
+
+function ownNames(map, id) {
+  return map && Object.prototype.hasOwnProperty.call(map, id) && map[id] && typeof map[id] === 'object' ? map[id] : null;
+}
+
+/** The name of tag `id` in `lang`: that language, else English, else French, else the id. */
+function tagLabel(id, lang, customLabels) {
+  const s = String(id || '');
+  const pick = names => names && (names[lang] || names.en || names.fr);
+  if (s.startsWith('yt:')) return pick(ownNames(VIDEO_CATEGORIES, s.slice(3))) || s;
+  if (s.startsWith('genre:')) return pick(ownNames(GENRE_LABELS, s.slice(6))) || s.slice(6).replace(/_/g, ' ');
+  const own = ownNames(customLabels, s);
+  return (own && own[lang]) || s;
+}
+
+/**
+ * The id a typed or legacy name stands for, whatever its language: "Music",
+ * "Musique" and "musique" are all "yt:10". Assignable categories first, then
+ * genres, then the other categories ("Humour" is 23, not the old 34;
+ * "Classique" is the genre, not category 33). A name nothing knows is a user
+ * tag: its own id, or the one whose translation it is. null for a reserved
+ * "yt:…" / "genre:…" string that names nothing.
+ */
+function tagIdFromName(name, customLabels) {
+  const s = String(name || '').trim();
+  if (!s) return null;
+  if (isBuiltinTag(s)) {
+    if (!TAG_ID_RE.test(s)) return null;
+    return s.startsWith('yt:') && !ownNames(VIDEO_CATEGORIES, s.slice(3)) ? null : s;
+  }
+  const key = s.toLocaleLowerCase();
+  const same = names => !!names && Object.keys(names).some(l => l !== 'a' && String(names[l]).toLocaleLowerCase() === key);
+  const cats = Object.entries(VIDEO_CATEGORIES);
+  for (const [id, c] of cats) if (c.a && same(c)) return 'yt:' + id;
+  for (const [g, names] of Object.entries(GENRE_LABELS)) if (same(names)) return 'genre:' + g;
+  for (const [id, c] of cats) if (!c.a && same(c)) return 'yt:' + id;
+  for (const [id, names] of Object.entries(customLabels || {})) {
+    if (id.toLocaleLowerCase() === key || same(names)) return id;
+  }
+  return s;
+}
+
+/**
+ * Migration to ids, safe to run again: every tag name becomes the id it
+ * stands for, the duplicates of one playlist merge, and icons follow. An
+ * icon already on the id wins over one carried by an old name.
+ * → { tags, icons, changed }
+ */
+function normalizeTagIds(tags, icons, customLabels) {
+  let changed = false;
+  const outTags = {};
+  for (const [pl, list] of Object.entries(tags || {})) {
+    if (!Array.isArray(list)) continue;
+    const ids = [...new Set(list.map(n => tagIdFromName(n, customLabels) || n))];
+    if (ids.length !== list.length || ids.some((x, i) => x !== list[i])) changed = true;
+    outTags[pl] = ids;
+  }
+  const outIcons = {};
+  for (const [name, icon] of Object.entries(icons || {})) {
+    const id = tagIdFromName(name, customLabels) || name;
+    if (id !== name) changed = true;
+    if (!Object.prototype.hasOwnProperty.call(outIcons, id) || id === name) outIcons[id] = icon;
+  }
+  return { tags: outTags, icons: outIcons, changed };
+}
+
 // ── Music detection (design spec §3, AUD-25) ────────────────────────────────
 // Moved here so Reel Studio's Music / Videos filter gives the app's verdicts.
 // Pure: category, topics, tags and description come in with the video. The
