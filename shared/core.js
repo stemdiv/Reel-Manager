@@ -339,8 +339,17 @@ function tutorialScore(v) {
 var MUSIC_INCLUDE_RE = wordsRe(String.raw`official (?:video|music video|audio)|clip officiel|lyrics? video|concert|full album|album complet|mix|dj ?set|remix|audio|feat\.?|ft\.?|prod\.?|cover|acoustic|bande originale|ost|soundtrack`);
 var MUSIC_LIVE_RE = wordsRe(String.raw`live\s*(?:at|@|in|from|au|aux|à)|\(live\)|\[live\]|live (?:session|set|concert|show|performance)|boiler room|unplugged|tiny desk`);
 
+// Four kinds, after YouTube Music's videoType (the Data API does not expose
+// it): a track (ATV: an artist's audio, a "- Topic" upload), a clip (OMV: a
+// music video), live & sets (concerts, sessions, and any music over 20 min:
+// sets, mixes, full albums), and other (not music). A song-length upload with
+// no hint off a Topic channel is a clip: on YouTube that is the common case.
+var MUSIC_KINDS = ['track', 'clip', 'live'];
+var MUSIC_AUDIO_RE = wordsRe(String.raw`official audio|audio|visuali[sz]er|lyrics? video`);
+var MUSIC_CLIP_RE = wordsRe(String.raw`official (?:music )?video|clip officiel|clip|music video|mv|m/v`);
+
 /**
- * One video → { isMusic, isTrack, isTutorial, live, tutorialScore, topicSegs }.
+ * One video → { isMusic, isTrack, isTutorial, live, kind, tutorialScore, topicSegs }.
  * Inputs: title, channelTitle (or videoOwnerChannelTitle), durationSeconds,
  * categoryId, topics (topic URLs or bare Wikipedia page names), tags,
  * description. isTrack is the per-video #17 decision (musicScore); isMusic is
@@ -366,7 +375,16 @@ function classifyMusic(v) {
   // "mix", "audio", "remix" in an Education or Howto upload is a lesson about
   // them, not one of them.
   const isMusic = isTrack || (!excluded && (topicIsMusic || String(v.categoryId) === '10' || (includeMatched && !howtoCategory)));
-  return { isMusic, isTrack, isTutorial, live: live || /\bconcert\b/i.test(title), tutorialScore: tutScore, topicSegs };
+  const isLive = live || /\bconcert\b/i.test(title);
+  let kind = 'other';
+  if (isMusic) {
+    if (isLive || (Number(v.durationSeconds) || 0) > 1200) kind = 'live';
+    else if (isTopicChannel(channel)) kind = 'track';
+    else if (MUSIC_CLIP_RE.test(title) || /vevo$/i.test(String(channel).trim())) kind = 'clip';
+    else if (MUSIC_AUDIO_RE.test(title)) kind = 'track';
+    else kind = 'clip';
+  }
+  return { isMusic, isTrack, isTutorial, live: isLive, kind, tutorialScore: tutScore, topicSegs };
 }
 
 /**
@@ -381,11 +399,20 @@ function classifyMusic(v) {
 function playlistMusicVerdict(videos, classify) {
   const judge = classify || classifyMusic;
   const list = Array.isArray(videos) ? videos.slice(0, MUSIC_SAMPLE_SIZE) : [];
-  if (!list.length) return { verdict: 'video', ratio: 0, sampled: 0 };
-  const hits = list.filter(v => judge(v).isMusic).length;
+  if (!list.length) return { verdict: 'video', ratio: 0, sampled: 0, kinds: {}, dominant: null };
+  const kinds = {};
+  let hits = 0;
+  for (const v of list) {
+    const c = judge(v);
+    if (!c.isMusic) continue;
+    hits++;
+    if (c.kind && c.kind !== 'other') kinds[c.kind] = (kinds[c.kind] || 0) + 1;
+  }
   const ratio = hits / list.length;
   const verdict = ratio >= MUSIC_PLAYLIST_THRESHOLD ? 'music'
                 : ratio >= MUSIC_MIXED_THRESHOLD ? 'mixed'
                 : 'video';
-  return { verdict, ratio, sampled: list.length };
+  // The kind at least half of the music is; none of them → 'mixed'.
+  const top = MUSIC_KINDS.find(k => (kinds[k] || 0) * 2 >= hits && kinds[k]);
+  return { verdict, ratio, sampled: list.length, kinds, dominant: hits ? (top || 'mixed') : null };
 }

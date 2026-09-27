@@ -1,5 +1,23 @@
 [
  {
+  "v": "1.27.64",
+  "date": "2026-09-27",
+  "items": [
+   {
+    "fr": "Musique : chaque vidéo a désormais un type, sur le modèle de YouTube Music — Morceau (chaîne « Topic », audio officiel), Clip (clip vidéo), Live & sets (concerts, sessions, mixes et albums de plus de 20 min) ou Autre. Tout est déduit du titre, de la chaîne, de la catégorie et de la durée déjà connus : aucun quota.",
+    "en": "Music: each video now has a kind, after YouTube Music — Track (a \"Topic\" channel, official audio), Clip (a music video), Live & sets (concerts, sessions, mixes and albums over 20 min) or Other. It is all read from the title, channel, category and length already known: no quota."
+   },
+   {
+    "fr": "Bibliothèque (Reel Manager et Reel Studio) : sous le filtre Musique, une seconde rangée Tous · Morceaux · Clips · Live & sets garde les playlists dont ce type fait au moins la moitié de la musique, et un badge sur chaque carte indique son type dominant.",
+    "en": "Library (Reel Manager and Reel Studio): under the Music filter, a second row All · Tracks · Clips · Live & sets keeps the playlists where that kind is at least half the music, and a badge on each card shows its dominant kind."
+   },
+   {
+    "fr": "Vue Musique d'une playlist : des pastilles avec compteurs filtrent la liste par type, et les clips et lives portent un badge. Les menus Type (détail, recherche globale, Déplacer, Watch Plan) proposent Morceaux, Clips et Live & sets seulement.",
+    "en": "A playlist's Music view: chips with counts filter the tracklist by kind, and clips and lives carry a badge. The Type menus (detail, global search, Move, Watch Plan) offer Tracks, Clips and Live & sets only."
+   }
+  ]
+ },
+ {
   "v": "1.27.63",
   "date": "2026-09-27",
   "items": [

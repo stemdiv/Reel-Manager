@@ -181,7 +181,7 @@
   .pl-title { font-size: 13.5px; font-weight: 600; margin-bottom: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pl-meta { font-size: 11px; color: var(--text3); }
   .pl-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 8px; }
-  .tag-pill { font-size: 10px; border-radius: var(--pill); padding: 2px 8px; background: var(--accent-soft); color: var(--accent-text); border: 1px solid var(--accent-line); }
+  .tag-pill, .kind-pill { font-size: 10px; border-radius: var(--pill); padding: 2px 8px; background: var(--accent-soft); color: var(--accent-text); border: 1px solid var(--accent-line); }
 
   .row {
     display: grid; grid-template-columns: 104px 1fr auto; gap: 14px; align-items: center;
@@ -553,7 +553,7 @@
 
 <nav class="dock" id="dock" data-a11y="navLabel"></nav>
 
-<script src="shared/core.js?v=1.27.63"></script>   <!-- AUD-33 — helpers shared with the app -->
+<script src="shared/core.js?v=1.27.64"></script>   <!-- AUD-33 — helpers shared with the app -->
 <script>
 // ═══════════════════════════════════════════════════════════════════════
 // Reel Studio — companion UI for Reel Manager (exploration 3a).
@@ -604,6 +604,8 @@ const STRINGS = {
     ctlSeek: 'Position dans la vidéo', palClose: 'Fermer la palette', palHex: 'Saisir une couleur hexadécimale',
     navLabel: 'Vues', palLabel: 'Palette',
     lensLabel: 'Type de playlist', lensVideo: 'Vidéos', lensMusic: 'Musique',
+    kindLabel: 'Type de musique', kind_all: 'Tous', kind_track: 'Morceaux', kind_clip: 'Clips', kind_live: 'Live & sets',
+    kind_track_one: 'Morceaux', kind_clip_one: 'Clips', kind_live_one: 'Live',
     langSwitch: 'Changer de langue ({lang})',
     sortBy: 'Trier par', palCombo: 'Utiliser les couleurs {colours}', palSlot: 'Modifier l’accent {n} ({hex})', palSlotHex: 'Accent {n}, code hexadécimal',
   },
@@ -646,6 +648,8 @@ const STRINGS = {
     ctlSeek: 'Position in the video', palClose: 'Close the palette', palHex: 'Enter a hex colour',
     navLabel: 'Views', palLabel: 'Palette',
     lensLabel: 'Playlist type', lensVideo: 'Videos', lensMusic: 'Music',
+    kindLabel: 'Kind of music', kind_all: 'All', kind_track: 'Tracks', kind_clip: 'Clips', kind_live: 'Live & sets',
+    kind_track_one: 'Tracks', kind_clip_one: 'Clips', kind_live_one: 'Live',
     sortBy: 'Sort by', palCombo: 'Use the colours {colours}', palSlot: 'Change accent {n} ({hex})', palSlotHex: 'Accent {n}, hex code',
     langSwitch: 'Switch language ({lang})',
   },
@@ -988,6 +992,16 @@ function readLegacyCache() {
 }
 
 // ── Data ───────────────────────────────────────────────────────────────
+// Reel Manager's verdict and dominant kind (shared/core.js). null when nothing
+// is cached: the playlist then stays visible under every chip.
+function studioVerdict(videos) {
+  if (!videos.length) return { music: null, musicKind: null };
+  const r = playlistMusicVerdict(videos.map(v => ({
+    title: v.title, channelTitle: v.channel, durationSeconds: v.seconds, categoryId: v.category, topics: v.topics,
+  })));
+  return { music: r.verdict, musicKind: r.dominant };
+}
+
 function loadData(cache) {
   if (!cache || !Array.isArray(cache.playlists) || !cache.playlists.length) return null;
 
@@ -1043,9 +1057,7 @@ function loadData(cache) {
       privacy: objects[pl.id]?.status?.privacyStatus || '',
       tags: tagMap[pl.id] || [],
       // Reel Manager's verdict, from shared/core.js. null when nothing is cached.
-      music: videos.length ? playlistMusicVerdict(videos.map(v => ({
-        title: v.title, channelTitle: v.channel, durationSeconds: v.seconds, categoryId: v.category, topics: v.topics,
-      }))).verdict : null,
+      ...studioVerdict(videos),
     };
   }).sort((a, b) => b.count - a.count);
 
@@ -1088,7 +1100,7 @@ let DATA = null;
 // ── Router ─────────────────────────────────────────────────────────────
 const VIEWS = ['dashboard', 'playlists', 'search', 'kanban', 'dupes', 'stats', 'queue', 'tags'];
 let route = { view: 'dashboard', id: null };
-const UI = { plFilter: '', plSort: 'count', plTag: '', plLens: 'all', vidFilter: '', q: '', durFilter: '', statusFilter: '' };
+const UI = { plFilter: '', plSort: 'count', plTag: '', plLens: 'all', plKind: 'all', vidFilter: '', q: '', durFilter: '', statusFilter: '' };
 
 function parseHash() {
   const raw = (location.hash || '').replace(/^#\/?/, '');
@@ -1151,7 +1163,7 @@ function playlistCard(pl) {
       </div>
       <div class="pl-body">
         <div class="pl-title" title="${esc(pl.title)}">${esc(pl.title)}</div>
-        <div class="pl-meta">${fmtHours(pl.seconds)}${pl.privacy ? ' · ' + esc(pl.privacy) : ''}</div>
+        <div class="pl-meta">${fmtHours(pl.seconds)}${pl.privacy ? ' · ' + esc(pl.privacy) : ''} ${studioKindBadge(pl)}</div>
         ${pl.tags.length ? `<div class="pl-tags">${pl.tags.map(t => `<span class="tag-pill">${esc(DATA.tagName(t))}</span>`).join('')}</div>` : ''}
       </div>
     </article>`;
@@ -1278,14 +1290,28 @@ function renderDashboardCharts() {
 // Reel Manager's lens rule: a "Music view" / "Video view" choice made there
 // wins over detection; a 'mixed' playlist counts as video; a playlist with no
 // cached videos has no verdict and stays visible under every lens.
-function studioLensPasses(pl, lens) {
-  if (lens === 'all') return true;
+// The mode a playlist opens in, in Reel Manager: its override, else the
+// verdict. null when nothing is cached and nobody chose.
+function studioMode(pl) {
   let override;
   try { override = (JSON.parse(localStorage.getItem('playlistViewMode') || '{}') || {})[pl.id]; } catch (_) {}
-  if (override !== 'music' && override !== 'video') override = null;
-  if (!override && !pl.music) return true;
-  const mode = override || (pl.music === 'music' ? 'music' : 'video');
-  return lens === 'music' ? mode === 'music' : mode !== 'music';
+  if (override === 'music' || override === 'video') return override;
+  return pl.music ? (pl.music === 'music' ? 'music' : 'video') : null;
+}
+
+function studioLensPasses(pl, lens, kind) {
+  if (lens === 'all') return true;
+  const mode = studioMode(pl);
+  if (!mode) return true;
+  if (lens !== 'music') return mode !== 'music';
+  if (mode !== 'music') return false;
+  // Under Music, a kind shows the playlists where it is at least half the music.
+  return !kind || kind === 'all' || !pl.music || pl.musicKind === kind;
+}
+
+function studioKindBadge(pl) {
+  return studioMode(pl) === 'music' && MUSIC_KINDS.includes(pl.musicKind)
+    ? `<span class="kind-pill">${esc(tr('kind_' + pl.musicKind + '_one'))}</span>` : '';
 }
 
 function viewPlaylists() {
@@ -1293,7 +1319,7 @@ function viewPlaylists() {
   if (route.id) return viewPlaylistDetail(d.playlists.find(p => p.id === route.id));
 
   let list = d.playlists.slice();
-  if (UI.plLens !== 'all') list = list.filter(p => studioLensPasses(p, UI.plLens));
+  if (UI.plLens !== 'all') list = list.filter(p => studioLensPasses(p, UI.plLens, UI.plKind));
   if (UI.plTag) list = list.filter(p => p.tags.includes(UI.plTag));
   if (UI.plFilter) {
     const q = UI.plFilter.toLowerCase();
@@ -1311,6 +1337,10 @@ function viewPlaylists() {
         ${[['all', tr('all')], ['video', tr('lensVideo')], ['music', tr('lensMusic')]].map(([val, label]) =>
           `<button class="chip${UI.plLens === val ? ' active' : ''}" data-lens="${val}" aria-pressed="${UI.plLens === val}" onclick="UI.plLens='${val}'; renderView()">${esc(label)}</button>`).join('')}
       </span>
+      ${UI.plLens === 'music' ? `<span role="group" aria-label="${esc(tr('kindLabel'))}" style="display:inline-flex;gap:6px">
+        ${['all', ...MUSIC_KINDS].map(val =>
+          `<button class="chip${UI.plKind === val ? ' active' : ''}" data-kind="${val}" aria-pressed="${UI.plKind === val}" onclick="UI.plKind='${val}'; renderView()">${esc(tr('kind_' + val))}</button>`).join('')}
+      </span>` : ''}
       <input class="field" id="plFilterField" style="min-width:230px" placeholder="${esc(tr('filterPlaylists'))}" value="${esc(UI.plFilter)}"
              oninput="UI.plFilter=this.value; renderView(true)">
       <select class="field" aria-label="${esc(tr('sortBy'))}" onchange="UI.plSort=this.value; renderView()">

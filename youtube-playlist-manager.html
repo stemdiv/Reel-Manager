@@ -687,6 +687,7 @@
     padding: 7px 14px; cursor: pointer; white-space: nowrap;
   }
   .lens button + button { border-left: 1px solid var(--border); }
+  .lens.music-kinds { margin-bottom: 12px; }
   .lens button:hover { color: var(--text); background: var(--surface2); }
   /* AUD-43 — like .btn-primary: dark text on a fill kept at L 0.70 or lighter (was --bg: 2.6:1 in light) */
   .lens button.is-active { background: var(--accent); background: oklch(from var(--accent) max(l, 0.70) c h); color: #1a0a06; font-weight: 600; }
@@ -1622,6 +1623,12 @@
             <button type="button" data-lens="video" onclick="setLibraryLens('video')" data-i18n="lens_video">Videos</button>
             <button type="button" data-lens="music" onclick="setLibraryLens('music')" data-i18n="lens_music">Music</button>
           </div>
+          <div class="lens" id="libraryKind" role="group" data-i18n-title="lens_kind_label" title="Kind of music" style="display:none">
+            <button type="button" data-kind="all" onclick="setLibraryKind('all')" data-i18n="kind_all">All</button>
+            <button type="button" data-kind="track" onclick="setLibraryKind('track')" data-i18n="kind_track">Tracks</button>
+            <button type="button" data-kind="clip" onclick="setLibraryKind('clip')" data-i18n="kind_clip">Clips</button>
+            <button type="button" data-kind="live" onclick="setLibraryKind('live')" data-i18n="kind_live">Live &amp; sets</button>
+          </div>
           <span id="libraryLensNote" class="mono" style="display:none;font-size:11px;color:var(--text3);align-self:center;"></span>
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;margin-left:4px;"
                  data-i18n-title="playlist_views_tooltip" title="Total views across the loaded videos of each playlist">
@@ -1710,7 +1717,7 @@
               <option value="all" data-i18n="detail_type_all">Tous les types</option>
               <option value="music" data-i18n="detail_type_music">Musique seulement</option>
               <option value="nonmusic" data-i18n="detail_type_nonmusic">Exclure musique</option>
-              <option value="notuto" data-i18n="detail_type_notuto">Exclure tutos/démos</option>
+              <option value="notuto" data-i18n="detail_type_notuto">Exclure tutos/démos</option><option value="kind_track" data-i18n="detail_type_track">Morceaux seulement</option><option value="kind_clip" data-i18n="detail_type_clip">Clips seulement</option><option value="kind_live" data-i18n="detail_type_live">Live &amp; sets seulement</option>
               <option value="short" data-i18n="detail_type_short">Shorts seulement</option>
               <option value="notshort" data-i18n="detail_type_notshort">Exclure les Shorts</option>
             </select>
@@ -1792,7 +1799,7 @@
               <option value="all" data-i18n="detail_type_all">Tous les types</option>
               <option value="music" data-i18n="detail_type_music">Musique seulement</option>
               <option value="nonmusic" data-i18n="detail_type_nonmusic">Exclure musique</option>
-              <option value="notuto" data-i18n="detail_type_notuto">Exclure tutos/démos</option>
+              <option value="notuto" data-i18n="detail_type_notuto">Exclure tutos/démos</option><option value="kind_track" data-i18n="detail_type_track">Morceaux seulement</option><option value="kind_clip" data-i18n="detail_type_clip">Clips seulement</option><option value="kind_live" data-i18n="detail_type_live">Live &amp; sets seulement</option>
               <option value="short" data-i18n="detail_type_short">Shorts seulement</option>
               <option value="notshort" data-i18n="detail_type_notshort">Exclure les Shorts</option>
             </select></div>
@@ -2088,7 +2095,7 @@
                 <option value="all" data-i18n="detail_type_all">Tous les types</option>
                 <option value="music" data-i18n="detail_type_music">Musique seulement</option>
                 <option value="nonmusic" data-i18n="detail_type_nonmusic">Exclure musique</option>
-                <option value="notuto" data-i18n="detail_type_notuto">Exclure tutos/démos</option>
+                <option value="notuto" data-i18n="detail_type_notuto">Exclure tutos/démos</option><option value="kind_track" data-i18n="detail_type_track">Morceaux seulement</option><option value="kind_clip" data-i18n="detail_type_clip">Clips seulement</option><option value="kind_live" data-i18n="detail_type_live">Live &amp; sets seulement</option>
                 <option value="short" data-i18n="detail_type_short">Shorts seulement</option>
                 <option value="notshort" data-i18n="detail_type_notshort">Exclure les Shorts</option>
               </select></div>
@@ -2219,7 +2226,7 @@
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
                 <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:2px;" data-i18n="detail_duration">Durée</label><select class="form-control" id="watchFilterDuration" onchange="applyWatchFilters()" style="padding:5px 8px;font-size:12px;"><option value="all" data-i18n="detail_duration_all">Toutes</option><option value="short" data-i18n="detail_duration_short">Court (&lt; 4 min)</option><option value="medium" data-i18n="detail_duration_medium">Moyen (4-20 min)</option><option value="long" data-i18n="detail_duration_long">Long (&gt; 20 min)</option><option value="30_60" data-i18n="search_dur_30_60">Entre 30 et 60 min</option><option value="gte_1h" data-i18n="search_dur_1h">1 heure et plus</option><option value="gte_2h" data-i18n="search_dur_2h">2 heures et plus</option><option value="gt_3h" data-i18n="search_dur_3h">Plus de 3 h</option></select></div>
                 <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:2px;" data-i18n="detail_status">Statut</label><select class="form-control" id="watchFilterStatus" onchange="applyWatchFilters()" style="padding:5px 8px;font-size:12px;"><option value="all" data-i18n="detail_status_all">Tous</option><option value="available" data-i18n="detail_status_available">Disponible</option><option value="deleted" data-i18n="detail_status_deleted">Supprimée</option><option value="private" data-i18n="detail_status_private">Privée</option></select></div>
-                <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:2px;" data-i18n="detail_type">Type</label><select class="form-control" id="watchFilterType" onchange="onWatchClassChange()" style="padding:5px 8px;font-size:12px;"><option value="all" data-i18n="detail_type_all">Tous les types</option><option value="music" data-i18n="detail_type_music">Musique seulement</option><option value="nonmusic" data-i18n="detail_type_nonmusic">Exclure musique</option><option value="notuto" data-i18n="detail_type_notuto">Exclure tutos/démos</option><option value="short" data-i18n="detail_type_short">Shorts seulement</option><option value="notshort" data-i18n="detail_type_notshort">Exclure les Shorts</option></select></div>
+                <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:2px;" data-i18n="detail_type">Type</label><select class="form-control" id="watchFilterType" onchange="onWatchClassChange()" style="padding:5px 8px;font-size:12px;"><option value="all" data-i18n="detail_type_all">Tous les types</option><option value="music" data-i18n="detail_type_music">Musique seulement</option><option value="nonmusic" data-i18n="detail_type_nonmusic">Exclure musique</option><option value="notuto" data-i18n="detail_type_notuto">Exclure tutos/démos</option><option value="kind_track" data-i18n="detail_type_track">Morceaux seulement</option><option value="kind_clip" data-i18n="detail_type_clip">Clips seulement</option><option value="kind_live" data-i18n="detail_type_live">Live &amp; sets seulement</option><option value="short" data-i18n="detail_type_short">Shorts seulement</option><option value="notshort" data-i18n="detail_type_notshort">Exclure les Shorts</option></select></div>
                 <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:2px;" data-i18n="detail_category">Catégorie</label><select class="form-control" id="watchFilterCategory" onchange="onWatchClassChange()" style="padding:5px 8px;font-size:12px;"><option value="all" data-i18n="detail_all_categories">Toutes catégories</option></select></div>
               </div>
               <button class="btn btn-primary mt-16" onclick="addToWatchQueue()" style="width: 100%;" data-i18n="watch_add_queue">Ajouter à la file d'attente</button>
@@ -2883,7 +2890,7 @@
   </div>
 </div>
 
-<script src="shared/core.js?v=1.27.63"></script>   <!-- AUD-33 — helpers shared with Reel Studio -->
+<script src="shared/core.js?v=1.27.64"></script>   <!-- AUD-33 — helpers shared with Reel Studio -->
 <script>
 // ============================================================================
 // CONSTANTS & CONFIG
@@ -3440,6 +3447,11 @@ const I18N = {
     lens_all: 'Toutes',
     lens_video: 'Vidéos',
     lens_music: 'Musique',
+    lens_kind_label: 'Type de musique',
+    kind_all: 'Tous', kind_track: 'Morceaux', kind_clip: 'Clips', kind_live: 'Live & sets',
+    kind_badge_track: 'Morceau', kind_badge_clip: 'Clip', kind_badge_live: 'Live',
+    kind_badge_pl_track: 'Morceaux', kind_badge_pl_clip: 'Clips', kind_badge_pl_live: 'Live',
+    detail_type_track: 'Morceaux seulement', detail_type_clip: 'Clips seulement', detail_type_live: 'Live & sets seulement',
     lens_tooltip: 'Filtrer la bibliothèque par type de playlist',
     lens_hidden: '{count} masquée(s) par ce filtre',
     player_dock: 'Réduire le lecteur dans un coin',
@@ -4420,6 +4432,11 @@ const I18N = {
     lens_all: 'All',
     lens_video: 'Videos',
     lens_music: 'Music',
+    lens_kind_label: 'Kind of music',
+    kind_all: 'All', kind_track: 'Tracks', kind_clip: 'Clips', kind_live: 'Live & sets',
+    kind_badge_track: 'Track', kind_badge_clip: 'Clip', kind_badge_live: 'Live',
+    kind_badge_pl_track: 'Tracks', kind_badge_pl_clip: 'Clips', kind_badge_pl_live: 'Live',
+    detail_type_track: 'Tracks only', detail_type_clip: 'Clips only', detail_type_live: 'Live & sets only',
     lens_tooltip: 'Filter the library by playlist type',
     lens_hidden: '{count} hidden by this filter',
     player_dock: 'Dock the player in a corner',
@@ -4956,7 +4973,7 @@ migrateTagIds();
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.63'; // bump per release, with the ?v= on shared/core.js in both pages
+const APP_VERSION = '1.27.64'; // bump per release, with the ?v= on shared/core.js in both pages
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -6965,7 +6982,7 @@ var APP_STORAGE_KEYS = [   // var: read by tests.html, which cannot see a top-le
   'autoCache', 'autoCacheTimestamp', 'lastBackup', 'lastBackupTimestamp',
   'playlistTags', 'tagIcons', 'tagLabels', 'playlistFolders', 'folderAssignments', 'folderExpanded',
   'bookmarkedPlaylists', 'deckColumns', 'watchQueue', 'recentSearches',
-  'playlistViewMode', 'libraryLens', 'discoverFilters', 'trendingCategory', 'trendingRegion', 'trendingView',
+  'playlistViewMode', 'libraryLens', 'libraryMusicKind', 'discoverFilters', 'trendingCategory', 'trendingRegion', 'trendingView',
   'showPlaylistViews', 'reelMusicMode',
   // identity and session
   'youtubeClientId', 'userInfo', 'oauthScope', 'writeScopeAtLogin', 'lastLoginTimestamp',
@@ -10525,13 +10542,13 @@ async function loadPlaylistViewTotals() {
 
 function refreshPlaylistsList() {
   const lens = libraryLens();
-  if (lens !== 'all') {
-    APP.playlists.forEach(pl => {
-      if (playlistVerdictCache[pl.id]) return;
-      const verdict = cachedPlaylistVerdict(pl.id);
-      if (verdict) playlistVerdictCache[pl.id] = verdict;
-    });
-  }
+  // Every lens and the kind badge on the cards read the verdict: computed once
+  // per playlist from its cached videos, no quota.
+  APP.playlists.forEach(pl => {
+    if (playlistVerdictCache[pl.id]) return;
+    const verdict = cachedPlaylistVerdict(pl.id);
+    if (verdict) playlistVerdictCache[pl.id] = verdict;
+  });
   const visible = APP.playlists.filter(pl => playlistPassesLens(pl.id, lens));
   const hidden = APP.playlists.length - visible.length;
   const note = document.getElementById('libraryLensNote');
@@ -10568,7 +10585,7 @@ function refreshPlaylistsList() {
         <img src="${escapeHtml(playlistCovers[pl.id]?.url || pickThumb(pl.snippet.thumbnails) || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22226%22 height=%22226%22%3E%3Crect fill=%22%23303030%22 width=%22226%22 height=%22226%22/%3E%3C/svg%3E')}" class="playlist-thumbnail" alt="${escapeHtml(pl.snippet.title)}">
         <div class="playlist-info">
           <div class="playlist-title" title="${escapeHtml(pl.snippet.title)}">${escapeHtml(pl.snippet.title)}</div>
-          <div class="playlist-stats">${videoCount} ${t('stats_videos_word')}${playlistViewsLabel(pl.id)}</div>
+          <div class="playlist-stats">${videoCount} ${t('stats_videos_word')}${playlistViewsLabel(pl.id)}${playlistKindBadge(pl.id)}</div>
           <div class="playlist-tags">${tags.map(t => renderTagWithIcon(t)).join('')}</div>
           <div class="playlist-actions gap-8">
             ${actions}
@@ -11160,6 +11177,32 @@ function renderLibraryLens() {
     b.classList.toggle('is-active', on);
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
+  // The kind row only exists under Music.
+  const kinds = document.getElementById('libraryKind');
+  if (!kinds) return;
+  kinds.style.display = current === 'music' ? '' : 'none';
+  const kind = libraryKind();
+  kinds.querySelectorAll('button[data-kind]').forEach(b => {
+    const on = b.getAttribute('data-kind') === kind;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+
+// Under the Music lens: all music, or the playlists where one kind is at
+// least half of the music (playlistMusicVerdict().dominant, shared/core.js).
+function libraryKind() {
+  const v = localStorage.getItem('libraryMusicKind');
+  return MUSIC_KINDS.includes(v) ? v : 'all';
+}
+
+function setLibraryKind(kind) {
+  const next = MUSIC_KINDS.includes(kind) ? kind : 'all';
+  try { localStorage.setItem('libraryMusicKind', next); } catch (e) { swallow('setLibraryKind:storage', e); }
+  log('info', 'action', 'library kind', { kind: next });
+  renderLibraryLens();
+  refreshPlaylistsList();
+  return next;
 }
 
 /**
@@ -11169,14 +11212,26 @@ function renderLibraryLens() {
  * A playlist never opened has no verdict; it stays visible under every lens
  * rather than being hidden by an answer nobody has computed.
  */
-function playlistPassesLens(playlistId, lens) {
+function playlistPassesLens(playlistId, lens, kind) {
   const current = lens || libraryLens();
   if (current === 'all') return true;
   const override = readPlaylistViewModes()[playlistId];
   const verdict = playlistVerdictCache[playlistId]?.verdict;
   if (!override && !verdict) return true;
   const mode = override || (verdict === 'music' ? 'music' : 'video');
-  return current === 'music' ? mode === 'music' : mode !== 'music';
+  if (current !== 'music') return mode !== 'music';
+  if (mode !== 'music') return false;
+  // A kind needs a dominant one; with no verdict yet, stay visible.
+  const want = kind || libraryKind();
+  const dominant = playlistVerdictCache[playlistId]?.dominant;
+  return want === 'all' || !verdict || dominant === want;
+}
+
+/** The dominant kind of a music playlist, as a badge on its card; '' otherwise. */
+function playlistKindBadge(playlistId) {
+  const v = playlistVerdictCache[playlistId];
+  if (!v || effectiveViewMode(playlistId, v.verdict) !== 'music') return '';
+  return MUSIC_KINDS.includes(v.dominant) ? ' ' + kindBadgeHTML(v.dominant, true) : '';
 }
 
 function readPlaylistViewModes() {
@@ -11307,7 +11362,7 @@ function classifyVideoType(v) {
       // genreKey is the Wikipedia page (the tag is "genre:<key>"); genre its name.
       if (gseg && TAG_ID_RE.test('genre:' + gseg)) { genreKey = gseg; genre = tagLabel('genre:' + gseg, currentLang); }
     }
-    return { isMusic: c.isMusic, isTrack: c.isTrack, type: type, genre: genre, genreKey: genreKey, tutorialScore: c.tutorialScore };
+    return { isMusic: c.isMusic, isTrack: c.isTrack, type: type, kind: c.kind, genre: genre, genreKey: genreKey, tutorialScore: c.tutorialScore };
   } catch (e) {
     return { isMusic: false, isTrack: false, type: 'other' };
   }
@@ -11404,6 +11459,8 @@ function applyVideoFilters() {
     filtered = filtered.filter(v => !classifyVideoType(v).isMusic);
   } else if (type === 'notuto') {
     filtered = filtered.filter(v => classifyVideoType(v).type !== 'tutorial');
+  } else if (isKindFilter(type)) {
+    filtered = filtered.filter(v => classifyVideoType(v).kind === type.slice(5));
   } else if (type === 'short') {
     // #68 — orthogonal to classifyVideoType: a musical Short is both music and
     // short, so this filter deliberately does not consult it.
@@ -11440,11 +11497,43 @@ function applyVideoFilters() {
   renderFilteredVideos(filtered);
 }
 
+// ── The four kinds (shared/core.js) ── the Type menus use "kind_<kind>".
+function isKindFilter(value) {
+  return /^kind_(track|clip|live)$/.test(String(value));
+}
+
+// One video: "Clip"; a playlist (plural): "Clips".
+function kindBadgeHTML(kind, plural) {
+  if (!MUSIC_KINDS.includes(kind)) return '';
+  const label = t((plural ? 'kind_badge_pl_' : 'kind_badge_') + kind);
+  return '<span class="music-badge kind-badge" data-kind="' + kind + '">' + escapeHtml(label) + '</span>';
+}
+
+// Music view: chips over the tracklist that drive the Type menu of the filter
+// bar, so the two never disagree. Counts are over the whole playlist.
+function musicKindChipsHTML() {
+  const current = (document.getElementById('filterType') || {}).value || 'all';
+  const counts = {};
+  currentDetailVideos.forEach(v => { const k = classifyVideoType(v).kind; counts[k] = (counts[k] || 0) + 1; });
+  const chip = (value, label, n) => `<button type="button" data-kind-filter="${value}" class="${current === value ? 'is-active' : ''}"
+    aria-pressed="${current === value}" onclick="setMusicKindFilter('${value}')">${escapeHtml(label)}${n != null ? ` <span class="mono">${n}</span>` : ''}</button>`;
+  return `<div class="lens music-kinds" role="group" aria-label="${escapeHtml(t('lens_kind_label'))}">
+    ${chip('all', t('kind_all'))}${MUSIC_KINDS.map(k => chip('kind_' + k, t('kind_' + k), counts[k] || 0)).join('')}</div>`;
+}
+
+function setMusicKindFilter(value) {
+  const sel = document.getElementById('filterType');
+  if (!sel) return;
+  sel.value = value;
+  onFilterTypeChange();
+}
+
 function renderFilteredVideos(videos) {
   if (!videos.length) {
     // Spec §4: empty states are track-oriented in Music view.
-    const empty = currentDetailViewMode === 'music' ? t('music_no_match') : t('detail_no_match');
-    document.getElementById('playlistDetailVideos').innerHTML = `<p class="text-muted">${empty}</p>`;
+    const music = currentDetailViewMode === 'music';
+    const empty = music ? t('music_no_match') : t('detail_no_match');
+    document.getElementById('playlistDetailVideos').innerHTML = `${music ? musicKindChipsHTML() : ''}<p class="text-muted">${empty}</p>`;
     return;
   }
 
@@ -11515,6 +11604,7 @@ function renderMusicRows(videos) {
   const host = document.getElementById('playlistDetailVideos');
   const rows = videos.map((v, idx) => {
     const parsed = parseArtistTitle(v.title, v.channelTitle);
+    const kind = classifyVideoType(v).kind;   // a Clip or Live badge; tracks are the default here
     const ghost = v.status !== 'available';
     const safeTitle = escapeJsAttr(v.title);
     const safeChannel = escapeJsAttr(v.channelTitle);
@@ -11529,7 +11619,7 @@ function renderMusicRows(videos) {
           <span class="track-play"><svg viewBox="0 0 24 24" fill="#fff" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
         </span>
         <span class="track-main" onclick="${play}">
-          <span class="track-title">${escapeHtml(parsed.title)}${v.isShort ? ' ' + shortBadgeHTML() : ''}</span>
+          <span class="track-title">${escapeHtml(parsed.title)}${v.isShort ? ' ' + shortBadgeHTML() : ''}${kind !== 'track' ? ' ' + kindBadgeHTML(kind) : ''}</span>
           <span class="track-artist">${escapeHtml(parsed.artist)}</span>
         </span>
         <span class="track-album">${escapeHtml(parsed.album)}</span>
@@ -11545,7 +11635,7 @@ function renderMusicRows(videos) {
       </div>`;
   }).join('');
 
-  host.innerHTML = `<div class="tracklist">${rows}</div>`;
+  host.innerHTML = `${musicKindChipsHTML()}<div class="tracklist">${rows}</div>`;
 }
 
 /** Queue next — same PLAYER the video view uses, inserted after the current item. */
@@ -12020,7 +12110,7 @@ function gsPasses(v, dur, stat, type, cat) {
   if (stat !== 'all' && status !== stat) return false;
   if (dur !== 'all') { const sec = parseDuration(d && d.contentDetails ? d.contentDetails.duration : ''); if (!sec) return false; if (dur === 'short' && !(sec < 240)) return false; if (dur === 'medium' && !(sec >= 240 && sec <= 1200)) return false; if (dur === 'long' && !(sec > 1200)) return false; if (dur === '30_60' && !(sec >= 1800 && sec < 3600)) return false; if (dur === 'gte_1h' && !(sec >= 3600)) return false; if (dur === 'gte_2h' && !(sec >= 7200)) return false; if (dur === 'gt_3h' && !(sec > 10800)) return false; }
   if (type === 'short' || type === 'notshort') { const short = isShortVideo(id); if (type === 'short' && !short) return false; if (type === 'notshort' && short) return false; }
-  else if (type !== 'all') { const c = classifyVideoType(gsClassifyObj(v)); if (type === 'music' && !c.isMusic) return false; if (type === 'nonmusic' && c.isMusic) return false; if (type === 'notuto' && c.type === 'tutorial') return false; }
+  else if (type !== 'all') { const c = classifyVideoType(gsClassifyObj(v)); if (type === 'music' && !c.isMusic) return false; if (type === 'nonmusic' && c.isMusic) return false; if (type === 'notuto' && c.type === 'tutorial') return false; if (isKindFilter(type) && c.kind !== type.slice(5)) return false; }
   if (cat !== 'all') { const catId = d && d.snippet ? d.snippet.categoryId : undefined; if (String(catId) !== cat) return false; }
   return true;
 }

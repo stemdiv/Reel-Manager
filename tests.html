@@ -2555,7 +2555,7 @@ const SUITES = [
     }],
 
     ['an empty playlist is a video playlist, not a guess', w =>
-      eq(w.playlistMusicVerdict([]), { verdict: 'video', ratio: 0, sampled: 0 })],
+      eq(w.playlistMusicVerdict([]), { verdict: 'video', ratio: 0, sampled: 0, kinds: {}, dominant: null })],
 
     ['only the first 50 are sampled', w => {
       const track = { title: 't', channelTitle: 'A - Topic', durationSeconds: 200 };
@@ -5340,7 +5340,7 @@ const SUITES = [
       const names = ['hexToRgb', 'rgbToHex', 'rgbToHsv', 'hsvToRgb', 'hexToHsl', 'hsl', 'accentRamp', 'categoricalsFor', 'THUMB_ORDER', 'THUMB_ORDER_CARD', 'pickThumb', 'parseDuration',
         'VIDEO_CATEGORIES', 'GENRE_LABELS', 'TAG_ID_RE', 'isBuiltinTag', 'tagLabel', 'tagIdFromName', 'normalizeTagIds',
         'MUSIC_SIGNALS', 'isTopicChannel', 'musicScore', 'stripDecorations', 'hasArtistTitlePattern', 'wordsRe', 'tutorialScore',
-        'MUSIC_INCLUDE_RE', 'MUSIC_LIVE_RE', 'classifyMusic', 'playlistMusicVerdict'];
+        'MUSIC_INCLUDE_RE', 'MUSIC_LIVE_RE', 'classifyMusic', 'playlistMusicVerdict', 'MUSIC_KINDS', 'MUSIC_AUDIO_RE', 'MUSIC_CLIP_RE'];
       const files = ['shared/core.js', 'youtube-playlist-manager.html', 'reel-studio.html'];
       const srcs = await Promise.all(files.map(f => fetch(f + '?aud33=' + Date.now()).then(r => r.text())));
       const defines = (src, n) => new RegExp('(^|\\n)\\s*(function ' + n + '\\s*\\(|(const|let|var) ' + n + '\\s*=)').test(src);
@@ -5370,6 +5370,124 @@ const SUITES = [
         eq(w.hexToRgb('nope', 0xff2d55), { r: 255, g: 45, b: 85 }, 'fallback');
         return eq(w.hexToHsl(null).h > 0, true, 'a non-string no longer throws');
       } finally { f.remove(); }
+    }],
+  ],
+},
+{
+  id: 'KINDS', title: 'Four kinds of video, after YouTube Music: track, clip, live & sets, other', note: 'the Data API has no videoType (ATV / OMV / UGC / OFFICIAL_SOURCE_MUSIC): the kind is read from channel, title, category and length',
+  cases: [
+    ['each video gets one kind, rules in order', w => {
+      const k = v => w.classifyMusic(v).kind;
+      const cases = [
+        [{ title: 'Nightcall', channelTitle: 'Kavinsky - Topic', durationSeconds: 258 }, 'track', 'a Topic upload'],
+        [{ title: 'Artist - Song (Official Audio)', channelTitle: 'Artist', categoryId: '10', durationSeconds: 200 }, 'track', 'official audio'],
+        [{ title: 'Daft Punk - Around The World (Official Video)', channelTitle: 'Daft Punk', categoryId: '10', durationSeconds: 240 }, 'clip', 'official video'],
+        [{ title: 'Song', channelTitle: 'ArtistVEVO', categoryId: '10', durationSeconds: 200 }, 'clip', 'a VEVO channel'],
+        [{ title: 'Artist - Song', channelTitle: 'Label', categoryId: '10', durationSeconds: 200 }, 'clip', 'no hint off a Topic channel'],
+        [{ title: 'Band - Live at Olympia', categoryId: '10', durationSeconds: 300 }, 'live', 'a live title'],
+        [{ title: 'Deep house mix 2026', categoryId: '10', durationSeconds: 3600 }, 'live', 'an hour of music'],
+        [{ title: 'Full Album', channelTitle: 'X - Topic', categoryId: '10', durationSeconds: 2700 }, 'live', 'long beats Topic'],
+        [{ title: 'How I make a techno beat', categoryId: '10', durationSeconds: 600 }, 'other', 'a tutorial'],
+        [{ title: 'Keynote 2026', categoryId: '28', durationSeconds: 3600 }, 'other', 'not music'],
+      ];
+      return eq(cases.map(([v]) => k(v)), cases.map(c => c[1]), cases.map(c => c[2]).join(' / '));
+    }],
+
+    ['a playlist has a dominant kind: at least half of its music', w => {
+      const clip = { title: 'A - B (Official Video)', categoryId: '10', durationSeconds: 200 };
+      const track = { title: 't', channelTitle: 'A - Topic', durationSeconds: 200 };
+      const live = { title: 'Live at X', categoryId: '10', durationSeconds: 3000 };
+      const talk = { title: 'Keynote', categoryId: '28', durationSeconds: 3000 };
+      eq(w.playlistMusicVerdict([clip, clip, clip, track]).dominant, 'clip', '3 of 4');
+      eq(w.playlistMusicVerdict([clip, track, live]).dominant, 'mixed', 'a third each');
+      eq(w.playlistMusicVerdict([live, live, talk]).kinds, { live: 2 }, 'counts of the music only');
+      eq(w.playlistMusicVerdict([talk]).dominant, null, 'no music, no kind');
+      return eq(w.playlistMusicVerdict([]).dominant, null, 'empty');
+    }],
+
+    ['every Type menu offers the three kinds', w => {
+      const menus = ['filterType', 'gsType', 'moveType', 'watchFilterType'];
+      const missing = menus.filter(id => !['kind_track', 'kind_clip', 'kind_live']
+        .every(v => w.document.querySelector(`#${id} option[value="${v}"]`)));
+      return eq(missing, [], 'menus without the kinds');
+    }],
+
+    ['under Music, the kind row keeps the playlists of that kind; cards carry the badge', async w => {
+      const snap = snapshot(w, ['lastBackup', 'lastBackupTimestamp', 'libraryLens', 'libraryMusicKind', 'playlistViewMode']);
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      w.showToast = () => {};
+      const vid = (id, title, channel, duration) => ({ videoId: id, title, channel, duration, category: '10', position: 0 });
+      const backup = {
+        schemaVersion: 1, timestamp: '2026-09-01T10:00:00.000Z',
+        playlists: [
+          { id: 'PL_kind_clips', title: 'Clips', videos: [vid('kndClip0001', 'A - B (Official Video)', 'A', 'PT4M'), vid('kndClip0002', 'C - D (Clip officiel)', 'C', 'PT3M30S')] },
+          { id: 'PL_kind_tracks', title: 'Tracks', videos: [vid('kndTrck0001', 'Song', 'A - Topic', 'PT3M'), vid('kndTrck0002', 'Tune', 'B - Topic', 'PT4M')] },
+          { id: 'PL_kind_live', title: 'Live', videos: [vid('kndLive0001', 'Band - Live at Olympia', 'Band', 'PT1H30M'), vid('kndLive0002', 'Boiler Room set', 'BR', 'PT1H')] },
+          { id: 'PL_kind_mixed', title: 'Mixed', videos: [vid('kndMixd0001', 'A - B (Official Video)', 'A', 'PT4M'), vid('kndMixd0002', 'Song', 'A - Topic', 'PT3M'), vid('kndMixd0003', 'Live at X', 'X', 'PT1H')] },
+        ],
+        playlistObjects: ['clips', 'tracks', 'live', 'mixed'].map(k => ({ id: 'PL_kind_' + k, snippet: { title: k }, contentDetails: { itemCount: 2 }, status: { privacyStatus: 'private' } })),
+      };
+      const rendered = () => [...w.document.querySelectorAll('#playlistsList [data-playlist-id]')].map(e => e.dataset.playlistId).filter(id => id.startsWith('PL_kind_')).sort();
+      const badge = id => ((w.document.querySelector(`#playlistsList [data-playlist-id="${id}"] .kind-badge`) || {}).textContent || '').trim();
+      try {
+        w.localStorage.setItem('lastBackup', JSON.stringify(backup));
+        w.localStorage.setItem('lastBackupTimestamp', new Date().toISOString());
+        await w.loadBackupFromStorage();
+        w.setLibraryKind('all');
+        w.setLibraryLens('video');
+        eq(w.document.getElementById('libraryKind').style.display, 'none', 'no kind row outside Music');
+        w.setLibraryLens('music');
+        eq(w.document.getElementById('libraryKind').style.display, '', 'kind row under Music');
+        eq(rendered(), ['PL_kind_clips', 'PL_kind_live', 'PL_kind_mixed', 'PL_kind_tracks'], 'all music');
+        eq([badge('PL_kind_clips'), badge('PL_kind_tracks'), badge('PL_kind_live'), badge('PL_kind_mixed')],
+           [w.t('kind_badge_pl_clip'), w.t('kind_badge_pl_track'), w.t('kind_badge_pl_live'), ''], 'badges; none on a mixed playlist');
+        w.setLibraryKind('clip');
+        eq(rendered(), ['PL_kind_clips'], 'clips');
+        w.setLibraryKind('live');
+        eq(rendered(), ['PL_kind_live'], 'live & sets');
+        w.setLibraryKind('track');
+        return eq(rendered(), ['PL_kind_tracks'], 'tracks');
+      } finally {
+        restore(w, snap);
+        w.renderLibraryLens();
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+
+    ['Reel Studio has the same kind row and badges, with the same answers as the app', async w => {
+      const idb = await idbSnapshot(w);
+      const v = (id, title, channel, duration) => ({ videoId: id, title, channel, duration, category: '10' });
+      const playlists = [
+        { id: 'PL_stkind_clips', title: 'Clips', videos: [v('stkClip0001', 'A - B (Official Video)', 'A', 'PT4M'), v('stkClip0002', 'C - D', 'CVEVO', 'PT3M')] },
+        { id: 'PL_stkind_tracks', title: 'Tracks', videos: [v('stkTrck0001', 'Song', 'A - Topic', 'PT3M')] },
+        { id: 'PL_stkind_live', title: 'Live', videos: [v('stkLive0001', 'Tiny Desk Concert', 'NPR Music', 'PT20M30S')] },
+      ];
+      let f;
+      try {
+        await w.cacheStore.writeAll({ timestamp: new Date().toISOString(), playlists, playlistObjects: [], tags: {}, tagIcons: {}, tagLabels: {},
+          folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [] });
+        f = await openStudio();
+        const sw = f.contentWindow;
+        sw.location.hash = '#/playlists';
+        await aud07Tick();
+        const app = playlists.map(p => w.playlistMusicVerdict(p.videos.map(x => ({ title: x.title, channelTitle: x.channel,
+          durationSeconds: w.parseDuration(x.duration), categoryId: x.category })), w.classifyVideoType).dominant);
+        eq(app, ['clip', 'track', 'live'], 'app');
+        eq(playlists.map(p => sw.loadData({ playlists }).playlists.find(q => q.id === p.id).musicKind), app, 'Studio vs app');
+        const click = async sel => { sw.document.querySelector(sel).click(); await aud07Tick(); };
+        const shown = () => [...sw.document.querySelectorAll('.pl-card')].map(c => (c.getAttribute('onclick').match(/PL_stkind_\w+/) || [])[0]).filter(Boolean).sort();
+        ok(!sw.document.querySelector('[data-kind]'), 'a kind row outside Music');
+        await click('[data-lens="music"]');
+        eq(shown(), ['PL_stkind_clips', 'PL_stkind_live', 'PL_stkind_tracks'], 'all music');
+        eq([...sw.document.querySelectorAll('.pl-card .kind-pill')].length, 3, 'a badge per card');
+        await click('[data-kind="live"]');
+        return eq(shown(), ['PL_stkind_live'], 'live & sets');
+      } finally {
+        if (f) f.remove();
+        await idbRestore(w, idb);
+      }
     }],
   ],
 },
