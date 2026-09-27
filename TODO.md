@@ -22,7 +22,9 @@ Details for each finding: `08-remediation.md` in the audit report, kept outside 
   anything. Concert playlists should be under Music. In Tags, try a chip cross, Rename (onto an existing tag too),
   Remove from… and Delete everywhere.
 - [ ] Same branch, 1.27.60: in Reel Studio (Playlists), the All / Videos / Music chips should list the same playlists as the
-  Reel Manager lens. After pushing, open GitHub Pages once: the page must load `shared/core.js?v=1.27.60` (DevTools, Network).
+  Reel Manager lens. After pushing, open GitHub Pages once: the page must load `shared/core.js?v=1.27.61` (DevTools, Network).
+- [ ] Same branch, 1.27.61: in Tags, click "Fusionner les doublons FR/EN" on your real library and check the confirmation list
+  (Music → Musique, Sports → Sport…). Then run auto-categorisation in English: no new English duplicate should appear.
 
 ## To investigate
 

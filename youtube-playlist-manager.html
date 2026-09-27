@@ -2883,7 +2883,7 @@
   </div>
 </div>
 
-<script src="shared/core.js?v=1.27.60"></script>   <!-- AUD-33 — helpers shared with Reel Studio -->
+<script src="shared/core.js?v=1.27.61"></script>   <!-- AUD-33 — helpers shared with Reel Studio -->
 <script>
 // ============================================================================
 // CONSTANTS & CONFIG
@@ -3603,6 +3603,9 @@ const I18N = {
     toast_tag_deleted: 'Tag supprimé partout',
     toast_tag_select_playlists: 'Cochez au moins une playlist',
     toast_tag_name_invalid: 'Nom de tag invalide (vide ou avec une virgule)',
+    tags_merge_btn: 'Fusionner les doublons FR/EN ({count})',
+    tags_merge_confirm: 'Fusionner {count} paire(s) de tags ? Le nom français est gardé :\n\n{list}',
+    toast_tags_merged: '{count} paire(s) de tags fusionnée(s)',
     modal_name: 'Nom',
     modal_rename_playlists: 'Renommer des playlists',
     modal_select_playlists: 'Sélectionner les playlists',
@@ -4577,6 +4580,9 @@ const I18N = {
     toast_tag_deleted: 'Tag deleted everywhere',
     toast_tag_select_playlists: 'Select at least one playlist',
     toast_tag_name_invalid: 'Invalid tag name (empty or with a comma)',
+    tags_merge_btn: 'Merge FR/EN duplicates ({count})',
+    tags_merge_confirm: 'Merge {count} tag pair(s)? The English name is kept:\n\n{list}',
+    toast_tags_merged: '{count} tag pair(s) merged',
     modal_name: 'Name',
     modal_rename_playlists: 'Rename playlists',
     modal_select_playlists: 'Select playlists',
@@ -4934,7 +4940,7 @@ const APP = {
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.60'; // bump per release, with the ?v= on shared/core.js in both pages
+const APP_VERSION = '1.27.61'; // bump per release, with the ?v= on shared/core.js in both pages
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -7881,6 +7887,7 @@ function toggleLanguage() {
   updateSidebarLabels();
   // Refresh dynamic views
   if (APP.playlists.length) refreshPlaylistsList();
+  refreshTagsList();
   refreshCategoryLabels();
 }
 
@@ -14212,8 +14219,12 @@ function refreshTagsList() {
     `;
   }).join('') : `<p class="text-muted">${t('no_playlist')}</p>`;
 
+  const dupes = tagDuplicatePairs().length;
   document.getElementById('tagsList').innerHTML = `
-    <h3 style="margin: 0 0 12px;">${t('tags_index_title')}</h3>
+    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 12px;">
+      <h3 style="margin: 0;">${t('tags_index_title')}</h3>
+      ${dupes ? `<button class="btn btn-secondary btn-sm" id="mergeTagDupesBtn" onclick="mergeTagDuplicates()">${escapeHtml(t('tags_merge_btn', { count: dupes }))}</button>` : ''}
+    </div>
     <div id="tagsIndex" style="margin-bottom: 24px;">${renderTagIndex()}</div>
     <h3 style="margin: 0 0 12px;">${t('tags_by_playlist_title')}</h3>
     ${html}`;
@@ -14269,16 +14280,63 @@ function applyRenameTag() {
     return;
   }
   if (to !== from) {
-    // Renaming onto an existing tag merges the two.
-    for (const id of Object.keys(APP.tags)) {
-      if (APP.tags[id].includes(from)) APP.tags[id] = [...new Set(APP.tags[id].map(tg => tg === from ? to : tg))];
-    }
-    if (APP.tagIcons[from] && !APP.tagIcons[to]) APP.tagIcons[to] = APP.tagIcons[from];
+    mergeTagInto(from, to);
     saveTagState();
     refreshTagsList();
   }
   closeModal();
   showToast(t('toast_tag_renamed'), 'success');
+}
+
+// Renames `from` to `to` everywhere; onto an existing tag, the two merge. The
+// icon follows unless `to` has one. The caller saves.
+function mergeTagInto(from, to) {
+  for (const id of Object.keys(APP.tags)) {
+    if (APP.tags[id].includes(from)) APP.tags[id] = [...new Set(APP.tags[id].map(tg => tg === from ? to : tg))];
+  }
+  if (APP.tagIcons[from] && !APP.tagIcons[to]) APP.tagIcons[to] = APP.tagIcons[from];
+}
+
+// The auto-categorizer writes tags in the UI language (AUD-27), so a run in
+// French and another in English left both "Musique" and "Music". These are the
+// [fr, en] names it can write: YouTube categories, genres, keyword tags.
+function tagTranslationPairs() {
+  const pairs = new Map();
+  const add = (fr, en) => { if (fr && en && fr !== en) pairs.set(fr + '\u0000' + en, [fr, en]); };
+  Object.values(VIDEO_CATEGORIES).forEach(c => add(c.fr, c.en));
+  Object.values(GENRE_LABELS).forEach(([fr, en]) => add(fr, en));
+  ['autotag_music', 'autotag_education', 'autotag_entertainment'].forEach(k => add(I18N.fr[k], I18N.en[k]));
+  return [...pairs.values()];
+}
+
+/** The spelling this library already uses for `tag`, in either language. */
+function existingTagSpelling(tag) {
+  const used = new Set(Object.values(APP.tags).flat());
+  if (used.has(tag)) return tag;
+  for (const [fr, en] of tagTranslationPairs()) {
+    if (tag === fr && used.has(en)) return en;
+    if (tag === en && used.has(fr)) return fr;
+  }
+  return tag;
+}
+
+/** [keep, drop] for every pair the library carries in both languages; the UI language is kept. */
+function tagDuplicatePairs() {
+  const used = new Set(Object.values(APP.tags).flat());
+  return tagTranslationPairs()
+    .filter(([fr, en]) => used.has(fr) && used.has(en))
+    .map(([fr, en]) => currentLang === 'en' ? [en, fr] : [fr, en]);
+}
+
+function mergeTagDuplicates() {
+  const pairs = tagDuplicatePairs();
+  if (!pairs.length) return;
+  const list = pairs.map(([keep, drop]) => `${drop} → ${keep}`).join('\n');
+  if (!confirm(t('tags_merge_confirm', { count: pairs.length, list }))) return;
+  pairs.forEach(([keep, drop]) => mergeTagInto(drop, keep));
+  saveTagState();
+  refreshTagsList();
+  showToast(t('toast_tags_merged', { count: pairs.length }), 'success');
 }
 
 function showRemoveTagModal(tag) {
@@ -15163,11 +15221,13 @@ async function showAutoCategorizerModal() {
             // #J3 — the genre was only a badge; a playlist whose music shares one
             // genre now gets it as a tag too. Same details, no extra quota.
             const genre = dominantGenre(Object.values(details));
-            const tags = [suggested, genre].filter(Boolean);
+            // A tag the library already has in the other language keeps that spelling.
+            const tags = [suggested, genre].filter(Boolean).map(existingTagSpelling);
             if (tags.length) suggestions[pl.id] = { title: pl.snippet.title, suggested: tags[0], tags, accepted: false };
           } catch (err) {
             console.warn('Categorization: no details for ' + pl.id, err);
-            const suggested = keywordCategory(pl.snippet.title, keywords);
+            const found = keywordCategory(pl.snippet.title, keywords);
+            const suggested = found && existingTagSpelling(found);
             if (suggested) suggestions[pl.id] = { title: pl.snippet.title, suggested, tags: [suggested], accepted: false };
           }
         }

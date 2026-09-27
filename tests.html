@@ -2325,6 +2325,71 @@ const SUITES = [
         Object.assign(w, real);
       }
     }],
+
+    ['FR/EN duplicates merge into the UI language, and new tags reuse the existing spelling', async w => {
+      // The auto-categorizer names tags in the UI language: one run in French and
+      // one in English left "Musique" and "Music" side by side.
+      const snap = snapshot(w, ['lastBackup', 'lastBackupTimestamp', 'playlistTags', 'tagIcons', 'appLang']);
+      const real = { ytApi: w.ytApi, showToast: w.showToast, confirm: w.confirm };
+      w.showToast = () => {};
+      w.confirm = () => true;
+      const backup = {
+        schemaVersion: 1, timestamp: '2026-09-01T10:00:00.000Z',
+        playlists: [{ id: 'PL_tagdup_a', title: 'A', videos: [] }, { id: 'PL_tagdup_b', title: 'B', videos: [] }],
+        playlistObjects: ['a', 'b'].map(k => ({ id: 'PL_tagdup_' + k, snippet: { title: k.toUpperCase() }, contentDetails: { itemCount: 0 }, status: { privacyStatus: 'private' } })),
+      };
+      const addTag = (name, ids) => {
+        w.showAddTagModal();
+        w.document.getElementById('newTagInput').value = name;
+        w.document.querySelectorAll('.tag-playlist-select').forEach(el => { el.checked = ids.includes(el.value); });
+        w.applyNewTag();
+      };
+      const tags = () => { const s = JSON.parse(w.localStorage.getItem('playlistTags') || '{}'); return [s.PL_tagdup_a, s.PL_tagdup_b]; };
+      try {
+        w.applyLanguage('fr');
+        w.localStorage.setItem('lastBackup', JSON.stringify(backup));
+        w.localStorage.setItem('lastBackupTimestamp', new Date().toISOString());
+        await w.loadBackupFromStorage();
+        addTag('Music', ['PL_tagdup_a']);
+        addTag('Sports', ['PL_tagdup_a']);
+        addTag('Sport', ['PL_tagdup_a']);
+        addTag('Musique', ['PL_tagdup_b']);
+
+        eq([w.existingTagSpelling('Sports'), w.existingTagSpelling('Education'), w.existingTagSpelling('zzUnknown')],
+           ['Sports', 'Education', 'zzUnknown'], 'a name in use, or unknown, is kept');
+        eq(w.existingTagSpelling('Music'), 'Music', 'both spellings in use: the asked one');
+        eq(w.tagDuplicatePairs().filter(([k]) => k === 'Musique' || k === 'Sport'), [['Musique', 'Music'], ['Sport', 'Sports']], 'pairs, French kept');
+
+        const btn = w.document.getElementById('mergeTagDupesBtn');
+        ok(btn, 'no merge button while duplicates exist');
+        btn.click();
+        eq(tags(), [['Musique', 'Sport'], ['Musique']], 'merged, no doubles');
+        eq(w.existingTagSpelling('Music'), 'Musique', 'the categorizer now writes the spelling in use');
+        return ok(!w.document.getElementById('mergeTagDupesBtn') || w.tagDuplicatePairs().length > 0, 'the button stays with nothing left to merge');
+      } finally {
+        w.applyLanguage(snap.appLang || 'fr');
+        restore(w, snap);
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+
+    ['the Tags view follows a language switch', w => {
+      const snap = snapshot(w, ['appLang']);
+      try {
+        w.applyLanguage('fr');
+        w.refreshTagsList();
+        const heading = () => w.document.querySelector('#tagsList h3').textContent;
+        eq(heading(), 'Tous les tags', 'fr');
+        w.toggleLanguage();
+        return eq(heading(), 'All tags', 'after the switch');
+      } finally {
+        w.applyLanguage(snap.appLang || 'fr');
+        restore(w, snap);
+        w.refreshTagsList();
+      }
+    }],
   ],
 },
 {

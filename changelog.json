@@ -1,5 +1,19 @@
 [
  {
+  "v": "1.27.61",
+  "date": "2026-09-27",
+  "items": [
+   {
+    "fr": "Tags : une catégorisation automatique lancée en français puis en anglais laissait des doublons (Musique / Music, Sport / Sports…). Elle reprend désormais le nom déjà présent dans votre bibliothèque, et un bouton « Fusionner les doublons FR/EN » regroupe les paires existantes sous le nom de la langue de l'interface, après confirmation.",
+    "en": "Tags: auto-categorisation run in French and then in English left duplicates (Musique / Music, Sport / Sports…). It now reuses the name already in your library, and a Merge FR/EN duplicates button groups the existing pairs under the interface language's name, after confirmation."
+   },
+   {
+    "fr": "Tags : l'onglet suit désormais le changement de langue (son titre restait dans l'ancienne langue).",
+    "en": "Tags: the view now follows a language switch (its heading stayed in the previous language)."
+   }
+  ]
+ },
+ {
   "v": "1.27.60",
   "date": "2026-09-27",
   "items": [
