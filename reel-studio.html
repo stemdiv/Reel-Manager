@@ -543,7 +543,7 @@
 
 <nav class="dock" id="dock" data-a11y="navLabel"></nav>
 
-<script src="shared/core.js"></script>   <!-- AUD-33 — helpers shared with the app -->
+<script src="shared/core.js?v=1.27.60"></script>   <!-- AUD-33 — helpers shared with the app -->
 <script>
 // ═══════════════════════════════════════════════════════════════════════
 // Reel Studio — companion UI for Reel Manager (exploration 3a).
@@ -593,6 +593,7 @@ const S = {
     ctlCollapse: 'Réduire le lecteur', ctlExpand: 'Agrandir le lecteur', ctlStop: 'Arrêter et fermer le lecteur',
     ctlSeek: 'Position dans la vidéo', palClose: 'Fermer la palette', palHex: 'Saisir une couleur hexadécimale',
     navLabel: 'Vues', palLabel: 'Palette',
+    lensLabel: 'Type de playlist', lensVideo: 'Vidéos', lensMusic: 'Musique',
     sortBy: 'Trier par', palCombo: 'Utiliser les couleurs {colours}', palSlot: 'Modifier l’accent {n} ({hex})', palSlotHex: 'Accent {n}, code hexadécimal',
   },
   en: {
@@ -633,6 +634,7 @@ const S = {
     ctlCollapse: 'Collapse the player', ctlExpand: 'Expand the player', ctlStop: 'Stop and close the player',
     ctlSeek: 'Position in the video', palClose: 'Close the palette', palHex: 'Enter a hex colour',
     navLabel: 'Views', palLabel: 'Palette',
+    lensLabel: 'Playlist type', lensVideo: 'Videos', lensMusic: 'Music',
     sortBy: 'Sort by', palCombo: 'Use the colours {colours}', palSlot: 'Change accent {n} ({hex})', palSlotHex: 'Accent {n}, hex code',
   },
 }[LANG];
@@ -1012,6 +1014,10 @@ function loadData(cache) {
       thumbHero: pickThumb(objects[pl.id]?.snippet?.thumbnails, 'hero') || videos[0]?.thumbnailHd || videos[0]?.thumbnail || '',
       privacy: objects[pl.id]?.status?.privacyStatus || '',
       tags: tagMap[pl.id] || [],
+      // Reel Manager's verdict, from shared/core.js. null when nothing is cached.
+      music: videos.length ? playlistMusicVerdict(videos.map(v => ({
+        title: v.title, channelTitle: v.channel, durationSeconds: v.seconds, categoryId: v.category, topics: v.topics,
+      }))).verdict : null,
     };
   }).sort((a, b) => b.count - a.count);
 
@@ -1053,7 +1059,7 @@ let DATA = null;
 // ── Router ─────────────────────────────────────────────────────────────
 const VIEWS = ['dashboard', 'playlists', 'search', 'kanban', 'dupes', 'stats', 'queue', 'tags'];
 let route = { view: 'dashboard', id: null };
-const UI = { plFilter: '', plSort: 'count', plTag: '', vidFilter: '', q: '', durFilter: '', statusFilter: '' };
+const UI = { plFilter: '', plSort: 'count', plTag: '', plLens: 'all', vidFilter: '', q: '', durFilter: '', statusFilter: '' };
 
 function parseHash() {
   const raw = (location.hash || '').replace(/^#\/?/, '');
@@ -1238,11 +1244,25 @@ function renderDashboardCharts() {
     </div>`).join('');
 }
 
+// Reel Manager's lens rule: a "Music view" / "Video view" choice made there
+// wins over detection; a 'mixed' playlist counts as video; a playlist with no
+// cached videos has no verdict and stays visible under every lens.
+function studioLensPasses(pl, lens) {
+  if (lens === 'all') return true;
+  let override;
+  try { override = (JSON.parse(localStorage.getItem('playlistViewMode') || '{}') || {})[pl.id]; } catch (_) {}
+  if (override !== 'music' && override !== 'video') override = null;
+  if (!override && !pl.music) return true;
+  const mode = override || (pl.music === 'music' ? 'music' : 'video');
+  return lens === 'music' ? mode === 'music' : mode !== 'music';
+}
+
 function viewPlaylists() {
   const d = DATA;
   if (route.id) return viewPlaylistDetail(d.playlists.find(p => p.id === route.id));
 
   let list = d.playlists.slice();
+  if (UI.plLens !== 'all') list = list.filter(p => studioLensPasses(p, UI.plLens));
   if (UI.plTag) list = list.filter(p => p.tags.includes(UI.plTag));
   if (UI.plFilter) {
     const q = UI.plFilter.toLowerCase();
@@ -1256,6 +1276,10 @@ function viewPlaylists() {
     <div class="view-head"><h2>${esc(tr('playlists'))}</h2>
       <span class="count">${nf(list.length)} / ${nf(d.playlists.length)}${UI.plTag ? ' · ' + esc(UI.plTag) : ''}</span></div>
     <div class="toolbar">
+      <span role="group" aria-label="${esc(tr('lensLabel'))}" style="display:inline-flex;gap:6px">
+        ${[['all', tr('all')], ['video', tr('lensVideo')], ['music', tr('lensMusic')]].map(([val, label]) =>
+          `<button class="chip${UI.plLens === val ? ' active' : ''}" data-lens="${val}" aria-pressed="${UI.plLens === val}" onclick="UI.plLens='${val}'; renderView()">${esc(label)}</button>`).join('')}
+      </span>
       <input class="field" id="plFilterField" style="min-width:230px" placeholder="${esc(tr('filterPlaylists'))}" value="${esc(UI.plFilter)}"
              oninput="UI.plFilter=this.value; renderView(true)">
       <select class="field" aria-label="${esc(tr('sortBy'))}" onchange="UI.plSort=this.value; renderView()">

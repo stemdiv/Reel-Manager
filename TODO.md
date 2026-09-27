@@ -21,6 +21,8 @@ Details for each finding: `08-remediation.md` in the audit report, kept outside 
 - [ ] Same branch, 1.27.59: with your real library, pick the Music then Videos filter right after loading, without opening
   anything. Concert playlists should be under Music. In Tags, try a chip cross, Rename (onto an existing tag too),
   Remove from… and Delete everywhere.
+- [ ] Same branch, 1.27.60: in Reel Studio (Playlists), the All / Videos / Music chips should list the same playlists as the
+  Reel Manager lens. After pushing, open GitHub Pages once: the page must load `shared/core.js?v=1.27.60` (DevTools, Network).
 
 ## To investigate
 

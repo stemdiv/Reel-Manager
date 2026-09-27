@@ -1,5 +1,19 @@
 [
  {
+  "v": "1.27.60",
+  "date": "2026-09-27",
+  "items": [
+   {
+    "fr": "Reel Studio : la page Playlists a le même filtre Toutes / Vidéos / Musique que Reel Manager, avec les mêmes résultats (la détection musicale est désormais partagée entre les deux pages). Un choix « Vue Musique » ou « Vue Vidéo » fait dans Reel Manager s'applique aussi dans Studio.",
+    "en": "Reel Studio: the Playlists page has the same All / Videos / Music filter as Reel Manager, with the same results (music detection is now shared by both pages). A Music view or Video view choice made in Reel Manager applies in Studio too."
+   },
+   {
+    "fr": "Mise à jour plus sûre : le script commun aux deux pages porte le numéro de version, pour qu'une nouvelle version ne tourne jamais avec l'ancienne copie gardée en cache par le navigateur.",
+    "en": "Safer updates: the script shared by both pages carries the version number, so a new release never runs with the old copy the browser kept in cache."
+   }
+  ]
+ },
+ {
   "v": "1.27.59",
   "date": "2026-09-27",
   "items": [

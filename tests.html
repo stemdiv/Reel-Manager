@@ -4020,7 +4020,7 @@ const SUITES = [
         card.click();
         await aud07Tick();
         return { pwn: sw.__pwn, hash: sw.location.hash, cards: sw.document.querySelectorAll('.pl-card').length,
-                 chip: (sw.document.querySelector('.chip.active') || {}).textContent };
+                 chip: (sw.document.querySelector('.chip.active[onclick*="plTag"]') || {}).textContent };
       });
       eq(r.pwn, undefined, 'the tag name ran as code');
       eq(r.hash, '#/playlists', 'route');
@@ -5157,21 +5157,28 @@ const SUITES = [
   id: 'AUD-33', title: 'App and Reel Studio share one copy of their common helpers', note: 'colour maths, thumbnail choice and duration parsing were written twice and had started to drift',
   cases: [
     ['the helpers are defined once, in shared/core.js', async w => {
-      const names = ['hexToRgb', 'rgbToHex', 'rgbToHsv', 'hsvToRgb', 'hexToHsl', 'hsl', 'accentRamp', 'categoricalsFor', 'THUMB_ORDER', 'THUMB_ORDER_CARD', 'pickThumb', 'parseDuration'];
+      const names = ['hexToRgb', 'rgbToHex', 'rgbToHsv', 'hsvToRgb', 'hexToHsl', 'hsl', 'accentRamp', 'categoricalsFor', 'THUMB_ORDER', 'THUMB_ORDER_CARD', 'pickThumb', 'parseDuration',
+        'MUSIC_SIGNALS', 'isTopicChannel', 'musicScore', 'stripDecorations', 'hasArtistTitlePattern', 'wordsRe', 'tutorialScore',
+        'MUSIC_INCLUDE_RE', 'MUSIC_LIVE_RE', 'classifyMusic', 'playlistMusicVerdict'];
       const files = ['shared/core.js', 'youtube-playlist-manager.html', 'reel-studio.html'];
       const srcs = await Promise.all(files.map(f => fetch(f + '?aud33=' + Date.now()).then(r => r.text())));
       const defines = (src, n) => new RegExp('(^|\\n)\\s*(function ' + n + '\\s*\\(|(const|let|var) ' + n + '\\s*=)').test(src);
       const where = names.map(n => [n, files.filter((f, i) => defines(srcs[i], n))]);
       return eq(where.filter(([, fs]) => fs.length !== 1 || fs[0] !== 'shared/core.js').map(([n, fs]) => n + ': ' + fs.join(', ')), [], 'definitions outside shared/core.js');
     }],
-    ['both pages load it before their own script', async w => {
+    ['both pages load it before their own script, versioned with the release', async w => {
+      // ?v= makes a new release fetch a new core.js: an HTTP-cached copy (GitHub
+      // Pages keeps files 10 min) would miss functions the fresh page calls.
       const out = [];
+      let version = null;
       for (const page of ['youtube-playlist-manager.html', 'reel-studio.html']) {
-        const doc = new DOMParser().parseFromString(await fetch(page + '?aud33b=' + Date.now()).then(r => r.text()), 'text/html');
-        const first = doc.querySelector('script');
+        const src = await fetch(page + '?aud33b=' + Date.now()).then(r => r.text());
+        if (!version) version = (src.match(/const APP_VERSION = '([^']+)'/) || [])[1];
+        const first = new DOMParser().parseFromString(src, 'text/html').querySelector('script');
         out.push(first && first.getAttribute('src'));
       }
-      return eq(out, ['shared/core.js', 'shared/core.js']);
+      ok(version, 'APP_VERSION not found');
+      return eq(out, ['shared/core.js?v=' + version, 'shared/core.js?v=' + version]);
     }],
     ['the shared helpers behave the same in each page, and never throw', async w => {
       const f = await openStudio();
@@ -5181,6 +5188,69 @@ const SUITES = [
         eq(probe(sw), probe(w), 'Studio vs app');
         eq(w.hexToRgb('nope', 0xff2d55), { r: 255, g: 45, b: 85 }, 'fallback');
         return eq(w.hexToHsl(null).h > 0, true, 'a non-string no longer throws');
+      } finally { f.remove(); }
+    }],
+  ],
+},
+{
+  id: 'STUDIO-LENS', title: 'Reel Studio filters playlists by type, with the app\'s verdicts', note: 'Studio had no music detection; the classifier moved to shared/core.js so both pages decide alike',
+  cases: [
+    ['the Music / Videos chips filter the grid, and a Reel Manager override wins', async w => {
+      const idb = await idbSnapshot(w);
+      const snap = snapshot(w, ['playlistViewMode']);
+      const v = (id, title, category, duration, channel) => ({ videoId: id, title, duration, channel: channel || 'c', category });
+      let f;
+      try {
+        await w.cacheStore.writeAll({
+          timestamp: new Date().toISOString(),
+          playlists: [
+            { id: 'PL_stlens_gigs', title: 'Gigs', videos: [v('stlGig00001', 'Band - Live at Olympia', '10', 'PT1H30M'), v('stlGig00002', 'Band - live à Paris', '10', 'PT1H10M')] },
+            { id: 'PL_stlens_talk', title: 'Talks', videos: [v('stlTalk0001', 'Quarterly review', '28', 'PT45M'), v('stlTalk0002', 'Keynote', '28', 'PT50M')] },
+            { id: 'PL_stlens_flip', title: 'Flip', videos: [v('stlFlip0001', 'Song', '10', 'PT3M', 'Artist - Topic')] },
+            { id: 'PL_stlens_none', title: 'Empty', videos: [] },
+          ],
+          playlistObjects: [], tags: {}, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [],
+        });
+        // "Video view" chosen in Reel Manager for a playlist detection calls music.
+        w.localStorage.setItem('playlistViewMode', JSON.stringify({ PL_stlens_flip: 'video' }));
+        f = await openStudio();
+        const sw = f.contentWindow;
+        sw.location.hash = '#/playlists';
+        await aud07Tick();
+        const shown = () => [...sw.document.querySelectorAll('.pl-card')]
+          .map(c => (c.getAttribute('onclick').match(/PL_stlens_\w+/) || [])[0]).filter(Boolean).sort();
+        const pick = async lens => { sw.document.querySelector(`[data-lens="${lens}"]`).click(); await aud07Tick(); };
+        eq(shown(), ['PL_stlens_flip', 'PL_stlens_gigs', 'PL_stlens_none', 'PL_stlens_talk'], 'all');
+        await pick('music');
+        eq(shown(), ['PL_stlens_gigs', 'PL_stlens_none'], 'music: the concerts, and the empty playlist nobody can judge');
+        await pick('video');
+        eq(shown(), ['PL_stlens_flip', 'PL_stlens_none', 'PL_stlens_talk'], 'video: the talks, plus the playlist forced to video');
+        return eq(sw.document.querySelector('[data-lens="video"]').getAttribute('aria-pressed'), 'true', 'pressed state');
+      } finally {
+        if (f) f.remove();
+        restore(w, snap);
+        await idbRestore(w, idb);
+      }
+    }],
+
+    ['Studio and the app reach the same verdict from the same backup', async w => {
+      const f = await openStudio();
+      try {
+        const sw = f.contentWindow;
+        const vids = [
+          [{ title: 'Kavinsky - Nightcall', duration: 'PT4M18S', channel: 'Kavinsky - Topic' }],
+          [{ title: 'Boiler Room Set', duration: 'PT2H', channel: 'Boiler Room', category: '10', topics: ['Electronic_music'] }],
+          [{ title: 'How I make a techno beat in Ableton', duration: 'PT12M', channel: 'Prod', category: '10' }],
+          [{ title: 'Keynote 2026', duration: 'PT1H', channel: 'Conf', category: '28' }],
+          [{ title: 'Artist - Song (Official Video)', duration: 'PT3M30S', channel: 'Label' }, { title: 'Vlog day 3', duration: 'PT15M', channel: 'Me' }],
+        ];
+        const cache = { playlists: vids.map((videos, i) => ({ id: 'PL_stpar_' + i, title: 't' + i, videos })) };
+        const studio = sw.loadData(cache).playlists.sort((a, b) => a.id.localeCompare(b.id)).map(p => p.music);
+        const app = vids.map(videos => w.playlistMusicVerdict(videos.map(x => ({
+          title: x.title, channelTitle: x.channel, durationSeconds: w.parseDuration(x.duration), categoryId: x.category, topicCategories: x.topics,
+        })), w.classifyVideoType).verdict);
+        eq(app, ['music', 'music', 'video', 'video', 'mixed'], 'app verdicts');
+        return eq(studio, app, 'Studio vs app');
       } finally { f.remove(); }
     }],
   ],
