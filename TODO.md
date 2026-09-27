@@ -1,7 +1,7 @@
 # TODO — after the September 2026 audit
 
 State as of 2026-09-27: `main` at v1.27.57 (what GitHub Pages serves); branch `fix/category-cache` at v1.27.64, pushed,
-not merged. tests.html: 496 cases, 494 passing (the 2 failures are the quota estimator's, see "To investigate").
+open as PR #11, not merged. tests.html: 496 cases, 494 passing (the 2 failures are the quota estimator's, see "To investigate").
 Backlogs: v6.7 (items #85 to #96, next free number #97).
 Details for each finding: `08-remediation.md` in the audit report, kept outside this public repo
 (local folder `YouTube Playlist Manager - audits/2026-09/`).
@@ -14,9 +14,10 @@ Details for each finding: `08-remediation.md` in the audit report, kept outside 
 - [x] #2 (audit): not to be merged. Merged by mistake on 2026-09-26, reverted (`6d51c4e`); branch deleted, report moved out of the repo.
 - [x] Merge #10 (`claude/youthful-fermi-b0e5wy`, on top of #9): tutorial detection (1.27.52), local server and offline page (1.27.53), AUD-54 (1.27.54), sign-in kept across page loads (1.27.55).
 - [x] Push `fix/category-cache` (1.27.58 → 1.27.64, with the v6.7 backlogs) — 2026-09-27.
-- [ ] Open a PR from `fix/category-cache` into `main` and merge it once the checks below pass. GitHub Pages serves `main`:
-  until then, the site stays on v1.27.57. **Export a backup from the live site before the first visit after the merge**
-  (1.27.62 migrates the tags to ids; see below).
+- [x] Open a PR from `fix/category-cache` into `main`: #11 (https://github.com/stemdiv/Reel-Manager/pull/11), 2026-09-27.
+- [ ] Merge #11 once the checks below pass. GitHub Pages serves `main`: until then, the site stays on v1.27.57.
+  **Export a backup from the live site before the first visit after the merge** (1.27.62 migrates the tags to ids; see below).
+  `gh` is not signed in on this machine: run `gh auth login` once so a Claude Code session can create and track PRs itself.
 
 ## To test before merging `fix/category-cache`
 
