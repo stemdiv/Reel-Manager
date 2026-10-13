@@ -2933,7 +2933,7 @@ const I18N = {
     log_consent_title: 'Télécharger le journal de diagnostic',
     log_consent_body: 'Ce fichier contient l\'historique récent de votre activité YouTube (playlists touchées, erreurs, utilisation du quota). Ne le partagez qu\'avec le support. Aucun mot de passe ni jeton n\'est inclus.',
     log_consent_confirm: 'Je comprends et je veux télécharger ce fichier',
-    log_filename_prefix: 'reel-manager-log',
+    log_filename_prefix: 'vyma-log',
     log_empty: 'Aucune entrée à exporter pour le moment.',
     log_truncated_notice: '(Les plus anciennes entrées peuvent avoir été supprimées du tampon.)',
     cancel: 'Annuler',
@@ -3918,7 +3918,7 @@ const I18N = {
     log_consent_title: 'Download diagnostic log',
     log_consent_body: 'This file contains your recent YouTube activity (playlists touched, errors, quota usage). Share it ONLY with support. No passwords or tokens are included.',
     log_consent_confirm: 'I understand and want to download this file',
-    log_filename_prefix: 'reel-manager-log',
+    log_filename_prefix: 'vyma-log',
     log_empty: 'No entries to export yet.',
     log_truncated_notice: '(Older entries may have been dropped from the buffer.)',
     cancel: 'Cancel',
@@ -5587,7 +5587,7 @@ async function downloadDiagnosticLog() {
 
     const stamp = new Date();
     const pad = (n) => String(n).padStart(2, '0');
-    const fname = `${t('log_filename_prefix') || 'reel-manager-log'}-${stamp.getFullYear()}${pad(stamp.getMonth() + 1)}${pad(stamp.getDate())}-${pad(stamp.getHours())}${pad(stamp.getMinutes())}.txt`;
+    const fname = `${t('log_filename_prefix') || 'vyma-log'}-${stamp.getFullYear()}${pad(stamp.getMonth() + 1)}${pad(stamp.getDate())}-${pad(stamp.getHours())}${pad(stamp.getMinutes())}.txt`;
 
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
