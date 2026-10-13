@@ -1,5 +1,15 @@
 [
  {
+  "v": "1.27.65",
+  "date": "2026-10-13",
+  "items": [
+   {
+    "fr": "L'application s'appelle désormais VYMA, et son interface Musique VYMA Studio. Vos réglages, votre cache et vos playlists ne changent pas.",
+    "en": "The app is now called VYMA, and its Music interface VYMA Studio. Your settings, cache and playlists are unchanged."
+   }
+  ]
+ },
+ {
   "v": "1.27.64",
   "date": "2026-09-27",
   "items": [

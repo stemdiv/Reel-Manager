@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reel — regression tests</title>
+<title>VYMA — regression tests</title>
 <style>
   :root {
     --bg: #0a0b0d; --surface: #0f1115; --surface2: #15181d; --border: #2a2f37;
@@ -49,7 +49,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Reel — regression tests</h1>
+  <h1>VYMA — regression tests</h1>
   <p class="sub">
     Batches B and C, plus #G7, #G18, #G8, #G9 and #76. Loads <code>youtube-playlist-manager.html</code> in a same-origin iframe and asserts
     against its live functions. Serve both from the same origin (the app's own server) or the iframe is blocked.
@@ -2430,7 +2430,7 @@ const SUITES = [
       return eq(out.tagLabels, { 'Détente': { en: 'Chill' } });
     }],
 
-    ['Reel Studio names tags in its language, from an old cache of names too', async w => {
+    ['VYMA Studio names tags in its language, from an old cache of names too', async w => {
       const idb = await idbSnapshot(w);
       const snap = snapshot(w, ['appLang']);
       let f;
@@ -2455,7 +2455,7 @@ const SUITES = [
       }
     }],
 
-    ['Reel Studio has its own language button, sharing the language with the app', async w => {
+    ['VYMA Studio has its own language button, sharing the language with the app', async w => {
       const idb = await idbSnapshot(w);
       const snap = snapshot(w, ['appLang']);
       let f;
@@ -2479,7 +2479,7 @@ const SUITES = [
         await reloaded;
         await new Promise(r => setTimeout(r, 400));
         const sw = f.contentWindow;
-        eq(w.localStorage.getItem('appLang'), 'en', 'the key Reel Manager reads');
+        eq(w.localStorage.getItem('appLang'), 'en', 'the key VYMA reads');
         eq([sw.document.documentElement.lang, sw.document.getElementById('langToggle').textContent.trim(), sw.location.hash],
            ['en', 'EN', '#/playlists'], 'after the reload, on the same view');
         return eq([...sw.document.querySelectorAll('.pl-card .tag-pill')].map(p => p.textContent), ['Music'], 'tag names follow');
@@ -3436,7 +3436,7 @@ const SUITES = [
   ],
 },
 {
-  id: 'AUD-28', title: 'Reel Studio never plays unseen', note: 'collapsing used to slide the video off-screen while the audio went on — audio-only playback',
+  id: 'AUD-28', title: 'VYMA Studio never plays unseen', note: 'collapsing used to slide the video off-screen while the audio went on — audio-only playback',
   cases: [
     ['collapsing the player docks the video on screen, at least 200×200', async w => {
       const f = await openStudio();
@@ -4189,7 +4189,7 @@ const SUITES = [
   ],
 },
 {
-  id: 'AUD-07', title: 'Reel Studio handlers take tag names and ids literally', note: 'Studio escaped for HTML inside a JS string: the attribute decoder turned &#39; back into a quote',
+  id: 'AUD-07', title: 'VYMA Studio handlers take tag names and ids literally', note: 'Studio escaped for HTML inside a JS string: the attribute decoder turned &#39; back into a quote',
   cases: [
     ['a hostile tag name filters the playlists and runs nothing (X4)', async w => {
       const r = await withStudioLibrary(w, async sw => {
@@ -4502,7 +4502,7 @@ const SUITES = [
       // The Studio search pill draws the ring itself (.search:focus-within).
       return eq(bad, ['reel-studio.html: .search input'], 'rules with outline: none');
     }],
-    ['Reel Studio shows the ring too', async w => {
+    ['VYMA Studio shows the ring too', async w => {
       const f = await openStudio();
       try {
         const sw = f.contentWindow;
@@ -4686,7 +4686,7 @@ const SUITES = [
       }
       return bad;
     })],
-    ['Reel Studio: secondary text and a dark custom accent read at 4.5:1', async w => {
+    ['VYMA Studio: secondary text and a dark custom accent read at 4.5:1', async w => {
       const f = await openStudio();
       try {
         const sw = f.contentWindow;
@@ -4823,7 +4823,7 @@ const SUITES = [
   ],
 },
 {
-  id: 'AUD-50', title: 'Reel Studio can be used with a keyboard and a screen reader', note: 'no aria, role or tabindex anywhere; the player buttons were named by their glyph',
+  id: 'AUD-50', title: 'VYMA Studio can be used with a keyboard and a screen reader', note: 'no aria, role or tabindex anywhere; the player buttons were named by their glyph',
   cases: [
     ['every button has a real name, not a glyph', async w => {
       const f = await openStudio();
@@ -4885,7 +4885,7 @@ const SUITES = [
       for (const [name, run] of checks) { const r = run(); if (r < 4.5) bad.push(theme + ' ' + name + ': ' + r.toFixed(2)); }
       return bad;
     })],
-    ['Reel Studio: the greeting line reads at 3:1 and the sort menu is named', async w => {
+    ['VYMA Studio: the greeting line reads at 3:1 and the sort menu is named', async w => {
       const r = await withStudioLibrary(w, async sw => {
         sw.location.hash = '#/dashboard';
         await aud07Tick();
@@ -5130,7 +5130,7 @@ const SUITES = [
   ],
 },
 {
-  id: 'tab-token', title: 'The sign-in survives a page load in the same tab', note: 'the token lived in memory only: every switch between Reel Studio and Reel Manager is a page load, and each one showed "HORS LIGNE — CACHE LOCAL"',
+  id: 'tab-token', title: 'The sign-in survives a page load in the same tab', note: 'the token lived in memory only: every switch between VYMA Studio and VYMA is a page load, and each one showed "HORS LIGNE — CACHE LOCAL"',
   cases: [
     ['setAccessToken keeps the token for this tab and forgets it on sign-out', w => {
       const keys = ['accessToken', 'tokenExpiresAt'];
@@ -5334,7 +5334,7 @@ const SUITES = [
   ],
 },
 {
-  id: 'AUD-33', title: 'App and Reel Studio share one copy of their common helpers', note: 'colour maths, thumbnail choice and duration parsing were written twice and had started to drift',
+  id: 'AUD-33', title: 'App and VYMA Studio share one copy of their common helpers', note: 'colour maths, thumbnail choice and duration parsing were written twice and had started to drift',
   cases: [
     ['the helpers are defined once, in shared/core.js', async w => {
       const names = ['hexToRgb', 'rgbToHex', 'rgbToHsv', 'hsvToRgb', 'hexToHsl', 'hsl', 'accentRamp', 'categoricalsFor', 'THUMB_ORDER', 'THUMB_ORDER_CARD', 'pickThumb', 'parseDuration',
@@ -5456,7 +5456,7 @@ const SUITES = [
       }
     }],
 
-    ['Reel Studio has the same kind row and badges, with the same answers as the app', async w => {
+    ['VYMA Studio has the same kind row and badges, with the same answers as the app', async w => {
       const idb = await idbSnapshot(w);
       const v = (id, title, channel, duration) => ({ videoId: id, title, channel, duration, category: '10' });
       const playlists = [
@@ -5492,9 +5492,9 @@ const SUITES = [
   ],
 },
 {
-  id: 'STUDIO-LENS', title: 'Reel Studio filters playlists by type, with the app\'s verdicts', note: 'Studio had no music detection; the classifier moved to shared/core.js so both pages decide alike',
+  id: 'STUDIO-LENS', title: 'VYMA Studio filters playlists by type, with the app\'s verdicts', note: 'Studio had no music detection; the classifier moved to shared/core.js so both pages decide alike',
   cases: [
-    ['the Music / Videos chips filter the grid, and a Reel Manager override wins', async w => {
+    ['the Music / Videos chips filter the grid, and a VYMA override wins', async w => {
       const idb = await idbSnapshot(w);
       const snap = snapshot(w, ['playlistViewMode']);
       const v = (id, title, category, duration, channel) => ({ videoId: id, title, duration, channel: channel || 'c', category });
@@ -5510,7 +5510,7 @@ const SUITES = [
           ],
           playlistObjects: [], tags: {}, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [],
         });
-        // "Video view" chosen in Reel Manager for a playlist detection calls music.
+        // "Video view" chosen in VYMA for a playlist detection calls music.
         w.localStorage.setItem('playlistViewMode', JSON.stringify({ PL_stlens_flip: 'video' }));
         f = await openStudio();
         const sw = f.contentWindow;
@@ -5581,7 +5581,7 @@ const SUITES = [
       const offline = await aud30Worker('1.2.3', { offline: true });
       return eq(await offline.fetchEvent('http://app.test/shared/core.js', 'no-cors', 'script'), 'CACHED', 'offline');
     }],
-    ['Reel Studio is pre-cached too', async w => {
+    ['VYMA Studio is pre-cached too', async w => {
       const sw = await aud30Worker('1.2.3');
       await sw.fire('install');
       return ok(sw.added.includes('reel-studio.html'), 'pre-cached: ' + sw.added.join(', '));
@@ -5606,7 +5606,7 @@ const SUITES = [
 {
   id: 'AUD-03', title: 'Delete my data deletes all of it', note: 'two hand-kept key lists had drifted apart and between them forgot seventeen keys',
   cases: [
-    ['every key the app or Reel Studio writes is in the registry', async w => {
+    ['every key the app or VYMA Studio writes is in the registry', async w => {
       const [app, studio] = await Promise.all(['youtube-playlist-manager.html', 'reel-studio.html']
         .map(f => fetch(f + '?aud03=' + Date.now()).then(r => r.text())));
       const written = new Set(['diagnosticLog', 'autoCache', 'autoCacheTimestamp']);   // written through constants
@@ -5927,7 +5927,7 @@ async function renderWithPlaylistTitle(w, title, render) {
   }
 }
 
-// AUD-28 — Reel Studio in a real, laid-out frame. This page hides iframes, so
+// AUD-28 — VYMA Studio in a real, laid-out frame. This page hides iframes, so
 // this one is placed off-screen instead, at a size where geometry is real.
 function openStudio(width, height) {
   return new Promise((resolve, reject) => {
@@ -5935,7 +5935,7 @@ function openStudio(width, height) {
     f.style.cssText = 'display:block;position:absolute;left:-12000px;top:0;border:0;' +
                       'width:' + (width || 1024) + 'px;height:' + (height || 768) + 'px;';
     f.src = 'reel-studio.html?aud28=' + Date.now();
-    const t = setTimeout(() => reject(new Error('Reel Studio did not load')), 15000);
+    const t = setTimeout(() => reject(new Error('VYMA Studio did not load')), 15000);
     f.addEventListener('load', () => { clearTimeout(t); setTimeout(() => resolve(f), 150); });
     document.body.appendChild(f);
   });
@@ -6254,7 +6254,7 @@ function runCheckAuth(w, pending, fragment) {
   }
 }
 
-// AUD-07 — Reel Studio reads the app's cache straight from IndexedDB, so a
+// AUD-07 — VYMA Studio reads the app's cache straight from IndexedDB, so a
 // library written there reaches it without going through the app's checks.
 const AUD07_TAG = "a';window.__pwn=1;'";
 const AUD07_ID = "PL_aud07b\\';window.__pwn=1;//";

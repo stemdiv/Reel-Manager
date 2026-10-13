@@ -1,5 +1,5 @@
 // ============================================================================
-// Reel / Playlist Manager — Service Worker
+// VYMA — Playlist Manager — Service Worker
 // Strategy: Cache-first for static assets, network-first for API calls
 // ============================================================================
 
@@ -46,7 +46,7 @@ self.addEventListener('activate', event => {
 // never cached. Without it the fallback resolved to undefined and Chrome showed
 // a bare ERR_FAILED, which reads like a broken app rather than a stopped server.
 function serverDownPage() {
-  const body = '<!doctype html><meta charset="utf-8"><title>Reel Manager</title>'
+  const body = '<!doctype html><meta charset="utf-8"><title>VYMA</title>'
     + '<body style="font-family:system-ui,sans-serif;background:#111;color:#eee;padding:48px;line-height:1.5">'
     + '<h1 style="font-size:20px">Le serveur local ne r\u00e9pond pas \u00b7 The local server is not answering</h1>'
     + '<p>Relancez <code>LANCER-APP.bat</code>, puis rechargez cette page.<br>'

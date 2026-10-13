@@ -18,8 +18,8 @@
 <meta name="description" content="Manage, organize and analyze your YouTube playlists with advanced tools">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Reel">
-<title>Reel — Playlist Manager</title>
+<meta name="apple-mobile-web-app-title" content="VYMA">
+<title>VYMA — Playlist Manager</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-512.png">
@@ -152,7 +152,6 @@
   }
   .header-left { display: flex; align-items: center; gap: 12px; }
   .logo { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; letter-spacing: -0.02em; font-family: var(--font-display); }
-  .logo .logo-sub { color: var(--text3); font-weight: 400; }
   .header-right { display: flex; align-items: center; gap: 8px; }
   .user-info { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text2); }
   .user-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
@@ -1332,7 +1331,6 @@
     .stats-grid { grid-template-columns: 1fr; }
 
     .header-right .quota-info#quotaInfo { font-size: 10px; padding: 3px 8px; }
-    .header-left .logo .logo-sub { display: none; }
   }
 </style>
 </head>
@@ -1350,7 +1348,7 @@
       <circle cx="19.5" cy="12" r="1.2" fill="var(--accent)"/>
     </svg>
   </div>
-  <h1><span class="accent">Reel</span>/manager</h1>
+  <h1><span class="accent">VYMA</span></h1>
   <p data-i18n="login_subtitle">Manage, organize and analyze your YouTube playlists with advanced tools</p>
 
   <div class="setup-guide" id="setupGuide">
@@ -1408,7 +1406,7 @@
           <circle cx="4.5" cy="12" r="1.2" fill="var(--accent)"/>
           <circle cx="19.5" cy="12" r="1.2" fill="var(--accent)"/>
         </svg>
-        Reel<span class="logo-sub">/manager</span>
+        VYMA
       </div>
     </div>
     <div class="header-right">
@@ -2890,7 +2888,7 @@
   </div>
 </div>
 
-<script src="shared/core.js?v=1.27.64"></script>   <!-- AUD-33 — helpers shared with Reel Studio -->
+<script src="shared/core.js?v=1.27.65"></script>   <!-- AUD-33 — helpers shared with VYMA Studio -->
 <script>
 // ============================================================================
 // CONSTANTS & CONFIG
@@ -2985,12 +2983,12 @@ const I18N = {
     theme_trichrome: 'Trichrome',
     theme_accents: 'Accent',
     nav_studio_ui: 'Musique',
-    header_studio_ui: 'Basculer vers l’interface Musique (Reel Studio)',
+    header_studio_ui: 'Basculer vers l’interface Musique (VYMA Studio)',
     version_title: 'Version et journal des modifications',
     version_current: 'en cours',
     version_theme: 'Thème actif',
     version_hint: 'Si la version affichée ici ne correspond pas à la dernière livrée, rechargez avec Ctrl+Maj+R — le service worker sert une copie en cache.',
-    version_studio: 'Ouvrir Reel Studio (UI alternative, lecture seule)',
+    version_studio: 'Ouvrir VYMA Studio (UI alternative, lecture seule)',
     skin_picker_title: 'Couleur',
     skin_toggle_mode: 'Sombre / Clair',
     header_logged_in: 'Connecté',
@@ -3970,12 +3968,12 @@ const I18N = {
     theme_trichrome: 'Trichrome',
     theme_accents: 'Accent',
     nav_studio_ui: 'Music',
-    header_studio_ui: 'Switch to the Music interface (Reel Studio)',
+    header_studio_ui: 'Switch to the Music interface (VYMA Studio)',
     version_title: 'Version & changelog',
     version_current: 'current',
     version_theme: 'Active theme',
     version_hint: 'If the version shown here is not the latest shipped one, hard-reload with Ctrl+Shift+R — the service worker is serving a cached copy.',
-    version_studio: 'Open Reel Studio (alternative UI, read-only)',
+    version_studio: 'Open VYMA Studio (alternative UI, read-only)',
     skin_picker_title: 'Color',
     skin_toggle_mode: 'Dark / Light',
     header_logged_in: 'Connected',
@@ -4973,7 +4971,7 @@ migrateTagIds();
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.64'; // bump per release, with the ?v= on shared/core.js in both pages
+const APP_VERSION = '1.27.65'; // bump per release, with the ?v= on shared/core.js in both pages
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -5178,7 +5176,7 @@ async function _logBuildHeader() {
 
   return [
     '════════════════════════════════════════════════════════════',
-    `  Reel-Manager Diagnostic Log`,
+    `  VYMA Diagnostic Log`,
     '════════════════════════════════════════════════════════════',
     `Generated:        ${nowIso}`,
     `Pacific date:     ${pacificDate}`,
@@ -5255,7 +5253,7 @@ function applyReadOnlyMode() {
 // token situation, because the token only ever lives in the URL hash and a
 // reload drops it. Say so instead, and offer the way back.
 //
-// Kept for this tab in sessionStorage too: Reel Studio and Reel Manager are
+// Kept for this tab in sessionStorage too: VYMA Studio and VYMA are
 // separate pages, so every switch between them is a page load, and a token held
 // in memory only was gone after each one ("HORS LIGNE — CACHE LOCAL" seconds
 // after signing in). sessionStorage is per tab and cleared when the tab closes;
@@ -6147,7 +6145,7 @@ function showAppFromCache() {
 // IndexedDB has no such ceiling and stores structured values, so the blob is
 // split per playlist: writing one playlist no longer means re-serialising the
 // whole library. The assembled shape readAll() returns is byte-for-byte the
-// one the old blob had, so loadBackupFromStorage() and Reel Studio did not
+// one the old blob had, so loadBackupFromStorage() and VYMA Studio did not
 // have to learn a new format.
 //
 // Where IndexedDB is unavailable — Safari private mode, a blocked origin, an
@@ -6973,7 +6971,7 @@ async function deleteAllUserData() {
 // AUTO-PURGE (f. données > 30 jours sans reconnexion)
 // ============================================================================
 
-// Every key this origin writes, the app's and Reel Studio's alike (AUD-03). The
+// Every key this origin writes, the app's and VYMA Studio's alike (AUD-03). The
 // two purge paths each kept a list by hand; the lists had drifted apart and
 // between them forgot seventeen keys, the diagnostic log and the bookmarks among
 // them. A key the app starts writing goes here, or the registry test fails.
@@ -6991,7 +6989,7 @@ var APP_STORAGE_KEYS = [   // var: read by tests.html, which cannot see a top-le
   'readOnlyMode',
   // quota counters and the diagnostic log
   'quotaState', 'quotaUnits', 'quotaResetDate', 'apiCalls', 'diagnosticLog',
-  // Reel Studio, same origin
+  // VYMA Studio, same origin
   'studioTheme', 'studioAccents',
 ];
 var APP_SESSION_KEYS = ['loggedOut', 'pendingActionAfterOAuth', 'tokenExpiresAt', 'oauthState', 'accessToken'];
@@ -7517,7 +7515,7 @@ async function showVersionInfo() {
     <div class="modal-body">
       <div style="display: flex; gap: 24px; flex-wrap: wrap;">
         <div>
-          <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--text3);">Reel Manager</div>
+          <div style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--text3);">VYMA</div>
           <div class="mono" style="font-size: 22px; font-weight: 600; color: var(--accent-text);">v${APP_VERSION}</div>
         </div>
         <div>
@@ -10856,7 +10854,7 @@ function getCategoryName(id, lang) {
 }
 
 // VIDEO_CATEGORIES and GENRE_LABELS (tag and genre names per language) live in
-// shared/core.js: Reel Studio shows tag names too.
+// shared/core.js: VYMA Studio shows tag names too.
 
 async function ensureClassificationData(videos) {
   try {
@@ -11254,7 +11252,7 @@ function effectiveViewMode(playlistId, verdict) {
 
 // ── Music detection ── the scoring (musicScore, tutorialScore, the keyword
 // regexes), stripDecorations() and playlistMusicVerdict() live in
-// shared/core.js, so Reel Studio's Music / Videos filter reaches the same
+// shared/core.js, so VYMA Studio's Music / Videos filter reaches the same
 // verdicts. classifyVideoType() below adds the details-cache lookups and the
 // genre label, which depend on this page's state.
 
@@ -13341,7 +13339,7 @@ async function createPlaylistFromDiscover() {
   try {
     // Step 1: Create the playlist (50 quota)
     const plData = await ytApi('playlists', { part: 'snippet,status' }, 'POST', {
-      snippet: { title: name, description: `Created with Reel/manager — ${selected.length} videos` },
+      snippet: { title: name, description: `Created with VYMA — ${selected.length} videos` },
       status: { privacyStatus: visibility }
     });
 
@@ -14136,7 +14134,7 @@ function generateStatisticsCharts() {
   const totalVideos = APP.playlists.reduce((s, p) => s + (p.contentDetails?.itemCount || 0), 0);
   const totalPlaylists = APP.playlists.length;
 
-  // Build pie chart legend HTML — Reel style
+  // Build pie chart legend HTML — VYMA style
   const colors = ['#d4654a', '#c9a84c', '#5dba7d', '#5a9ec9', '#9a6bc9', '#c95a8a', '#d48c4a', '#5dc9b5', '#8dc95a', '#c97a5a'];
   const catEntries = Object.entries(categories).sort((a, b) => b[1] - a[1]);
   const legendHtml = catEntries.map(([label, value], i) =>
@@ -14147,7 +14145,7 @@ function generateStatisticsCharts() {
     </div>`
   ).join('');
 
-  // Build top 10 horizontal bar chart — Reel style
+  // Build top 10 horizontal bar chart — VYMA style
   const maxVal = topPlaylists.length ? topPlaylists[0].value : 1;
   const barsHtml = topPlaylists.map((p, i) =>
     `<div style="display:grid;grid-template-columns:1fr 50px;align-items:center;gap:12px;">
@@ -17244,7 +17242,7 @@ window.addEventListener('unhandledrejection', (e) => {
   } catch (_) { /* ignore: the logger reporting on itself */ }
 });
 
-// Why did the page go away? A reload, a link to Reel Studio, a sign-in… The
+// Why did the page go away? A reload, a link to VYMA Studio, a sign-in… The
 // log showed page loads nobody could explain, so the last control clicked is
 // kept (its id or handler name, never its text or a full URL) and logged on the
 // way out, and init() logs how the page was reached.

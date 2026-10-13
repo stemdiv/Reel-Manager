@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reel — Quota &amp; Revenue Estimator</title>
+<title>VYMA — Quota &amp; Revenue Estimator</title>
 <!-- AUD-08 — this page shares the app's origin, so it gets a CSP of its own. The one inline
      script is allowed by its hash, not by 'unsafe-inline': after editing it, update the hash
      (tests.html, AUD-08, prints the expected value). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-i/zIQ7LqRiHy0Nc7OFSLRbxuycWtfVGJRaJ0+GmS8F0='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-B/ATqIoY+Mw/UNyfT/S/oki2QQx6jBjKK7jcKuWFmLo='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <!-- AUD-09 — Chart.js is served from this origin, not a CDN: a CDN response runs with this origin's
      access to the app's IndexedDB and localStorage. npm chart.js@4.4.1, dist/chart.umd.js, unmodified. -->
 <script src="vendor/chart.umd-4.4.1.js" integrity="sha384-dug+JxfBvklEQdJ4AYuBBAIScUz0bVN73xpy273gcAwHjb3qI0fXmuYNaNfdyYJG"></script>
@@ -397,7 +397,7 @@ const I18N = {
     btnCsv:"Télécharger le CSV", btnTsv:"Copier pour Google Sheets",
     exportNote:"Le CSV s'ouvre dans Excel et s'importe dans Sheets ; le bouton copie colle directement dans une feuille. L'export contient les deux vues.",
     toastCsv:"CSV téléchargé", toastCopy:"Copié — collez dans Google Sheets", toastFail:"Copie bloquée — utilisez le bouton CSV",
-    exTitle:"Reel — estimation quota & revenus", exGenerated:"Généré le", exModel:"Modèle quota",
+    exTitle:"VYMA — estimation quota & revenus", exGenerated:"Généré le", exModel:"Modèle quota",
     exModelVal:"API YouTube Data, buckets granulaires (1er juin 2026) et videos.batchGetStats (3 juin 2026)",
     exLead:"Mois de référence pour la demande", exAssumptions:"Hypothèses", exParam:"Paramètre", exValue:"Valeur",
     exMix:"Répartition par offre", exPlan:"Plan de demande, par bucket", exRevenue:"Revenu par offre, à l'horizon",
@@ -482,7 +482,7 @@ const I18N = {
     btnCsv:"Download CSV", btnTsv:"Copy for Google Sheets",
     exportNote:"CSV opens in Excel and imports into Sheets; the copy button pastes straight into a sheet. The export carries both views.",
     toastCsv:"CSV downloaded", toastCopy:"Copied — paste into Google Sheets", toastFail:"Copy blocked — use the CSV button",
-    exTitle:"Reel — quota & revenue estimate", exGenerated:"Generated", exModel:"Quota model",
+    exTitle:"VYMA — quota & revenue estimate", exGenerated:"Generated", exModel:"Quota model",
     exModelVal:"YouTube Data API, granular buckets (1 June 2026) and videos.batchGetStats (3 June 2026)",
     exLead:"Request lead month", exAssumptions:"Assumptions", exParam:"Parameter", exValue:"Value",
     exMix:"Plan mix", exPlan:"Per-bucket request plan", exRevenue:"Revenue by plan, at horizon",
