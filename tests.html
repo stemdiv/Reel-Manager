@@ -5130,6 +5130,57 @@ const SUITES = [
   ],
 },
 {
+  id: 'backup-meta', title: 'A backup import brings back tags, folders, the Deck and the queue', note: 'loadBackupFromStorage restored playlists and bookmarks only: an import into a fresh browser lost the whole organisation',
+  cases: (() => {
+    const KEYS = ['playlistTags', 'tagIcons', 'tagLabels', 'playlistFolders', 'folderAssignments', 'deckColumns', 'watchQueue'];
+    const META = {
+      tags: { PL_A: ['yt:10', 'Détente'] }, tagIcons: { 'Détente': '🎛' }, tagLabels: { 'Détente': { en: 'Chill' } },
+      folders: [{ id: 'F1', name: 'Prod', parentId: null }], folderAssignments: { PL_A: 'F1' },
+      deckColumns: [{ type: 'playlist', playlistId: 'PL_A' }, { type: 'folder', folderId: 'F1' }],
+      watchQueue: [{ videoId: 'V1abcdefghi', title: 'one', channelTitle: 'c', thumbnail: '' }],
+    };
+    // Seed the cache the way the app writes it, then run the real loader.
+    async function loadWith(w, local, meta) {
+      const idb = await idbSnapshot(w);
+      const snap = snapshot(w, KEYS.concat(['lastBackup', 'lastBackupTimestamp']));
+      try {
+        KEYS.forEach(k => w.localStorage.removeItem(k));
+        Object.entries(local || {}).forEach(([k, v]) => w.localStorage.setItem(k, v));
+        w.localStorage.removeItem('lastBackup'); w.localStorage.removeItem('lastBackupTimestamp');
+        await w.cacheStore.writeAll(Object.assign(SAMPLE_CACHE(), { timestamp: '2999-01-01T00:00:00.000Z' }, meta || META));
+        await w.loadBackupFromStorage();
+        const stored = {};
+        KEYS.forEach(k => { stored[k] = JSON.parse(w.localStorage.getItem(k)); });
+        w.renderDeck();
+        stored.deckRendered = w.document.querySelectorAll('#deckContainer .deck-column').length;
+        return stored;
+      } finally { restore(w, snap); await idbRestore(w, idb); }
+    }
+    return [
+      ['a fresh browser gets all of it back from the backup', async w => {
+        const s = await loadWith(w);
+        eq(s.playlistTags, META.tags, 'tags');
+        eq(s.tagIcons, META.tagIcons, 'tag icons');
+        eq(s.tagLabels, META.tagLabels, 'tag translations');
+        eq(s.playlistFolders.map(f => f.id), ['F1'], 'folders');
+        eq(s.folderAssignments, META.folderAssignments, 'folder assignments');
+        eq(s.deckColumns, META.deckColumns, 'Deck columns');
+        eq(s.watchQueue.map(q => q.videoId), ['V1abcdefghi'], 'watch queue');
+        return eq(s.deckRendered, 2, 'Deck columns in memory (rendered)');
+      }],
+      ['what the browser already has is never overwritten', async w => {
+        const s = await loadWith(w, { deckColumns: '[]', playlistTags: '{"PL_A":["house"]}' });
+        eq(s.deckColumns, [], 'a Deck emptied on purpose stays empty');
+        return eq(s.playlistTags, { PL_A: ['house'] }, 'local tags kept');
+      }],
+      ['a backup from before tag ids comes back as ids', async w => {
+        const s = await loadWith(w, null, { tags: { PL_A: ['Musique', 'Détente'] }, tagIcons: {} });
+        return eq(s.playlistTags, { PL_A: ['yt:10', 'Détente'] }, 'the category name became its id');
+      }],
+    ];
+  })(),
+},
+{
   id: 'tab-token', title: 'The sign-in survives a page load in the same tab', note: 'the token lived in memory only: every switch between VYMA Studio and VYMA is a page load, and each one showed "HORS LIGNE — CACHE LOCAL"',
   cases: [
     ['setAccessToken keeps the token for this tab and forgets it on sign-out', w => {

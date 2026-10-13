@@ -1,5 +1,15 @@
 [
  {
+  "v": "1.27.66",
+  "date": "2026-10-13",
+  "items": [
+   {
+    "fr": "Sauvegarde : importer un fichier de sauvegarde depuis l'écran de connexion restaure aussi les tags, leurs icônes et leurs traductions, les dossiers, le classement des playlists en dossiers, les colonnes du Deck et la file de lecture. Seul ce que le navigateur n'a pas encore est repris : une organisation déjà présente n'est jamais remplacée.",
+    "en": "Backup: importing a backup file from the sign-in screen now also restores tags, their icons and translations, folders, which playlist is in which folder, the Deck columns and the watch queue. Only what the browser does not have yet is taken: an organisation already there is never replaced."
+   }
+  ]
+ },
+ {
   "v": "1.27.65",
   "date": "2026-10-13",
   "items": [
