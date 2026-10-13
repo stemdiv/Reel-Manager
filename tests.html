@@ -523,7 +523,13 @@ async function runAutoSave(w, opts) {
 // known library and an answer for every endpoint it touches. videos answers the
 // shape getVideoDetails really returns — a map keyed by video id — because
 // iterating it as an array is the bug these cases exist for.
+// Video ids are new on every call: fetched details now stay in the app's
+// memory (and its cache) for the rest of the session, so a case reusing an
+// earlier case's ids would read that case's categories instead of its own.
+let categorizerRun = 0;
 async function runCategorizer(w, videosAnswer, playlists) {
+  const run = ++categorizerRun;
+  const idb = await idbSnapshot(w);
   const real = { ytApi: w.ytApi, showToast: w.showToast };
   w.showToast = () => {};
   w.ytApi = async (endpoint, params) => {
@@ -531,26 +537,22 @@ async function runCategorizer(w, videosAnswer, playlists) {
       { id: 'PL_cat_a', snippet: { title: 'Techno set' }, contentDetails: { itemCount: 1 }, status: {} },
       { id: 'PL_cat_b', snippet: { title: 'Cours de maths' }, contentDetails: { itemCount: 1 }, status: {} },
     ] };
-    if (endpoint === 'videoCategories') return { items: [
-      { id: '10', snippet: { title: 'Musique' } },
-      { id: '26', snippet: { title: 'Howto & Style' } },
-      { id: '27', snippet: { title: 'Education' } },
-      { id: '28', snippet: { title: 'Science & Technology' } },
-    ] };
     if (endpoint === 'playlistItems') {
       const pl = (playlists || []).find(p => p.id === params.playlistId);
       const n = pl ? (pl.contentDetails?.itemCount || 1) : 1;
       return { items: Array.from({ length: n }, (_, i) => ({
-        id: 'i' + i, contentDetails: { videoId: params.playlistId + '_v' + i },
-        snippet: { title: 'v', resourceId: { videoId: params.playlistId + '_v' + i } },
+        id: 'i' + i, contentDetails: { videoId: params.playlistId + '_v' + i + '_r' + run },
+        snippet: { title: 'v', resourceId: { videoId: params.playlistId + '_v' + i + '_r' + run } },
       })) };
     }
     if (endpoint === 'videos') return videosAnswer(params);
     return { items: [] };
   };
   await w.loadAllPlaylists();
+  // The item lists too: a playlist id an earlier case loaded is still in memory.
+  for (const p of (playlists || [{ id: 'PL_cat_a' }, { id: 'PL_cat_b' }])) await w.loadPlaylistVideos(p.id, { force: true });
   await w.showAutoCategorizerModal();
-  return () => { Object.assign(w, real); };
+  return async () => { Object.assign(w, real); await idbRestore(w, idb); };
 }
 
 function categorizerRows(w) {
@@ -588,9 +590,9 @@ const SUITES = [
         const rows = categorizerRows(w);
         eq(rows.length, 2, 'both playlists should have a suggestion');
         // Musique, not Tech: the detection ran instead of guessing at the title.
-        ok(rows.find(r => r.id === 'PL_cat_a').text.includes('Musique'), 'Techno set: ' + rows[0].text);
-        return ok(rows.find(r => r.id === 'PL_cat_b').text.includes('Education'), 'Cours de maths: ' + rows[1].text);
-      } finally { w.closeModal(); done(); restore(w, snapLs); }
+        ok(rows.find(r => r.id === 'PL_cat_a').text.includes(w.getCategoryName('10')), 'Techno set: ' + rows[0].text);
+        return ok(rows.find(r => r.id === 'PL_cat_b').text.includes(w.getCategoryName('27')), 'Cours de maths: ' + rows[1].text);
+      } finally { w.closeModal(); await done(); restore(w, snapLs); }
     }],
 
     ['apply writes the tags and the list shows them', async w => {
@@ -605,11 +607,11 @@ const SUITES = [
       try {
         w.document.getElementById('categorizerApplyBtn').click();
         const stored = JSON.parse(w.localStorage.getItem('playlistTags') || '{}');
-        eq(stored['PL_cat_a'], ['Musique'], 'the tag was not persisted');
-        eq(stored['PL_cat_b'], ['Musique'], 'the second playlist was skipped');
+        eq(stored['PL_cat_a'], ['yt:10'], 'the tag was not persisted (tags are ids since TAG-IDS)');
+        eq(stored['PL_cat_b'], ['yt:10'], 'the second playlist was skipped');
         w.refreshTagsList();
-        return ok(w.document.getElementById('tagsList').innerText.includes('Musique'), 'the list does not show the tag');
-      } finally { done(); restore(w, snapLs); }
+        return ok(w.document.getElementById('tagsList').innerText.includes(w.getCategoryName('10')), 'the list does not show the tag');
+      } finally { await done(); restore(w, snapLs); }
     }],
 
     ['nothing to apply says so instead of offering a dead button', async w => {
@@ -626,7 +628,7 @@ const SUITES = [
         // "apply is broken" — the click had nothing to do and said nothing.
         eq(w.getComputedStyle(btn).display, 'none', 'Apply is still offered');
         return ok(w.document.getElementById('categorizerResults').innerText.trim().length > 0, 'the empty result says nothing');
-      } finally { w.closeModal(); done(); restore(w, snapLs); }
+      } finally { w.closeModal(); await done(); restore(w, snapLs); }
     }],
 
     ['a title no keyword can reach is still categorized from its videos', async w => {
@@ -647,11 +649,11 @@ const SUITES = [
         const rows = categorizerRows(w);
         eq(rows.length, 1, 'no suggestion at all — the silent skip is back');
         // The majority of the videos, not the first one.
-        ok(rows[0].text.includes('Science & Technology'), rows[0].text);
+        ok(rows[0].text.includes(w.getCategoryName('28')), rows[0].text);
         w.document.getElementById('categorizerApplyBtn').click();
         const stored = JSON.parse(w.localStorage.getItem('playlistTags') || '{}');
-        return eq(stored['PL_3p'], ['Science & Technology'], 'apply did not persist it');
-      } finally { done(); restore(w, snapLs); }
+        return eq(stored['PL_3p'], ['yt:28'], 'apply did not persist it');
+      } finally { await done(); restore(w, snapLs); }
     }],
   ],
 },
@@ -1306,59 +1308,8 @@ const SUITES = [
   ],
 },
 {
-  id: 'videoCategories', title: 'Category names follow the UI language', note: 'regionCode/hl were pinned to FR/fr while every other label followed currentLang',
+  id: 'videoCategories', title: 'Category names follow the UI language', note: 'regionCode/hl were pinned to FR/fr while every other label followed currentLang; the names now come from the local table, the videoCategories call is gone',
   cases: [
-    ['an English UI asks YouTube for US/en', async w => {
-      const real = w.ytApi;
-      let seen = null;
-      try {
-        w.ytApi = async (endpoint, params) => { seen = { endpoint, params }; return { items: [] }; };
-        await w.loadVideoCategories('en');
-        eq(seen.endpoint, 'videoCategories', 'endpoint');
-        return eq([seen.params.regionCode, seen.params.hl], ['US', 'en']);
-      } finally { w.ytApi = real; }
-    }],
-
-    ['a French UI asks for FR/fr', async w => {
-      const real = w.ytApi;
-      let seen = null;
-      try {
-        w.ytApi = async (endpoint, params) => { seen = params; return { items: [] }; };
-        await w.loadVideoCategories('fr');
-        return eq([seen.regionCode, seen.hl], ['FR', 'fr']);
-      } finally { w.ytApi = real; }
-    }],
-
-    ['with no argument it follows currentLang, not a hard-coded FR', async w => {
-      const real = w.ytApi;
-      const langSnap = snapshot(w, ['appLang']);
-      let seen = null;
-      try {
-        w.applyLanguage('en');
-        w.ytApi = async (endpoint, params) => { seen = params; return { items: [] }; };
-        await w.loadVideoCategories();
-        return eq([seen.regionCode, seen.hl], ['US', 'en']);
-      } finally { w.ytApi = real; restoreLang(w, langSnap); }
-    }],
-
-    ['the two languages are distinct cache entries', async w => {
-      // The cache key is the full request URL, so hl=fr and hl=en cannot collide.
-      const real = w.ytApi;
-      const urls = [];
-      try {
-        w.ytApi = async (endpoint, params) => {
-          const u = new URL('https://www.googleapis.com/youtube/v3/' + endpoint);
-          Object.keys(params).forEach(k => u.searchParams.append(k, params[k]));
-          urls.push(u.toString());
-          return { items: [] };
-        };
-        await w.loadVideoCategories('fr');
-        await w.loadVideoCategories('en');
-        ok(urls[0] !== urls[1], 'same cache key for both languages: ' + urls[0]);
-        return 'distinct keys';
-      } finally { w.ytApi = real; }
-    }],
-
     ['category labels in the app already follow the UI language', w => {
       return eq([w.getCategoryName('10', 'fr'), w.getCategoryName('10', 'en')], ['Musique', 'Music']);
     }],
@@ -2309,6 +2260,254 @@ const SUITES = [
   ],
 },
 {
+  id: 'TAGS-EDIT', title: 'Tags can be removed, renamed and deleted', note: 'adding was the only way in; removing meant editing a comma-separated field, one playlist at a time',
+  cases: [
+    ['a chip removes its tag; the index renames, merges, removes from some and deletes everywhere', async w => {
+      const snap = snapshot(w, ['lastBackup', 'lastBackupTimestamp', 'playlistTags', 'tagIcons']);
+      const real = { ytApi: w.ytApi, showToast: w.showToast, confirm: w.confirm };
+      w.showToast = () => {};
+      w.confirm = () => true;
+      const backup = {
+        schemaVersion: 1, timestamp: '2026-09-01T10:00:00.000Z',
+        playlists: [{ id: 'PL_tagedit_a', title: 'A', videos: [] }, { id: 'PL_tagedit_b', title: 'B', videos: [] }],
+        playlistObjects: ['a', 'b'].map(k => ({ id: 'PL_tagedit_' + k, snippet: { title: k.toUpperCase() }, contentDetails: { itemCount: 0 }, status: { privacyStatus: 'private' } })),
+      };
+      // Through the real Add modal: APP is a top-level const, not reachable from here.
+      const addTag = (name, icon, ids) => {
+        w.showAddTagModal();
+        w.document.getElementById('newTagInput').value = name;
+        w.document.getElementById('newTagIconInput').value = icon;
+        w.document.querySelectorAll('.tag-playlist-select').forEach(el => { el.checked = ids.includes(el.value); });
+        w.applyNewTag();
+      };
+      const rename = (from, to) => {
+        w.showRenameTagModal(from);
+        w.document.getElementById('renameTagInput').value = to;
+        w.applyRenameTag();
+      };
+      const tags = () => { const s = JSON.parse(w.localStorage.getItem('playlistTags') || '{}'); return [s.PL_tagedit_a, s.PL_tagedit_b]; };
+      const icons = () => JSON.parse(w.localStorage.getItem('tagIcons') || '{}');
+      try {
+        w.localStorage.setItem('lastBackup', JSON.stringify(backup));
+        w.localStorage.setItem('lastBackupTimestamp', new Date().toISOString());
+        await w.loadBackupFromStorage();
+        addTag('zzLive', '🎤', ['PL_tagedit_a', 'PL_tagedit_b']);
+        addTag('zzGigs', '', ['PL_tagedit_a']);
+
+        const chip = [...w.document.querySelectorAll('#tagsList .tag-remove')].find(b => b.dataset.tag === 'zzGigs');
+        ok(chip, 'the chip has no remove button');
+        chip.click();
+        eq(tags(), [['zzLive'], ['zzLive']], 'the chip removed its tag from A only');
+
+        rename('zzLive', 'zz,bad');
+        eq(tags(), [['zzLive'], ['zzLive']], 'a name with a comma is refused');
+        rename('zzLive', 'zzConcerts');
+        eq(tags(), [['zzConcerts'], ['zzConcerts']], 'renamed everywhere');
+        eq([icons().zzConcerts, icons().zzLive], ['🎤', undefined], 'the icon follows the rename');
+
+        addTag('zzOther', '', ['PL_tagedit_a']);
+        rename('zzOther', 'zzConcerts');
+        eq(tags()[0], ['zzConcerts'], 'renaming onto an existing tag merges, not doubles');
+
+        w.showRemoveTagModal('zzConcerts');
+        w.document.querySelectorAll('.tag-remove-select').forEach(el => { el.checked = el.value === 'PL_tagedit_b'; });
+        w.applyRemoveTag();
+        eq(tags(), [['zzConcerts'], undefined], 'removed from the checked playlist only');
+
+        w.deleteTagEverywhere('zzConcerts');
+        eq(tags(), [undefined, undefined], 'deleted everywhere');
+        return eq(icons().zzConcerts, undefined, 'an unused tag keeps no icon');
+      } finally {
+        w.closeModal();
+        restore(w, snap);
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+
+    ['tag names become ids: one tag per category in any language, icons follow, a second pass is a no-op', w => {
+      // The auto-categorizer wrote names in the UI language: a French run and an
+      // English one left "Musique" and "Music" side by side.
+      const r = w.normalizeTagIds(
+        { PL_a: ['Music', 'Musique', 'Sports', 'Chill', 'Classique', 'Humour', 'Électronique / EDM'], PL_b: ['yt:10', 'Sport'] },
+        { Music: '🎵', Musique: '🎶', Chill: '😌' });
+      eq(r.tags.PL_a, ['yt:10', 'yt:17', 'Chill', 'genre:Classical_music', 'yt:23', 'genre:Electronic_music'], 'playlist A');
+      eq(r.tags.PL_b, ['yt:10', 'yt:17'], 'playlist B');
+      eq(r.icons, { 'yt:10': '🎵', Chill: '😌' }, 'the first icon of a merged pair is kept');
+      eq(r.changed, true, 'changed');
+      return eq(w.normalizeTagIds(r.tags, r.icons).changed, false, 'a second pass changes nothing');
+    }],
+
+    ['a tag is named in the interface language; user tags use their translations', w => {
+      eq([w.tagLabel('yt:10', 'fr'), w.tagLabel('yt:10', 'en')], ['Musique', 'Music'], 'category');
+      eq([w.tagLabel('genre:Electronic_music', 'fr'), w.tagLabel('genre:Electronic_music', 'en')], ['Électronique / EDM', 'Electronic / EDM'], 'genre');
+      eq(w.tagLabel('genre:Music_of_Africa', 'fr'), 'Music of Africa', 'an unknown genre names itself');
+      eq(w.tagLabel('yt:10', 'de'), 'Music', 'a language with no name falls back to English');
+      const labels = { 'Détente': { en: 'Chill' } };
+      eq([w.tagLabel('Détente', 'fr', labels), w.tagLabel('Détente', 'en', labels)], ['Détente', 'Chill'], 'user tag');
+      eq([w.tagIdFromName('chill', labels), w.tagIdFromName('MUSIC'), w.tagIdFromName('yt:999'), w.tagIdFromName('Brand new')],
+         ['Détente', 'yt:10', null, 'Brand new'], 'names to ids');
+      return eq(w.tagIdFromName('Classique'), 'genre:Classical_music', 'the genre before the legacy category 33');
+    }],
+
+    ['every tag-name table covers every interface language', w => {
+      // Adding a language to I18N without naming the categories and genres in it
+      // fails here, not silently in English on screen.
+      const langs = w.UI_LANGUAGES;
+      ok(Array.isArray(langs) && langs.length >= 2, 'UI_LANGUAGES: ' + langs);
+      const gaps = [];
+      for (const [id, c] of Object.entries(w.VIDEO_CATEGORIES)) for (const l of langs) if (!c[l]) gaps.push('yt:' + id + ' ' + l);
+      for (const [g, names] of Object.entries(w.GENRE_LABELS)) for (const l of langs) if (!names[l]) gaps.push('genre:' + g + ' ' + l);
+      return eq(gaps, [], 'names missing from shared/core.js');
+    }],
+
+    ['typed in any language it is one tag; the view follows the language; user tags translate', async w => {
+      const snap = snapshot(w, ['lastBackup', 'lastBackupTimestamp', 'playlistTags', 'tagIcons', 'tagLabels', 'appLang']);
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      w.showToast = () => {};
+      const backup = {
+        schemaVersion: 1, timestamp: '2026-09-01T10:00:00.000Z',
+        playlists: [{ id: 'PL_tagid_a', title: 'A', videos: [] }, { id: 'PL_tagid_b', title: 'B', videos: [] }],
+        playlistObjects: ['a', 'b'].map(k => ({ id: 'PL_tagid_' + k, snippet: { title: k.toUpperCase() }, contentDetails: { itemCount: 0 }, status: { privacyStatus: 'private' } })),
+      };
+      const addTag = (name, ids) => {
+        w.showAddTagModal();
+        w.document.getElementById('newTagInput').value = name;
+        w.document.querySelectorAll('.tag-playlist-select').forEach(el => { el.checked = ids.includes(el.value); });
+        w.applyNewTag();
+      };
+      const translate = (id, lang, value) => {
+        w.showTranslateTagModal(id);
+        w.document.getElementById('tagLabel_' + lang).value = value;
+        w.applyTranslateTag();
+      };
+      const tags = () => { const s = JSON.parse(w.localStorage.getItem('playlistTags') || '{}'); return [s.PL_tagid_a, s.PL_tagid_b]; };
+      const labels = () => JSON.parse(w.localStorage.getItem('tagLabels') || '{}')['Détente'];
+      const row = id => [...w.document.querySelectorAll('#tagsList .tag-index-row')].find(r => r.dataset.tag === id);
+      const names = () => ['yt:10', 'Détente'].map(id => row(id).querySelector('.tag').textContent.trim());
+      try {
+        w.applyLanguage('fr');
+        w.localStorage.setItem('lastBackup', JSON.stringify(backup));
+        w.localStorage.setItem('lastBackupTimestamp', new Date().toISOString());
+        await w.loadBackupFromStorage();
+        addTag('Music', ['PL_tagid_a']);
+        addTag('Musique', ['PL_tagid_b']);
+        addTag('Détente', ['PL_tagid_a']);
+        eq(tags(), [['yt:10', 'Détente'], ['yt:10']], 'Music and Musique are the same tag');
+        eq(names(), ['Musique', 'Détente'], 'French names');
+        eq([row('yt:10').querySelectorAll('button').length, row('Détente').querySelectorAll('button').length], [2, 4],
+           'a category cannot be renamed or translated; a user tag can');
+
+        translate('Détente', 'en', 'Chill');
+        eq(labels(), { en: 'Chill' }, 'translation saved');
+        eq([(row('Détente').querySelector('.tag-index-langs') || {}).textContent, !!row('yt:10').querySelector('.tag-index-langs')],
+           [' · EN', false], 'the row shows the languages it is translated into; a category shows none');
+        translate('Détente', 'en', 'Music');
+        eq(labels(), { en: 'Chill' }, 'a name another tag already has is refused');
+        w.closeModal();
+
+        w.toggleLanguage();   // fr → en
+        eq(names(), ['Music', 'Chill'], 'English names after the switch');
+        w.showRenameTagModal('Détente');
+        w.document.getElementById('renameTagInput').value = 'Relax';
+        w.applyRenameTag();
+        eq([labels(), tags()[0]], [{ en: 'Relax' }, ['yt:10', 'Détente']], 'renaming a translated tag renames it in this language only');
+        return eq(w.document.querySelector('#tagsList h3').textContent, 'All tags', 'heading');
+      } finally {
+        w.closeModal();
+        w.applyLanguage(snap.appLang || 'fr');
+        restore(w, snap);
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+
+    ['a backup keeps valid tag translations only', w => {
+      const out = w.sanitizeBackup({ schemaVersion: 1, playlists: [],
+        tagLabels: { 'Détente': { en: 'Chill', de: 5, english: 'x', fr: '' }, 'a,b': 'nope', 'Vide': {} } });
+      return eq(out.tagLabels, { 'Détente': { en: 'Chill' } });
+    }],
+
+    ['Reel Studio names tags in its language, from an old cache of names too', async w => {
+      const idb = await idbSnapshot(w);
+      const snap = snapshot(w, ['appLang']);
+      let f;
+      try {
+        await w.cacheStore.writeAll({
+          timestamp: new Date().toISOString(),
+          playlists: [{ id: 'PL_sttag_a', title: 'A', videos: [{ videoId: 'sttagvid001', title: 'v', duration: 'PT3M', channel: 'c' }] }],
+          playlistObjects: [], tags: { PL_sttag_a: ['Musique', 'Détente'] }, tagIcons: {}, tagLabels: { 'Détente': { en: 'Chill' } },
+          folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [],
+        });
+        w.localStorage.setItem('appLang', 'en');
+        f = await openStudio();
+        const sw = f.contentWindow;
+        sw.location.hash = '#/playlists';
+        await aud07Tick();
+        const pills = [...sw.document.querySelectorAll('.pl-card .tag-pill')].map(p => p.textContent);
+        return eq(pills, ['Music', 'Chill']);
+      } finally {
+        if (f) f.remove();
+        restore(w, snap);
+        await idbRestore(w, idb);
+      }
+    }],
+
+    ['Reel Studio has its own language button, sharing the language with the app', async w => {
+      const idb = await idbSnapshot(w);
+      const snap = snapshot(w, ['appLang']);
+      let f;
+      try {
+        await w.cacheStore.writeAll({
+          timestamp: new Date().toISOString(),
+          playlists: [{ id: 'PL_stlang_a', title: 'A', videos: [{ videoId: 'stlangvid01', title: 'v', duration: 'PT3M', channel: 'c' }] }],
+          playlistObjects: [], tags: { PL_stlang_a: ['yt:10'] }, tagIcons: {}, tagLabels: {},
+          folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [],
+        });
+        w.localStorage.setItem('appLang', 'fr');
+        f = await openStudio();
+        f.contentWindow.location.hash = '#/playlists';
+        await aud07Tick();
+        const btn = f.contentWindow.document.getElementById('langToggle');
+        ok(btn, 'no language button');
+        eq(btn.textContent.trim(), 'FR', 'label before');
+        // The switch reloads the page: everything there is built for one language.
+        const reloaded = new Promise(r => f.addEventListener('load', r, { once: true }));
+        btn.click();
+        await reloaded;
+        await new Promise(r => setTimeout(r, 400));
+        const sw = f.contentWindow;
+        eq(w.localStorage.getItem('appLang'), 'en', 'the key Reel Manager reads');
+        eq([sw.document.documentElement.lang, sw.document.getElementById('langToggle').textContent.trim(), sw.location.hash],
+           ['en', 'EN', '#/playlists'], 'after the reload, on the same view');
+        return eq([...sw.document.querySelectorAll('.pl-card .tag-pill')].map(p => p.textContent), ['Music'], 'tag names follow');
+      } finally {
+        if (f) f.remove();
+        restore(w, snap);
+        await idbRestore(w, idb);
+      }
+    }],
+
+    ['the Tags view follows a language switch', w => {
+      const snap = snapshot(w, ['appLang']);
+      try {
+        w.applyLanguage('fr');
+        w.refreshTagsList();
+        const heading = () => w.document.querySelector('#tagsList h3').textContent;
+        eq(heading(), 'Tous les tags', 'fr');
+        w.toggleLanguage();
+        return eq(heading(), 'All tags', 'after the switch');
+      } finally {
+        w.applyLanguage(snap.appLang || 'fr');
+        restore(w, snap);
+        w.refreshTagsList();
+      }
+    }],
+  ],
+},
+{
   id: '#17', title: 'Music mode — detection and parsing', note: 'design spec §3 and §6; both run on metadata already fetched, so no extra quota',
   cases: [
     ['"- Topic" alone is enough', w =>
@@ -2356,7 +2555,7 @@ const SUITES = [
     }],
 
     ['an empty playlist is a video playlist, not a guess', w =>
-      eq(w.playlistMusicVerdict([]), { verdict: 'video', ratio: 0, sampled: 0 })],
+      eq(w.playlistMusicVerdict([]), { verdict: 'video', ratio: 0, sampled: 0, kinds: {}, dominant: null })],
 
     ['only the first 50 are sampled', w => {
       const track = { title: 't', channelTitle: 'A - Topic', durationSeconds: 200 };
@@ -2365,6 +2564,25 @@ const SUITES = [
       const r = w.playlistMusicVerdict(big);
       eq(r.sampled, 50, 'sample size');
       return eq(r.verdict, 'music', 'the 500 videos past the sample must not be read');
+    }],
+
+    ['a playlist of concerts is a music playlist', w => {
+      // None of them is a track (long-form penalty), all of them are music
+      // content — the verdict counts the latter.
+      const gig = n => ({ title: 'Band ' + n + ' - Live at Olympia 2019', categoryId: '10', durationSeconds: 5400 });
+      const list = [gig(1), gig(2), gig(3), gig(4), gig(5)];
+      eq(list.map(w.isMusicVideo), [false, false, false, false, false], 'no track');
+      return eq(w.playlistMusicVerdict(list).verdict, 'music');
+    }],
+
+    ['live keywords match past non-ASCII letters', w => {
+      // \b is ASCII-only: "live à Paris" used to miss.
+      const c = title => w.classifyVideoType({ title, durationSeconds: 3600 });
+      eq([c('Stromae live à Paris').isMusic, c('Stromae live à Paris').type], [true, 'live'], 'live à');
+      eq(c('Angèle live au Zénith').type, 'live', 'live au');
+      eq(c('Song (Live)').type, 'live', '(live)');
+      eq(c('Clip officiel').isMusic, true, 'clip officiel');
+      return eq(c('Olivier livestream').isMusic, false, 'live inside a word is not live');
     }],
 
     // ── Parser (§6) ─────────────────────────────────────────────────────────
@@ -2514,6 +2732,44 @@ const SUITES = [
         w.setPlaylistViewMode('PL_lens_a', 'video');
         return eq(w.playlistPassesLens('PL_lens_a', 'music'), false, 'the override must flip the lens too');
       } finally { restore(w, snap); }
+    }],
+
+    ['the lens filters playlists at load, from the cached videos', async w => {
+      // No playlist is opened: the verdict must come from the backup alone.
+      const snap = snapshot(w, ['lastBackup', 'lastBackupTimestamp', 'libraryLens', 'playlistViewMode']);
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      w.showToast = () => {};
+      const vid = (id, title, category, duration) => ({ videoId: id, title, channel: 'Chan', duration, category, position: 0 });
+      const backup = {
+        schemaVersion: 1, timestamp: '2026-09-01T10:00:00.000Z',
+        playlists: [
+          { id: 'PL_lensload_gigs', title: 'Gigs', videos: [
+            vid('lnsGig00001', 'Band - Live at Olympia', '10', 'PT1H30M'),
+            vid('lnsGig00002', 'Band - live à Paris', '10', 'PT1H10M')] },
+          { id: 'PL_lensload_talk', title: 'Talks', videos: [
+            vid('lnsTalk0001', 'Quarterly review', '28', 'PT45M'),
+            vid('lnsTalk0002', 'Keynote', '28', 'PT50M')] },
+          { id: 'PL_lensload_none', title: 'Never loaded', videos: [] },
+        ],
+        playlistObjects: ['gigs', 'talk', 'none'].map(k => ({ id: 'PL_lensload_' + k, snippet: { title: k }, contentDetails: { itemCount: 2 }, status: { privacyStatus: 'private' } })),
+      };
+      const rendered = () => [...w.document.querySelectorAll('#playlistsList [data-playlist-id]')].map(e => e.dataset.playlistId).sort();
+      try {
+        w.localStorage.setItem('lastBackup', JSON.stringify(backup));
+        w.localStorage.setItem('lastBackupTimestamp', new Date().toISOString());
+        await w.loadBackupFromStorage();
+        w.setLibraryLens('music');
+        eq(rendered(), ['PL_lensload_gigs', 'PL_lensload_none'], 'music lens');
+        w.setLibraryLens('video');
+        eq(rendered(), ['PL_lensload_none', 'PL_lensload_talk'], 'video lens');
+        w.setLibraryLens('all');
+        return eq(rendered().length, 3, 'all');
+      } finally {
+        restore(w, snap);
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
     }],
 
     ['the old dedicated music button is gone from the detail header', w => {
@@ -3944,7 +4200,7 @@ const SUITES = [
         card.click();
         await aud07Tick();
         return { pwn: sw.__pwn, hash: sw.location.hash, cards: sw.document.querySelectorAll('.pl-card').length,
-                 chip: (sw.document.querySelector('.chip.active') || {}).textContent };
+                 chip: (sw.document.querySelector('.chip.active[onclick*="plTag"]') || {}).textContent };
       });
       eq(r.pwn, undefined, 'the tag name ran as code');
       eq(r.hash, '#/playlists', 'route');
@@ -5012,7 +5268,7 @@ const SUITES = [
                                           topicDetails: { topicCategories: g ? [topic(g), topic('Music')] : [] } });
       const label = w.classifyVideoType({ topicCategories: [topic('Electronic_music')], categoryId: '10' }).genre;
       ok(label, 'no genre label');
-      eq(w.dominantGenre([d('a', 'Electronic_music'), d('b', 'Electronic_music'), d('c', 'Rock_music')]), label, 'two of three');
+      eq(w.dominantGenre([d('a', 'Electronic_music'), d('b', 'Electronic_music'), d('c', 'Rock_music')]), 'genre:Electronic_music', 'two of three, as a tag id');
       eq(w.dominantGenre([d('a', 'Electronic_music')]), null, 'one track is not a genre');
       eq(w.dominantGenre([d('a', 'Electronic_music'), d('b', 'Rock_music'), d('c', 'Pop_music'), d('d', 'Jazz')]), null, 'no majority');
       return eq(w.dominantGenre([d('a', null, '27'), d('b', null, '27')]), null, 'no music');
@@ -5032,8 +5288,8 @@ const SUITES = [
         ok(row && row.text.includes(genre), 'suggestion: ' + (row && row.text));
         w.document.getElementById('categorizerApplyBtn').click();
         const stored = JSON.parse(w.localStorage.getItem('playlistTags') || '{}');
-        return eq(stored['PL_j3'], ['Musique', genre], 'tags written');
-      } finally { done(); restore(w, snapLs); }
+        return eq(stored['PL_j3'], ['yt:10', 'genre:Electronic_music'], 'tags written, as ids');
+      } finally { await done(); restore(w, snapLs); }
     }],
   ],
 },
@@ -5081,21 +5337,29 @@ const SUITES = [
   id: 'AUD-33', title: 'App and Reel Studio share one copy of their common helpers', note: 'colour maths, thumbnail choice and duration parsing were written twice and had started to drift',
   cases: [
     ['the helpers are defined once, in shared/core.js', async w => {
-      const names = ['hexToRgb', 'rgbToHex', 'rgbToHsv', 'hsvToRgb', 'hexToHsl', 'hsl', 'accentRamp', 'categoricalsFor', 'THUMB_ORDER', 'THUMB_ORDER_CARD', 'pickThumb', 'parseDuration'];
+      const names = ['hexToRgb', 'rgbToHex', 'rgbToHsv', 'hsvToRgb', 'hexToHsl', 'hsl', 'accentRamp', 'categoricalsFor', 'THUMB_ORDER', 'THUMB_ORDER_CARD', 'pickThumb', 'parseDuration',
+        'VIDEO_CATEGORIES', 'GENRE_LABELS', 'TAG_ID_RE', 'isBuiltinTag', 'tagLabel', 'tagIdFromName', 'normalizeTagIds',
+        'MUSIC_SIGNALS', 'isTopicChannel', 'musicScore', 'stripDecorations', 'hasArtistTitlePattern', 'wordsRe', 'tutorialScore',
+        'MUSIC_INCLUDE_RE', 'MUSIC_LIVE_RE', 'classifyMusic', 'playlistMusicVerdict', 'MUSIC_KINDS', 'MUSIC_AUDIO_RE', 'MUSIC_CLIP_RE'];
       const files = ['shared/core.js', 'youtube-playlist-manager.html', 'reel-studio.html'];
       const srcs = await Promise.all(files.map(f => fetch(f + '?aud33=' + Date.now()).then(r => r.text())));
       const defines = (src, n) => new RegExp('(^|\\n)\\s*(function ' + n + '\\s*\\(|(const|let|var) ' + n + '\\s*=)').test(src);
       const where = names.map(n => [n, files.filter((f, i) => defines(srcs[i], n))]);
       return eq(where.filter(([, fs]) => fs.length !== 1 || fs[0] !== 'shared/core.js').map(([n, fs]) => n + ': ' + fs.join(', ')), [], 'definitions outside shared/core.js');
     }],
-    ['both pages load it before their own script', async w => {
+    ['both pages load it before their own script, versioned with the release', async w => {
+      // ?v= makes a new release fetch a new core.js: an HTTP-cached copy (GitHub
+      // Pages keeps files 10 min) would miss functions the fresh page calls.
       const out = [];
+      let version = null;
       for (const page of ['youtube-playlist-manager.html', 'reel-studio.html']) {
-        const doc = new DOMParser().parseFromString(await fetch(page + '?aud33b=' + Date.now()).then(r => r.text()), 'text/html');
-        const first = doc.querySelector('script');
+        const src = await fetch(page + '?aud33b=' + Date.now()).then(r => r.text());
+        if (!version) version = (src.match(/const APP_VERSION = '([^']+)'/) || [])[1];
+        const first = new DOMParser().parseFromString(src, 'text/html').querySelector('script');
         out.push(first && first.getAttribute('src'));
       }
-      return eq(out, ['shared/core.js', 'shared/core.js']);
+      ok(version, 'APP_VERSION not found');
+      return eq(out, ['shared/core.js?v=' + version, 'shared/core.js?v=' + version]);
     }],
     ['the shared helpers behave the same in each page, and never throw', async w => {
       const f = await openStudio();
@@ -5105,6 +5369,187 @@ const SUITES = [
         eq(probe(sw), probe(w), 'Studio vs app');
         eq(w.hexToRgb('nope', 0xff2d55), { r: 255, g: 45, b: 85 }, 'fallback');
         return eq(w.hexToHsl(null).h > 0, true, 'a non-string no longer throws');
+      } finally { f.remove(); }
+    }],
+  ],
+},
+{
+  id: 'KINDS', title: 'Four kinds of video, after YouTube Music: track, clip, live & sets, other', note: 'the Data API has no videoType (ATV / OMV / UGC / OFFICIAL_SOURCE_MUSIC): the kind is read from channel, title, category and length',
+  cases: [
+    ['each video gets one kind, rules in order', w => {
+      const k = v => w.classifyMusic(v).kind;
+      const cases = [
+        [{ title: 'Nightcall', channelTitle: 'Kavinsky - Topic', durationSeconds: 258 }, 'track', 'a Topic upload'],
+        [{ title: 'Artist - Song (Official Audio)', channelTitle: 'Artist', categoryId: '10', durationSeconds: 200 }, 'track', 'official audio'],
+        [{ title: 'Daft Punk - Around The World (Official Video)', channelTitle: 'Daft Punk', categoryId: '10', durationSeconds: 240 }, 'clip', 'official video'],
+        [{ title: 'Song', channelTitle: 'ArtistVEVO', categoryId: '10', durationSeconds: 200 }, 'clip', 'a VEVO channel'],
+        [{ title: 'Artist - Song', channelTitle: 'Label', categoryId: '10', durationSeconds: 200 }, 'clip', 'no hint off a Topic channel'],
+        [{ title: 'Band - Live at Olympia', categoryId: '10', durationSeconds: 300 }, 'live', 'a live title'],
+        [{ title: 'Deep house mix 2026', categoryId: '10', durationSeconds: 3600 }, 'live', 'an hour of music'],
+        [{ title: 'Full Album', channelTitle: 'X - Topic', categoryId: '10', durationSeconds: 2700 }, 'live', 'long beats Topic'],
+        [{ title: 'How I make a techno beat', categoryId: '10', durationSeconds: 600 }, 'other', 'a tutorial'],
+        [{ title: 'Keynote 2026', categoryId: '28', durationSeconds: 3600 }, 'other', 'not music'],
+      ];
+      return eq(cases.map(([v]) => k(v)), cases.map(c => c[1]), cases.map(c => c[2]).join(' / '));
+    }],
+
+    ['a playlist has a dominant kind: at least half of its music', w => {
+      const clip = { title: 'A - B (Official Video)', categoryId: '10', durationSeconds: 200 };
+      const track = { title: 't', channelTitle: 'A - Topic', durationSeconds: 200 };
+      const live = { title: 'Live at X', categoryId: '10', durationSeconds: 3000 };
+      const talk = { title: 'Keynote', categoryId: '28', durationSeconds: 3000 };
+      eq(w.playlistMusicVerdict([clip, clip, clip, track]).dominant, 'clip', '3 of 4');
+      eq(w.playlistMusicVerdict([clip, track, live]).dominant, 'mixed', 'a third each');
+      eq(w.playlistMusicVerdict([live, live, talk]).kinds, { live: 2 }, 'counts of the music only');
+      eq(w.playlistMusicVerdict([talk]).dominant, null, 'no music, no kind');
+      return eq(w.playlistMusicVerdict([]).dominant, null, 'empty');
+    }],
+
+    ['every Type menu offers the three kinds', w => {
+      const menus = ['filterType', 'gsType', 'moveType', 'watchFilterType'];
+      const missing = menus.filter(id => !['kind_track', 'kind_clip', 'kind_live']
+        .every(v => w.document.querySelector(`#${id} option[value="${v}"]`)));
+      return eq(missing, [], 'menus without the kinds');
+    }],
+
+    ['under Music, the kind row keeps the playlists of that kind; cards carry the badge', async w => {
+      const snap = snapshot(w, ['lastBackup', 'lastBackupTimestamp', 'libraryLens', 'libraryMusicKind', 'playlistViewMode']);
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      w.showToast = () => {};
+      const vid = (id, title, channel, duration) => ({ videoId: id, title, channel, duration, category: '10', position: 0 });
+      const backup = {
+        schemaVersion: 1, timestamp: '2026-09-01T10:00:00.000Z',
+        playlists: [
+          { id: 'PL_kind_clips', title: 'Clips', videos: [vid('kndClip0001', 'A - B (Official Video)', 'A', 'PT4M'), vid('kndClip0002', 'C - D (Clip officiel)', 'C', 'PT3M30S')] },
+          { id: 'PL_kind_tracks', title: 'Tracks', videos: [vid('kndTrck0001', 'Song', 'A - Topic', 'PT3M'), vid('kndTrck0002', 'Tune', 'B - Topic', 'PT4M')] },
+          { id: 'PL_kind_live', title: 'Live', videos: [vid('kndLive0001', 'Band - Live at Olympia', 'Band', 'PT1H30M'), vid('kndLive0002', 'Boiler Room set', 'BR', 'PT1H')] },
+          { id: 'PL_kind_mixed', title: 'Mixed', videos: [vid('kndMixd0001', 'A - B (Official Video)', 'A', 'PT4M'), vid('kndMixd0002', 'Song', 'A - Topic', 'PT3M'), vid('kndMixd0003', 'Live at X', 'X', 'PT1H')] },
+        ],
+        playlistObjects: ['clips', 'tracks', 'live', 'mixed'].map(k => ({ id: 'PL_kind_' + k, snippet: { title: k }, contentDetails: { itemCount: 2 }, status: { privacyStatus: 'private' } })),
+      };
+      const rendered = () => [...w.document.querySelectorAll('#playlistsList [data-playlist-id]')].map(e => e.dataset.playlistId).filter(id => id.startsWith('PL_kind_')).sort();
+      const badge = id => ((w.document.querySelector(`#playlistsList [data-playlist-id="${id}"] .kind-badge`) || {}).textContent || '').trim();
+      try {
+        w.localStorage.setItem('lastBackup', JSON.stringify(backup));
+        w.localStorage.setItem('lastBackupTimestamp', new Date().toISOString());
+        await w.loadBackupFromStorage();
+        w.setLibraryKind('all');
+        w.setLibraryLens('video');
+        eq(w.document.getElementById('libraryKind').style.display, 'none', 'no kind row outside Music');
+        w.setLibraryLens('music');
+        eq(w.document.getElementById('libraryKind').style.display, '', 'kind row under Music');
+        eq(rendered(), ['PL_kind_clips', 'PL_kind_live', 'PL_kind_mixed', 'PL_kind_tracks'], 'all music');
+        eq([badge('PL_kind_clips'), badge('PL_kind_tracks'), badge('PL_kind_live'), badge('PL_kind_mixed')],
+           [w.t('kind_badge_pl_clip'), w.t('kind_badge_pl_track'), w.t('kind_badge_pl_live'), ''], 'badges; none on a mixed playlist');
+        w.setLibraryKind('clip');
+        eq(rendered(), ['PL_kind_clips'], 'clips');
+        w.setLibraryKind('live');
+        eq(rendered(), ['PL_kind_live'], 'live & sets');
+        w.setLibraryKind('track');
+        return eq(rendered(), ['PL_kind_tracks'], 'tracks');
+      } finally {
+        restore(w, snap);
+        w.renderLibraryLens();
+        w.ytApi = async () => ({ items: [] });
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+
+    ['Reel Studio has the same kind row and badges, with the same answers as the app', async w => {
+      const idb = await idbSnapshot(w);
+      const v = (id, title, channel, duration) => ({ videoId: id, title, channel, duration, category: '10' });
+      const playlists = [
+        { id: 'PL_stkind_clips', title: 'Clips', videos: [v('stkClip0001', 'A - B (Official Video)', 'A', 'PT4M'), v('stkClip0002', 'C - D', 'CVEVO', 'PT3M')] },
+        { id: 'PL_stkind_tracks', title: 'Tracks', videos: [v('stkTrck0001', 'Song', 'A - Topic', 'PT3M')] },
+        { id: 'PL_stkind_live', title: 'Live', videos: [v('stkLive0001', 'Tiny Desk Concert', 'NPR Music', 'PT20M30S')] },
+      ];
+      let f;
+      try {
+        await w.cacheStore.writeAll({ timestamp: new Date().toISOString(), playlists, playlistObjects: [], tags: {}, tagIcons: {}, tagLabels: {},
+          folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [] });
+        f = await openStudio();
+        const sw = f.contentWindow;
+        sw.location.hash = '#/playlists';
+        await aud07Tick();
+        const app = playlists.map(p => w.playlistMusicVerdict(p.videos.map(x => ({ title: x.title, channelTitle: x.channel,
+          durationSeconds: w.parseDuration(x.duration), categoryId: x.category })), w.classifyVideoType).dominant);
+        eq(app, ['clip', 'track', 'live'], 'app');
+        eq(playlists.map(p => sw.loadData({ playlists }).playlists.find(q => q.id === p.id).musicKind), app, 'Studio vs app');
+        const click = async sel => { sw.document.querySelector(sel).click(); await aud07Tick(); };
+        const shown = () => [...sw.document.querySelectorAll('.pl-card')].map(c => (c.getAttribute('onclick').match(/PL_stkind_\w+/) || [])[0]).filter(Boolean).sort();
+        ok(!sw.document.querySelector('[data-kind]'), 'a kind row outside Music');
+        await click('[data-lens="music"]');
+        eq(shown(), ['PL_stkind_clips', 'PL_stkind_live', 'PL_stkind_tracks'], 'all music');
+        eq([...sw.document.querySelectorAll('.pl-card .kind-pill')].length, 3, 'a badge per card');
+        await click('[data-kind="live"]');
+        return eq(shown(), ['PL_stkind_live'], 'live & sets');
+      } finally {
+        if (f) f.remove();
+        await idbRestore(w, idb);
+      }
+    }],
+  ],
+},
+{
+  id: 'STUDIO-LENS', title: 'Reel Studio filters playlists by type, with the app\'s verdicts', note: 'Studio had no music detection; the classifier moved to shared/core.js so both pages decide alike',
+  cases: [
+    ['the Music / Videos chips filter the grid, and a Reel Manager override wins', async w => {
+      const idb = await idbSnapshot(w);
+      const snap = snapshot(w, ['playlistViewMode']);
+      const v = (id, title, category, duration, channel) => ({ videoId: id, title, duration, channel: channel || 'c', category });
+      let f;
+      try {
+        await w.cacheStore.writeAll({
+          timestamp: new Date().toISOString(),
+          playlists: [
+            { id: 'PL_stlens_gigs', title: 'Gigs', videos: [v('stlGig00001', 'Band - Live at Olympia', '10', 'PT1H30M'), v('stlGig00002', 'Band - live à Paris', '10', 'PT1H10M')] },
+            { id: 'PL_stlens_talk', title: 'Talks', videos: [v('stlTalk0001', 'Quarterly review', '28', 'PT45M'), v('stlTalk0002', 'Keynote', '28', 'PT50M')] },
+            { id: 'PL_stlens_flip', title: 'Flip', videos: [v('stlFlip0001', 'Song', '10', 'PT3M', 'Artist - Topic')] },
+            { id: 'PL_stlens_none', title: 'Empty', videos: [] },
+          ],
+          playlistObjects: [], tags: {}, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [],
+        });
+        // "Video view" chosen in Reel Manager for a playlist detection calls music.
+        w.localStorage.setItem('playlistViewMode', JSON.stringify({ PL_stlens_flip: 'video' }));
+        f = await openStudio();
+        const sw = f.contentWindow;
+        sw.location.hash = '#/playlists';
+        await aud07Tick();
+        const shown = () => [...sw.document.querySelectorAll('.pl-card')]
+          .map(c => (c.getAttribute('onclick').match(/PL_stlens_\w+/) || [])[0]).filter(Boolean).sort();
+        const pick = async lens => { sw.document.querySelector(`[data-lens="${lens}"]`).click(); await aud07Tick(); };
+        eq(shown(), ['PL_stlens_flip', 'PL_stlens_gigs', 'PL_stlens_none', 'PL_stlens_talk'], 'all');
+        await pick('music');
+        eq(shown(), ['PL_stlens_gigs', 'PL_stlens_none'], 'music: the concerts, and the empty playlist nobody can judge');
+        await pick('video');
+        eq(shown(), ['PL_stlens_flip', 'PL_stlens_none', 'PL_stlens_talk'], 'video: the talks, plus the playlist forced to video');
+        return eq(sw.document.querySelector('[data-lens="video"]').getAttribute('aria-pressed'), 'true', 'pressed state');
+      } finally {
+        if (f) f.remove();
+        restore(w, snap);
+        await idbRestore(w, idb);
+      }
+    }],
+
+    ['Studio and the app reach the same verdict from the same backup', async w => {
+      const f = await openStudio();
+      try {
+        const sw = f.contentWindow;
+        const vids = [
+          [{ title: 'Kavinsky - Nightcall', duration: 'PT4M18S', channel: 'Kavinsky - Topic' }],
+          [{ title: 'Boiler Room Set', duration: 'PT2H', channel: 'Boiler Room', category: '10', topics: ['Electronic_music'] }],
+          [{ title: 'How I make a techno beat in Ableton', duration: 'PT12M', channel: 'Prod', category: '10' }],
+          [{ title: 'Keynote 2026', duration: 'PT1H', channel: 'Conf', category: '28' }],
+          [{ title: 'Artist - Song (Official Video)', duration: 'PT3M30S', channel: 'Label' }, { title: 'Vlog day 3', duration: 'PT15M', channel: 'Me' }],
+        ];
+        const cache = { playlists: vids.map((videos, i) => ({ id: 'PL_stpar_' + i, title: 't' + i, videos })) };
+        const studio = sw.loadData(cache).playlists.sort((a, b) => a.id.localeCompare(b.id)).map(p => p.music);
+        const app = vids.map(videos => w.playlistMusicVerdict(videos.map(x => ({
+          title: x.title, channelTitle: x.channel, durationSeconds: w.parseDuration(x.duration), categoryId: x.category, topicCategories: x.topics,
+        })), w.classifyVideoType).verdict);
+        eq(app, ['music', 'music', 'video', 'video', 'mixed'], 'app verdicts');
+        return eq(studio, app, 'Studio vs app');
       } finally { f.remove(); }
     }],
   ],
@@ -5373,6 +5818,84 @@ const SUITES = [
       return eq(r.deletes, 0, 'nothing deleted');
     }],
   ],
+},
+{
+  id: 'category-cache', title: 'Categories come from the backup before the API', note: 'backups kept no category or topics, so auto-categorise, the Type and Category filters and the genre re-bought videos.list after every reload; ytApi is stubbed',
+  cases: (() => {
+    const V = ['CATvid00001', 'CATvid00002', 'CATvid00003'];
+    // A cache the way the app writes it: PL_CA holds music with its topics,
+    // PL_CB one education video — or, with opts.bare, a video with neither.
+    function cache(opts) {
+      const vid = (id, extra) => Object.assign({ videoId: id, itemId: 'IT_' + id, title: 'song ' + id, channel: 'c', duration: 'PT3M' }, extra);
+      return {
+        timestamp: '2999-01-01T00:00:00.000Z',
+        playlists: [
+          { id: 'PL_CA', title: 'Alpha', description: '', videos: [
+            vid(V[0], { category: '10', topics: ['Electronic_music', 'Music'] }),
+            vid(V[1], { category: '10', topics: ['Electronic_music', 'Music'] }) ] },
+          { id: 'PL_CB', title: 'Beta', description: '', videos: [ opts && opts.bare ? vid('CATvid00009', {}) : vid(V[2], { category: '27' }) ] },
+        ],
+        playlistObjects: [
+          { id: 'PL_CA', snippet: { title: 'Alpha' }, contentDetails: { itemCount: 2 }, status: {} },
+          { id: 'PL_CB', snippet: { title: 'Beta' }, contentDetails: { itemCount: 1 }, status: {} },
+        ],
+        tags: {}, tagIcons: {}, folders: [], folderAssignments: {}, deckColumns: [], watchQueue: [], bookmarkedPlaylists: [],
+      };
+    }
+    async function categorise(w, opts) {
+      const idb = await idbSnapshot(w);
+      const snap = snapshot(w, ['lastBackup', 'lastBackupTimestamp', 'playlistTags']);
+      const real = { ytApi: w.ytApi };
+      const calls = [];
+      w.ytApi = async (endpoint, params) => {
+        calls.push({ endpoint, params });
+        if (endpoint === 'videos') return { items: (params.id || '').split(',').map(id => ({ id, snippet: { title: 'x', categoryId: '27' }, contentDetails: { duration: 'PT3M' } })) };
+        return { items: [] };
+      };
+      try {
+        w.localStorage.removeItem('lastBackup'); w.localStorage.removeItem('lastBackupTimestamp');
+        await w.cacheStore.writeAll(cache(opts));
+        await w.loadBackupFromStorage();
+        calls.length = 0;
+        await w.showAutoCategorizerModal();
+        const text = w.document.getElementById('categorizerResults').textContent;
+        w.closeModal();
+        return { text, calls: calls.filter(c => c.endpoint === 'videos' || c.endpoint === 'videoCategories') };
+      } finally { Object.assign(w, real); restore(w, snap); await idbRestore(w, idb); }
+    }
+    return [
+      ['category and topics are written compactly and survive the import check', w => {
+        const f = w.detailCategoryFields({ snippet: { categoryId: 10 }, topicDetails: { topicCategories: ['https://en.wikipedia.org/wiki/Electronic_music', 'http://evil.example/x'] } });
+        eq(f, { category: '10', topics: ['Electronic_music'] }, 'fields');
+        const out = w.sanitizeBackup({ playlists: [{ id: 'PL_CA', title: 'A', videos: [
+          { videoId: V[0], title: 'a', category: '10', topics: ['Electronic_music', 'bad name', '<x>'] },
+          { videoId: V[1], title: 'b', category: 'ten', topics: 'Music' } ] }] });
+        eq([out.playlists[0].videos[0].category, out.playlists[0].videos[0].topics], ['10', ['Electronic_music']], 'kept, bad topics dropped');
+        return eq([out.playlists[0].videos[1].category, out.playlists[0].videos[1].topics], [undefined, undefined], 'malformed values dropped');
+      }],
+      ['a reload restores them into the details the classifiers read', async w => {
+        const idb = await idbSnapshot(w);
+        const snap = snapshot(w, ['lastBackup', 'lastBackupTimestamp']);
+        try {
+          w.localStorage.removeItem('lastBackup'); w.localStorage.removeItem('lastBackupTimestamp');
+          await w.cacheStore.writeAll(cache());
+          await w.loadBackupFromStorage();
+          const c = w.gsClassifyObj({ contentDetails: { videoId: V[0] }, snippet: { title: 'song' } });
+          return eq([c.categoryId, c.topicCategories], ['10', ['https://en.wikipedia.org/wiki/Electronic_music', 'https://en.wikipedia.org/wiki/Music']]);
+        } finally { restore(w, snap); await idbRestore(w, idb); }
+      }],
+      ['auto-categorise from a full backup makes no videos or videoCategories call', async w => {
+        const r = await categorise(w);
+        eq(r.calls.map(c => c.endpoint), [], 'API calls');
+        return ok(/Musique|Music/.test(r.text) && /Éducation|Education/.test(r.text), 'suggestions: ' + r.text.slice(0, 160));
+      }],
+      ['only the videos the backup does not know are fetched', async w => {
+        const r = await categorise(w, { bare: true });
+        eq(r.calls.map(c => c.endpoint), ['videos'], 'one details call');
+        return eq(r.calls[0].params.id, 'CATvid00009', 'only the unknown video');
+      }],
+    ];
+  })(),
 },
 ];
 

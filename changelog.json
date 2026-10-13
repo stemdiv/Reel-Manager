@@ -1,5 +1,119 @@
 [
  {
+  "v": "1.27.64",
+  "date": "2026-09-27",
+  "items": [
+   {
+    "fr": "Musique : chaque vidéo a désormais un type, sur le modèle de YouTube Music — Morceau (chaîne « Topic », audio officiel), Clip (clip vidéo), Live & sets (concerts, sessions, mixes et albums de plus de 20 min) ou Autre. Tout est déduit du titre, de la chaîne, de la catégorie et de la durée déjà connus : aucun quota.",
+    "en": "Music: each video now has a kind, after YouTube Music — Track (a \"Topic\" channel, official audio), Clip (a music video), Live & sets (concerts, sessions, mixes and albums over 20 min) or Other. It is all read from the title, channel, category and length already known: no quota."
+   },
+   {
+    "fr": "Bibliothèque (Reel Manager et Reel Studio) : sous le filtre Musique, une seconde rangée Tous · Morceaux · Clips · Live & sets garde les playlists dont ce type fait au moins la moitié de la musique, et un badge sur chaque carte indique son type dominant.",
+    "en": "Library (Reel Manager and Reel Studio): under the Music filter, a second row All · Tracks · Clips · Live & sets keeps the playlists where that kind is at least half the music, and a badge on each card shows its dominant kind."
+   },
+   {
+    "fr": "Vue Musique d'une playlist : des pastilles avec compteurs filtrent la liste par type, et les clips et lives portent un badge. Les menus Type (détail, recherche globale, Déplacer, Watch Plan) proposent Morceaux, Clips et Live & sets seulement.",
+    "en": "A playlist's Music view: chips with counts filter the tracklist by kind, and clips and lives carry a badge. The Type menus (detail, global search, Move, Watch Plan) offer Tracks, Clips and Live & sets only."
+   }
+  ]
+ },
+ {
+  "v": "1.27.63",
+  "date": "2026-09-27",
+  "items": [
+   {
+    "fr": "Tags : un tag que vous avez traduit affiche ses langues à côté du nombre de playlists (par exemple « 3 playlist(s) · EN »).",
+    "en": "Tags: a tag you translated shows its languages next to its playlist count (for example \"3 playlist(s) · EN\")."
+   },
+   {
+    "fr": "Reel Studio : un bouton FR / EN dans la barre du haut change la langue. Elle est partagée avec Reel Manager, et la page se recharge sur la même vue, sans appel à YouTube.",
+    "en": "Reel Studio: an FR / EN button in the top bar switches the language. It is shared with Reel Manager, and the page reloads on the same view, with no call to YouTube."
+   },
+   {
+    "fr": "Reel Studio : le bouton Palette ne recouvre plus Reel Manager, et sur téléphone la barre du haut passe sur trois lignes au lieu de déborder de l'écran.",
+    "en": "Reel Studio: the Palette button no longer covers Reel Manager, and on a phone the top bar wraps onto three rows instead of running off the screen."
+   }
+  ]
+ },
+ {
+  "v": "1.27.62",
+  "date": "2026-09-27",
+  "items": [
+   {
+    "fr": "Tags : un tag n'a plus une langue, il a un nom par langue. Passer de FR à EN affiche Music au lieu de Musique, Sports au lieu de Sport, dans Reel Manager comme dans Reel Studio. Au premier lancement, les doublons FR/EN existants deviennent un seul tag, icônes comprises. Le bouton de fusion de la 1.27.61 n'est plus nécessaire et disparaît.",
+    "en": "Tags: a tag no longer has one language, it has a name per language. Switching from FR to EN shows Music instead of Musique, Sports instead of Sport, in Reel Manager and Reel Studio alike. On first launch, existing FR/EN duplicates become one tag, icons included. The 1.27.61 merge button is no longer needed and is gone."
+   },
+   {
+    "fr": "Tags : vos propres tags se traduisent (bouton Traduire, un nom par langue). Taper « Music » ou « Musique » dans Ajouter tag donne le même tag. Renommer un tag traduit ne change que son nom dans la langue affichée. Les catégories et genres gardent leurs noms officiels.",
+    "en": "Tags: your own tags can be translated (Translate button, one name per language). Typing Music or Musique in Add tag gives the same tag. Renaming a translated tag changes its name in the displayed language only. Categories and genres keep their official names."
+   },
+   {
+    "fr": "Avant d'ouvrir cette version sur votre bibliothèque, exportez une sauvegarde : une version plus ancienne de l'application afficherait ensuite les tags sous leur identifiant (yt:10).",
+    "en": "Before opening this version on your library, export a backup: an older version of the app would then show tags by their id (yt:10)."
+   }
+  ]
+ },
+ {
+  "v": "1.27.61",
+  "date": "2026-09-27",
+  "items": [
+   {
+    "fr": "Tags : une catégorisation automatique lancée en français puis en anglais laissait des doublons (Musique / Music, Sport / Sports…). Elle reprend désormais le nom déjà présent dans votre bibliothèque, et un bouton « Fusionner les doublons FR/EN » regroupe les paires existantes sous le nom de la langue de l'interface, après confirmation.",
+    "en": "Tags: auto-categorisation run in French and then in English left duplicates (Musique / Music, Sport / Sports…). It now reuses the name already in your library, and a Merge FR/EN duplicates button groups the existing pairs under the interface language's name, after confirmation."
+   },
+   {
+    "fr": "Tags : l'onglet suit désormais le changement de langue (son titre restait dans l'ancienne langue).",
+    "en": "Tags: the view now follows a language switch (its heading stayed in the previous language)."
+   }
+  ]
+ },
+ {
+  "v": "1.27.60",
+  "date": "2026-09-27",
+  "items": [
+   {
+    "fr": "Reel Studio : la page Playlists a le même filtre Toutes / Vidéos / Musique que Reel Manager, avec les mêmes résultats (la détection musicale est désormais partagée entre les deux pages). Un choix « Vue Musique » ou « Vue Vidéo » fait dans Reel Manager s'applique aussi dans Studio.",
+    "en": "Reel Studio: the Playlists page has the same All / Videos / Music filter as Reel Manager, with the same results (music detection is now shared by both pages). A Music view or Video view choice made in Reel Manager applies in Studio too."
+   },
+   {
+    "fr": "Mise à jour plus sûre : le script commun aux deux pages porte le numéro de version, pour qu'une nouvelle version ne tourne jamais avec l'ancienne copie gardée en cache par le navigateur.",
+    "en": "Safer updates: the script shared by both pages carries the version number, so a new release never runs with the old copy the browser kept in cache."
+   }
+  ]
+ },
+ {
+  "v": "1.27.59",
+  "date": "2026-09-27",
+  "items": [
+   {
+    "fr": "Bibliothèque : les filtres Vidéos et Musique trient les playlists dès le chargement, à partir des vidéos déjà en cache (sans quota). Avant, une playlist restait visible sous les trois filtres tant qu'elle n'avait pas été ouverte. Seules les playlists jamais chargées restent visibles partout.",
+    "en": "Library: the Videos and Music filters sort playlists as soon as the app loads, from the videos already cached (no quota). Before, a playlist stayed visible under all three filters until it had been opened. Only playlists never loaded stay visible everywhere."
+   },
+   {
+    "fr": "Musique : une playlist de concerts, de sessions live ou de sets est désormais une playlist musicale (elle compte le contenu musical, plus seulement les morceaux de 2 à 7 minutes). « live à Paris » et les autres titres avec un accent après « live » sont reconnus.",
+    "en": "Music: a playlist of concerts, live sessions or sets is now a music playlist (it counts music content, not only 2 to 7-minute tracks). \"live à Paris\" and other titles with an accent after \"live\" are recognised."
+   },
+   {
+    "fr": "Tags : chaque tag d'une playlist se retire d'un clic (croix sur la pastille). Nouvelle section « Tous les tags » : renommer un tag partout (un nom existant fusionne les deux), le retirer des playlists cochées ou le supprimer partout. L'icône d'un tag qui n'est plus utilisé est effacée.",
+    "en": "Tags: each tag on a playlist can be removed in one click (cross on the chip). New All tags section: rename a tag everywhere (an existing name merges the two), remove it from the checked playlists or delete it everywhere. The icon of a tag no longer used is cleared."
+   },
+   {
+    "fr": "Les boutons « Créer playlist » et « Ajouter tag » n'affichent plus deux « + ».",
+    "en": "The Create playlist and Add tag buttons no longer show two \"+\" signs."
+   }
+  ]
+ },
+ {
+  "v": "1.27.58",
+  "date": "2026-09-26",
+  "items": [
+   {
+    "fr": "Quota : la catégorie YouTube et les thèmes de chaque vidéo sont désormais gardés dans la sauvegarde et le cache local. Après un rechargement, la catégorisation automatique des playlists, les filtres Type et Catégorie et la détection du genre ne rachètent plus ces informations : seules les vidéos encore inconnues sont demandées à YouTube. La catégorisation n'appelle plus non plus la liste des catégories (les noms sont connus de l'application).",
+    "en": "Quota: each video's YouTube category and topics are now kept in the backup and the local cache. After a reload, playlist auto-categorisation, the Type and Category filters and genre detection no longer buy them again: only videos still unknown are asked from YouTube. Auto-categorisation also no longer calls the categories list (the app knows the names)."
+   }
+  ]
+ },
+ {
   "v": "1.27.57",
   "date": "2026-09-26",
   "items": [
