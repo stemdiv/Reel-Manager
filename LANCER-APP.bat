@@ -1,8 +1,8 @@
 @echo off
-title YouTube Playlist Manager
+title VYMA
 echo.
 echo  ====================================
-echo   YouTube Playlist Manager
+echo   VYMA
 echo  ====================================
 echo.
 echo  Demarrage du serveur local...

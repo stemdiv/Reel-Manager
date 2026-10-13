@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reel Studio — UI 3a</title>
+<title>VYMA Studio — UI 3a</title>
 <!-- Read-only companion UI. No network calls: it renders the autoCache written by
      youtube-playlist-manager.html. CSP allows fonts and YouTube thumbnails only. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://*.ytimg.com https://*.ggpht.com https://*.googleusercontent.com; connect-src 'self' https://www.youtube.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'none'">
@@ -553,10 +553,10 @@
 
 <nav class="dock" id="dock" data-a11y="navLabel"></nav>
 
-<script src="shared/core.js?v=1.27.64"></script>   <!-- AUD-33 — helpers shared with the app -->
+<script src="shared/core.js?v=1.27.65"></script>   <!-- AUD-33 — helpers shared with the app -->
 <script>
 // ═══════════════════════════════════════════════════════════════════════
-// Reel Studio — companion UI for Reel Manager (exploration 3a).
+// VYMA Studio — companion UI for VYMA (exploration 3a).
 // Renders the autoCache written by youtube-playlist-manager.html.
 // Strictly read-only: no API calls, no writes to the app's data keys.
 // ═══════════════════════════════════════════════════════════════════════
@@ -578,8 +578,8 @@ const STRINGS = {
     dock: { dashboard: 'Dashboard', playlists: 'Playlists', search: 'Recherche', kanban: 'Kanban',
             dupes: 'Doublons', stats: 'Statistiques', queue: 'File de lecture', tags: 'Tags' },
     emptyTitle: 'Aucune donnée en cache',
-    emptyBody: 'Cette page lit le cache écrit par Reel Manager. Ouvrez l’app principale, connectez-vous une fois, puis revenez ici — vos playlists apparaîtront sans aucun appel API.',
-    emptyBtn: 'Ouvrir Reel Manager',
+    emptyBody: 'Cette page lit le cache écrit par VYMA. Ouvrez l’app principale, connectez-vous une fois, puis revenez ici — vos playlists apparaîtront sans aucun appel API.',
+    emptyBtn: 'Ouvrir VYMA',
     hours: 'h', items: 'vidéos', never: 'jamais', all: 'Toutes',
     sortCount: 'Nombre de vidéos', sortTitle: 'Titre A→Z', sortDuration: 'Durée',
     filterPlaylists: 'Filtrer les playlists…', filterVideos: 'Filtrer les vidéos…',
@@ -590,12 +590,12 @@ const STRINGS = {
     queueEmpty: 'Votre file de lecture est vide.', tagsEmpty: 'Aucun tag défini.',
     dupesEmpty: 'Aucun doublon — bibliothèque propre.', ghostsEmpty: 'Aucune vidéo fantôme.',
     statTop: 'Top 10 playlists', statDur: 'Répartition par durée', statMonth: 'Ajouts par mois',
-    statChan: 'Top chaînes', added: 'ajoutée', readonly: 'Lecture seule — les actions d’écriture restent dans Reel Manager.',
+    statChan: 'Top chaînes', added: 'ajoutée', readonly: 'Lecture seule — les actions d’écriture restent dans VYMA.',
     palTitle: 'Palette', reset: 'Réinitialiser', perso: 'perso',
     playAll: '▶ Lancer la file', nowPlaying: 'En lecture', queueLabel: 'File de lecture',
     openYT: 'Ouvrir sur YouTube', playHere: 'Lire ici',
     extTitle: 'Un onglet YouTube est encore ouvert',
-    extBody: 'Reel Studio a ouvert une vidéo dans un onglet YouTube et cet onglet est toujours là. Le navigateur ne permet pas de mettre en pause un autre onglet — seulement de le fermer.',
+    extBody: 'VYMA Studio a ouvert une vidéo dans un onglet YouTube et cet onglet est toujours là. Le navigateur ne permet pas de mettre en pause un autre onglet — seulement de le fermer.',
     extClose: 'Fermer l’onglet et lire ici', extAnyway: 'Lire ici quand même', cancel: 'Annuler',
     secBi: '3A — Accent (noir fixe)', secTri: '3B — Trio', secDuo: '3C — Duo',
     ctlPrev: 'Précédente', ctlNext: 'Suivante', ctlPlay: 'Lecture', ctlPause: 'Pause',
@@ -621,8 +621,8 @@ const STRINGS = {
     dock: { dashboard: 'Dashboard', playlists: 'Playlists', search: 'Search', kanban: 'Kanban',
             dupes: 'Duplicates', stats: 'Statistics', queue: 'Watch queue', tags: 'Tags' },
     emptyTitle: 'No cached data',
-    emptyBody: 'This page reads the cache written by Reel Manager. Open the main app, sign in once, then come back — your playlists will show up with zero API calls.',
-    emptyBtn: 'Open Reel Manager',
+    emptyBody: 'This page reads the cache written by VYMA. Open the main app, sign in once, then come back — your playlists will show up with zero API calls.',
+    emptyBtn: 'Open VYMA',
     hours: 'h', items: 'videos', never: 'never', all: 'All',
     sortCount: 'Video count', sortTitle: 'Title A→Z', sortDuration: 'Duration',
     filterPlaylists: 'Filter playlists…', filterVideos: 'Filter videos…',
@@ -633,12 +633,12 @@ const STRINGS = {
     queueEmpty: 'Your watch queue is empty.', tagsEmpty: 'No tags defined.',
     dupesEmpty: 'No duplicates — clean library.', ghostsEmpty: 'No ghost videos.',
     statTop: 'Top 10 playlists', statDur: 'Duration breakdown', statMonth: 'Additions per month',
-    statChan: 'Top channels', added: 'added', readonly: 'Read-only — write actions stay in Reel Manager.',
+    statChan: 'Top channels', added: 'added', readonly: 'Read-only — write actions stay in VYMA.',
     palTitle: 'Palette', reset: 'Reset', perso: 'custom',
     playAll: '▶ Play queue', nowPlaying: 'Now playing', queueLabel: 'Queue',
     openYT: 'Open on YouTube', playHere: 'Play here',
     extTitle: 'A YouTube tab is still open',
-    extBody: 'Reel Studio opened a video in a YouTube tab and that tab is still there. Browsers cannot pause another tab — only close it.',
+    extBody: 'VYMA Studio opened a video in a YouTube tab and that tab is still there. Browsers cannot pause another tab — only close it.',
     extClose: 'Close the tab and play here', extAnyway: 'Play here anyway', cancel: 'Cancel',
     secBi: '3A — Accent (black locked)', secTri: '3B — Trio', secDuo: '3C — Duo',
     // AUD-50 — names for the glyph-only controls and the landmarks
@@ -656,7 +656,7 @@ const STRINGS = {
 };
 const S = STRINGS[LANG];
 
-// Same key as Reel Manager, so the two pages keep one language. Everything
+// Same key as VYMA, so the two pages keep one language. Everything
 // here is built for one language at load (strings, tag names, number format),
 // so switching reloads: the page boots from the local cache, no API call,
 // and the view survives in the URL hash.
@@ -895,8 +895,8 @@ function renderPalette() {
   const card = document.getElementById('palCard');
   card.innerHTML = sections +
     `<button class="pal-reset" onclick="resetPalette()">${tr('reset')}</button>` +
-    `<div class="pal-meta">Reel Studio <b>v${STUDIO_VERSION}</b><br>${esc(tr('readonly'))}<br>
-       <a href="youtube-playlist-manager.html">← Reel Manager</a></div>`;
+    `<div class="pal-meta">VYMA Studio <b>v${STUDIO_VERSION}</b><br>${esc(tr('readonly'))}<br>
+       <a href="youtube-playlist-manager.html">← VYMA</a></div>`;
   revealActiveSection();
 }
 
@@ -992,7 +992,7 @@ function readLegacyCache() {
 }
 
 // ── Data ───────────────────────────────────────────────────────────────
-// Reel Manager's verdict and dominant kind (shared/core.js). null when nothing
+// VYMA's verdict and dominant kind (shared/core.js). null when nothing
 // is cached: the playlist then stays visible under every chip.
 function studioVerdict(videos) {
   if (!videos.length) return { music: null, musicKind: null };
@@ -1056,7 +1056,7 @@ function loadData(cache) {
       thumbHero: pickThumb(objects[pl.id]?.snippet?.thumbnails, 'hero') || videos[0]?.thumbnailHd || videos[0]?.thumbnail || '',
       privacy: objects[pl.id]?.status?.privacyStatus || '',
       tags: tagMap[pl.id] || [],
-      // Reel Manager's verdict, from shared/core.js. null when nothing is cached.
+      // VYMA's verdict, from shared/core.js. null when nothing is cached.
       ...studioVerdict(videos),
     };
   }).sort((a, b) => b.count - a.count);
@@ -1129,7 +1129,7 @@ function topbar() {
       <div class="topbar-right">
         <button class="btn btn-ghost btn-sm" id="langToggle" onclick="toggleStudioLanguage()"
                 title="${esc(tr('langSwitch', { lang: LANG.toUpperCase() }))}" aria-label="${esc(tr('langSwitch', { lang: LANG.toUpperCase() }))}">${esc(LANG.toUpperCase())}</button>
-        <a class="btn btn-ghost" style="text-decoration:none;" href="youtube-playlist-manager.html">Reel Manager</a>
+        <a class="btn btn-ghost" style="text-decoration:none;" href="youtube-playlist-manager.html">VYMA</a>
         ${d.picture ? `<img class="avatar" src="${esc(d.picture)}" alt="" referrerpolicy="no-referrer">` : '<div class="avatar"></div>'}
       </div>
     </header>`;
@@ -1287,10 +1287,10 @@ function renderDashboardCharts() {
     </div>`).join('');
 }
 
-// Reel Manager's lens rule: a "Music view" / "Video view" choice made there
+// VYMA's lens rule: a "Music view" / "Video view" choice made there
 // wins over detection; a 'mixed' playlist counts as video; a playlist with no
 // cached videos has no verdict and stays visible under every lens.
-// The mode a playlist opens in, in Reel Manager: its override, else the
+// The mode a playlist opens in, in VYMA: its override, else the
 // verdict. null when nothing is cached and nobody chose.
 function studioMode(pl) {
   let override;

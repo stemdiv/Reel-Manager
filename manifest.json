@@ -1,6 +1,6 @@
 {
-  "name": "Reel / Playlist Manager",
-  "short_name": "Reel",
+  "name": "VYMA — Playlist Manager",
+  "short_name": "VYMA",
   "description": "Manage, organize and analyze your YouTube playlists with advanced tools",
   "start_url": "youtube-playlist-manager.html",
   "display": "standalone",

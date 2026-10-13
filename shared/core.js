@@ -1,5 +1,5 @@
 /* ============================================================================
- * Reel — code shared by the app (youtube-playlist-manager.html) and Reel Studio
+ * VYMA — code shared by the app (youtube-playlist-manager.html) and VYMA Studio
  * (reel-studio.html). AUD-33: every theme and thumbnail fix used to land twice,
  * once per page, and the copies had started to drift (different fallbacks,
  * one hexToHsl throwing on a non-string).
@@ -196,7 +196,7 @@ function normalizeTagIds(tags, icons, customLabels) {
 }
 
 // ── Music detection (design spec §3, AUD-25) ────────────────────────────────
-// Moved here so Reel Studio's Music / Videos filter gives the app's verdicts.
+// Moved here so VYMA Studio's Music / Videos filter gives the app's verdicts.
 // Pure: category, topics, tags and description come in with the video. The
 // app's classifyVideoType() looks them up in its details cache first.
 //
