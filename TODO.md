@@ -19,6 +19,12 @@ Details for each finding: `08-remediation.md` in the audit report, kept outside 
   **Export a backup from the live site before the first visit after the merge** (1.27.62 migrates the tags to ids; see below).
   `gh` is not signed in on this machine: run `gh auth login` once so a Claude Code session can create and track PRs itself.
 
+## To test before merging `fix/backup-restore-tags`
+
+- [ ] 1.27.66: in a private window, import a backup file from the sign-in screen and check that the tags (with their
+  icons and translations), folders, Deck columns and watch queue come back. Then, in the usual browser, check that
+  nothing already there was replaced. Run `tests.html` (3 new cases, `backup-meta`).
+
 ## To test before merging `fix/category-cache`
 
 Run them on `LANCER-APP.bat` (localhost), which serves the branch.

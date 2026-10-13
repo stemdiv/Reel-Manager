@@ -2888,7 +2888,7 @@
   </div>
 </div>
 
-<script src="shared/core.js?v=1.27.65"></script>   <!-- AUD-33 — helpers shared with VYMA Studio -->
+<script src="shared/core.js?v=1.27.66"></script>   <!-- AUD-33 — helpers shared with VYMA Studio -->
 <script>
 // ============================================================================
 // CONSTANTS & CONFIG
@@ -4971,7 +4971,7 @@ migrateTagIds();
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.65'; // bump per release, with the ?v= on shared/core.js in both pages
+const APP_VERSION = '1.27.66'; // bump per release, with the ?v= on shared/core.js in both pages
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -6545,6 +6545,12 @@ function pickBackupSource(manualTs, cacheTs, hasManual, hasCache) {
   return '';
 }
 
+// [backup field, localStorage key] for the local-only organisation data.
+const BACKUP_LOCAL_META = [
+  ['tags', 'playlistTags'], ['tagIcons', 'tagIcons'], ['tagLabels', 'tagLabels'], ['folders', 'playlistFolders'],
+  ['folderAssignments', 'folderAssignments'], ['deckColumns', 'deckColumns'], ['watchQueue', 'watchQueue'],
+];
+
 async function loadBackupFromStorage() {
   try {
     // #G11 — the auto-cache lives in IndexedDB now, so this is async. The manual
@@ -6667,6 +6673,21 @@ async function loadBackupFromStorage() {
         if (bmIds.has(pl.id)) pl._isBookmark = true;
       }
     }
+
+    // The user's own organisation — tags, folders, Deck columns, watch queue —
+    // lives under its own localStorage keys and was never read back from a
+    // backup, so a login-screen import into a fresh browser lost all of it.
+    // The backup only fills a key this browser has never written: local state
+    // is always at least as recent, and is never overwritten.
+    let tagsRestored = false;
+    for (const [field, storageKey] of BACKUP_LOCAL_META) {
+      if (backup[field] === undefined || localStorage.getItem(storageKey) !== null) continue;
+      APP[field] = backup[field];
+      localStorage.setItem(storageKey, JSON.stringify(backup[field]));
+      if (field === 'tags' || field === 'tagIcons') tagsRestored = true;
+    }
+    // A backup from before tag ids carries names: make them ids (shared/core.js).
+    if (tagsRestored) migrateTagIds();
   } catch (err) {
     console.warn('[Backup auto-load] Erreur de chargement:', err.message);
   }
