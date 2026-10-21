@@ -1,5 +1,23 @@
 [
  {
+  "v": "1.28.0",
+  "date": "2026-10-21",
+  "items": [
+   {
+    "fr": "Découvrir : un menu Catégorie et un menu Sous-catégorie. Pour la Musique, les Jeux vidéo et le Sport, les sous-catégories sont celles de YouTube (Jazz, Électronique, Rock… ; Course, Stratégie… ; Football, Tennis…) et filtrent la recherche elle-même. Avec une catégorie, les mots-clés deviennent facultatifs : « Musique › Jazz, les plus vues ce mois-ci » suffit.",
+    "en": "Discover: a Category menu and a Subcategory menu. For Music, Gaming and Sports the subcategories are YouTube's own (Jazz, Electronic, Rock…; Racing, Strategy…; Football, Tennis…) and filter the search itself. With a category, keywords become optional: \"Music › Jazz, most viewed this month\" is enough."
+   },
+   {
+    "fr": "Tendances : un menu Sous-catégorie à côté de la catégorie. Le classement de YouTube ne se filtre que par catégorie ; la sous-catégorie trie donc le Top 200 chargé (4 unités, gardé une heure) et indique combien de vidéos correspondent.",
+    "en": "Trending: a Subcategory menu next to the category. YouTube's chart only filters by category, so the subcategory sorts through the loaded Top 200 (4 units, kept for an hour) and shows how many videos match."
+   },
+   {
+    "fr": "Vos propres sous-catégories : « + Nouvelle sous-catégorie… » dans le menu crée une sous-catégorie rattachée à la catégorie choisie, avec un nom en français et en anglais, des mots-clés (-mot, a|b, \"expression\") et, si vous voulez, une sous-catégorie YouTube de départ. Modifier et supprimer depuis le même menu. Elles sont incluses dans la sauvegarde.",
+    "en": "Your own subcategories: \"+ New subcategory…\" in the menu creates one attached to the chosen category, with a French and an English name, keywords (-word, a|b, \"phrase\") and, if you like, a YouTube subcategory to start from. Edit and delete from the same menu. They are included in the backup."
+   }
+  ]
+ },
+ {
   "v": "1.27.66",
   "date": "2026-10-13",
   "items": [

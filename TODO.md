@@ -25,6 +25,21 @@ Details for each finding: `08-remediation.md` in the audit report, kept outside 
   icons and translations), folders, Deck columns and watch queue come back. Then, in the usual browser, check that
   nothing already there was replaced. Run `tests.html` (3 new cases, `backup-meta`).
 
+## To test before merging `feat/discover-subcategories` (on top of `fix/backup-restore-tags`)
+
+- [ ] 1.28.0 (#97), signed in, on `LANCER-APP.bat`:
+  - Discover, Music › Jazz with the search box empty. **First real check of `topicId`**: the results should be jazz.
+    If a toast says YouTube refused the subcategory, the keyword fallback ran: report it (the log has the
+    `search refused topicId` line).
+  - The same with Videos then Playlists (Playlists sends the Music topic, not the category).
+  - Gaming › Racing and Sports › Tennis, with and without words.
+  - Trending, Music, then a subcategory: the size menu locks on Top 200 and the count reads "N of 200". Note the
+    subcategories that come back empty for your country: their Wikipedia names may differ from the table in
+    `shared/core.js` (Football and Sports games carry an alias already).
+  - "+ New subcategory…": create one with keywords only, one based on a YouTube subcategory, edit one, delete one.
+    Export a backup and check `customSubcategories` is in the file.
+  - Run `tests.html` (17 new cases, `#97`). Locally: 516 passed, 0 failed on 2026-10-21.
+
 ## To test before merging `fix/category-cache`
 
 Run them on `LANCER-APP.bat` (localhost), which serves the branch.

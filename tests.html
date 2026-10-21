@@ -5948,6 +5948,231 @@ const SUITES = [
     ];
   })(),
 },
+{
+  id: '#97', title: 'Categories and subcategories in Discover and Trending',
+  note: 'topicId is a real search filter; the chart only takes a category, so Trending filters what it holds',
+  cases: [
+    ['the table: Music, Gaming and Sports only, every topic id well-formed and unique', w => {
+      eq(Object.keys(w.SUBCATEGORIES).sort(), ['10', '17', '20'], 'categories with subcategories');
+      eq(w.CATEGORY_TOPICS, { '10': '/m/04rlf', '20': '/m/0bzvm2', '17': '/m/06ntj' }, 'parent topics');
+      const all = Object.values(w.SUBCATEGORIES).flat();
+      const ids = all.map(s => s.topicId).filter(Boolean);
+      ok(ids.every(id => /^\/m\/[0-9a-z_]+$/.test(id)), 'malformed id');
+      eq(new Set(ids).size, ids.length, 'duplicate topic id');
+      eq(new Set(all.map(s => s.key)).size, all.length, 'duplicate key');
+      const unnamed = [];
+      for (const cat of Object.keys(w.SUBCATEGORIES)) {
+        for (const sub of w.subcategoriesFor(cat, [])) {
+          for (const lang of ['fr', 'en']) if (!sub.names[lang]) unnamed.push(sub.id + '/' + lang);
+        }
+      }
+      eq(unnamed, [], 'a subcategory without a name');
+      return all.length + ' subcategories';
+    }],
+
+    ['every music genre has its subcategory, Blues by keyword only', w => {
+      const music = w.SUBCATEGORIES['10'];
+      eq(music.map(s => s.key).sort(), Object.keys(w.GENRE_LABELS).sort(), 'music keys = genre keys');
+      const blues = music.find(s => s.key === 'Blues');
+      return eq([blues.topicId, blues.keywords], [null, 'blues']);
+    }],
+
+    ['a custom subcategory sits under its category only, and takes its base topic', w => {
+      const mine = [
+        { id: 'cpsy01', cat: '10', fr: 'Psytrance', en: 'Psytrance', keywords: 'psytrance', parent: 'Electronic_music' },
+        { id: 'cf1x01', cat: '17', fr: 'F1', en: 'F1', keywords: 'formula 1', parent: null },
+      ];
+      const music = w.subcategoriesFor('10', mine);
+      const psy = music.find(s => s.id === 'cpsy01');
+      eq([psy.custom, psy.topicId, psy.topicKeys, psy.keywords], [true, '/m/02lkt', ['Electronic_music'], 'psytrance'], 'inherits Electronic');
+      ok(!music.some(s => s.id === 'cf1x01'), 'a Sports subcategory leaked into Music');
+      const f1 = w.findSubcategory('17', 'cf1x01', mine);
+      eq([f1.topicId, f1.topicKeys], [null, []], 'no base, no topic');
+      return eq(w.subcategoriesFor('24', mine).length, 0, 'Entertainment has none of its own');
+    }],
+
+    ['what is stored or imported is rebuilt from known fields only', w => {
+      const good = { id: 'cgood01', cat: '10', fr: ' Psy ', en: '', keywords: 'psytrance', parent: 'Electronic_music', extra: '<x>' };
+      const out = w.sanitizeCustomSubcategories([
+        good,
+        { ...good },                                              // same id twice
+        { id: 'BAD ID', cat: '10', fr: 'x', keywords: 'x' },
+        { id: 'cnocat01', cat: '99', fr: 'x', keywords: 'x' },     // unknown category
+        { id: 'cnotass01', cat: '30', fr: 'x', keywords: 'x' },    // Movies: not assignable
+        { id: 'cnoname01', cat: '10', fr: '', en: '', keywords: 'x' },
+        { id: 'cnothing1', cat: '10', fr: 'x', keywords: '', parent: null },
+        { id: 'cwrongp01', cat: '17', fr: 'x', keywords: '', parent: 'Jazz' },   // Jazz is not Sports
+        { id: 'clong0001', cat: '10', fr: 'n'.repeat(90), keywords: 'k'.repeat(300) },
+        'not an object', null,
+      ]);
+      eq(out.map(c => c.id), ['cgood01', 'clong0001'], 'kept');
+      eq(out[0], { id: 'cgood01', cat: '10', fr: 'Psy', en: '', keywords: 'psytrance', parent: 'Electronic_music' }, 'clean shape');
+      eq([out[1].fr.length, out[1].keywords.length], [40, 120], 'lengths capped');
+      const many = Array.from({ length: 150 }, (_, i) => ({ id: 'cmany' + i, cat: '10', fr: 'n' + i, keywords: 'k' }));
+      eq(w.sanitizeCustomSubcategories(many).length, w.CUSTOM_SUB_MAX, 'count capped');
+      return eq(w.sanitizeCustomSubcategories('nope'), [], 'not an array');
+    }],
+
+    ['a backup adds the subcategories this browser lacks and never replaces one', w => {
+      const mine = [{ id: 'cmine01', cat: '10', fr: 'Mine', en: '', keywords: 'a', parent: null }];
+      const incoming = [{ id: 'cmine01', cat: '10', fr: 'Theirs', en: '', keywords: 'b', parent: null },
+                        { id: 'cnew001', cat: '20', fr: 'New', en: '', keywords: 'c', parent: null }];
+      const merged = w.mergeCustomSubcategories(mine, incoming);
+      eq(merged.map(c => [c.id, c.fr]), [['cmine01', 'Mine'], ['cnew001', 'New']], 'merge');
+      const b = w.sanitizeBackup({ playlists: [], customSubcategories: [incoming[1], { id: 'x', cat: '10' }] });
+      return eq(b.customSubcategories.map(c => c.id), ['cnew001'], 'sanitized on import');
+    }],
+
+    ['the storage keys are registered, so Delete my data removes them', w => {
+      const missing = ['customSubcategories', 'trendingSubcategory'].filter(k => !w.APP_STORAGE_KEYS.includes(k));
+      return eq(missing, [], 'unregistered');
+    }],
+
+    ['Discover: a category alone is a search, without q', w => {
+      const p = w.buildDiscoverSearchParams({ query: '  ', categoryId: '10', maxResults: 50, order: 'viewCount', lang: 'fr' });
+      ok(!('q' in p), 'an empty q was sent');
+      return eq([p.videoCategoryId, p.topicId], ['10', undefined]);
+    }],
+
+    ['Discover: a subcategory sends its topic, words are added to the query', w => {
+      const jazz = w.findSubcategory('10', 'Jazz', []);
+      const r = w.discoverQueryFor('saxophone', jazz);
+      const p = w.buildDiscoverSearchParams({ query: r.q, categoryId: '10', topicId: r.topicId, maxResults: 50, order: 'relevance', lang: 'en' });
+      eq([p.q, p.videoCategoryId, p.topicId], ['saxophone', '10', '/m/03_d0'], 'Jazz');
+      const psy = w.findSubcategory('10', 'cpsy01', [{ id: 'cpsy01', cat: '10', fr: 'Psy', en: '', keywords: 'psytrance -remix', parent: 'Electronic_music' }]);
+      return eq(w.discoverQueryFor('', psy), { q: 'psytrance -remix', topicId: '/m/02lkt' }, 'custom');
+    }],
+
+    ['Discover: playlists and channels take the category topic, never videoCategoryId', w => {
+      const pl = w.buildDiscoverSearchParams({ type: 'playlist', categoryId: '10', maxResults: 50, order: 'relevance', lang: 'fr' });
+      eq([pl.videoCategoryId, pl.topicId], [undefined, '/m/04rlf'], 'playlists in Music');
+      const ch = w.buildDiscoverSearchParams({ type: 'channel', query: 'x', categoryId: '24', maxResults: 50, order: 'relevance', lang: 'fr' });
+      return eq([ch.videoCategoryId, ch.topicId], [undefined, undefined], 'Entertainment has no topic');
+    }],
+
+    ['a refused topicId retries once by words; any other error is not retried', async w => {
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      const sent = [];
+      try {
+        w.showToast = () => {};
+        w.ytApi = async (endpoint, params) => {
+          sent.push({ ...params });
+          if (params.topicId) throw Object.assign(new Error('Invalid topicId'), { status: 400 });
+          return { items: [{ id: { videoId: 'abcdefghijk' } }] };
+        };
+        const jazz = w.findSubcategory('10', 'Jazz', []);
+        const r = await w.discoverSearchCall({ part: 'snippet', type: 'video', topicId: '/m/03_d0' }, w.discoverFallbackQuery('', jazz));
+        eq(r.fellBack, true, 'fellBack');
+        eq(sent.map(p => [p.topicId, p.q]), [['/m/03_d0', undefined], [undefined, 'Jazz']], 'calls');
+        sent.length = 0;
+        w.ytApi = async (endpoint, params) => { sent.push(params); throw Object.assign(new Error('quota'), { status: 403 }); };
+        let threw = false;
+        try { await w.discoverSearchCall({ topicId: '/m/03_d0' }, 'Jazz'); } catch (e) { threw = e.status === 403; }
+        eq([threw, sent.length], [true, 1], 'a 403 is not retried');
+        return 'one retry on 400 only';
+      } finally { Object.assign(w, real); }
+    }],
+
+    ['the fallback words name the topic: its keywords, or its own name', w => {
+      const custom = [{ id: 'cpsy01', cat: '10', fr: 'Psy', en: '', keywords: 'psytrance', parent: 'Electronic_music' }];
+      return eq([
+        w.discoverFallbackQuery('live', w.findSubcategory('17', 'Ice_hockey', [])),
+        w.discoverFallbackQuery('', w.findSubcategory('10', 'cpsy01', custom)),
+        w.discoverFallbackQuery('x', null),
+      ], ['live Ice hockey', 'psytrance Electronic music', 'x']);
+    }],
+
+    ['Discover end to end: Music › Jazz with no words goes out as one filtered search', async w => {
+      const snap = seedQuota(w, { pool: 0, search: 0, upload: 0 });
+      const ls = snapshot(w, ['discoverFilters']);
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      const input = w.document.getElementById('discoverSearchInput');
+      const type = w.document.getElementById('discoverType');
+      const before = [input.value, type.value];
+      const sent = [];
+      try {
+        input.value = ''; type.value = 'video';
+        w.localStorage.setItem('discoverFilters', JSON.stringify({ discoverCategory: '10', discoverSubcategory: 'Jazz', discoverMaxResults: '10' }));
+        w.loadDiscoverFilters();
+        eq([w.document.getElementById('discoverCategory').value, w.document.getElementById('discoverSubcategory').value], ['10', 'Jazz'], 'menus restored');
+        w.showToast = () => {};
+        w.ytApi = async (endpoint, params) => { sent.push({ endpoint, params }); return { items: [] }; };
+        await w.performDiscoverSearch();
+        eq(sent.length, 1, 'calls');
+        const p = sent[0].params;
+        return eq([sent[0].endpoint, 'q' in p, p.videoCategoryId, p.topicId], ['search', false, '10', '/m/03_d0']);
+      } finally {
+        Object.assign(w, real);
+        input.value = before[0]; type.value = before[1];
+        restore(w, ls); w.loadDiscoverFilters();
+        unseedQuota(w, snap);
+      }
+    }],
+
+    ['Discover still refuses an empty search with no category', async w => {
+      const ls = snapshot(w, ['discoverFilters']);
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      const input = w.document.getElementById('discoverSearchInput');
+      const before = input.value;
+      const toasts = [];
+      let called = false;
+      try {
+        input.value = '';
+        w.localStorage.setItem('discoverFilters', '{}');
+        w.loadDiscoverFilters();
+        w.showToast = (msg, kind) => toasts.push(kind);
+        w.ytApi = async () => { called = true; return { items: [] }; };
+        await w.performDiscoverSearch();
+        return eq([called, toasts], [false, ['error']]);
+      } finally {
+        Object.assign(w, real);
+        input.value = before;
+        restore(w, ls); w.loadDiscoverFilters();
+      }
+    }],
+
+    ['Trending asks for topics and tags in the same call, and keeps them per row', w => {
+      const p = w.buildTrendingParams('10', 'fr', { stats: true, topics: true, max: 50 });
+      ok(/topicDetails/.test(p.part), 'part: ' + p.part);
+      ok(/topicDetails\(topicCategories\)/.test(p.fields) && /tags,/.test(p.fields), 'fields: ' + p.fields);
+      const plain = w.buildTrendingParams('10', 'fr');
+      ok(!/topicDetails|tags/.test(plain.part + plain.fields), 'the dashboard tile asks for more than it needs');
+      const row = w.trendingItem({ id: 'abcdefghijk', snippet: { title: 'T', tags: ['jazz', 'live'] },
+        topicDetails: { topicCategories: ['https://en.wikipedia.org/wiki/Jazz', 'https://en.wikipedia.org/wiki/Music'] }, contentDetails: { duration: 'PT3M' } }, 1);
+      return eq([row.topics, row.tags], [['Jazz', 'Music'], ['jazz', 'live']]);
+    }],
+
+    ['Trending: which rows a subcategory keeps', w => {
+      const row = (topics, title, tags) => ({ topics, title, channelTitle: 'Chan', tags: tags || [] });
+      const find = (cat, id, mine) => w.findSubcategory(cat, id, mine || []);
+      const jazz = find('10', 'Jazz'), blues = find('10', 'Blues'), foot = find('17', 'Association_football');
+      eq([w.trendingMatchesSubcategory(row(['Jazz', 'Music'], 'x'), jazz), w.trendingMatchesSubcategory(row(['Pop_music'], 'jazz cover'), jazz)], [true, false], 'Jazz by topic only');
+      eq([w.trendingMatchesSubcategory(row(['Music'], 'Delta Blues live'), blues), w.trendingMatchesSubcategory(row(['Music'], 'x', ['blues']), blues)], [true, true], 'Blues by words or tags');
+      eq(w.trendingMatchesSubcategory(row(['football'], 'x'), foot), true, 'alias, any case');
+      const mine = [{ id: 'cpsy01', cat: '10', fr: 'Psy', en: '', keywords: 'psytrance -remix', parent: 'Electronic_music' },
+                    { id: 'cword1', cat: '10', fr: 'Live', en: '', keywords: '"live at"', parent: null }];
+      const psy = find('10', 'cpsy01', mine), live = find('10', 'cword1', mine);
+      eq([
+        w.trendingMatchesSubcategory(row(['Electronic_music'], 'Psytrance mix'), psy),
+        w.trendingMatchesSubcategory(row(['Electronic_music'], 'Psytrance (Remix)'), psy),
+        w.trendingMatchesSubcategory(row(['Rock_music'], 'Psytrance mix'), psy),
+        w.trendingMatchesSubcategory(row([], 'Live at Wembley'), live),
+      ], [true, false, false, true], 'custom: base topic and words, both');
+      return eq(w.trendingMatchesSubcategory(row([], 'x'), null), true, 'no subcategory keeps everything');
+    }],
+
+    ['Trending: a subcategory takes the whole Top 200', w =>
+      eq([w.trendingEffectiveSize(25, null), w.trendingEffectiveSize(25, w.findSubcategory('10', 'Jazz', [])), w.trendingPageCount(200)], [25, 200, 4])],
+
+    ['a name the user typed is escaped in the menu', w => {
+      const mine = [{ id: 'cxss001', cat: '10', fr: '<img src=x onerror=alert(1)>', en: '"><b>', keywords: 'a', parent: null }];
+      const html = w.subcategoryOptionsHTML('10', '', mine);
+      ok(!/<img|<b>/.test(html), 'raw markup in the menu');
+      ok(/&lt;img|&quot;&gt;&lt;b&gt;/.test(html), 'name missing');
+      return ok(html.includes('value="__new__"'), 'no New entry');
+    }],
+  ],
+},
 ];
 
 // AUD-05 — no angle bracket needed: one double quote closes title="" and the

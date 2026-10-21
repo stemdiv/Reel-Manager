@@ -1887,6 +1887,11 @@
             <span data-i18n="discover_search_btn">Search</span>
           </button>
         </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:12px;color:var(--text2);">
+          <select class="form-control" id="discoverCategory" style="width:auto;min-width:150px;font-size:12px;padding:4px 8px;" data-i18n-title="discover_category_tooltip" title="Category" onchange="onDiscoverCategoryChange()"></select>
+          <select class="form-control" id="discoverSubcategory" style="width:auto;min-width:150px;font-size:12px;padding:4px 8px;display:none;" data-i18n-title="sub_tooltip" title="Subcategory" onchange="onSubcategoryPick('discover', this)"></select>
+          <button class="btn btn-secondary btn-sm" id="discoverSubEdit" style="display:none;" onclick="editPickedSubcategory('discover')" data-i18n="sub_edit">Edit</button>
+        </div>
         <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:12px;color:var(--text2);">
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
             <input type="checkbox" id="discoverEmbeddable" onchange="saveDiscoverFilters()">
@@ -1973,6 +1978,11 @@
         <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;padding:12px;background:var(--surface2);border-radius:var(--radius);">
           <div><label for="tvCategory" style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="detail_category">Catégorie</label>
             <select class="form-control" id="tvCategory" style="padding:6px 10px;font-size:13px;" onchange="setTrendingCategory(this.value)"></select></div>
+          <div><label for="tvSubcategory" style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="sub_label">Sous-catégorie</label>
+            <span style="display:flex;gap:6px;align-items:center;">
+              <select class="form-control" id="tvSubcategory" style="padding:6px 10px;font-size:13px;" onchange="onSubcategoryPick('trending', this)"></select>
+              <button class="btn btn-secondary btn-sm" id="tvSubEdit" style="display:none;" onclick="editPickedSubcategory('trending')" data-i18n="sub_edit">Modifier</button>
+            </span></div>
           <div><label for="tvRegion" style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="trending_region">Pays</label>
             <select class="form-control" id="tvRegion" style="padding:6px 10px;font-size:13px;" onchange="setTrendingRegion(this.value)"></select></div>
           <div><label for="tvSize" style="font-size:12px;color:var(--text2);display:block;margin-bottom:4px;" data-i18n="trending_size">Classement</label>
@@ -2888,7 +2898,7 @@
   </div>
 </div>
 
-<script src="shared/core.js?v=1.27.66"></script>   <!-- AUD-33 — helpers shared with VYMA Studio -->
+<script src="shared/core.js?v=1.28.0"></script>   <!-- AUD-33 — helpers shared with VYMA Studio -->
 <script>
 // ============================================================================
 // CONSTANTS & CONFIG
@@ -3466,6 +3476,33 @@ const I18N = {
     trending_added: 'Vidéo ajoutée à la playlist',
     trending_no_playlist: "Vous n'avez aucune playlist modifiable.",
     trending_region_note: 'Classement pour la région {region} — depuis juillet 2025, il mélange Musique, Films et Jeux, il est donc toujours filtré par catégorie.',
+    // #97 — categories and subcategories
+    discover_cat_any: 'Toutes catégories',
+    discover_category_tooltip: 'Catégorie YouTube (vidéos) — avec une catégorie, les mots-clés deviennent facultatifs',
+    discover_topic_fallback: 'YouTube a refusé la sous-catégorie : recherche par mots-clés à la place.',
+    sub_label: 'Sous-catégorie',
+    sub_tooltip: 'Sous-catégorie',
+    sub_any: 'Toutes sous-catégories',
+    sub_mine: 'Mes sous-catégories',
+    sub_new: '+ Nouvelle sous-catégorie…',
+    sub_edit: 'Modifier',
+    sub_modal_new: 'Nouvelle sous-catégorie — {category}',
+    sub_modal_edit: 'Modifier la sous-catégorie — {category}',
+    sub_name: 'Nom',
+    sub_keywords: 'Mots-clés',
+    sub_keywords_placeholder: 'ex. psytrance -remix',
+    sub_keywords_hint: 'Tous les mots sont requis ; -mot exclut, a|b accepte l’un ou l’autre, "expression exacte".',
+    sub_parent: 'Dans la sous-catégorie YouTube',
+    sub_parent_none: 'Toute la catégorie',
+    sub_delete: 'Supprimer',
+    toast_sub_invalid: 'Donnez-lui un nom, et des mots-clés ou une sous-catégorie YouTube.',
+    toast_sub_name_taken: 'Une sous-catégorie de cette catégorie porte déjà ce nom.',
+    toast_sub_limit: 'Limite atteinte : {max} sous-catégories.',
+    toast_sub_saved: 'Sous-catégorie enregistrée',
+    toast_sub_deleted: 'Sous-catégorie supprimée',
+    trending_sub_count: '{count} sur {total} vidéos du classement',
+    trending_sub_empty: 'Aucune vidéo « {sub} » dans le Top {total} de ce pays.',
+    trending_sub_size_note: 'Avec une sous-catégorie, tout le Top 200 est filtré',
     nav_trending: 'Tendances',
     trending_see_all: 'Voir tout →',
     trending_view_title: 'Tendances',
@@ -4451,6 +4488,33 @@ const I18N = {
     trending_added: 'Video added to the playlist',
     trending_no_playlist: 'You have no playlist you can write to.',
     trending_region_note: 'Chart for region {region} — since July 2025 it mixes Music, Films and Gaming, so it is always filtered by category.',
+    // #97 — categories and subcategories
+    discover_cat_any: 'Any category',
+    discover_category_tooltip: 'YouTube category (videos) — with a category, keywords become optional',
+    discover_topic_fallback: 'YouTube refused the subcategory: searched by keywords instead.',
+    sub_label: 'Subcategory',
+    sub_tooltip: 'Subcategory',
+    sub_any: 'Any subcategory',
+    sub_mine: 'My subcategories',
+    sub_new: '+ New subcategory…',
+    sub_edit: 'Edit',
+    sub_modal_new: 'New subcategory — {category}',
+    sub_modal_edit: 'Edit subcategory — {category}',
+    sub_name: 'Name',
+    sub_keywords: 'Keywords',
+    sub_keywords_placeholder: 'e.g. psytrance -remix',
+    sub_keywords_hint: 'All words are required; -word excludes, a|b accepts either, "exact phrase".',
+    sub_parent: 'Within the YouTube subcategory',
+    sub_parent_none: 'The whole category',
+    sub_delete: 'Delete',
+    toast_sub_invalid: 'Give it a name, and keywords or a YouTube subcategory.',
+    toast_sub_name_taken: 'A subcategory of this category already has that name.',
+    toast_sub_limit: 'Limit reached: {max} subcategories.',
+    toast_sub_saved: 'Subcategory saved',
+    toast_sub_deleted: 'Subcategory deleted',
+    trending_sub_count: '{count} of {total} videos in the chart',
+    trending_sub_empty: 'No "{sub}" video in this country’s Top {total}.',
+    trending_sub_size_note: 'With a subcategory, the whole Top 200 is filtered',
     nav_trending: 'Trending',
     trending_see_all: 'See all →',
     trending_view_title: 'Trending',
@@ -4943,6 +5007,11 @@ const APP = {
   tagIcons: JSON.parse(localStorage.getItem('tagIcons') || '{}'),
   // Names per language of the tags the user created: { id: { fr, en } }.
   tagLabels: JSON.parse(localStorage.getItem('tagLabels') || '{}'),
+  // #97 — the user's own subcategories, each attached to one category.
+  customSubcategories: (() => {
+    try { return sanitizeCustomSubcategories(JSON.parse(localStorage.getItem('customSubcategories') || '[]')); }
+    catch (e) { return []; }
+  })(),
   folders: JSON.parse(localStorage.getItem('playlistFolders') || '[]'),
   folderAssignments: JSON.parse(localStorage.getItem('folderAssignments') || '{}'),
   folderExpanded: JSON.parse(localStorage.getItem('folderExpanded') || '{}'),
@@ -4971,7 +5040,7 @@ migrateTagIds();
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.27.66'; // bump per release, with the ?v= on shared/core.js in both pages
+const APP_VERSION = '1.28.0'; // bump per release, with the ?v= on shared/core.js in both pages
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -6524,6 +6593,8 @@ function sanitizeBackup(raw) {
     out.bookmarkedPlaylists = raw.bookmarkedPlaylists.filter(b => isObj(b) && typeof b.id === 'string' && BOOKMARK_ID_REGEX.test(b.id))
       .map(b => ({ id: b.id, addedAt: iso(b.addedAt) || '' }));
   }
+  // #97 — rebuilt field by field, like everything else here (shared/core.js)
+  if (Array.isArray(raw.customSubcategories)) out.customSubcategories = sanitizeCustomSubcategories(raw.customSubcategories);
   return out;
 }
 
@@ -6549,6 +6620,7 @@ function pickBackupSource(manualTs, cacheTs, hasManual, hasCache) {
 const BACKUP_LOCAL_META = [
   ['tags', 'playlistTags'], ['tagIcons', 'tagIcons'], ['tagLabels', 'tagLabels'], ['folders', 'playlistFolders'],
   ['folderAssignments', 'folderAssignments'], ['deckColumns', 'deckColumns'], ['watchQueue', 'watchQueue'],
+  ['customSubcategories', 'customSubcategories'],
 ];
 
 async function loadBackupFromStorage() {
@@ -7002,6 +7074,7 @@ var APP_STORAGE_KEYS = [   // var: read by tests.html, which cannot see a top-le
   'playlistTags', 'tagIcons', 'tagLabels', 'playlistFolders', 'folderAssignments', 'folderExpanded',
   'bookmarkedPlaylists', 'deckColumns', 'watchQueue', 'recentSearches',
   'playlistViewMode', 'libraryLens', 'libraryMusicKind', 'discoverFilters', 'trendingCategory', 'trendingRegion', 'trendingView',
+  'trendingSubcategory', 'customSubcategories',
   'showPlaylistViews', 'reelMusicMode',
   // identity and session
   'youtubeClientId', 'userInfo', 'oauthScope', 'writeScopeAtLogin', 'lastLoginTimestamp',
@@ -7934,7 +8007,8 @@ function renderSkinPicker() {
 // (each builder already restores sel.value).
 function refreshCategoryLabels() {
   const builders = ['refreshCategoryFilterOptions', 'gsRefreshCategoryOptions',
-                    'populateMoveCategoryOptions', 'populateWatchCategoryOptions'];
+                    'populateMoveCategoryOptions', 'populateWatchCategoryOptions',
+                    'refreshSubcategoryControls'];
   for (const name of builders) {
     try { if (typeof window[name] === 'function') window[name](); }
     catch (_) { /* a dropdown that is not on screen must not break the toggle */ }
@@ -8509,6 +8583,7 @@ async function autoSaveCache(opts) {
       folderAssignments: APP.folderAssignments,
       deckColumns: APP.deckColumns,
       watchQueue: APP.watchQueue,
+      customSubcategories: APP.customSubcategories,
       bookmarkedPlaylists: APP.bookmarkedPlaylists,
     };
     // #G11 — one record per playlist, never one blob. On the localStorage
@@ -8871,6 +8946,209 @@ const TRENDING_DEFAULT_CATEGORY = '10';   // Music — this app's centre of grav
 let trendingVideos = [];
 let trendingLoading = false;
 
+// ── Subcategories (#97) ─────────────────────────────────────────────────────
+// One menu shape for Discover and Trending: '' is every subcategory, SUB_NEW
+// opens the editor. In Discover a YouTube subcategory is a request filter
+// (topicId); Trending's chart only takes a category, so there the subcategory
+// filters the chart we already hold. The table lives in shared/core.js.
+const SUB_NEW = '__new__';
+const SUB_LANGS = ['fr', 'en'];   // the names a custom subcategory stores
+
+function saveCustomSubcategories() {
+  try { localStorage.setItem('customSubcategories', JSON.stringify(APP.customSubcategories)); }
+  catch (e) { swallow('saveCustomSubcategories', e); }
+}
+
+function newCustomSubId() {
+  return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function subcategoryOptionsHTML(categoryId, selected, custom = APP.customSubcategories) {
+  const byName = (a, b) => subcategoryName(a, currentLang).localeCompare(subcategoryName(b, currentLang), currentLang);
+  const subs = subcategoriesFor(categoryId, custom);
+  const opt = s => `<option value="${escapeHtml(s.id)}"${s.id === selected ? ' selected' : ''}>${escapeHtml(subcategoryName(s, currentLang))}</option>`;
+  const yt = subs.filter(s => !s.custom).sort(byName);
+  const mine = subs.filter(s => s.custom).sort(byName);
+  let html = `<option value="">${escapeHtml(t('sub_any'))}</option>`;
+  if (yt.length) html += `<optgroup label="YouTube">${yt.map(opt).join('')}</optgroup>`;
+  if (mine.length) html += `<optgroup label="${escapeHtml(t('sub_mine'))}">${mine.map(opt).join('')}</optgroup>`;
+  return html + `<option value="${SUB_NEW}">${escapeHtml(t('sub_new'))}</option>`;
+}
+
+function subcategoryCategoryOf(where) {
+  return where === 'trending' ? trendingCategory() : (document.getElementById('discoverCategory')?.value || '');
+}
+
+function pickedSubcategoryId(where) {
+  return where === 'trending' ? trendingSubcategoryId() : discoverCategoryState().sub;
+}
+
+function onSubcategoryPick(where, sel) {
+  if (sel.value === SUB_NEW) {
+    sel.value = pickedSubcategoryId(where);   // the menu keeps its choice until Save
+    showSubcategoryModal(subcategoryCategoryOf(where), null, where);
+    return;
+  }
+  pickSubcategory(where, sel.value);
+}
+
+function pickSubcategory(where, id) {
+  if (where === 'trending') { setTrendingSubcategory(id); return; }
+  const sel = document.getElementById('discoverSubcategory');
+  if (sel) {
+    sel.innerHTML = subcategoryOptionsHTML(subcategoryCategoryOf('discover'), id);
+    sel.value = id;
+  }
+  saveDiscoverFilters();
+  renderDiscoverCategoryControls();
+}
+
+function editPickedSubcategory(where) {
+  const cat = subcategoryCategoryOf(where);
+  const sub = findSubcategory(cat, pickedSubcategoryId(where), APP.customSubcategories);
+  if (sub && sub.custom) showSubcategoryModal(cat, sub.id, where);
+}
+
+// Both menus follow a change made from either view, and a language switch.
+function refreshSubcategoryControls() {
+  renderDiscoverCategoryControls();
+  if (isViewActive('trending')) renderTrendingView();
+}
+
+function showSubcategoryModal(categoryId, editId, where) {
+  if (!categoryId) return;
+  const c = editId ? APP.customSubcategories.find(x => x.id === editId) : null;
+  const builtins = subcategoriesFor(categoryId, [])
+    .sort((a, b) => subcategoryName(a, currentLang).localeCompare(subcategoryName(b, currentLang), currentLang));
+  const names = SUB_LANGS.map(lang => `
+      <div class="form-group">
+        <label class="form-label" for="subName_${lang}">${escapeHtml(t('sub_name'))} (${lang.toUpperCase()})</label>
+        <input type="text" class="form-control" id="subName_${lang}" maxlength="40" value="${escapeHtml(c ? c[lang] : '')}">
+      </div>`).join('');
+  const parent = builtins.length ? `
+      <div class="form-group">
+        <label class="form-label" for="subParent">${escapeHtml(t('sub_parent'))}</label>
+        <select class="form-control" id="subParent">
+          <option value="">${escapeHtml(t('sub_parent_none'))}</option>
+          ${builtins.map(b => `<option value="${escapeHtml(b.id)}"${c && c.parent === b.id ? ' selected' : ''}>${escapeHtml(subcategoryName(b, currentLang))}</option>`).join('')}
+        </select>
+      </div>` : '';
+  openModal(`
+    <div class="modal-header">
+      <div class="modal-title">${escapeHtml(t(c ? 'sub_modal_edit' : 'sub_modal_new', { category: getCategoryName(categoryId) }))}</div>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="subEditId" value="${escapeHtml(c ? c.id : '')}">
+      <input type="hidden" id="subCategoryId" value="${escapeHtml(categoryId)}">
+      <input type="hidden" id="subWhere" value="${where === 'trending' ? 'trending' : 'discover'}">
+      ${names}
+      <div class="form-group">
+        <label class="form-label" for="subKeywords">${escapeHtml(t('sub_keywords'))}</label>
+        <input type="text" class="form-control" id="subKeywords" maxlength="120" value="${escapeHtml(c ? c.keywords : '')}" placeholder="${escapeHtml(t('sub_keywords_placeholder'))}">
+        <p class="text-muted" style="font-size:12px;margin-top:6px;">${escapeHtml(t('sub_keywords_hint'))}</p>
+      </div>
+      ${parent}
+    </div>
+    <div class="modal-footer">
+      ${c ? `<button class="btn btn-danger" style="margin-right:auto;" onclick="deleteCustomSubcategory()">${escapeHtml(t('sub_delete'))}</button>` : ''}
+      <button class="btn btn-secondary" onclick="closeModal()">${t('modal_cancel')}</button>
+      <button class="btn btn-primary" onclick="applySubcategoryModal()">${t('modal_save')}</button>
+    </div>
+  `);
+}
+
+function applySubcategoryModal() {
+  const val = id => document.getElementById(id)?.value || '';
+  const editId = val('subEditId'), cat = val('subCategoryId'), where = val('subWhere');
+  const clean = sanitizeCustomSubcategories([{
+    id: editId || newCustomSubId(), cat,
+    fr: val('subName_fr'), en: val('subName_en'), keywords: val('subKeywords'), parent: val('subParent') || null,
+  }])[0];
+  if (!clean) { showToast(t('toast_sub_invalid'), 'error'); return; }
+  // Two entries of one menu under one name could not be told apart.
+  const taken = new Set([clean.fr, clean.en].filter(Boolean).map(n => n.toLocaleLowerCase()));
+  const clash = subcategoriesFor(cat, APP.customSubcategories)
+    .some(s => s.id !== clean.id && Object.values(s.names).some(n => n && taken.has(String(n).toLocaleLowerCase())));
+  if (clash) { showToast(t('toast_sub_name_taken'), 'error'); return; }
+  const i = APP.customSubcategories.findIndex(x => x.id === clean.id);
+  if (i < 0 && APP.customSubcategories.length >= CUSTOM_SUB_MAX) {
+    showToast(t('toast_sub_limit', { max: CUSTOM_SUB_MAX }), 'error');
+    return;
+  }
+  if (i >= 0) APP.customSubcategories[i] = clean; else APP.customSubcategories.push(clean);
+  saveCustomSubcategories();
+  closeModal();
+  pickSubcategory(where, clean.id);
+  refreshSubcategoryControls();
+  showToast(t('toast_sub_saved'), 'success');
+}
+
+function deleteCustomSubcategory() {
+  const id = document.getElementById('subEditId')?.value;
+  if (!id) return;
+  APP.customSubcategories = APP.customSubcategories.filter(x => x.id !== id);
+  saveCustomSubcategories();
+  closeModal();
+  // A menu that pointed at it falls back to every subcategory (the getters
+  // validate), and Trending goes back to the size the user chose.
+  if (isViewActive('trending')) loadTrendingView();
+  refreshSubcategoryControls();
+  showToast(t('toast_sub_deleted'), 'success');
+}
+
+/**
+ * Does a chart row belong to a subcategory? YouTube's own: its topic, or its
+ * keywords (Blues has no topic). The user's: its YouTube subcategory if it
+ * names one, and its keywords if it has some, both required. The keywords use
+ * the global search syntax, which is also YouTube's: -word, a|b, "phrase".
+ */
+function trendingMatchesSubcategory(item, sub) {
+  if (!sub) return true;
+  const keys = (sub.topicKeys || []).map(k => String(k).toLowerCase());
+  const topicHit = keys.length > 0 && (item.topics || []).some(k => keys.includes(String(k).toLowerCase()));
+  const wordsHit = !!sub.keywords && matchesSearchQuery(
+    [item.title, item.channelTitle].concat(item.tags || []).join('\n'), parseSearchQuery(sub.keywords));
+  if (!sub.custom) return topicHit || wordsHit;
+  return (!sub.parent || topicHit) && (!sub.keywords || wordsHit);
+}
+
+/** Discover: the words and the topic a search sends for a subcategory. */
+function discoverQueryFor(query, sub) {
+  const q = [String(query || '').trim(), sub ? sub.keywords : ''].filter(Boolean).join(' ');
+  return { q, topicId: sub ? sub.topicId : null };
+}
+
+// If YouTube ever refuses a topicId, the same search by words: the
+// subcategory's keywords, else the topic's own name ("Jazz", "Ice hockey").
+function discoverFallbackQuery(query, sub) {
+  if (!sub) return String(query || '').trim();
+  const base = sub.custom ? findSubcategory(sub.cat, sub.parent, []) : sub;
+  const topicWords = base && base.topicId ? String(base.id).replace(/_/g, ' ') : '';
+  return [String(query || '').trim(), sub.keywords, topicWords].filter(Boolean).join(' ');
+}
+
+function trendingSubcategoryId() {
+  const id = localStorage.getItem('trendingSubcategory') || '';
+  return findSubcategory(trendingCategory(), id, APP.customSubcategories) ? id : '';
+}
+
+function trendingSubcategory() {
+  return findSubcategory(trendingCategory(), trendingSubcategoryId(), APP.customSubcategories);
+}
+
+// A subcategory is a share of the chart: it gets the whole Top 200 to pick
+// from (4 units, cached for an hour), whatever size the menu shows.
+function trendingEffectiveSize(size, sub) {
+  return sub ? TRENDING_SUB_SIZE : size;
+}
+
+function setTrendingSubcategory(id) {
+  try { localStorage.setItem('trendingSubcategory', id || ''); } catch (e) { swallow('setTrendingSubcategory:storage', e); }
+  const visible = new Set(tvState.videos.filter(v => trendingMatchesSubcategory(v, trendingSubcategory())).map(v => v.videoId));
+  for (const vid of [...tvSelected]) if (!visible.has(vid)) tvSelected.delete(vid);
+  loadTrendingView();   // reloads only if the size changed; else re-renders
+}
+
 function trendingCategory() {
   const saved = localStorage.getItem('trendingCategory');
   return (saved && VIDEO_CATEGORIES[saved]) ? saved : TRENDING_DEFAULT_CATEGORY;
@@ -8916,18 +9194,21 @@ function regionName(code) {
  * The request, isolated so its exact shape is testable without a network call.
  * opts (Trending view): region overrides the language's, max up to 50 a page,
  * stats adds the view/like counts — same call, same 1 unit — and pageToken pages.
+ * topics (#97) adds each video's topics and tags, for the subcategory filter:
+ * still the same call and the same 1 unit, whatever parts it carries.
  */
 function buildTrendingParams(categoryId, lang, opts) {
   opts = opts || {};
   const p = {
-    part: opts.stats ? 'snippet,contentDetails,statistics' : 'snippet,contentDetails',
+    part: 'snippet,contentDetails' + (opts.stats ? ',statistics' : '') + (opts.topics ? ',topicDetails' : ''),
     chart: 'mostPopular',
     videoCategoryId: String(categoryId),
     regionCode: opts.region || langRegion(lang || currentLang).regionCode,
     maxResults: opts.max || TRENDING_MAX,
     _ttlMs: 60 * 60_000,   // 1 hour — the chart does not move faster than that
-    fields: 'nextPageToken,items(id,snippet(title,channelTitle,channelId,categoryId,thumbnails(medium(url),high(url),default(url),fhd(url),qhd(url))),contentDetails(duration)' +
-      (opts.stats ? ',statistics(viewCount,likeCount)' : '') + ')',
+    fields: 'nextPageToken,items(id,snippet(title,channelTitle,channelId,categoryId,' + (opts.topics ? 'tags,' : '') +
+      'thumbnails(medium(url),high(url),default(url),fhd(url),qhd(url))),contentDetails(duration)' +
+      (opts.stats ? ',statistics(viewCount,likeCount)' : '') + (opts.topics ? ',topicDetails(topicCategories)' : '') + ')',
   };
   if (opts.pageToken) p.pageToken = opts.pageToken;
   return p;
@@ -8952,6 +9233,9 @@ function trendingItem(v, rank) {
                            categoryId: v.snippet?.categoryId, durationSeconds: seconds }),
     views: count(v.statistics?.viewCount),
     likes: count(v.statistics?.likeCount),   // null when the owner hides it
+    // #97 — what the subcategory filter reads: Wikipedia page names, and tags
+    topics: (v.topicDetails?.topicCategories || []).map(topicKeyFromUrl).filter(Boolean),
+    tags: Array.isArray(v.snippet?.tags) ? v.snippet.tags.slice(0, 50) : [],
   };
 }
 
@@ -9025,6 +9309,7 @@ function renderTrendingTile() {
 // page at 1 unit each, with view and like counts from the same call. Selected
 // rows go to one of the user's playlists or to a new one, without duplicates.
 const TRENDING_SIZES = [10, 25, 50, 100, 200];
+const TRENDING_SUB_SIZE = 200;   // #97 — a subcategory filters the whole chart
 const TRENDING_SORTS = ['rank', 'views', 'likes', 'ratio', 'duration_desc', 'duration_asc'];
 const tvState = { videos: [], loading: false, error: null, key: '' };
 const tvSelected = new Set();   // videoIds
@@ -9071,7 +9356,8 @@ function compactCount(n) {
 async function loadTrendingView(force) {
   if (tvState.loading) return;
   if (!APP.accessToken) { renderTrendingView(); return; }
-  const cat = trendingCategory(), region = trendingRegion(), size = trendingViewPrefs().size;
+  const cat = trendingCategory(), region = trendingRegion();
+  const size = trendingEffectiveSize(trendingViewPrefs().size, trendingSubcategory());
   const key = cat + '|' + region + '|' + size;
   if (!force && tvState.key === key && tvState.videos.length) { renderTrendingView(); return; }
   tvState.loading = true;
@@ -9082,7 +9368,7 @@ async function loadTrendingView(force) {
     let pageToken;
     while (out.length < size) {
       const data = await ytApi('videos', buildTrendingParams(cat, null,
-        { region, stats: true, max: Math.min(50, size - out.length), pageToken }));
+        { region, stats: true, topics: true, max: Math.min(50, size - out.length), pageToken }));
       for (const v of data.items || []) {
         if (v.id && !seen.has(v.id)) { seen.add(v.id); out.push(trendingItem(v, out.length + 1)); }
       }
@@ -9112,12 +9398,23 @@ function renderTrendingView() {
   const cat = document.getElementById('tvCategory');
   cat.innerHTML = Object.keys(VIDEO_CATEGORIES).filter(cid => VIDEO_CATEGORIES[cid].a)
     .map(cid => `<option value="${cid}"${cid === trendingCategory() ? ' selected' : ''}>${escapeHtml(getCategoryName(cid))}</option>`).join('');
+  const sub = trendingSubcategory();
+  const subSel = document.getElementById('tvSubcategory');
+  if (subSel) {
+    subSel.innerHTML = subcategoryOptionsHTML(trendingCategory(), sub ? sub.id : '');
+    subSel.title = t('sub_tooltip');
+  }
+  const subEdit = document.getElementById('tvSubEdit');
+  if (subEdit) subEdit.style.display = sub && sub.custom ? '' : 'none';
   const reg = document.getElementById('tvRegion');
   const regions = TRENDING_REGIONS.map(code => ({ code, name: regionName(code) })).sort((a, b) => a.name.localeCompare(b.name));
   reg.innerHTML = regions.map(r => `<option value="${r.code}"${r.code === trendingRegion() ? ' selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
-  document.getElementById('tvSize').value = String(prefs.size);
+  const sizeSel = document.getElementById('tvSize');
+  sizeSel.value = String(trendingEffectiveSize(prefs.size, sub));
+  sizeSel.disabled = !!sub;   // the subcategory takes the whole Top 200
+  sizeSel.title = sub ? t('trending_sub_size_note') : '';
   document.getElementById('tvSort').value = prefs.sort;
-  const pages = trendingPageCount(prefs.size);
+  const pages = trendingPageCount(trendingEffectiveSize(prefs.size, sub));
   document.getElementById('tvCostNote').textContent = t('trending_cost_note', { units: pages });
   document.getElementById('tvRegionNote').textContent = t('trending_region_note', { region: regionName(trendingRegion()) });
 
@@ -9126,7 +9423,8 @@ function renderTrendingView() {
   else if (!APP.accessToken) html = `<p class="text-muted">${t('trending_signed_out')}</p>`;
   else if (tvState.error) html = `<p class="text-muted">${escapeHtml(t('trending_view_error', { msg: tvState.error }))}</p>`;
   else if (!tvState.videos.length) html = `<button class="btn btn-secondary btn-sm" onclick="loadTrendingView(true)">${t('trending_load')}</button>`;
-  else html = sortTrendingVideos(tvState.videos, prefs.sort).map(v => {
+  else if (!trendingVisibleVideos().length) html = `<p class="text-muted">${escapeHtml(t('trending_sub_empty', { sub: subcategoryName(sub, currentLang), total: tvState.videos.length }))}</p>`;
+  else html = sortTrendingVideos(trendingVisibleVideos(), prefs.sort).map(v => {
     const play = `playVideo('${v.videoId}','${escapeJsAttr(v.title)}','${escapeJsAttr(v.channelTitle)}','${escapeJsAttr(v.thumbnail)}',null,'${escapeJsAttr(v.channelId)}')`;
     return `
       <div class="trending-row tv-row">
@@ -9148,6 +9446,11 @@ function renderTrendingView() {
   tvUpdateActionBar();
 }
 
+function trendingVisibleVideos() {
+  const sub = trendingSubcategory();
+  return sub ? tvState.videos.filter(v => trendingMatchesSubcategory(v, sub)) : tvState.videos;
+}
+
 function tvToggle(cb) {
   if (cb.checked) tvSelected.add(cb.value); else tvSelected.delete(cb.value);
   tvUpdateActionBar();
@@ -9166,7 +9469,10 @@ function tvUpdateActionBar() {
   const selBar = document.getElementById('tvSelectBar');
   if (selBar) selBar.style.display = tvState.videos.length && !tvState.loading ? 'flex' : 'none';
   const count = document.getElementById('tvCount');
-  if (count) count.textContent = t('search_result_count', { count: tvState.videos.length });
+  const sub = trendingSubcategory();
+  if (count) count.textContent = sub
+    ? t('trending_sub_count', { count: trendingVisibleVideos().length, total: tvState.videos.length })
+    : t('search_result_count', { count: tvState.videos.length });
   const bar = document.getElementById('tvActionBar');
   if (!bar) return;
   bar.style.display = n ? 'flex' : 'none';
@@ -12627,9 +12933,13 @@ async function performDiscoverEntitySearch(type, opts) {
   let items = [];
   let pageToken = '';
 
+  let topicId = opts.topicId || null;
+  let words = opts.query;
   for (let p = 0; p < pages; p++) {
     const params = buildDiscoverSearchParams({
-      query: opts.query,
+      query: words,
+      categoryId: opts.categoryId,
+      topicId,
       type,
       maxResults: Math.min(50, opts.maxResults - items.length),
       order: opts.order,
@@ -12639,7 +12949,8 @@ async function performDiscoverEntitySearch(type, opts) {
       pageToken,
     });
     if (btn) btn.innerHTML = `<span class="mono" style="font-size:11px;">${pages > 1 ? t('discover_searching_page', { current: p + 1, total: pages }) : t('discover_searching')}</span>`;
-    const data = await ytApi('search', params);
+    const { data, fellBack } = await discoverSearchCall(params, opts.fallbackQuery);
+    if (fellBack) { topicId = null; words = opts.fallbackQuery; }
     items = items.concat(data.items || []);
     pageToken = data.nextPageToken || '';
     if (!pageToken || items.length >= opts.maxResults) break;
@@ -12920,7 +13231,6 @@ function buildDiscoverSearchParams(f) {
   const type = DISCOVER_TYPES.includes(f.type) ? f.type : 'video';
   const params = {
     part: 'snippet',
-    q: f.query,
     type,
     maxResults: f.maxResults,
     // #73: order is a real API parameter — it changes WHICH videos come back,
@@ -12957,8 +13267,41 @@ function buildDiscoverSearchParams(f) {
   const channelId = (f.channelId || '').trim();
   if (channelId) params.channelId = channelId;
 
+  // #97 — with a category or a subcategory, the words become optional:
+  // "Music › Jazz, most viewed this month" needs none. videoCategoryId only
+  // exists for videos; playlists and channels take the category's own topic.
+  const q = String(f.query || '').trim();
+  if (q) params.q = q;
+  const cat = f.categoryId ? String(f.categoryId) : '';
+  if (cat && type === 'video') params.videoCategoryId = cat;
+  const topicId = f.topicId || (cat && type !== 'video' ? CATEGORY_TOPICS[cat] : null);
+  if (topicId) params.topicId = topicId;
+
   if (f.pageToken) params.pageToken = f.pageToken;
   return params;
+}
+
+// #97 — topicId is only taken from a list YouTube froze in 2017. If it is
+// ever refused (400), the same search goes out by words instead of failing.
+// The refused call was counted, like any sent call (AUD-18).
+async function discoverSearchCall(params, fallbackQuery) {
+  try {
+    return { data: await ytApi('search', params), fellBack: false };
+  } catch (err) {
+    if (!params.topicId || err.status !== 400) throw err;
+    log('warn', 'api', 'search refused topicId — retrying by words', { topicId: params.topicId, msg: err.message });
+    const { topicId, ...rest } = params;
+    if (fallbackQuery) rest.q = fallbackQuery;
+    showToast(t('discover_topic_fallback'), 'info');
+    return { data: await ytApi('search', rest), fellBack: true };
+  }
+}
+
+// The results' heading and the suggested playlist name when no words were typed.
+function discoverSearchLabel(query, categoryId, sub) {
+  if (query) return query;
+  const cat = categoryId ? getCategoryName(categoryId) : '';
+  return sub ? cat + ' › ' + subcategoryName(sub, currentLang) : cat;
 }
 
 // ── Filter persistence (#73) ────────────────────────────────────────────────
@@ -12985,7 +13328,48 @@ function saveDiscoverFilters() {
   }
   const emb = document.getElementById('discoverEmbeddable');
   if (emb) state.discoverEmbeddable = emb.checked;
+  // #97 — category and subcategory. A menu not built yet keeps what was saved.
+  const prev = discoverCategoryState();
+  const catSel = document.getElementById('discoverCategory');
+  const subSel = document.getElementById('discoverSubcategory');
+  state.discoverCategory = catSel && catSel.options.length ? catSel.value : prev.cat;
+  state.discoverSubcategory = subSel && subSel.options.length && subSel.value !== SUB_NEW ? subSel.value : prev.sub;
+  if (state.discoverCategory !== prev.cat && !(subSel && subSel.options.length)) state.discoverSubcategory = '';
   try { localStorage.setItem('discoverFilters', JSON.stringify(state)); } catch (e) { swallow('saveDiscoverFilters:storage', e); }
+}
+
+// The saved category and subcategory, each checked: a category YouTube does
+// not assign or a deleted subcategory reads as none.
+function discoverCategoryState() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('discoverFilters') || '{}') || {}; } catch (e) { swallow('discoverCategoryState', e); }
+  const cat = typeof saved.discoverCategory === 'string' && VIDEO_CATEGORIES[saved.discoverCategory]?.a ? saved.discoverCategory : '';
+  const sub = cat && findSubcategory(cat, saved.discoverSubcategory, APP.customSubcategories) ? saved.discoverSubcategory : '';
+  return { cat, sub };
+}
+
+function renderDiscoverCategoryControls() {
+  const catSel = document.getElementById('discoverCategory');
+  const subSel = document.getElementById('discoverSubcategory');
+  if (!catSel || !subSel) return;
+  const st = discoverCategoryState();
+  catSel.innerHTML = `<option value="">${escapeHtml(t('discover_cat_any'))}</option>` +
+    Object.keys(VIDEO_CATEGORIES).filter(cid => VIDEO_CATEGORIES[cid].a)
+      .map(cid => `<option value="${cid}"${cid === st.cat ? ' selected' : ''}>${escapeHtml(getCategoryName(cid))}</option>`).join('');
+  catSel.value = st.cat;
+  subSel.innerHTML = st.cat ? subcategoryOptionsHTML(st.cat, st.sub) : '';
+  subSel.value = st.sub;
+  subSel.style.display = st.cat ? '' : 'none';
+  const sub = findSubcategory(st.cat, st.sub, APP.customSubcategories);
+  const edit = document.getElementById('discoverSubEdit');
+  if (edit) edit.style.display = sub && sub.custom ? '' : 'none';
+}
+
+function onDiscoverCategoryChange() {
+  const subSel = document.getElementById('discoverSubcategory');
+  if (subSel) subSel.innerHTML = '';   // a new category starts with every subcategory
+  saveDiscoverFilters();
+  renderDiscoverCategoryControls();
 }
 
 function loadDiscoverFilters() {
@@ -13001,6 +13385,7 @@ function loadDiscoverFilters() {
   }
   const emb = document.getElementById('discoverEmbeddable');
   if (emb) emb.checked = saved.discoverEmbeddable === true;
+  renderDiscoverCategoryControls();
 }
 
 // Arrive at Discover from a Subscriptions card, pre-filtered to that channel.
@@ -13056,7 +13441,17 @@ function clearDiscoverChannel() {
 
 async function performDiscoverSearch() {
   const query = document.getElementById('discoverSearchInput').value.trim();
-  if (!query) { showToast(t('discover_enter_topic'), 'error'); return; }
+  // #97 — a category or a subcategory is enough to search on
+  const categoryId = document.getElementById('discoverCategory')?.value || '';
+  const sub = findSubcategory(categoryId, document.getElementById('discoverSubcategory')?.value, APP.customSubcategories);
+  const typeNow = document.getElementById('discoverType')?.value || 'video';
+  const reach = discoverQueryFor(query, sub);
+  const hasTopic = !!(reach.topicId || (typeNow !== 'video' && CATEGORY_TOPICS[categoryId]));
+  if (!reach.q && !(typeNow === 'video' ? categoryId : hasTopic)) { showToast(t('discover_enter_topic'), 'error'); return; }
+  const label = discoverSearchLabel(query, categoryId, sub);
+  let topicId = reach.topicId;
+  let words = reach.q;
+  const fallbackWords = discoverFallbackQuery(query, sub);
 
   const maxResults = parseInt(document.getElementById('discoverMaxResults').value);
   const sortBy = document.getElementById('discoverSortBy').value;
@@ -13094,8 +13489,9 @@ async function performDiscoverSearch() {
     // second lookup to do, so they take a much shorter path than videos.
     if (searchType !== 'video') {
       await performDiscoverEntitySearch(searchType, {
-        query, maxResults, order: apiOrder, publishedAfter: publishedAfterFilter,
+        query: words, maxResults, order: apiOrder, publishedAfter: publishedAfterFilter,
         channelId: channelIdFilter, lang: currentLang, btn, pages,
+        categoryId, topicId, fallbackQuery: fallbackWords,
       });
       return;
     }
@@ -13106,7 +13502,9 @@ async function performDiscoverSearch() {
 
     for (let p = 0; p < pages; p++) {
       const params = buildDiscoverSearchParams({
-        query,
+        query: words,
+        categoryId,
+        topicId,
         maxResults: Math.min(50, maxResults - allVideoIds.length),
         order: apiOrder,
         duration: durationFilter,
@@ -13121,7 +13519,8 @@ async function performDiscoverSearch() {
       });
 
       btn.innerHTML = `<span class="mono" style="font-size:11px;">${pages > 1 ? t('discover_searching_page', {current: p+1, total: pages}) : t('discover_searching')}</span>`;
-      const searchData = await ytApi('search', params);
+      const { data: searchData, fellBack } = await discoverSearchCall(params, fallbackWords);
+      if (fellBack) { topicId = null; words = fallbackWords; }
       const ids = (searchData.items || []).map(item => item.id?.videoId).filter(Boolean);
       allVideoIds = allVideoIds.concat(ids);
       pageToken = searchData.nextPageToken || '';
@@ -13196,10 +13595,11 @@ async function performDiscoverSearch() {
     // Sort by selected criterion
     discoverResults.sort(discoverComparator(sortBy));
 
-    renderDiscoverResults(query);
+    discoverLastLabel = label;
+    renderDiscoverResults(label);
 
     // Pre-fill playlist name from query
-    document.getElementById('discoverPlaylistName').value = query.charAt(0).toUpperCase() + query.slice(1);
+    document.getElementById('discoverPlaylistName').value = label.charAt(0).toUpperCase() + label.slice(1);
 
   } catch (err) {
     showToast(t('toast_error', { msg: err.message }), 'error');
@@ -13291,11 +13691,12 @@ function discoverComparator(sortBy) {
   };
 }
 
+let discoverLastLabel = '';   // #97 — what the shown results were searched for
+
 function resortDiscoverResults() {
   const sortBy = document.getElementById('discoverSortBy').value;
   discoverResults.sort(discoverComparator(sortBy));
-  const query = document.getElementById('discoverSearchInput').value.trim();
-  renderDiscoverResults(query);
+  renderDiscoverResults(discoverLastLabel || document.getElementById('discoverSearchInput').value.trim());
 }
 
 function toggleDiscoverSelectAll() {
@@ -16184,6 +16585,7 @@ async function createFullBackup() {
     folderAssignments: APP.folderAssignments,
     deckColumns: APP.deckColumns,
     watchQueue: APP.watchQueue,
+    customSubcategories: APP.customSubcategories,
     bookmarkedPlaylists: APP.bookmarkedPlaylists,
   };
 
@@ -16351,7 +16753,8 @@ function parseJSONForRestore(text) {
       folders: backup.folders || null,
       folderAssignments: backup.folderAssignments || null,
       deckColumns: backup.deckColumns || null,
-      watchQueue: backup.watchQueue || null
+      watchQueue: backup.watchQueue || null,
+      customSubcategories: backup.customSubcategories || null
     }
   };
 }
@@ -16513,6 +16916,8 @@ async function executeRestore() {
     if (m.folderAssignments) { APP.folderAssignments = { ...APP.folderAssignments, ...m.folderAssignments }; localStorage.setItem('folderAssignments', JSON.stringify(APP.folderAssignments)); }
     if (m.deckColumns) { APP.deckColumns = m.deckColumns; localStorage.setItem('deckColumns', JSON.stringify(APP.deckColumns)); }
     if (m.watchQueue) { APP.watchQueue = m.watchQueue; localStorage.setItem('watchQueue', JSON.stringify(APP.watchQueue)); }
+    // #97 — adds the ones this browser does not have; never replaces one it does
+    if (m.customSubcategories) { APP.customSubcategories = mergeCustomSubcategories(APP.customSubcategories, m.customSubcategories); saveCustomSubcategories(); }
   }
 
   // Show progress UI

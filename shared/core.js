@@ -124,6 +124,132 @@ var GENRE_LABELS = {
   'Jazz': { fr: 'Jazz', en: 'Jazz' }, 'Reggae': { fr: 'Reggae', en: 'Reggae' }, 'Blues': { fr: 'Blues', en: 'Blues' },
 };
 
+// ── Subcategories (#97) ─────────────────────────────────────────────────────
+// search.list takes a topicId only from YouTube's curated list (Freebase ids,
+// frozen on 15 February 2017), while a video reports its topics as Wikipedia
+// URLs. Each entry carries both: topicId for the request, the Wikipedia page
+// (key, plus any alias) to recognise a video in a chart. Only Music, Gaming and
+// Sports map cleanly onto one category each. Music names are GENRE_LABELS'.
+// Blues has no topic: it is a keyword search inside Music.
+var CATEGORY_TOPICS = { '10': '/m/04rlf', '20': '/m/0bzvm2', '17': '/m/06ntj' };
+
+var SUBCATEGORIES = {
+  '10': [
+    { key: 'Pop_music', topicId: '/m/064t9' }, { key: 'Rock_music', topicId: '/m/06by7' },
+    { key: 'Hip_hop_music', topicId: '/m/0glt670' }, { key: 'Electronic_music', topicId: '/m/02lkt' },
+    { key: 'Rhythm_and_blues', topicId: '/m/06j6l' }, { key: 'Soul_music', topicId: '/m/0gywn' },
+    { key: 'Jazz', topicId: '/m/03_d0' }, { key: 'Blues', topicId: null, keywords: 'blues' },
+    { key: 'Classical_music', topicId: '/m/0ggq0m' }, { key: 'Country_music', topicId: '/m/01lyv' },
+    { key: 'Reggae', topicId: '/m/06cqb' }, { key: 'Music_of_Latin_America', topicId: '/m/0g293' },
+    { key: 'Music_of_Asia', topicId: '/m/028sqc' }, { key: 'Independent_music', topicId: '/m/05rwpb' },
+    { key: 'Christian_music', topicId: '/m/02mscn' },
+  ],
+  '20': [
+    { key: 'Action_game', topicId: '/m/025zzc', fr: 'Action', en: 'Action' },
+    { key: 'Action-adventure_game', topicId: '/m/02ntfj', fr: 'Action-aventure', en: 'Action-adventure' },
+    { key: 'Casual_game', topicId: '/m/0b1vjn', fr: 'Jeux grand public', en: 'Casual' },
+    { key: 'Music_video_game', topicId: '/m/02hygl', fr: 'Jeux musicaux', en: 'Music games' },
+    { key: 'Puzzle_video_game', topicId: '/m/04q1x3q', fr: 'Puzzle', en: 'Puzzle' },
+    { key: 'Racing_video_game', topicId: '/m/01sjng', fr: 'Course', en: 'Racing' },
+    { key: 'Role-playing_video_game', topicId: '/m/0403l3g', fr: 'Jeux de rôle', en: 'Role-playing' },
+    { key: 'Simulation_video_game', topicId: '/m/021bp2', fr: 'Simulation', en: 'Simulation' },
+    { key: 'Sports_game', topicId: '/m/022dc6', fr: 'Jeux de sport', en: 'Sports games', aliases: ['Sports_video_game'] },
+    { key: 'Strategy_video_game', topicId: '/m/03hf_rm', fr: 'Stratégie', en: 'Strategy' },
+  ],
+  '17': [
+    { key: 'Association_football', topicId: '/m/02vx4', fr: 'Football', en: 'Football (soccer)', aliases: ['Football'] },
+    { key: 'American_football', topicId: '/m/0jm_', fr: 'Football américain', en: 'American football' },
+    { key: 'Basketball', topicId: '/m/018w8', fr: 'Basket-ball', en: 'Basketball' },
+    { key: 'Baseball', topicId: '/m/018jz', fr: 'Baseball', en: 'Baseball' },
+    { key: 'Boxing', topicId: '/m/01cgz', fr: 'Boxe', en: 'Boxing' },
+    { key: 'Cricket', topicId: '/m/09xp_', fr: 'Cricket', en: 'Cricket' },
+    { key: 'Golf', topicId: '/m/037hz', fr: 'Golf', en: 'Golf' },
+    { key: 'Ice_hockey', topicId: '/m/03tmr', fr: 'Hockey sur glace', en: 'Ice hockey' },
+    { key: 'Mixed_martial_arts', topicId: '/m/01h7lh', fr: 'Arts martiaux mixtes (MMA)', en: 'Mixed martial arts' },
+    { key: 'Motorsport', topicId: '/m/0410tth', fr: 'Sport automobile', en: 'Motorsport' },
+    { key: 'Tennis', topicId: '/m/07bs0', fr: 'Tennis', en: 'Tennis' },
+    { key: 'Volleyball', topicId: '/m/07_53', fr: 'Volley-ball', en: 'Volleyball' },
+  ],
+};
+
+var CUSTOM_SUB_ID_RE = /^c[a-z0-9]{4,24}$/;
+var CUSTOM_SUB_MAX = 100;
+
+/**
+ * The subcategories offered under a category: YouTube's first, then the
+ * user's own attached to it. Each comes out in one shape:
+ * { id, cat, custom, names: {fr, en}, topicId, keywords, topicKeys, parent }.
+ * A custom one based on a YouTube subcategory takes that one's topic.
+ */
+function subcategoriesFor(categoryId, custom) {
+  const cat = String(categoryId || '');
+  const builtins = (SUBCATEGORIES[cat] || []).map(s => ({
+    id: s.key, cat, custom: false,
+    names: GENRE_LABELS[s.key] || { fr: s.fr, en: s.en },
+    topicId: s.topicId, keywords: s.keywords || '',
+    topicKeys: [s.key].concat(s.aliases || []), parent: null,
+  }));
+  const mine = (Array.isArray(custom) ? custom : []).filter(c => c && c.cat === cat).map(c => {
+    const base = builtins.find(b => b.id === c.parent) || null;
+    return {
+      id: c.id, cat, custom: true, names: { fr: c.fr || '', en: c.en || '' },
+      topicId: base ? base.topicId : null, keywords: c.keywords || '',
+      topicKeys: base ? base.topicKeys : [], parent: base ? base.id : null,
+    };
+  });
+  return builtins.concat(mine);
+}
+
+function findSubcategory(categoryId, id, custom) {
+  if (!id) return null;
+  return subcategoriesFor(categoryId, custom).find(s => s.id === id) || null;
+}
+
+/** Its name in `lang`, else English, else French, else the id. */
+function subcategoryName(sub, lang) {
+  if (!sub) return '';
+  const n = sub.names || {};
+  return n[lang] || n.en || n.fr || String(sub.id).replace(/_/g, ' ');
+}
+
+/**
+ * The user's own subcategories, as stored or as read from a backup: only
+ * known fields, bounded lengths, a real assignable category, and something to
+ * search by (keywords, or a YouTube subcategory to sit in). Anything else is
+ * dropped, never repaired into something the user did not write.
+ */
+function sanitizeCustomSubcategories(raw) {
+  if (!Array.isArray(raw)) return [];
+  const text = (v, max) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max) : '');
+  const out = [], seen = new Set();
+  for (const c of raw) {
+    if (!c || typeof c !== 'object' || out.length >= CUSTOM_SUB_MAX) continue;
+    const id = typeof c.id === 'string' && CUSTOM_SUB_ID_RE.test(c.id) ? c.id : null;
+    const cat = typeof c.cat === 'string' && Object.prototype.hasOwnProperty.call(VIDEO_CATEGORIES, c.cat) && VIDEO_CATEGORIES[c.cat].a ? c.cat : null;
+    if (!id || !cat || seen.has(id)) continue;
+    const fr = text(c.fr, 40), en = text(c.en, 40), keywords = text(c.keywords, 120);
+    const parent = typeof c.parent === 'string' && (SUBCATEGORIES[cat] || []).some(s => s.key === c.parent) ? c.parent : null;
+    if (!(fr || en) || !(keywords || parent)) continue;
+    seen.add(id);
+    out.push({ id, cat, fr, en, keywords, parent });
+  }
+  return out;
+}
+
+/** A backup's subcategories added to this browser's: one already here wins. */
+function mergeCustomSubcategories(mine, incoming) {
+  const have = new Set((Array.isArray(mine) ? mine : []).map(c => c && c.id));
+  const extra = (Array.isArray(incoming) ? incoming : []).filter(c => c && !have.has(c.id));
+  return sanitizeCustomSubcategories((Array.isArray(mine) ? mine : []).concat(extra));
+}
+
+/** A Wikipedia topic URL as YouTube returns it → its page name, or ''. */
+function topicKeyFromUrl(url) {
+  const m = /\/wiki\/([^?#]+)$/.exec(String(url || ''));
+  if (!m) return '';
+  try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; }
+}
+
 var TAG_ID_RE = /^(?:yt:\d+|genre:[A-Za-z0-9_%().\-]+)$/;   // genre: a Wikipedia page name
 
 function isBuiltinTag(id) {
