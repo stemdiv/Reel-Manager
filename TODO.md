@@ -70,6 +70,8 @@ Details for each finding: `08-remediation.md` in the audit report, kept outside 
 - [ ] 1.29.1: after copying a bookmark (or a Move, a global-search copy, a Trending add), the dashboard donut and
   "All playlists" bars show the new playlist at once, with its real video count (not 0). Opening the Dashboard view also
   redraws the charts (no API call). `tests.html`: 538 cases; run focused, all should pass.
+- [ ] 1.29.2 (VYMA Studio 0.7.7): Studio Statistics shows filled bars in Top 10 playlists, Duration breakdown and
+  Top channels (and on the Studio dashboard); the logo reads "VYMA Studio". `tests.html`: 540 passed, 0 failed (focused).
 
 ## To test before merging `fix/category-cache`
 

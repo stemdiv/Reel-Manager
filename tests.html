@@ -6465,6 +6465,37 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '1.29.2', title: 'VYMA Studio draws its bars and says its name',
+  note: 'the bar fill was an inline span: its width was ignored, every bar stayed empty since 0.4.0',
+  cases: [
+    ['a bar at 50% is half its track, in a laid-out Studio frame', async w => {
+      let f;
+      try {
+        f = await openStudio(1024, 768);
+        const d = f.contentDocument;
+        const row = d.createElement('div');
+        row.className = 'bar-row';
+        row.innerHTML = '<span class="bar-name">x</span><span class="bar-track"><span class="bar-fill" style="width:50%;background:red"></span></span><span class="bar-val">1</span>';
+        d.body.appendChild(row);
+        const track = row.querySelector('.bar-track').getBoundingClientRect();
+        const fill = row.querySelector('.bar-fill').getBoundingClientRect();
+        ok(track.width > 0, 'no track width');
+        ok(Math.abs(fill.width - track.width / 2) <= 1, 'fill ' + fill.width.toFixed(1) + 'px of ' + track.width.toFixed(1) + 'px');
+        return eq(Math.round(fill.height), Math.round(track.height), 'fill height');
+      } finally { if (f) f.remove(); }
+    }],
+
+    ['the logo reads VYMA Studio, not the old name', async w => {
+      // The header is drawn only over a cached library, which this page may not
+      // have: read the template Studio draws it from.
+      const src = await (await fetch('reel-studio.html?logo=' + Date.now(), { cache: 'no-store' })).text();
+      const brand = (src.match(/<div class="brand"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || '';
+      ok(!/REEL\./.test(src), 'the old wordmark is still in the page');
+      return eq(brand.replace(/<[^>]+>/g, '').replace('▶', '').trim(), 'VYMA Studio');
+    }],
+  ],
+},
 ];
 
 // AUD-05 — no angle bracket needed: one double quote closes title="" and the

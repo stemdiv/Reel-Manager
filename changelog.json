@@ -1,5 +1,19 @@
 [
  {
+  "v": "1.29.2",
+  "date": "2026-10-22",
+  "items": [
+   {
+    "fr": "VYMA Studio 0.7.7 : les barres des Statistiques (Top 10 playlists, Répartition des durées, Top chaînes) et du tableau de bord se dessinent enfin. Elles étaient vides depuis la première version de Studio : le remplissage était un élément en ligne, dont le navigateur ignore la largeur.",
+    "en": "VYMA Studio 0.7.7: the bars in Statistics (Top 10 playlists, Duration breakdown, Top channels) and on the dashboard finally draw. They had been empty since Studio's first version: the fill was an inline element, whose width the browser ignores."
+   },
+   {
+    "fr": "VYMA Studio : le logo affiche « VYMA Studio » ; il disait encore « REEL. », oublié par le renommage de la v1.27.65.",
+    "en": "VYMA Studio: the logo reads \"VYMA Studio\"; it still said \"REEL.\", missed by the 1.27.65 rename."
+   }
+  ]
+ },
+ {
   "v": "1.29.1",
   "date": "2026-10-22",
   "items": [

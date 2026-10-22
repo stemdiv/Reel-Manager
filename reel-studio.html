@@ -157,7 +157,8 @@
   .bar-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text2); cursor: pointer; }
   .bar-name:hover { color: var(--text); }
   .bar-track { height: 9px; background: var(--surface3); border-radius: var(--pill); overflow: hidden; }
-  .bar-fill { height: 100%; border-radius: var(--pill); transition: width var(--dur) var(--ease); }
+  /* A span: block, or width and height are ignored and the bar never draws (0.7.7). */
+  .bar-fill { display: block; height: 100%; border-radius: var(--pill); transition: width var(--dur) var(--ease); }
   .bar-val { text-align: right; color: var(--text3); }
 
   /* ── Views ─────────────────────────────────────────────────────────── */
@@ -553,7 +554,7 @@
 
 <nav class="dock" id="dock" data-a11y="navLabel"></nav>
 
-<script src="shared/core.js?v=1.29.1"></script>   <!-- AUD-33 — helpers shared with the app -->
+<script src="shared/core.js?v=1.29.2"></script>   <!-- AUD-33 — helpers shared with the app -->
 <script>
 // ═══════════════════════════════════════════════════════════════════════
 // VYMA Studio — companion UI for VYMA (exploration 3a).
@@ -561,7 +562,7 @@
 // Strictly read-only: no API calls, no writes to the app's data keys.
 // ═══════════════════════════════════════════════════════════════════════
 
-const STUDIO_VERSION = '0.7.6';
+const STUDIO_VERSION = '0.7.7';
 
 // ── i18n ───────────────────────────────────────────────────────────────
 const LANG = (localStorage.getItem('appLang') || 'fr') === 'en' ? 'en' : 'fr';
@@ -1119,7 +1120,7 @@ function topbar() {
   const d = DATA;
   return `
     <header class="topbar">
-      <div class="brand" onclick="go('dashboard')"><span class="brand-mark">▶</span>REEL.</div>
+      <div class="brand" onclick="go('dashboard')"><span class="brand-mark">▶</span>VYMA Studio</div>
       <label class="search">
         <span style="color:var(--text3);font-size:13px;">⌕</span>
         <input id="globalSearch" value="${esc(UI.q)}" placeholder="${esc(tr('search', { n: nf(d.videos) }))}"
