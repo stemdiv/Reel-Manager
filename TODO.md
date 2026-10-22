@@ -2,7 +2,7 @@
 
 State as of 2026-09-27: `main` at v1.27.57 (what GitHub Pages serves); branch `fix/category-cache` at v1.27.64, pushed,
 open as PR #11, not merged. tests.html: 496 cases, 494 passing (the 2 failures are the quota estimator's, see "To investigate").
-Backlogs: v6.7 (items #85 to #96, next free number #97).
+Backlogs: v6.8 of 2026-10-22 (items #85 to #98; #97 shipped in 1.28.0, #98 to build; next free number #99).
 Details for each finding: `08-remediation.md` in the audit report, kept outside this public repo
 (local folder `YouTube Playlist Manager - audits/2026-09/`).
 
@@ -39,6 +39,14 @@ Details for each finding: `08-remediation.md` in the audit report, kept outside 
   - "+ New subcategory…": create one with keywords only, one based on a YouTube subcategory, edit one, delete one.
     Export a backup and check `customSubcategories` is in the file.
   - Run `tests.html` (17 new cases, `#97`). Locally: 516 passed, 0 failed on 2026-10-21.
+
+## To test before merging `fix/tutorial-words` (on top of `feat/discover-subcategories`)
+
+- [ ] 1.28.1: in VYMA Studio, Playlists, Music filter: the Ableton playlist should hold far fewer "music" videos
+  (measured on the 22 October backup: 79 lessons leave music, no song is lost). In Ableton, a few real tracks
+  (Apashe - Kyiv, Touch Sensitive - Pizza Guy, Depeche Mode remixes) must still read as music.
+  Run `tests.html` with the page focused (click in it first): 519 passed, 0 failed on 2026-10-22. Unfocused, the
+  3 focus-ring cases fail: the browser draws no focus ring in a window without focus.
 
 ## To test before merging `fix/category-cache`
 
