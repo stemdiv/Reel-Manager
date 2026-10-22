@@ -2,7 +2,7 @@
 
 State as of 2026-09-27: `main` at v1.27.57 (what GitHub Pages serves); branch `fix/category-cache` at v1.27.64, pushed,
 open as PR #11, not merged. tests.html: 496 cases, 494 passing (the 2 failures are the quota estimator's, see "To investigate").
-Backlogs: v6.8 of 2026-10-22 (items #85 to #98; #97 shipped in 1.28.0, #98 to build; next free number #99).
+Backlogs: v6.8 of 2026-10-22 (items #85 to #99; #97 shipped in 1.28.0, #98 to build, #99 shipped in 1.28.2; next free number #100).
 Details for each finding: `08-remediation.md` in the audit report, kept outside this public repo
 (local folder `YouTube Playlist Manager - audits/2026-09/`).
 
@@ -47,6 +47,14 @@ Details for each finding: `08-remediation.md` in the audit report, kept outside 
   (Apashe - Kyiv, Touch Sensitive - Pizza Guy, Depeche Mode remixes) must still read as music.
   Run `tests.html` with the page focused (click in it first): 519 passed, 0 failed on 2026-10-22. Unfocused, the
   3 focus-ring cases fail: the browser draws no focus ring in a window without focus.
+
+## To test before merging `feat/bookmark-copy` (on top of `fix/tutorial-words`)
+
+- [ ] 1.28.2 (#99), signed in: open a bookmark (Billion Views Club - EDM), click "Copier dans mes playlists" in the
+  blue banner. The dialog shows the name, private by default, "keep the bookmark" ticked and the cost
+  (42 tracks = 2,150 units). Try it first on a small bookmark (a few videos, a few hundred units). Check that the new
+  playlist opens with all the videos, that it can be edited, and, if the box was unticked, that the bookmark is gone.
+  Run `tests.html` focused: 525 passed, 0 failed on 2026-10-22 (6 new cases, `#99`).
 
 ## To test before merging `fix/category-cache`
 

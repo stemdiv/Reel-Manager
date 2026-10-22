@@ -1,5 +1,15 @@
 [
  {
+  "v": "1.28.2",
+  "date": "2026-10-22",
+  "items": [
+   {
+    "fr": "Favoris : une playlist ajoutée par son lien appartient à quelqu'un d'autre et reste en lecture seule. Le bouton « Copier dans mes playlists » du bandeau en crée une copie à vous, modifiable : nom et visibilité au choix, coût affiché avant de confirmer (50 unités pour créer, plus 50 par vidéo), vidéos supprimées ou privées ignorées. La copie est une photo du jour ; le favori peut être gardé pour continuer à suivre la playlist d'origine.",
+    "en": "Bookmarks: a playlist added by its link belongs to someone else and stays read-only. The \"Copy to my playlists\" button in the banner makes a copy of your own that you can edit: name and visibility of your choice, cost shown before you confirm (50 units to create, plus 50 per video), deleted or private videos skipped. The copy is a snapshot of today; the bookmark can be kept to go on following the original playlist."
+   }
+  ]
+ },
+ {
   "v": "1.28.1",
   "date": "2026-10-22",
   "items": [

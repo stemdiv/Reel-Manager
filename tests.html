@@ -6191,6 +6191,78 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '#99', title: 'Copy a bookmarked playlist into your own',
+  note: 'a bookmark is read-only on YouTube; the copy is a new playlist filled by the shared transfer',
+  cases: [
+    ['the copy carries each video once, without deleted or private ones', w => {
+      const item = (id, extra) => ({ contentDetails: { videoId: id, ...(extra && extra.date ? { videoPublishedAt: '2024-01-01T00:00:00Z' } : {}) },
+        snippet: { resourceId: { videoId: id }, thumbnails: extra && extra.thumb ? { medium: { url: 'u' } } : {} },
+        status: { privacyStatus: extra && extra.priv ? 'private' : 'public' } });
+      const r = w.bookmarkCopyPlan([
+        item('vidAAAAAAA1', { thumb: true }), item('vidAAAAAAA1', { thumb: true }), item('vidBBBBBBB2', { date: true }),
+        item('vidCCCCCCC3', { priv: true }), item('vidDDDDDDD4'), { snippet: {} },
+      ]);
+      return eq(r, { ids: ['vidAAAAAAA1', 'vidBBBBBBB2'], skipped: 2 });
+    }],
+
+    ['the cost is 50 to create plus 50 per video', w =>
+      eq([w.bookmarkCopyCost(42), w.bookmarkCopyCost(0), w.bookmarkCopyCost(1)], [2150, 50, 100])],
+
+    ['it creates the playlist first, then inserts every video in order', async w => {
+      const real = { ytApi: w.ytApi, loadAllPlaylists: w.loadAllPlaylists };
+      const calls = [];
+      try {
+        w.loadAllPlaylists = async () => {};
+        w.ytApi = async (endpoint, params, method, body) => {
+          calls.push({ endpoint, method, body });
+          return endpoint === 'playlists' ? { id: 'PLcopy00001' } : {};
+        };
+        const out = await w.copyPlaylistInto('Billion EDM (mine)', 'private', ['vid00000001', 'vid00000002', 'vid00000003'], 'Billion Views Club - EDM');
+        eq(calls.map(c => c.endpoint + ' ' + c.method), ['playlists POST', 'playlistItems POST', 'playlistItems POST', 'playlistItems POST'], 'calls');
+        eq([calls[0].body.snippet.title, calls[0].body.status.privacyStatus], ['Billion EDM (mine)', 'private'], 'new playlist');
+        ok(calls[0].body.snippet.description.includes('Billion Views Club - EDM'), 'description names the source');
+        eq(calls.slice(1).map(c => [c.body.snippet.playlistId, c.body.snippet.resourceId.videoId]),
+          [['PLcopy00001', 'vid00000001'], ['PLcopy00001', 'vid00000002'], ['PLcopy00001', 'vid00000003']], 'inserts');
+        return eq([out.destId, out.res.inserted, out.res.abortMsg], ['PLcopy00001', 3, null]);
+      } finally { Object.assign(w, real); }
+    }],
+
+    ['a failed insert stops the copy and says how far it got', async w => {
+      const real = { ytApi: w.ytApi, loadAllPlaylists: w.loadAllPlaylists };
+      let inserts = 0;
+      try {
+        w.loadAllPlaylists = async () => {};
+        w.ytApi = async (endpoint) => {
+          if (endpoint === 'playlists') return { id: 'PLcopy00002' };
+          if (++inserts === 3) throw Object.assign(new Error('quota exceeded'), { status: 403 });
+          return {};
+        };
+        const out = await w.copyPlaylistInto('X', 'private', ['vid00000001', 'vid00000002', 'vid00000003', 'vid00000004'], 'Src');
+        return eq([out.destId, out.res.inserted, out.plan.inserts, out.res.abortMsg], ['PLcopy00002', 2, 4, 'quota exceeded']);
+      } finally { Object.assign(w, real); }
+    }],
+
+    ['no playlist id from YouTube: nothing is inserted', async w => {
+      const real = { ytApi: w.ytApi, loadAllPlaylists: w.loadAllPlaylists };
+      const calls = [];
+      try {
+        w.loadAllPlaylists = async () => {};
+        w.ytApi = async (endpoint) => { calls.push(endpoint); return {}; };
+        let threw = false;
+        try { await w.copyPlaylistInto('X', 'private', ['vid00000001'], 'Src'); } catch (e) { threw = true; }
+        return eq([threw, calls], [true, ['playlists']]);
+      } finally { Object.assign(w, real); }
+    }],
+
+    ['the button sits in the read-only banner and hides in read-only mode', w => {
+      const btn = w.document.querySelector('#playlistDetailReadonlyBanner #bookmarkCopyBtn');
+      ok(!!btn, 'no button in the banner');
+      ok(btn.classList.contains('dash-write-action'), 'not hidden by read-only mode');
+      return eq(btn.getAttribute('data-i18n'), 'bookmark_copy_btn');
+    }],
+  ],
+},
 ];
 
 // AUD-05 — no angle bracket needed: one double quote closes title="" and the

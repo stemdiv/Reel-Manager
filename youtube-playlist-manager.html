@@ -860,7 +860,7 @@
   .playlist-card { position: relative; }
   /* Read-only banner shown at the top of a bookmarked playlist detail view */
   .bookmark-readonly-banner {
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     padding: 10px 14px; margin-bottom: 16px;
     border: 1px solid var(--accent-line); border-radius: var(--r-sm);
     background: var(--accent-soft); color: var(--text);
@@ -1642,7 +1642,8 @@
         <!-- Read-only banner shown when viewing a bookmarked (external) playlist (#63) -->
         <div id="playlistDetailReadonlyBanner" class="bookmark-readonly-banner" style="display:none;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-          <span data-i18n="bookmark_detail_readonly_banner">Read-only playlist — owned by another user. Write actions are unavailable.</span>
+          <span data-i18n="bookmark_detail_readonly_banner" style="flex:1;min-width:200px;">Read-only playlist — owned by another user. Write actions are unavailable.</span>
+          <button class="btn btn-primary btn-sm dash-write-action" id="bookmarkCopyBtn" onclick="showCopyBookmarkModal()" data-i18n="bookmark_copy_btn">Copier dans mes playlists</button>
         </div>
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
           <button class="btn btn-secondary btn-sm" onclick="switchView('dashboard')" data-i18n-title="detail_back" data-i18n="detail_back" title="Retour">← Retour</button>
@@ -2898,7 +2899,7 @@
   </div>
 </div>
 
-<script src="shared/core.js?v=1.28.1"></script>   <!-- AUD-33 — helpers shared with VYMA Studio -->
+<script src="shared/core.js?v=1.28.2"></script>   <!-- AUD-33 — helpers shared with VYMA Studio -->
 <script>
 // ============================================================================
 // CONSTANTS & CONFIG
@@ -2964,6 +2965,22 @@ const I18N = {
     bookmark_badge_label: 'Sauvegardée',
     bookmark_readonly_tooltip: 'Playlist d\'un autre utilisateur — lecture seule',
     bookmark_detail_readonly_banner: 'Playlist en lecture seule — appartient à un autre utilisateur. Les actions d\'écriture (ajout/suppression de vidéos, renommage) ne sont pas disponibles.',
+    // #99 — copy a bookmark into one's own playlists
+    bookmark_copy_btn: 'Copier dans mes playlists',
+    bookmark_copy_title: 'Copier « {title} »',
+    bookmark_copy_hint: 'Crée une nouvelle playlist à vous, que vous pourrez modifier, avec les vidéos de celle-ci. C’est une photo du jour : le favori, lui, continue de suivre les changements de son propriétaire.',
+    bookmark_copy_name: 'Nom de la copie',
+    bookmark_copy_visibility: 'Visibilité',
+    bookmark_copy_keep: 'Garder aussi le favori',
+    bookmark_copy_cost: '{count} vidéo(s) à copier — {cost} unités de quota (50 pour créer + 50 par vidéo). Utilisé aujourd’hui : {used} / {limit}.',
+    bookmark_copy_skipped: '{count} vidéo(s) supprimée(s) ou privée(s) ignorée(s) : YouTube ne permet pas de les ajouter.',
+    bookmark_copy_go: 'Copier',
+    bookmark_copy_action: 'Copier la playlist',
+    bookmark_copy_name_needed: 'Donnez un nom à la copie.',
+    bookmark_copy_empty: 'Rien à copier : cette playlist n’a aucune vidéo disponible.',
+    bookmark_copy_description: 'Copie de « {title} » — créée avec VYMA',
+    bookmark_copy_done: '« {name} » créée : {count} vidéo(s) copiée(s).',
+    bookmark_copy_partial: 'Copie arrêtée après {count} vidéo(s) sur {total} : {msg}. La nouvelle playlist garde ce qui a été copié ; le favori est conservé.',
     bookmark_quota_unit_label: 'unité de quota',
     // Read-only mode (#43)
     readonly_section_title: 'Mode lecture seule / démo',
@@ -3976,6 +3993,22 @@ const I18N = {
     bookmark_badge_label: 'Saved',
     bookmark_readonly_tooltip: 'Saved from another user — read-only',
     bookmark_detail_readonly_banner: 'Read-only playlist — owned by another user. Write actions (add/remove videos, rename) are unavailable.',
+    // #99 — copy a bookmark into one's own playlists
+    bookmark_copy_btn: 'Copy to my playlists',
+    bookmark_copy_title: 'Copy “{title}”',
+    bookmark_copy_hint: 'Creates a new playlist of your own, which you can edit, with this one’s videos. It is a snapshot of today: the bookmark keeps following its owner’s changes.',
+    bookmark_copy_name: 'Name of the copy',
+    bookmark_copy_visibility: 'Visibility',
+    bookmark_copy_keep: 'Keep the bookmark too',
+    bookmark_copy_cost: '{count} video(s) to copy — {cost} quota units (50 to create + 50 per video). Used today: {used} / {limit}.',
+    bookmark_copy_skipped: '{count} deleted or private video(s) skipped: YouTube does not let you add them.',
+    bookmark_copy_go: 'Copy',
+    bookmark_copy_action: 'Copy the playlist',
+    bookmark_copy_name_needed: 'Give the copy a name.',
+    bookmark_copy_empty: 'Nothing to copy: this playlist has no available video.',
+    bookmark_copy_description: 'Copy of “{title}” — created with VYMA',
+    bookmark_copy_done: '“{name}” created: {count} video(s) copied.',
+    bookmark_copy_partial: 'Copy stopped after {count} of {total} video(s): {msg}. The new playlist keeps what was copied; the bookmark is kept.',
     bookmark_quota_unit_label: 'quota unit',
     // Read-only mode (#43)
     readonly_section_title: 'Read-only / demo mode',
@@ -5040,7 +5073,7 @@ migrateTagIds();
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.28.1'; // bump per release, with the ?v= on shared/core.js in both pages
+const APP_VERSION = '1.28.2'; // bump per release, with the ?v= on shared/core.js in both pages
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -13957,6 +13990,128 @@ let moveVideosCache = []; // cache for current move playlist videos
 const moveSelected = new Set(); // videoIds ticked, kept while filters hide them
 
 function isBookmarkPlaylist(id) { return !!APP.playlists.find(p => p.id === id)?._isBookmark; }
+
+// ── #99 — copy a bookmarked playlist into the user's own ────────────────────
+// A bookmark is someone else's playlist: YouTube lets only its owner change it,
+// and the Data API has no "save to library". The copy is a new playlist of the
+// user's, filled through the same transfer as Trending and global search. It is
+// a snapshot: the bookmark keeps following its owner's changes, the copy does not.
+let bookmarkCopyJob = null;   // { playlistId, title, ids } while the dialog is open
+
+/** The videos a copy can carry: each once, without deleted or private ones (YouTube refuses to add them). */
+function bookmarkCopyPlan(items) {
+  const itemVideoId = v => v?.contentDetails?.videoId || v?.snippet?.resourceId?.videoId;
+  const ids = [], seen = new Set();
+  let skipped = 0;
+  for (const it of items || []) {
+    const id = itemVideoId(it);
+    if (!id) continue;
+    if (isGhostItem(it)) { skipped++; continue; }
+    if (seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return { ids, skipped };
+}
+
+/** 50 units to create the playlist, 50 per video inserted. */
+function bookmarkCopyCost(videoCount) {
+  return estimateQuotaCost('playlist_writes', videoCount + 1);
+}
+
+/**
+ * Creates the playlist, then copies the videos in order. A failed insert stops
+ * the run (runTransfer): what was copied stays, and the result says how far it got.
+ */
+async function copyPlaylistInto(name, visibility, ids, sourceTitle, onProgress) {
+  const plan = await planTransfer(ids.map(videoId => ({ sourceId: null, videoId })), null, { remove: false });
+  const created = await ytApi('playlists', { part: 'snippet,status' }, 'POST', {
+    snippet: { title: name, description: t('bookmark_copy_description', { title: sourceTitle }) },
+    status: { privacyStatus: visibility },
+  });
+  if (!created || !created.id) throw new Error(t('err_playlist_no_id'));
+  APP.allVideos[created.id] = [];
+  const res = await runTransfer(plan, created.id, onProgress);
+  return { destId: created.id, plan, res };
+}
+
+async function showCopyBookmarkModal(playlistId = currentDetailPlaylistId) {
+  const pl = APP.playlists.find(p => p.id === playlistId && p._isBookmark);
+  if (!pl) return;
+  const title = pl.snippet?.title || playlistId;
+  let items;
+  try { items = await loadPlaylistVideos(playlistId); }
+  catch (err) { showToast(t('toast_error', { msg: err.message }), 'error'); return; }
+  const { ids, skipped } = bookmarkCopyPlan(items);
+  if (!ids.length) { showToast(t('bookmark_copy_empty'), 'info'); return; }
+  bookmarkCopyJob = { playlistId, title, ids };
+  const visibilities = ['private', 'unlisted', 'public']
+    .map(v => `<option value="${v}">${escapeHtml(t('discover_visibility_' + v))}</option>`).join('');
+  openModal(`
+    <div class="modal-header">
+      <div class="modal-title">${escapeHtml(t('bookmark_copy_title', { title }))}</div>
+    </div>
+    <div class="modal-body">
+      <p class="text-muted" style="font-size:12px;margin-bottom:12px;">${escapeHtml(t('bookmark_copy_hint'))}</p>
+      <div class="form-group">
+        <label class="form-label" for="bookmarkCopyName">${escapeHtml(t('bookmark_copy_name'))}</label>
+        <input type="text" class="form-control" id="bookmarkCopyName" maxlength="150" value="${escapeHtml(title)}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="bookmarkCopyVisibility">${escapeHtml(t('bookmark_copy_visibility'))}</label>
+        <select class="form-control" id="bookmarkCopyVisibility">${visibilities}</select>
+      </div>
+      <label class="form-checkbox" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+        <input type="checkbox" id="bookmarkCopyKeep" checked>
+        <span class="checkbox-label">${escapeHtml(t('bookmark_copy_keep'))}</span>
+      </label>
+      <p class="mono" style="font-size:11px;color:var(--text2);">${escapeHtml(t('bookmark_copy_cost', { count: ids.length, cost: bookmarkCopyCost(ids.length), used: APP.quota.pool, limit: QUOTA_LIMITS.pool }))}</p>
+      ${skipped ? `<p class="text-muted" style="font-size:11px;margin-top:6px;">${escapeHtml(t('bookmark_copy_skipped', { count: skipped }))}</p>` : ''}
+      <p class="mono" id="bookmarkCopyProgress" aria-live="polite" style="font-size:11px;margin-top:6px;"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">${t('modal_cancel')}</button>
+      <button class="btn btn-primary" id="bookmarkCopyGo" onclick="performBookmarkCopy()">${escapeHtml(t('bookmark_copy_go'))}</button>
+    </div>
+  `);
+}
+
+async function performBookmarkCopy() {
+  const job = bookmarkCopyJob;
+  if (!job) return;
+  const name = (document.getElementById('bookmarkCopyName')?.value || '').trim().slice(0, 150);
+  if (!name) { showToast(t('bookmark_copy_name_needed'), 'error'); return; }
+  const chosen = document.getElementById('bookmarkCopyVisibility')?.value;
+  const visibility = ['private', 'unlisted', 'public'].includes(chosen) ? chosen : 'private';
+  const keep = document.getElementById('bookmarkCopyKeep')?.checked !== false;
+  if (!checkQuotaBudget(t('bookmark_copy_action'), 'playlist_writes', job.ids.length + 1)) return;
+
+  const btn = document.getElementById('bookmarkCopyGo');
+  const progress = document.getElementById('bookmarkCopyProgress');
+  if (btn) btn.disabled = true;
+  let out;
+  try {
+    out = await copyPlaylistInto(name, visibility, job.ids, job.title,
+      (k, total) => { if (progress) progress.textContent = t('search_progress', { current: k, total }); });
+  } catch (err) {
+    showToast(t('toast_error', { msg: err.message }), 'error');
+    if (btn) btn.disabled = false;
+    return;
+  }
+  bookmarkCopyJob = null;
+  closeModal();
+  const { destId, plan, res } = out;
+  if (res.abortMsg !== null) {
+    // Partial: the new playlist keeps what was copied, and the bookmark stays.
+    showToast(t('bookmark_copy_partial', { count: res.inserted, total: plan.inserts, msg: res.abortMsg }), 'error');
+  } else {
+    showToast(t('bookmark_copy_done', { name, count: res.inserted }), 'success');
+    if (!keep) removeBookmark(job.playlistId);
+  }
+  log('info', 'action', 'bookmark copied', { count: res.inserted, total: plan.inserts, complete: res.abortMsg === null, bookmarkKept: keep || res.abortMsg !== null });
+  refreshPlaylistsList();
+  if (APP.playlists.some(p => p.id === destId)) openPlaylistDetail(destId);
+}
 
 // Shared by Move and the global search actions. items: [{ sourceId, videoId, itemId? }].
 // Decides, from the live lists, what each item needs: an insert unless the
