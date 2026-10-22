@@ -2900,7 +2900,7 @@
   </div>
 </div>
 
-<script src="shared/core.js?v=1.29.0"></script>   <!-- AUD-33 — helpers shared with VYMA Studio -->
+<script src="shared/core.js?v=1.29.1"></script>   <!-- AUD-33 — helpers shared with VYMA Studio -->
 <script>
 // ============================================================================
 // CONSTANTS & CONFIG
@@ -5080,7 +5080,7 @@ migrateTagIds();
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.29.0'; // bump per release, with the ?v= on shared/core.js in both pages
+const APP_VERSION = '1.29.1'; // bump per release, with the ?v= on shared/core.js in both pages
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -14231,6 +14231,20 @@ async function planTransfer(items, destId, opts) {
   return plan;
 }
 
+/** The counts a transfer leaves, whatever YouTube's lagging itemCount says yet. */
+function applyTransferCounts(countBefore, destId, inserted, removedFrom) {
+  const set = (id, n) => {
+    const pl = APP.playlists.find(p => p.id === id);
+    if (!pl) return;
+    if (!pl.contentDetails) pl.contentDetails = {};
+    pl.contentDetails.itemCount = Math.max(0, n);
+  };
+  set(destId, (countBefore[destId] || 0) + inserted);
+  for (const [id, n] of Object.entries(removedFrom || {})) {
+    if (id !== destId) set(id, (countBefore[id] || 0) - n);
+  }
+}
+
 // Carries out a plan. A failed insert stops the run: quota, session and rate
 // limits fail the same way for every item after it, and each attempt is charged.
 // AUD-16 — the counters survive the stop, and every touched list is dropped
@@ -14238,6 +14252,10 @@ async function planTransfer(items, destId, opts) {
 async function runTransfer(plan, destId, onProgress) {
   const res = { done: 0, inserted: 0, removed: 0, kept: 0, stuck: [], attempted: 0, abortMsg: null };
   const touched = new Set([destId, ...plan.steps.filter(s => s.remove).map(s => s.sourceId)]);
+  // 1.29.1 — what each touched list held before, to correct YouTube's late counts
+  const countBefore = {};
+  touched.forEach(id => { countBefore[id] = APP.playlists.find(p => p.id === id)?.contentDetails?.itemCount || 0; });
+  const removedFrom = {};
   try {
     for (const step of plan.steps) {
       res.attempted++;
@@ -14262,6 +14280,7 @@ async function runTransfer(plan, destId, onProgress) {
           await ytApi('playlistItems', { id: step.itemId }, 'DELETE');
           res.removed++;
           res.done++;
+          removedFrom[step.sourceId] = (removedFrom[step.sourceId] || 0) + 1;
         } catch (delErr) {
           // The copy landed; removing the original failed. Never claim success.
           log('warn', 'action', 'transfer: source item not removed', { videoId: step.videoId, msg: delErr.message });
@@ -14273,6 +14292,12 @@ async function runTransfer(plan, destId, onProgress) {
   } finally {
     touched.forEach(id => { delete APP.allVideos[id]; });
     try { await loadAllPlaylists(); } catch (e) { swallow('runTransfer:redraw', e, 'warn'); }
+    // 1.29.1 — YouTube reports itemCount a few seconds late after writes (#62):
+    // a new playlist came back at 0 and the dashboard, never redrawn here, kept
+    // the old library. Apply the counts we know, then redraw every summary.
+    applyTransferCounts(countBefore, destId, res.inserted, removedFrom);
+    try { refreshDashboard(); populateSelectDropdowns(); refreshPlaylistsList(); }
+    catch (e) { swallow('runTransfer:views', e, 'warn'); }
   }
   return res;
 }

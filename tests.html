@@ -6399,6 +6399,45 @@ const SUITES = [
       eq(w.APP_STORAGE_KEYS.includes('trendingRegions'), true)],
   ],
 },
+{
+  id: '1.29.1', title: 'After a transfer the dashboard shows the new state at once',
+  note: 'a copied playlist showed in Statistics but not on the dashboard; YouTube reports itemCount late (#62)',
+  cases: [
+    ['a move redraws the dashboard with the counts it wrote, not YouTube\'s stale ones', async w => {
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      const lists = (dst, src) => [
+        { id: 'PLdst1291', snippet: { title: 'Dst1291' }, contentDetails: { itemCount: dst }, status: { privacyStatus: 'private' } },
+        { id: 'PLsrc1291', snippet: { title: 'Src1291' }, contentDetails: { itemCount: src }, status: { privacyStatus: 'private' } },
+      ];
+      let reload = lists(0, 10);
+      w.showToast = () => {};
+      try {
+        w.ytApi = async (endpoint, params, method) => {
+          if (endpoint === 'playlists' && (!method || method === 'GET')) return { items: reload };
+          return {};
+        };
+        await w.loadAllPlaylists();                       // seed: dst 0, src 10
+        await w.refreshDashboard();                       // the charts as they stood before
+        const plan = { steps: [
+          { sourceId: 'PLsrc1291', videoId: 'vid12910001', insert: true, remove: true, keep: false, itemId: 'it1' },
+          { sourceId: 'PLsrc1291', videoId: 'vid12910002', insert: true, remove: true, keep: false, itemId: 'it2' },
+          { sourceId: 'PLsrc1291', videoId: 'vid12910003', insert: true, remove: true, keep: false, itemId: 'it3' },
+        ], inserts: 3, deletes: 3, skippedDupes: 0, keptInBookmarks: 0 };
+        const res = await w.runTransfer(plan, 'PLdst1291');      // YouTube still answers 0 and 10
+        eq([res.inserted, res.removed], [3, 3], 'run');
+        // The donut legend and the All playlists bars: only refreshDashboard draws them.
+        const text = w.document.getElementById('dashboardCharts').innerText.replace(/\s+/g, ' ');
+        ok(/Dst1291 3\b/.test(text), 'destination count in the charts: ' + (text.match(/Dst1291 \S+/) || ['missing'])[0]);
+        ok(/Src1291 7\b/.test(text), 'source count in the charts: ' + (text.match(/Src1291 \S+/) || ['missing'])[0]);
+        return 'dashboard: Dst1291 3, Src1291 7';
+      } finally {
+        reload = [];
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+      }
+    }],
+  ],
+},
 ];
 
 // AUD-05 — no angle bracket needed: one double quote closes title="" and the

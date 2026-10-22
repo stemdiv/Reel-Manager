@@ -67,6 +67,8 @@ Details for each finding: `08-remediation.md` in the audit report, kept outside 
   - Discover, "Nouveautés musique": one search, Music, most viewed of the last 7 days; then pick a genre or a mood and
     press it again.
   - Run `tests.html` focused: 536 passed, 0 failed on 2026-10-22 (11 new cases, `#100`).
+- [ ] 1.29.1: after copying a bookmark (or a Move, a global-search copy, a Trending add), the dashboard donut and
+  "All playlists" bars show the new playlist at once, with its real video count (not 0). `tests.html`: 537 passed, 0 failed.
 
 ## To test before merging `fix/category-cache`
 
