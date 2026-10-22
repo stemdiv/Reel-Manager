@@ -68,7 +68,8 @@ Details for each finding: `08-remediation.md` in the audit report, kept outside 
     press it again.
   - Run `tests.html` focused: 536 passed, 0 failed on 2026-10-22 (11 new cases, `#100`).
 - [ ] 1.29.1: after copying a bookmark (or a Move, a global-search copy, a Trending add), the dashboard donut and
-  "All playlists" bars show the new playlist at once, with its real video count (not 0). `tests.html`: 537 passed, 0 failed.
+  "All playlists" bars show the new playlist at once, with its real video count (not 0). Opening the Dashboard view also
+  redraws the charts (no API call). `tests.html`: 538 cases; run focused, all should pass.
 
 ## To test before merging `fix/category-cache`
 

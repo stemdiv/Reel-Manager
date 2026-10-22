@@ -10874,7 +10874,9 @@ function switchView(viewName) {
     view.classList.add('active');
 
     // Initialize view data
-    if (viewName === 'dashboard') refreshPlaylistsList();
+    // 1.29.1 — the charts too: they are drawn from memory, no API call, and
+    // were otherwise left as they stood at the last full load.
+    if (viewName === 'dashboard') { refreshPlaylistsList(); refreshDashboard(); }
     else if (viewName === 'statistics') generateStatisticsCharts();
     else if (viewName === 'tags') refreshTagsList();
     else if (viewName === 'folders') renderFolderTree();

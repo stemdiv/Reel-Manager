@@ -6,6 +6,10 @@
    {
     "fr": "Tableau de bord : après une copie de favori, un déplacement, une copie depuis la recherche globale ou un ajout depuis Tendances, le tableau de bord, les menus de playlists et la bibliothèque sont redessinés tout de suite. Une playlist créée apparaissait dans Statistiques mais pas dans le tableau de bord, ou avec 0 vidéo : YouTube annonce le nombre de vidéos avec quelques secondes de retard, VYMA applique désormais le nombre qu'il vient d'écrire.",
     "en": "Dashboard: after a bookmark copy, a move, a copy from global search or an add from Trending, the dashboard, the playlist menus and the library are redrawn at once. A new playlist showed in Statistics but not on the dashboard, or with 0 videos: YouTube reports the video count a few seconds late, and VYMA now applies the count it has just written."
+   },
+   {
+    "fr": "Ouvrir le tableau de bord redessine aussi le graphique en anneau et les barres « Toutes les playlists » : ils restaient tels qu'au dernier chargement complet. Calculé en mémoire, sans appel à YouTube.",
+    "en": "Opening the dashboard also redraws the donut and the \"All playlists\" bars: they stayed as they were at the last full load. Computed in memory, with no call to YouTube."
    }
   ]
  },

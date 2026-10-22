@@ -6436,6 +6436,33 @@ const SUITES = [
         Object.assign(w, real);
       }
     }],
+
+    ['opening the dashboard redraws its charts, without calling YouTube', async w => {
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      const active = [...w.document.querySelectorAll('.view.active')].map(v => v.id)[0] || 'dashboard';
+      let reload = [{ id: 'PLview1291', snippet: { title: 'View1291' }, contentDetails: { itemCount: 5 }, status: { privacyStatus: 'private' } }];
+      let calls = 0;
+      w.showToast = () => {};
+      try {
+        w.ytApi = async () => { calls++; return { items: reload }; };
+        await w.loadAllPlaylists();
+        await w.refreshDashboard();                       // charts drawn at 5
+        reload = [{ ...reload[0], contentDetails: { itemCount: 9 } }];
+        await w.loadAllPlaylists();                       // the list knows 9; the charts are not redrawn by this
+        const before = calls;
+        w.switchView('statistics');
+        w.switchView('dashboard');
+        await new Promise(r => setTimeout(r, 50));
+        const text = w.document.getElementById('dashboardCharts').innerText.replace(/\s+/g, ' ');
+        ok(/View1291 9\b/.test(text), 'charts after opening the dashboard: ' + (text.match(/View1291 \S+/) || ['missing'])[0]);
+        return eq(calls - before, 0, 'API calls while switching views');
+      } finally {
+        reload = [];
+        try { await w.loadAllPlaylists(); } catch (_) {}
+        Object.assign(w, real);
+        w.switchView(active);
+      }
+    }],
   ],
 },
 ];
