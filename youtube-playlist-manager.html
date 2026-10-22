@@ -1892,6 +1892,7 @@
           <select class="form-control" id="discoverCategory" style="width:auto;min-width:150px;font-size:12px;padding:4px 8px;" data-i18n-title="discover_category_tooltip" title="Category" onchange="onDiscoverCategoryChange()"></select>
           <select class="form-control" id="discoverSubcategory" style="width:auto;min-width:150px;font-size:12px;padding:4px 8px;display:none;" data-i18n-title="sub_tooltip" title="Subcategory" onchange="onSubcategoryPick('discover', this)"></select>
           <button class="btn btn-secondary btn-sm" id="discoverSubEdit" style="display:none;" onclick="editPickedSubcategory('discover')" data-i18n="sub_edit">Edit</button>
+          <button class="btn btn-secondary btn-sm" id="discoverNewReleases" onclick="discoverNewReleases()" data-i18n="discover_new_releases" data-i18n-title="discover_new_releases_tooltip" title="New music">Nouveautés musique</button>
         </div>
         <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:12px;color:var(--text2);">
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
@@ -2899,7 +2900,7 @@
   </div>
 </div>
 
-<script src="shared/core.js?v=1.28.2"></script>   <!-- AUD-33 — helpers shared with VYMA Studio -->
+<script src="shared/core.js?v=1.29.0"></script>   <!-- AUD-33 — helpers shared with VYMA Studio -->
 <script>
 // ============================================================================
 // CONSTANTS & CONFIG
@@ -3501,6 +3502,9 @@ const I18N = {
     sub_tooltip: 'Sous-catégorie',
     sub_any: 'Toutes sous-catégories',
     sub_mine: 'Mes sous-catégories',
+    sub_moods: 'Humeurs',
+    discover_new_releases: 'Nouveautés musique',
+    discover_new_releases_tooltip: 'La musique la plus vue parmi celle publiée ces 7 derniers jours, dans le genre ou l’humeur choisis. 1 appel de recherche par page.',
     sub_new: '+ Nouvelle sous-catégorie…',
     sub_edit: 'Modifier',
     sub_modal_new: 'Nouvelle sous-catégorie — {category}',
@@ -4529,6 +4533,9 @@ const I18N = {
     sub_tooltip: 'Subcategory',
     sub_any: 'Any subcategory',
     sub_mine: 'My subcategories',
+    sub_moods: 'Moods',
+    discover_new_releases: 'New music',
+    discover_new_releases_tooltip: 'The most viewed music published in the last 7 days, in the chosen genre or mood. 1 search call per page.',
     sub_new: '+ New subcategory…',
     sub_edit: 'Edit',
     sub_modal_new: 'New subcategory — {category}',
@@ -5073,7 +5080,7 @@ migrateTagIds();
 // and uncaught errors. Export from Help view as a redacted text file.
 // ============================================================================
 
-const APP_VERSION = '1.28.2'; // bump per release, with the ?v= on shared/core.js in both pages
+const APP_VERSION = '1.29.0'; // bump per release, with the ?v= on shared/core.js in both pages
 
 // AUD-41 — the release notes live in changelog.json (FR + EN), fetched when
 // the version window opens: they were 47 KB of French-only, accent-stripped
@@ -7107,7 +7114,7 @@ var APP_STORAGE_KEYS = [   // var: read by tests.html, which cannot see a top-le
   'playlistTags', 'tagIcons', 'tagLabels', 'playlistFolders', 'folderAssignments', 'folderExpanded',
   'bookmarkedPlaylists', 'deckColumns', 'watchQueue', 'recentSearches',
   'playlistViewMode', 'libraryLens', 'libraryMusicKind', 'discoverFilters', 'trendingCategory', 'trendingRegion', 'trendingView',
-  'trendingSubcategory', 'customSubcategories',
+  'trendingSubcategory', 'customSubcategories', 'trendingRegions',
   'showPlaylistViews', 'reelMusicMode',
   // identity and session
   'youtubeClientId', 'userInfo', 'oauthScope', 'writeScopeAtLogin', 'lastLoginTimestamp',
@@ -9000,10 +9007,12 @@ function subcategoryOptionsHTML(categoryId, selected, custom = APP.customSubcate
   const byName = (a, b) => subcategoryName(a, currentLang).localeCompare(subcategoryName(b, currentLang), currentLang);
   const subs = subcategoriesFor(categoryId, custom);
   const opt = s => `<option value="${escapeHtml(s.id)}"${s.id === selected ? ' selected' : ''}>${escapeHtml(subcategoryName(s, currentLang))}</option>`;
-  const yt = subs.filter(s => !s.custom).sort(byName);
+  const yt = subs.filter(s => !s.custom && !s.mood).sort(byName);
+  const moods = subs.filter(s => s.mood);   // table order: chill first, sad last
   const mine = subs.filter(s => s.custom).sort(byName);
   let html = `<option value="">${escapeHtml(t('sub_any'))}</option>`;
   if (yt.length) html += `<optgroup label="YouTube">${yt.map(opt).join('')}</optgroup>`;
+  if (moods.length) html += `<optgroup label="${escapeHtml(t('sub_moods'))}">${moods.map(opt).join('')}</optgroup>`;
   if (mine.length) html += `<optgroup label="${escapeHtml(t('sub_mine'))}">${mine.map(opt).join('')}</optgroup>`;
   return html + `<option value="${SUB_NEW}">${escapeHtml(t('sub_new'))}</option>`;
 }
@@ -9051,7 +9060,7 @@ function refreshSubcategoryControls() {
 function showSubcategoryModal(categoryId, editId, where) {
   if (!categoryId) return;
   const c = editId ? APP.customSubcategories.find(x => x.id === editId) : null;
-  const builtins = subcategoriesFor(categoryId, [])
+  const builtins = subcategoriesFor(categoryId, []).filter(s => !s.mood)
     .sort((a, b) => subcategoryName(a, currentLang).localeCompare(subcategoryName(b, currentLang), currentLang));
   const names = SUB_LANGS.map(lang => `
       <div class="form-group">
@@ -9210,7 +9219,54 @@ const TRENDING_REGIONS = ['FR', 'BE', 'CH', 'CA', 'US', 'GB', 'IE', 'DE', 'AT', 
 
 function trendingRegion() {
   const saved = localStorage.getItem('trendingRegion');
-  return TRENDING_REGIONS.includes(saved) ? saved : langRegion(currentLang).regionCode;
+  return trendingRegionCodes().includes(saved) ? saved : langRegion(currentLang).regionCode;
+}
+
+// #100 — every country YouTube serves, not only the short list above.
+// i18nRegions.list costs 1 unit and barely changes: the codes are kept 30 days,
+// names come from the browser in the UI language (regionName). Signed out, or
+// before the first fetch, the short list stands in.
+const TRENDING_REGIONS_TTL = 30 * 86400000;
+let trendingRegionsLoading = null;
+
+function parseRegionCodes(data) {
+  const codes = (data?.items || []).map(it => it?.snippet?.gl || it?.id);
+  return [...new Set(codes.filter(c => typeof c === 'string' && /^[A-Z]{2}$/.test(c)))];
+}
+
+function cachedRegionCodes(now = Date.now()) {
+  try {
+    const c = JSON.parse(localStorage.getItem('trendingRegions') || 'null');
+    if (c && Array.isArray(c.codes) && typeof c.at === 'number') {
+      return { codes: c.codes.filter(x => typeof x === 'string' && /^[A-Z]{2}$/.test(x)), fresh: now - c.at < TRENDING_REGIONS_TTL };
+    }
+  } catch (e) { swallow('cachedRegionCodes', e); }
+  return { codes: [], fresh: false };
+}
+
+function trendingRegionCodes() {
+  return [...new Set(TRENDING_REGIONS.concat(cachedRegionCodes().codes))];
+}
+
+/** Fetches the country list once a month. true when it changed the menu. */
+function ensureTrendingRegions() {
+  if (!APP.accessToken || cachedRegionCodes().fresh) return Promise.resolve(false);
+  if (trendingRegionsLoading) return trendingRegionsLoading;
+  trendingRegionsLoading = (async () => {
+    try {
+      const codes = parseRegionCodes(await ytApi('i18nRegions', { part: 'snippet', hl: currentLang }));
+      if (!codes.length) return false;
+      localStorage.setItem('trendingRegions', JSON.stringify({ at: Date.now(), codes }));
+      log('info', 'api', 'trending regions loaded', { count: codes.length });
+      return true;
+    } catch (e) {
+      log('warn', 'api', 'trending regions failed', { msg: e.message });
+      return false;
+    } finally {
+      trendingRegionsLoading = null;
+    }
+  })();
+  return trendingRegionsLoading;
 }
 
 function setTrendingRegion(code) {
@@ -9389,6 +9445,8 @@ function compactCount(n) {
 async function loadTrendingView(force) {
   if (tvState.loading) return;
   if (!APP.accessToken) { renderTrendingView(); return; }
+  // #100 — the full country list, in the background, once a month
+  ensureTrendingRegions().then(changed => { if (changed && isViewActive('trending')) renderTrendingView(); });
   const cat = trendingCategory(), region = trendingRegion();
   const size = trendingEffectiveSize(trendingViewPrefs().size, trendingSubcategory());
   const key = cat + '|' + region + '|' + size;
@@ -9440,7 +9498,7 @@ function renderTrendingView() {
   const subEdit = document.getElementById('tvSubEdit');
   if (subEdit) subEdit.style.display = sub && sub.custom ? '' : 'none';
   const reg = document.getElementById('tvRegion');
-  const regions = TRENDING_REGIONS.map(code => ({ code, name: regionName(code) })).sort((a, b) => a.name.localeCompare(b.name));
+  const regions = trendingRegionCodes().map(code => ({ code, name: regionName(code) })).sort((a, b) => a.name.localeCompare(b.name, currentLang));
   reg.innerHTML = regions.map(r => `<option value="${r.code}"${r.code === trendingRegion() ? ' selected' : ''}>${escapeHtml(r.name)}</option>`).join('');
   const sizeSel = document.getElementById('tvSize');
   sizeSel.value = String(trendingEffectiveSize(prefs.size, sub));
@@ -13328,6 +13386,30 @@ async function discoverSearchCall(params, fallbackQuery) {
     showToast(t('discover_topic_fallback'), 'info');
     return { data: await ytApi('search', rest), fellBack: true };
   }
+}
+
+// #100 — "New music", after YouTube Music's New releases: the most viewed
+// music published in the last 7 days, in the genre or mood already picked if
+// any. YouTube Music knows which uploads are official releases; the Data API
+// does not, so this is the closest honest equivalent. Same cost as a search.
+function discoverNewReleasesPreset() {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  const st = discoverCategoryState();
+  const keepSub = st.cat === '10' ? st.sub : '';
+  set('discoverType', 'video');
+  set('discoverOrder', 'viewCount');
+  set('discoverPublishedAfter', '7d');
+  set('discoverCategory', '10');
+  const subSel = document.getElementById('discoverSubcategory');
+  if (subSel) { subSel.innerHTML = subcategoryOptionsHTML('10', keepSub); subSel.value = keepSub; }
+  saveDiscoverFilters();
+  applyDiscoverTypeVisibility();
+  renderDiscoverCategoryControls();
+}
+
+async function discoverNewReleases() {
+  discoverNewReleasesPreset();
+  await performDiscoverSearch();
 }
 
 // The results' heading and the suggested playlist name when no words were typed.

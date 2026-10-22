@@ -172,6 +172,22 @@ var SUBCATEGORIES = {
   ],
 };
 
+// #100 — moods, after YouTube Music's "Moods & genres". YouTube exposes no mood
+// for a video, so a mood is a keyword search inside Music: the same words go to
+// search.list (where a|b means either) and to the Trending filter, whose
+// parser reads a|b the same way. One word per alternative: a space would make
+// the Trending parser require both halves.
+var MUSIC_MOODS = [
+  { key: 'mood_chill', keywords: 'chill|chillout|lofi|lo-fi|relax|relaxing', fr: 'Détente', en: 'Chill' },
+  { key: 'mood_focus', keywords: 'focus|study|studying|concentration', fr: 'Concentration', en: 'Focus' },
+  { key: 'mood_workout', keywords: 'workout|gym|training|running|cardio', fr: 'Sport', en: 'Workout' },
+  { key: 'mood_party', keywords: 'party|dance|club|clubbing', fr: 'Fête', en: 'Party' },
+  { key: 'mood_sleep', keywords: 'sleep|sleeping|lullaby|calm', fr: 'Sommeil', en: 'Sleep' },
+  { key: 'mood_romance', keywords: 'love|romantic|romance', fr: 'Romance', en: 'Romance' },
+  { key: 'mood_feelgood', keywords: 'happy|upbeat|feelgood|feel-good|summer', fr: 'Bonne humeur', en: 'Feel good' },
+  { key: 'mood_sad', keywords: 'sad|heartbreak|melancholy|breakup', fr: 'Mélancolie', en: 'Sad' },
+];
+
 var CUSTOM_SUB_ID_RE = /^c[a-z0-9]{4,24}$/;
 var CUSTOM_SUB_MAX = 100;
 
@@ -184,20 +200,26 @@ var CUSTOM_SUB_MAX = 100;
 function subcategoriesFor(categoryId, custom) {
   const cat = String(categoryId || '');
   const builtins = (SUBCATEGORIES[cat] || []).map(s => ({
-    id: s.key, cat, custom: false,
+    id: s.key, cat, custom: false, mood: false,
     names: GENRE_LABELS[s.key] || { fr: s.fr, en: s.en },
     topicId: s.topicId, keywords: s.keywords || '',
     topicKeys: [s.key].concat(s.aliases || []), parent: null,
   }));
+  // Moods sit in Music only, after the genres; a custom subcategory cannot be
+  // based on one (sanitizeCustomSubcategories checks SUBCATEGORIES alone).
+  const moods = cat === '10' ? MUSIC_MOODS.map(m => ({
+    id: m.key, cat, custom: false, mood: true, names: { fr: m.fr, en: m.en },
+    topicId: null, keywords: m.keywords, topicKeys: [], parent: null,
+  })) : [];
   const mine = (Array.isArray(custom) ? custom : []).filter(c => c && c.cat === cat).map(c => {
     const base = builtins.find(b => b.id === c.parent) || null;
     return {
-      id: c.id, cat, custom: true, names: { fr: c.fr || '', en: c.en || '' },
+      id: c.id, cat, custom: true, mood: false, names: { fr: c.fr || '', en: c.en || '' },
       topicId: base ? base.topicId : null, keywords: c.keywords || '',
       topicKeys: base ? base.topicKeys : [], parent: base ? base.id : null,
     };
   });
-  return builtins.concat(mine);
+  return builtins.concat(moods, mine);
 }
 
 function findSubcategory(categoryId, id, custom) {

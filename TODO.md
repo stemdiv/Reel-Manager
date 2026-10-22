@@ -2,7 +2,7 @@
 
 State as of 2026-09-27: `main` at v1.27.57 (what GitHub Pages serves); branch `fix/category-cache` at v1.27.64, pushed,
 open as PR #11, not merged. tests.html: 496 cases, 494 passing (the 2 failures are the quota estimator's, see "To investigate").
-Backlogs: v6.8 of 2026-10-22 (items #85 to #99; #97 shipped in 1.28.0, #98 to build, #99 shipped in 1.28.2; next free number #100).
+Backlogs: v6.8 of 2026-10-22 (items #85 to #100; #97, #99 and #100 shipped on branches (1.28.0, 1.28.2, 1.29.0), #98 to build; next free number #101).
 Details for each finding: `08-remediation.md` in the audit report, kept outside this public repo
 (local folder `YouTube Playlist Manager - audits/2026-09/`).
 
@@ -55,6 +55,18 @@ Details for each finding: `08-remediation.md` in the audit report, kept outside 
   (42 tracks = 2,150 units). Try it first on a small bookmark (a few videos, a few hundred units). Check that the new
   playlist opens with all the videos, that it can be edited, and, if the box was unticked, that the bookmark is gone.
   Run `tests.html` focused: 525 passed, 0 failed on 2026-10-22 (6 new cases, `#99`).
+
+## To test before merging `feat/explore-music` (on top of `feat/bookmark-copy`)
+
+- [ ] 1.29.0 (#100), signed in:
+  - Trending: open the country menu; after the first load it should list about a hundred countries (1 unit, once a month).
+    Try a few far from the original 22 (Nigeria, Vietnam, Egypt…) with Music; some may answer "chart unavailable".
+  - Music subcategory menu: a Moods group (Détente, Concentration, Sport, Fête, Sommeil, Romance, Bonne humeur,
+    Mélancolie) under the genres, in Discover and Trending. Judge whether each mood's results feel right; the keywords
+    are in `shared/core.js` (MUSIC_MOODS) and easy to tune.
+  - Discover, "Nouveautés musique": one search, Music, most viewed of the last 7 days; then pick a genre or a mood and
+    press it again.
+  - Run `tests.html` focused: 536 passed, 0 failed on 2026-10-22 (11 new cases, `#100`).
 
 ## To test before merging `fix/category-cache`
 

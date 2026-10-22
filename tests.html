@@ -6263,6 +6263,142 @@ const SUITES = [
     }],
   ],
 },
+{
+  id: '#100', title: 'Explore music: every country, moods, new music',
+  note: 'YouTube Music\'s Explore has no API; these are the closest equivalents the Data API allows',
+  cases: [
+    ['eight moods sit in Music only, each with two names and one-word keywords', w => {
+      const moods = w.subcategoriesFor('10', []).filter(s => s.mood);
+      eq(moods.map(m => m.id), ['mood_chill', 'mood_focus', 'mood_workout', 'mood_party', 'mood_sleep', 'mood_romance', 'mood_feelgood', 'mood_sad'], 'moods');
+      ok(moods.every(m => m.names.fr && m.names.en && m.keywords && !/\s/.test(m.keywords) && m.topicId === null), 'a mood is malformed');
+      return eq([w.subcategoriesFor('17', []).filter(s => s.mood).length, w.subcategoriesFor('24', []).length], [0, 0], 'moods elsewhere');
+    }],
+
+    ['the menu shows moods in their own group, after the genres', w => {
+      const html = w.subcategoryOptionsHTML('10', '', []);
+      const groups = [...html.matchAll(/<optgroup label="([^"]*)">(.*?)<\/optgroup>/g)].map(m => [m[1], (m[2].match(/<option/g) || []).length]);
+      eq(groups.length, 2, 'groups: ' + JSON.stringify(groups));
+      eq(groups[0], ['YouTube', 15], 'genres');
+      ok(!/mood_/.test(html.split('</optgroup>')[0]), 'a mood among the genres');
+      return eq(groups[1][1], 8, 'moods');
+    }],
+
+    ['a custom subcategory cannot be based on a mood', w => {
+      const out = w.sanitizeCustomSubcategories([{ id: 'cmood001', cat: '10', fr: 'X', keywords: '', parent: 'mood_chill' },
+                                                  { id: 'cmood002', cat: '10', fr: 'Y', keywords: 'y', parent: 'mood_chill' }]);
+      return eq(out.map(c => [c.id, c.parent]), [['cmood002', null]]);
+    }],
+
+    ['Trending: a mood keeps the rows its words name, title or tags', w => {
+      const find = id => w.findSubcategory('10', id, []);
+      const row = (title, tags) => ({ topics: ['Music'], title, channelTitle: 'Chan', tags: tags || [] });
+      return eq([
+        w.trendingMatchesSubcategory(row('lofi hip hop radio - beats to relax/study to'), find('mood_chill')),
+        w.trendingMatchesSubcategory(row('Metallica - One'), find('mood_chill')),
+        w.trendingMatchesSubcategory(row('Artist - Title', ['dance', 'edm']), find('mood_party')),
+        w.trendingMatchesSubcategory(row('Adele - Someone Like You (Heartbreak Edition)'), find('mood_sad')),
+      ], [true, false, true, true]);
+    }],
+
+    ['Discover: a mood is a keyword search inside Music', w => {
+      const r = w.discoverQueryFor('', w.findSubcategory('10', 'mood_workout', []));
+      const p = w.buildDiscoverSearchParams({ query: r.q, categoryId: '10', topicId: r.topicId, maxResults: 50, order: 'relevance', lang: 'fr' });
+      return eq([p.q, p.videoCategoryId, p.topicId], ['workout|gym|training|running|cardio', '10', undefined]);
+    }],
+
+    ['countries: only real codes are kept from the API answer', w =>
+      eq(w.parseRegionCodes({ items: [{ id: 'FR', snippet: { gl: 'FR' } }, { snippet: { gl: 'NG' } }, { id: 'xx' }, { snippet: { gl: '<b>' } }, { id: 'FR' }, null] }), ['FR', 'NG'])],
+
+    ['countries: the cached list joins the short one, and goes stale after 30 days', w => {
+      const snap = snapshot(w, ['trendingRegions']);
+      try {
+        const now = Date.now();
+        w.localStorage.setItem('trendingRegions', JSON.stringify({ at: now - 2 * 86400000, codes: ['NG', 'VN', 'bad'] }));
+        const fresh = w.cachedRegionCodes(now);
+        const all = w.trendingRegionCodes();
+        eq([fresh.fresh, fresh.codes], [true, ['NG', 'VN']], 'fresh');
+        ok(all.includes('FR') && all.includes('NG') && all.includes('VN') && !all.includes('bad'), 'merged: ' + all.join(','));
+        eq(w.cachedRegionCodes(now + 31 * 86400000).fresh, false, 'stale after 30 days');
+        w.localStorage.setItem('trendingRegions', '{not json');
+        return eq(w.cachedRegionCodes(now), { codes: [], fresh: false }, 'unreadable');
+      } finally { restore(w, snap); }
+    }],
+
+    ['countries: no call with a fresh list; one call at most when two pages ask at once', async w => {
+      const snap = snapshot(w, ['trendingRegions']);
+      const real = w.ytApi;
+      let calls = 0;
+      try {
+        w.ytApi = async () => { calls++; return { items: [{ snippet: { gl: 'NG' } }, { snippet: { gl: 'VN' } }] }; };
+        w.localStorage.setItem('trendingRegions', JSON.stringify({ at: Date.now(), codes: ['NG'] }));
+        eq([await w.ensureTrendingRegions(), calls], [false, 0], 'fresh list');
+        w.localStorage.removeItem('trendingRegions');
+        const both = await Promise.all([w.ensureTrendingRegions(), w.ensureTrendingRegions()]);
+        // Signed out, nothing goes out; signed in, one call serves both.
+        ok(calls <= 1, 'calls: ' + calls);
+        if (calls === 1) {
+          eq(both, [true, true], 'both callers told');
+          eq(JSON.parse(w.localStorage.getItem('trendingRegions')).codes, ['NG', 'VN'], 'saved');
+        }
+        return calls ? 'one call, list saved' : 'signed out, no call';
+      } finally { w.ytApi = real; restore(w, snap); }
+    }],
+
+    ['New music: one search, Music, most viewed of the last 7 days, no words needed', async w => {
+      const q = seedQuota(w, { pool: 0, search: 0, upload: 0 });
+      const ls = snapshot(w, ['discoverFilters']);
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      const input = w.document.getElementById('discoverSearchInput');
+      const before = input.value;
+      const sent = [];
+      try {
+        input.value = '';
+        w.localStorage.setItem('discoverFilters', JSON.stringify({ discoverCategory: '17', discoverSubcategory: 'Tennis', discoverMaxResults: '10' }));
+        w.loadDiscoverFilters();
+        w.showToast = () => {};
+        w.ytApi = async (endpoint, params) => { sent.push({ endpoint, params }); return { items: [] }; };
+        await w.discoverNewReleases();
+        eq(sent.length, 1, 'calls');
+        const p = sent[0].params;
+        eq([sent[0].endpoint, 'q' in p, p.videoCategoryId, p.order, 'topicId' in p], ['search', false, '10', 'viewCount', false], 'request');
+        const days = (Date.now() - Date.parse(p.publishedAfter)) / 86400000;
+        ok(days > 6.9 && days < 7.1, 'publishedAfter: ' + p.publishedAfter);
+        return eq(JSON.parse(w.localStorage.getItem('discoverFilters')).discoverSubcategory, '', 'a Sports subcategory does not follow into Music');
+      } finally {
+        Object.assign(w, real);
+        input.value = before;
+        restore(w, ls); w.loadDiscoverFilters();
+        unseedQuota(w, q);
+      }
+    }],
+
+    ['New music keeps the genre or mood already picked in Music', async w => {
+      const q = seedQuota(w, { pool: 0, search: 0, upload: 0 });
+      const ls = snapshot(w, ['discoverFilters']);
+      const real = { ytApi: w.ytApi, showToast: w.showToast };
+      const input = w.document.getElementById('discoverSearchInput');
+      const before = input.value;
+      const sent = [];
+      try {
+        input.value = '';
+        w.localStorage.setItem('discoverFilters', JSON.stringify({ discoverCategory: '10', discoverSubcategory: 'mood_chill', discoverMaxResults: '10' }));
+        w.loadDiscoverFilters();
+        w.showToast = () => {};
+        w.ytApi = async (endpoint, params) => { sent.push(params); return { items: [] }; };
+        await w.discoverNewReleases();
+        return eq([sent.length, sent[0] && sent[0].q], [1, 'chill|chillout|lofi|lo-fi|relax|relaxing']);
+      } finally {
+        Object.assign(w, real);
+        input.value = before;
+        restore(w, ls); w.loadDiscoverFilters();
+        unseedQuota(w, q);
+      }
+    }],
+
+    ['the storage key is registered, so Delete my data removes it', w =>
+      eq(w.APP_STORAGE_KEYS.includes('trendingRegions'), true)],
+  ],
+},
 ];
 
 // AUD-05 — no angle bracket needed: one double quote closes title="" and the

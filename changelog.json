@@ -1,5 +1,23 @@
 [
  {
+  "v": "1.29.0",
+  "date": "2026-10-22",
+  "items": [
+   {
+    "fr": "Explorer la musique, sur le modèle de YouTube Music. Tendances propose désormais tous les pays servis par YouTube, et plus seulement 22 (liste chargée une fois par mois, 1 unité ; noms dans la langue de l'interface).",
+    "en": "Explore music, after YouTube Music. Trending now offers every country YouTube serves, not only 22 (list loaded once a month, 1 unit; names in the interface language)."
+   },
+   {
+    "fr": "Humeurs : sous la catégorie Musique, une rangée Humeurs (Détente, Concentration, Sport, Fête, Sommeil, Romance, Bonne humeur, Mélancolie) à côté des genres, dans Découvrir comme dans Tendances. YouTube n'expose aucune humeur : chacune est une recherche par mots-clés, approximative par nature.",
+    "en": "Moods: under the Music category, a Moods group (Chill, Focus, Workout, Party, Sleep, Romance, Feel good, Sad) next to the genres, in Discover and Trending alike. YouTube exposes no mood: each one is a keyword search, approximate by nature."
+   },
+   {
+    "fr": "Découvrir : un bouton « Nouveautés musique » cherche la musique la plus vue publiée ces 7 derniers jours, dans le genre ou l'humeur déjà choisis. YouTube Music sait quelles mises en ligne sont des sorties officielles, l'API ne le dit pas : c'est l'équivalent le plus proche. Même coût qu'une recherche.",
+    "en": "Discover: a \"New music\" button searches for the most viewed music published in the last 7 days, in the genre or mood already chosen. YouTube Music knows which uploads are official releases and the API does not say: this is the closest equivalent. Same cost as a search."
+   }
+  ]
+ },
+ {
   "v": "1.28.2",
   "date": "2026-10-22",
   "items": [
