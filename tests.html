@@ -5262,6 +5262,24 @@ const SUITES = [
       const wrong = titles.filter(title => !w.classifyVideoType({ title, categoryId: '10', durationSeconds: 240 }).isMusic);
       return eq(wrong, [], 'lost as music');
     }],
+    ['1.28.1 — two production-talk words make a lesson, or one in an Education upload', w => {
+      const music10 = ['Ableton Automation Tricks', '12 Must Known Arrangement Techniques', 'INSANE Ableton Tricks Only 10% Users Know',
+        'Techno producers are gonna HATE me for this + FREE ABLETON RACK DOWNLOAD', 'Les secrets des harmoniques en mixage audio : la clé d’un son pro',
+        'TECHNIQUE SECRÈTE ABLETON : TRANSFORMER VOS SAMPLES AVEC DRUM RACK & ARPEGGIATOR'];
+      const education = ['Vocoder Chord Trick No One is Talking About', 'A Cheatcode for Better Arrangements: The Two Loop Rule',
+        'Martin Garrix In The Studio With Future Music', "92% des producteurs de musique n'ont pas compris ça !"];
+      const wrong = music10.filter(title => w.classifyVideoType({ title, categoryId: '10', durationSeconds: 600 }).type !== 'tutorial')
+        .concat(education.filter(title => w.classifyVideoType({ title, categoryId: '27', topicCategories: ['https://en.wikipedia.org/wiki/Electronic_music'], durationSeconds: 600 }).isMusic));
+      return eq(wrong, [], 'still read as music');
+    }],
+    ['1.28.1 — one such word in a song title stays music (artists use them too)', w => {
+      const titles = ['Cheap Trick - Surrender', 'OneRepublic - Secrets', 'Cheat Codes - No Promises (Official Video)', 'The Weeknd - Secrets',
+        'Hat Trick - Live at Paradiso', 'Jean-Michel Jarre - Oxygène Pt. 4', 'Depeche Mode - Policy Of Truth [DE SOFFER RmX 2023]'];
+      const wrong = titles.filter(title => !w.classifyVideoType({ title, categoryId: '10', durationSeconds: 240 }).isMusic);
+      return eq(wrong, [], 'lost as music');
+    }],
+    ['1.28.1 — a word and its plural count once', w =>
+      eq([w.tutorialWeakCount('Trick or tricks'), w.tutorialWeakCount('Technique, techniques'), w.tutorialWeakCount('Synth tricks'), w.tutorialWeakCount('')], [1, 1, 2, 0])],
     ['tags: one tutorial tag is a hint, two decide', w => {
       const v = tags => ({ title: 'Rolling Bass', categoryId: '10', durationSeconds: 300, tags });
       eq(w.classifyVideoType(v(['psytrance tutorial', 'goa'])).isMusic, true, 'one tag');

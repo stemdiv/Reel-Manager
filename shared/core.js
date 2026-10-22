@@ -416,7 +416,22 @@ var TUTORIAL_STRONG_RE = wordsRe([
   'making (?:a|an|my|the) (?:\\S+ ){0,2}(?:beats?|tracks?|songs?|tunes?|remix|melod(?:y|ies)|basslines?|leads?|kicks?)',
 ].join('|'));
 // Tools, not lessons: a sign, not a verdict ("Ableton live set" is music).
-var TUTORIAL_WEAK_RE = wordsRe('ableton|fl studio|logic pro|bitwig|cubase|pro tools|presets?|plugins?|vsts?|daw|sample packs?');
+// 1.28.1: also the words lessons are titled with but songs use too ("Cheap
+// Trick", "Secrets", "Cheat Codes"). One of them is still only a sign; two
+// different ones in a title, or one in an Education/Howto/Science upload,
+// make a tutorial ("Ableton Automation Tricks", "12 Arrangement Techniques").
+var TUTORIAL_WEAK_RE = wordsRe([
+  'ableton|fl studio|logic pro|bitwig|cubase|pro tools|presets?|plugins?|vsts?|daw|sample packs?',
+  'tricks?|trucs?|techniques?|secrets?|secr[eè]tes?|cheat ?codes?|hacks?|arrangements?|in the studio',
+  'producers?|producteurs?|productions?|mixage|synths?|synth[ée]s?|synth[ée]tiseurs?|patch(?:es|s)?|tip',
+].join('|'));
+
+/** How many different tool / production-talk words a text holds. */
+function tutorialWeakCount(text) {
+  const all = String(text || '').matchAll(new RegExp(TUTORIAL_WEAK_RE.source, 'giu'));
+  // "Trick" and "tricks", "technique" and "techniques" are one word, not two.
+  return new Set([...all].map(m => m[0].toLowerCase().replace(/\s+/g, ' ').replace(/s$/, '').replace(/e$/, ''))).size;
+}
 var TUTORIAL_DESC_RE = wordsRe([
   'in this (?:video|tutorial|lesson|course|episode)', 'dans (?:cette|ce) (?:vidéo|tuto|tutoriel|cours)',
   'project files?', 'fichiers? (?:du )?projet', 'download (?:the )?(?:project|presets?|samples?)',
@@ -431,6 +446,7 @@ var HOWTO_CATEGORIES = ['26', '27', '28'];   // Howto & Style, Education, Scienc
 var TUTORIAL_SIGNALS = {
   titleStrong: 1.0,
   titleWeak: 0.6,
+  titleWeakPair: 1.0,   // two different tool / production-talk words
   tagsStrong: 0.6,
   tagsManyStrong: 1.0,
   tagsWeak: 0.3,
@@ -448,7 +464,11 @@ function tutorialScore(v) {
   const desc = String(v.description || '');
   let score = 0;
   if (TUTORIAL_STRONG_RE.test(title)) score += TUTORIAL_SIGNALS.titleStrong;
-  else if (TUTORIAL_WEAK_RE.test(title)) score += TUTORIAL_SIGNALS.titleWeak;
+  else {
+    const weak = tutorialWeakCount(title);
+    if (weak >= 2) score += TUTORIAL_SIGNALS.titleWeakPair;
+    else if (weak === 1) score += TUTORIAL_SIGNALS.titleWeak;
+  }
   // One stray tag proves little; tutorials tag themselves several times over.
   const strongTags = tags.filter(tg => TUTORIAL_STRONG_RE.test(tg)).length;
   if (strongTags >= 2) score += TUTORIAL_SIGNALS.tagsManyStrong;

@@ -1,5 +1,15 @@
 [
  {
+  "v": "1.28.1",
+  "date": "2026-10-22",
+  "items": [
+   {
+    "fr": "Détection des tutoriels : de nouveaux mots de production rejoignent la liste des indices (tricks, techniques, secrets, cheat code, hacks, arrangement, « in the studio », producers, production, mixage, synthé, patch, tip…). Un seul reste un indice, car des artistes les portent aussi (Cheap Trick, OneRepublic - Secrets, Cheat Codes) ; deux dans un même titre, ou un seul dans une vidéo Éducation, Vie pratique ou Science, en font un tutoriel. Sur une bibliothèque réelle, 79 vidéos de production classées à tort en musique ne le sont plus, sans qu'aucune chanson ne soit perdue.",
+    "en": "Tutorial detection: new production words join the list of hints (tricks, techniques, secrets, cheat code, hacks, arrangement, \"in the studio\", producers, production, mixage, synth, patch, tip…). One alone is still only a hint, since artists use them too (Cheap Trick, OneRepublic - Secrets, Cheat Codes); two in one title, or one in an Education, Howto or Science upload, make a tutorial. On a real library, 79 production videos wrongly filed as music no longer are, and no song is lost."
+   }
+  ]
+ },
+ {
   "v": "1.28.0",
   "date": "2026-10-21",
   "items": [
